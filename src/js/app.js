@@ -11,6 +11,7 @@ import { renderCalendar } from './views/calendar.js';
 import { renderTopic } from './views/topic.js';
 import { renderRecords } from './views/records.js';
 import { renderInsights } from './views/insights.js';
+import { renderCoop } from './views/coop.js';
 
 const app = document.getElementById('app');
 
@@ -68,6 +69,7 @@ function render() {
     topic: renderTopic,
     records: renderRecords,
     insights: renderInsights,
+    coop: renderCoop,
     onboard: renderOnboard,
   };
   const viewFn = views[route.name] || renderDashboard;
