@@ -30,14 +30,32 @@ function todayKey() {
 
 export function renderCoop(params, { navigate }) {
   const root = el(`<div class="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-up"></div>`);
-  root.appendChild(el(`<div class="mb-6">
+  root.appendChild(el(`<div class="mb-5">
     <h1 class="font-display text-2xl sm:text-3xl font-600">Commune</h1>
     <p class="text-ink-soft text-sm mt-1 max-w-2xl">Share teaching duties with other families. Everyone keeps their own private data. The only thing shared is the day's focus for a child you approve, so a covering parent knows exactly what and how to teach.</p>
   </div>`));
+  root.appendChild(howItWorks());
   const body = el(`<div id="coop-body"></div>`);
   root.appendChild(body);
   load(body);
   return root;
+}
+
+// Always-visible 3-step explainer so the flow is clear at a glance.
+function howItWorks() {
+  const stepCard = (n, icon, title, desc) => `<div class="bg-paper-card border border-paper-line rounded-xl p-3.5">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="w-5 h-5 rounded-full bg-brand text-white text-[11px] font-700 flex items-center justify-center shrink-0">${n}</span>
+      <i data-lucide="${icon}" class="w-4 h-4 text-brand-dark"></i>
+      <span class="font-600 text-sm">${title}</span>
+    </div>
+    <p class="text-xs text-ink-soft leading-relaxed">${desc}</p>
+  </div>`;
+  return el(`<div class="grid sm:grid-cols-3 gap-2.5 mb-6">
+    ${stepCard(1, 'users', 'Create or join', 'Start a commune and invite families, or join with a code.')}
+    ${stepCard(2, 'send', 'Share a day', "Pick a child, the day, and the topics to share. Add a note if you like.")}
+    ${stepCard(3, 'printer', 'Cover &amp; print', 'Teach any shared topic, or print one Day Sheet for every child you cover.')}
+  </div>`);
 }
 
 function loadingInto(body, msg) {

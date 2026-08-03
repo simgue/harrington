@@ -33,6 +33,11 @@ teaching one or more children.
   real progress.
 - **Gamified for kids** — XP, levels, collectible badges, celebration effects,
   and a colorful full-screen **Kid Mode**.
+- **Commune (shared teaching)** — team up with other families in a private
+  “commune,” approve and share what a child is working on for a given day, and
+  cover each other's kids with a one-tap printable Day Sheet. Only the day's
+  topics and an optional note are shared; each family's data stays in their own
+  account.
 - **Insights & notifications**, a **streak tracker**, and a **downloadable guide**.
 
 ## Research-Backed Evidence
@@ -80,6 +85,32 @@ classroom effect aren't always the same size.
   did not reach significance for those students — see [Retrieval practice
   enhances learning in real primary school settings, whether distributed or
   not](https://pmc.ncbi.nlm.nih.gov/articles/PMC12372469/).
+
+## Commune — shared teaching
+
+Homeschooling parents often share teaching duties. **Commune** lets a small
+group of families do that inside Homestead without giving up their privacy.
+
+**How to use it (in the app):**
+
+1. **Open the Commune tab** and either create a commune or join one with an
+   invite code another family shares.
+2. **Share a child's day.** For a day another parent is covering your child,
+   choose “Share today's focus,” pick the child, the date, and the topics they
+   should work on, add an optional note, and share it with the commune.
+3. **Cover and teach.** When you're covering, the “Covering today” section shows
+   each child shared with you. Choose **Teach** on a topic for the full lesson,
+   or **Print day sheet** for one packet covering every child you have that day —
+   lessons, activities, resources, and the sharing parent's note.
+
+**What stays private:** only the topics a parent explicitly approves for that day
+(plus an optional note) are ever shared. Progress, mastery, records, and
+recordings never leave a family's own account. The covering parent's app rebuilds
+each lesson locally from the shared topic, so *what and how to teach* is available
+without ever exposing how the child is actually doing.
+
+Commune runs on a [Puter](https://puter.com) serverless worker that stores only
+commune membership and the opt-in daily cards — never any family's learning data.
 
 ## Tech
 
