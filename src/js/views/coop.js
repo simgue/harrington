@@ -1,10 +1,14 @@
-// Co-op view: manage a learning "pod" of families who share teaching duties,
-// and share a child's "Today focus" with the parent covering them that day.
+// Commune view: manage a learning "commune" of families who share teaching
+// duties, and share a child's "Today focus" with the parent covering them that
+// day.
 //
 // Privacy: this screen only ever sends topic references + an optional note to
 // the broker (via src/js/coop.js). A family's progress, records, and mastery
 // never leave their own account. The covering parent reconstructs the actual
 // lesson/activities locally from the shared topic ids.
+//
+// (Internal identifiers still say "pod"/"coop" — the deployed broker's API and
+// storage use those names. Only the user-facing wording is "commune".)
 
 import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';
@@ -20,8 +24,8 @@ function todayKey() {
 export function renderCoop(params, { navigate }) {
   const root = el(`<div class="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-up"></div>`);
   root.appendChild(el(`<div class="mb-6">
-    <h1 class="font-display text-2xl sm:text-3xl font-600">Co-op</h1>
-    <p class="text-ink-soft text-sm mt-1 max-w-2xl">Share teaching duties with other families. Everyone keeps their own private data — the only thing shared is the day's focus for a child you approve, so a covering parent knows exactly what and how to teach.</p>
+    <h1 class="font-display text-2xl sm:text-3xl font-600">Commune</h1>
+    <p class="text-ink-soft text-sm mt-1 max-w-2xl">Share teaching duties with other families. Everyone keeps their own private data. The only thing shared is the day's focus for a child you approve, so a covering parent knows exactly what and how to teach.</p>
   </div>`));
   const body = el(`<div id="coop-body"></div>`);
   root.appendChild(body);
@@ -35,13 +39,13 @@ function loadingInto(body, msg) {
 }
 
 async function load(body) {
-  loadingInto(body, 'Loading your pods…');
+  loadingInto(body, 'Loading your communes…');
   let data;
   try {
     data = await coop.myPods();
   } catch (e) {
     body.innerHTML = '';
-    body.appendChild(errorBlock(e.message || 'Could not reach the co-op service.', () => load(body)));
+    body.appendChild(errorBlock(e.message || 'Could not reach the commune service.', () => load(body)));
     refreshIcons();
     return;
   }
@@ -63,10 +67,10 @@ async function load(body) {
 function startCard(body) {
   const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-6">
     <div class="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center mb-4"><i data-lucide="users" class="w-5.5 h-5.5 text-brand-dark"></i></div>
-    <h2 class="font-600 text-lg mb-1">Start or join a pod</h2>
-    <p class="text-sm text-ink-soft mb-5 max-w-lg">A pod is a small group of families who teach together. Create one and invite others, or join with a code someone shared.</p>
+    <h2 class="font-600 text-lg mb-1">Start or join a commune</h2>
+    <p class="text-sm text-ink-soft mb-5 max-w-lg">A commune is a small group of families who teach together. Create one and invite others, or join with a code someone shared.</p>
     <div class="grid sm:grid-cols-2 gap-3">
-      <button id="create" class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="plus" class="w-4 h-4"></i>Create a pod</button>
+      <button id="create" class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="plus" class="w-4 h-4"></i>Create a commune</button>
       <button id="join" class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-paper-card border border-paper-line font-medium hover:border-brand/40 transition-colors"><i data-lucide="log-in" class="w-4 h-4"></i>Join with a code</button>
     </div>
   </div>`);
@@ -76,7 +80,7 @@ function startCard(body) {
 }
 
 function joinLink(body) {
-  const wrap = el(`<div class="text-center mt-2 mb-6"><button id="j" class="text-sm font-medium text-brand-dark hover:underline">+ Join another pod with a code</button></div>`);
+  const wrap = el(`<div class="text-center mt-2 mb-6"><button id="j" class="text-sm font-medium text-brand-dark hover:underline">+ Join another commune with a code</button></div>`);
   wrap.querySelector('#j').onclick = () => openJoinPod(body);
   return wrap;
 }
@@ -87,17 +91,17 @@ function defaultParentName() {
 
 function openCreatePod(body) {
   const form = el(`<div class="p-5">
-    <h3 class="font-display text-lg font-600 mb-4">Create a pod</h3>
+    <h3 class="font-display text-lg font-600 mb-4">Create a commune</h3>
     <form id="f" class="space-y-4">
       <div>
-        <label class="text-sm font-medium block mb-1.5">Pod name</label>
-        <input name="name" required placeholder="e.g. Oak Street Co-op" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+        <label class="text-sm font-medium block mb-1.5">Commune name</label>
+        <input name="name" required placeholder="e.g. Oak Street Commune" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
       </div>
       <div>
         <label class="text-sm font-medium block mb-1.5">Your name (shown to other families)</label>
         <input name="displayName" required value="${esc(defaultParentName())}" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
       </div>
-      <button id="go" class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Create pod</button>
+      <button id="go" class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Create commune</button>
     </form>
   </div>`);
   const m = openModal(form);
@@ -108,17 +112,17 @@ function openCreatePod(body) {
     btn.disabled = true; btn.textContent = 'Creating…';
     try {
       await coop.createPod(fd.get('name').trim(), fd.get('displayName').trim());
-      m.close(); toast('Pod created', 'success'); load(body);
+      m.close(); toast('Commune created', 'success'); load(body);
     } catch (err) {
-      btn.disabled = false; btn.textContent = 'Create pod';
-      toast(err.message || 'Could not create pod', 'error');
+      btn.disabled = false; btn.textContent = 'Create commune';
+      toast(err.message || 'Could not create commune', 'error');
     }
   };
 }
 
 function openJoinPod(body) {
   const form = el(`<div class="p-5">
-    <h3 class="font-display text-lg font-600 mb-4">Join a pod</h3>
+    <h3 class="font-display text-lg font-600 mb-4">Join a commune</h3>
     <form id="f" class="space-y-4">
       <div>
         <label class="text-sm font-medium block mb-1.5">Invite code</label>
@@ -128,7 +132,7 @@ function openJoinPod(body) {
         <label class="text-sm font-medium block mb-1.5">Your name (shown to other families)</label>
         <input name="displayName" required value="${esc(defaultParentName())}" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
       </div>
-      <button id="go" class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Join pod</button>
+      <button id="go" class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Join commune</button>
     </form>
   </div>`);
   const m = openModal(form);
@@ -139,15 +143,15 @@ function openJoinPod(body) {
     btn.disabled = true; btn.textContent = 'Joining…';
     try {
       await coop.joinPod(fd.get('inviteCode').trim(), fd.get('displayName').trim());
-      m.close(); toast('Joined pod', 'success'); load(body);
+      m.close(); toast('Joined commune', 'success'); load(body);
     } catch (err) {
-      btn.disabled = false; btn.textContent = 'Join pod';
-      toast(err.message || 'Could not join pod', 'error');
+      btn.disabled = false; btn.textContent = 'Join commune';
+      toast(err.message || 'Could not join commune', 'error');
     }
   };
 }
 
-// --- pod card ---------------------------------------------------------------
+// --- commune card -----------------------------------------------------------
 
 function podCard(pod, me, body) {
   const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 mb-4">
@@ -228,7 +232,7 @@ function openShare(pod, body) {
         <label class="text-sm font-medium block mb-1.5">Note for the covering parent (optional)</label>
         <textarea name="note" rows="2" placeholder="e.g. Go slow on regrouping; Sam finds it tricky." class="w-full px-3 py-2.5 rounded-lg border border-paper-line bg-paper text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"></textarea>
       </div>
-      <button id="go" type="submit" class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors disabled:opacity-50">Share with the pod</button>
+      <button id="go" type="submit" class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors disabled:opacity-50">Share with the commune</button>
     </form>
   </div>`);
 
@@ -286,10 +290,10 @@ function openShare(pod, body) {
         sharedWith: 'pod',
       });
       m.close();
-      toast('Shared with the pod', 'success');
+      toast('Shared with the commune', 'success');
       load(body);
     } catch (err) {
-      btn.disabled = false; btn.textContent = 'Share with the pod';
+      btn.disabled = false; btn.textContent = 'Share with the commune';
       toast(err.message || 'Could not share', 'error');
     }
   };

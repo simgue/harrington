@@ -129,7 +129,7 @@ router.post('/pod/join', async ({ request, user }) => {
   const podId = await me.puter.kv.get(K.invite(code));
   if (!podId) return bad('Invalid invite code.', 404);
   const pod = await loadPod(podId);
-  if (!pod) return bad('Pod not found.', 404);
+  if (!pod) return bad('Commune not found.', 404);
 
   pod.members[caller.uuid] = displayName;
   await savePod(pod);
@@ -164,7 +164,7 @@ router.post('/card/share', async ({ request, user }) => {
   if (!podId) return bad('podId required.');
 
   const pod = await loadPod(podId);
-  if (!pod || !pod.members || !pod.members[caller.uuid]) return bad('Not a member of this pod.', 403);
+  if (!pod || !pod.members || !pod.members[caller.uuid]) return bad('Not a member of this commune.', 403);
 
   const childDisplayName = clampStr(body.childDisplayName, 60);
   const date = clampStr(body.date, 10); // YYYY-MM-DD

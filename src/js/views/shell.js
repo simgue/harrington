@@ -9,7 +9,7 @@ const NAV = [
   { name: 'timeline', label: 'Timeline', icon: 'git-branch' },
   { name: 'records', label: 'Records', icon: 'notebook-pen' },
   { name: 'insights', label: 'Insights', icon: 'sparkles' },
-  { name: 'coop', label: 'Co-op', icon: 'users' },
+  { name: 'coop', label: 'Commune', icon: 'users' },
 ];
 
 export function renderShell({ route, navigate, content }) {

@@ -22,7 +22,7 @@ async function call(path, { method = 'GET', body = null } = {}) {
   let data = null;
   try { data = await res.json(); } catch {}
   if (!res.ok) {
-    throw new Error((data && data.error) || `Co-op request failed (${res.status})`);
+    throw new Error((data && data.error) || `Commune request failed (${res.status})`);
   }
   return data;
 }
