@@ -9,6 +9,7 @@ const NAV = [
   { name: 'timeline', label: 'Timeline', icon: 'git-branch' },
   { name: 'records', label: 'Records', icon: 'notebook-pen' },
   { name: 'insights', label: 'Insights', icon: 'sparkles' },
+  { name: 'coop', label: 'Commune', icon: 'users' },
 ];
 
 export function renderShell({ route, navigate, content }) {
@@ -69,7 +70,7 @@ export function renderShell({ route, navigate, content }) {
   top.querySelector('#mob-student').appendChild(studentSwitcher(navigate, true));
 
   // Bottom nav (mobile)
-  const bottom = el(`<nav class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-paper-card/95 backdrop-blur border-t border-paper-line grid grid-cols-5"></nav>`);
+  const bottom = el(`<nav class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-paper-card/95 backdrop-blur border-t border-paper-line grid grid-cols-6"></nav>`);
   NAV.forEach(item => {
     const b = el(`<button class="flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium ${route.name === item.name ? 'text-brand-dark' : 'text-ink-faint'}">
       <i data-lucide="${item.icon}" class="w-5 h-5"></i>${item.label}</button>`);
