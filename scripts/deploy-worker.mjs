@@ -42,7 +42,11 @@ async function main() {
     console.log(`Worker "${WORKER_NAME}" already existed; source overwritten (redeployed).`);
     console.log(`URL: ${existing.url || `https://${WORKER_NAME}.puter.work`}`);
   } else {
-    const deployment = await puter.workers.create(WORKER_NAME, REMOTE_PATH);
+    // sandbox:false runs the worker under the deploying identity instead of
+    // minting a new sandbox app. Tokens without dev-account/app-creation rights
+    // cannot mint a new app ("Actor cannot mint a token for another app"), so
+    // the default sandbox:true fails for them; sandbox:false avoids that.
+    const deployment = await puter.workers.create(WORKER_NAME, REMOTE_PATH, { sandbox: false });
     console.log(`Deployed worker "${WORKER_NAME}".`);
     console.log(`URL: ${deployment.url || `https://${WORKER_NAME}.puter.work`}`);
   }
