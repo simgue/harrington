@@ -14,6 +14,13 @@ import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, refreshIcons, toast, openModal } from '../ui.js';
 import * as coop from '../coop.js';
+import { openLesson } from './lesson.js';
+import { printDaySheet, printChildSheet } from './daysheet.js';
+
+function friendlyToday() {
+  try { return new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }); }
+  catch { return todayKey(); }
+}
 
 function esc(s) { return String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 function todayKey() {
@@ -303,10 +310,14 @@ function openShare(pod, body) {
 
 function coveringSection() {
   const wrap = el(`<div class="mt-6">
-    <h2 class="font-600 mb-3 flex items-center gap-2"><i data-lucide="hand-helping" class="w-4.5 h-4.5 text-brand-dark"></i>Covering today</h2>
+    <div class="flex items-center justify-between gap-2 mb-3">
+      <h2 class="font-600 flex items-center gap-2"><i data-lucide="hand-helping" class="w-4.5 h-4.5 text-brand-dark"></i>Covering today</h2>
+      <button id="printall" class="hidden items-center gap-1.5 text-sm font-medium text-brand-dark hover:underline"><i data-lucide="printer" class="w-4 h-4"></i>Print day sheet</button>
+    </div>
     <div id="cov"></div>
   </div>`);
   const cov = wrap.querySelector('#cov');
+  const printAll = wrap.querySelector('#printall');
   cov.innerHTML = `<p class="text-sm text-ink-faint">Loading…</p>`;
   (async () => {
     let cards = [];
@@ -316,19 +327,36 @@ function coveringSection() {
       cov.innerHTML = `<div class="bg-paper-card border border-paper-line rounded-2xl p-5 text-sm text-ink-soft">Nothing shared with you for today yet. When another parent shares a child's focus, it appears here so you know what to teach.</div>`;
       return;
     }
+    const dateLabel = friendlyToday();
+    printAll.classList.remove('hidden');
+    printAll.classList.add('flex');
+    printAll.onclick = () => printDaySheet(cards, dateLabel);
+
     const d = getData();
     cov.innerHTML = '';
     cards.forEach((card) => {
-      const topics = (card.topicIds || []).map((id) => d.byId.get(id)?.name || id);
-      const el2 = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-4 mb-3">
+      const topics = (card.topicIds || []).map((id) => d.byId.get(id)).filter(Boolean);
+      const cardEl = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-4 mb-3">
         <div class="flex items-center justify-between gap-2 mb-1">
           <p class="font-600">${esc(card.childDisplayName)} <span class="text-ink-faint font-normal">· ${esc(card.subject || '')}</span></p>
           <span class="text-xs text-ink-faint">from ${esc(card.ownerName || 'a parent')}</span>
         </div>
-        <p class="text-sm text-ink-soft">${topics.length ? esc(topics.join(', ')) : 'No topics listed'}</p>
+        <p class="text-sm text-ink-soft">${topics.length ? esc(topics.map((t) => t.name).join(', ')) : 'No topics listed'}</p>
         ${card.note ? `<p class="text-sm mt-2 rounded-lg bg-brand-light/40 border border-brand/20 p-2.5"><span class="font-600">Note:</span> ${esc(card.note)}</p>` : ''}
+        <div class="teach flex flex-wrap gap-2 mt-3"></div>
       </div>`);
-      cov.appendChild(el2);
+      const teach = cardEl.querySelector('.teach');
+      topics.forEach((topic) => {
+        const b = el(`<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-paper-line text-sm font-medium hover:border-brand/40 transition-colors"><i data-lucide="notebook-text" class="w-3.5 h-3.5"></i>Teach: ${esc(topic.name)}</button>`);
+        b.onclick = () => openLesson(topic, card.childDisplayName);
+        teach.appendChild(b);
+      });
+      if (topics.length) {
+        const p = el(`<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand/10 text-brand-dark text-sm font-medium hover:bg-brand/20 transition-colors"><i data-lucide="printer" class="w-3.5 h-3.5"></i>Print ${esc(card.childDisplayName)}'s sheet</button>`);
+        p.onclick = () => printChildSheet(card, dateLabel);
+        teach.appendChild(p);
+      }
+      cov.appendChild(cardEl);
     });
     refreshIcons();
   })();

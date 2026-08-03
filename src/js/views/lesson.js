@@ -5,8 +5,9 @@ import { aiLesson, aiActivityDetail } from '../ai.js';
 import { openPrintables } from './printables.js';
 
 // ---- Full lesson plan modal ----
-export async function openLesson(topic) {
+export async function openLesson(topic, childName) {
   const student = store.activeStudent();
+  const learner = childName || student?.name;
   const body = el(`<div class="p-0">
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
       <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${SUBJECTS[topic.subject].color}18"><i data-lucide="notebook-text" class="w-5 h-5" style="color:${SUBJECTS[topic.subject].color}"></i></span>
@@ -36,7 +37,7 @@ export async function openLesson(topic) {
     stage.appendChild(loadingBlock('Writing a fresh version\u2026', ''));
     refreshIcons();
     try {
-      const fresh = await aiLesson(topic, student?.name);
+      const fresh = await aiLesson(topic, learner);
       await store.saveCachedLesson(cacheId, fresh);
       currentLesson = fresh;
       stage.innerHTML = '';
@@ -48,7 +49,7 @@ export async function openLesson(topic) {
   try {
     let lesson = await store.getCachedLesson(cacheId);
     if (!lesson) {
-      lesson = await aiLesson(topic, student?.name);
+      lesson = await aiLesson(topic, learner);
       await store.saveCachedLesson(cacheId, lesson);
     }
     currentLesson = lesson;
