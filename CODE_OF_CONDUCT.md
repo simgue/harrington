@@ -2,7 +2,7 @@
 
 ## Our pledge
 
-We want Homestead to be a welcoming, friendly, and harassment-free project for
+We want Harrington to be a welcoming, friendly, and harassment-free project for
 everyone — regardless of age, experience, background, or identity.
 
 ## Our standards

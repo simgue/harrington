@@ -1,5 +1,5 @@
 // Detects when the upstream Marble taxonomy repo has changed since the parent
-// last used Homestead, and raises notifications. The curriculum data itself is
+// last used Harrington, and raises notifications. The curriculum data itself is
 // ALWAYS the latest (it's fetched fresh from the repo's @main on every load);
 // this only surfaces *what* changed so the parent knows.
 import { getData, SUBJECTS } from './data.js';
@@ -34,7 +34,7 @@ export function syncCurriculum() {
       store.addNotification({
         type: 'welcome',
         title: 'Your curriculum stays up to date',
-        body: `Homestead is loaded with ${next.count.toLocaleString()} topics (${next.version}) and refreshes automatically from the open curriculum. When new material is added, you'll be notified right here.`,
+        body: `Harrington is loaded with ${next.count.toLocaleString()} topics (${next.version}) and refreshes automatically from the open curriculum. When new material is added, you'll be notified right here.`,
       });
     }
     return;

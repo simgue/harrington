@@ -11,7 +11,6 @@ import { openDueRecall } from './recall.js';
 import { openDuePractice } from './practice.js';
 import { setTimelineSubject } from './timeline.js';
 import { BADGES } from '../game.js';
-import { openKidMode } from './kidmode.js';
 
 export function renderDashboard(params, { navigate }) {
   const active = store.activeStudent();
@@ -59,7 +58,7 @@ export function renderDashboard(params, { navigate }) {
   // Streak tracker
   root.appendChild(streakCard(active));
 
-  // Level, XP & badges (+ Kid Mode launch)
+  // Parent-visible level, XP & badges summary
   root.appendChild(gameCard(active));
 
   // Overall progress ring + subject breakdown
@@ -300,11 +299,9 @@ function gameCard(student) {
         <div class="h-2 rounded-full bg-paper-line overflow-hidden"><div class="mbar h-full rounded-full bg-brand" style="width:${g.pct}%"></div></div>
         <p class="text-xs text-ink-faint mt-1">${g.xp.toLocaleString()} total XP · ${earnedCount} badge${earnedCount === 1 ? '' : 's'}</p>
       </div>
-      <button id="kid" class="shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors"><i data-lucide="gamepad-2" class="w-4 h-4"></i>Kid Mode</button>
     </div>
     <div id="badges" class="flex flex-wrap gap-2 mt-4"></div>
   </div>`);
-  card.querySelector('#kid').onclick = () => openKidMode();
 
   const bwrap = card.querySelector('#badges');
   BADGES.forEach(b => {

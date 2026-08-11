@@ -1,11 +1,11 @@
-// Deploys the Homestead co-op broker worker to Puter.
+// Deploys the Harrington co-op broker worker to Puter.
 //
 // Usage:  PUTER_AUTH_TOKEN=<token> node scripts/deploy-worker.mjs
 //   (generate a token at puter.com/dashboard -> Create token; the same token
 //    used for the site deploy works here.)
 //
 // Uploads workers/coop-broker.js into the Puter account's filesystem and
-// (re)deploys it as the "homestead-coop-broker" worker. A worker always serves
+// (re)deploys it as the "harrington-coop-broker" worker. A worker always serves
 // the current contents of its source file, so re-running this overwrites the
 // file and thereby redeploys. Safe to run repeatedly.
 
@@ -14,8 +14,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { init } from '@heyputer/puter.js/src/init.cjs';
 
-const WORKER_NAME = 'homestead-coop-broker';
-const REMOTE_PATH = 'homestead/coop-broker.js';
+const WORKER_NAME = 'harrington-coop-broker';
+const REMOTE_PATH = 'harrington/coop-broker.js';
 
 const token = process.env.PUTER_AUTH_TOKEN;
 if (!token) {

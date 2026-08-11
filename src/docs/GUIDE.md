@@ -1,6 +1,6 @@
-# Homestead — Complete Feature Guide
+# Harrington — Complete Feature Guide
 
-**Homestead** is a mastery-based homeschool platform. It turns an open, connected curriculum of ~1,590 micro-topics (the [Marble Skill Taxonomy](https://github.com/withmarbleapp/os-taxonomy)) into a clear learning path from **age 5 to 13**, where every idea must be genuinely mastered before the next one begins — and the whole experience adapts to your child.
+**Harrington** is a mastery-based homeschool platform. It turns an open, connected curriculum of ~1,590 micro-topics (the [Marble Skill Taxonomy](https://github.com/withmarbleapp/os-taxonomy)) into a clear learning path from **age 5 to 13**, where every idea must be genuinely mastered before the next one begins — and the whole experience adapts to your child.
 
 This guide explains everything the platform does and how to use it.
 
@@ -9,7 +9,7 @@ This guide explains everything the platform does and how to use it.
 ## Getting started
 
 1. **Sign in.** On the welcome screen, click **Sign in to begin**. Your students, progress, records, and recordings are saved privately to your own account (nothing is shared or public).
-2. **Add your first student.** Enter their name and birth year. Homestead uses the birth year to place them on the age 5–13 timeline and to build their day-by-day calendar.
+2. **Add your first student.** Enter their name and birth year. Harrington uses the birth year to place them on the age 5–13 timeline and to build their day-by-day calendar.
 3. **You're in.** You land on the Dashboard. Use the left sidebar (or the bottom bar on mobile) to move between the five areas: **Dashboard, Calendar, Timeline, Records, Insights**.
 
 You can add more students anytime and switch between them from the student selector at the top of the sidebar.
@@ -18,7 +18,7 @@ You can add more students anytime and switch between them from the student selec
 
 ## The core idea: the mastery ladder
 
-Learning in Homestead is gated so nothing is skipped:
+Learning in Harrington is gated so nothing is skipped:
 
 - **Topic** — a single teachable idea (e.g. "One-to-one counting"). Pass its **topic mastery test** (90%+) and it's marked *mastered*.
 - **Section** — a group of related topics within an age band (e.g. "Counting & Cardinality · Age 5"). Once **every topic** in a section is mastered, its **section check** unlocks. Pass it to unlock the next section.
@@ -34,7 +34,7 @@ Your home base and daily snapshot.
 
 - **Greeting + overall mastery ring** — the percentage of all topics mastered.
 - **Work on next** — the best topics to tackle now, chosen by the mastery ladder and your child's age.
-- **Adaptive suggestion nudge** — appears when your child is excelling and Homestead proposes making an area harder (you approve it in Insights).
+- **Adaptive suggestion nudge** — appears when your child is excelling and Harrington proposes making an area harder (you approve it in Insights).
 - **Today** — the topics scheduled for today from the calendar, plus a one-tap **refresher quiz**.
 - **Subjects grid** — mastery progress for each of the eight subjects.
 - **Recent progress** and **Latest records** — quick activity feeds.
@@ -85,9 +85,9 @@ Generated lessons and printables are **saved and reused**, so they load instantl
 ## Tests & mastery
 
 - **Every topic, section, and subject has its own test.** Passing a topic test (90%+) is what marks the topic mastered.
-- **Two formats** — Homestead recommends the best one per subject, and you can switch:
+- **Two formats** — Harrington recommends the best one per subject, and you can switch:
   - **On screen (digital)** — multiple-choice, auto-graded instantly, with an answer review.
-  - **On paper / hands-on (physical)** — print the test with an answer key, or observe hands-on tasks, then tick what was correct and Homestead scores it.
+  - **On paper / hands-on (physical)** — print the test with an answer key, or observe hands-on tasks, then tick what was correct and Harrington scores it.
 - **Answers are verified.** Questions are written by a strong AI model, then a **second, independent AI pass re-solves every question** and throws out anything ambiguous or wrong. Numeric answers are re-checked by a built-in calculator. Digital questions are all multiple-choice for fair, exact grading.
 - **Results are saved** per student, and passing the subject capstone offers a **printable certificate**.
 
@@ -106,7 +106,7 @@ After a topic is mastered, a **"Try the challenge quiz"** option appears (on the
 
 ## Adaptivity — the platform adapts to your child
 
-This is central to Homestead. When your child **excels** (e.g. aces a challenge quickly), Homestead creates an **adaptive suggestion** to pitch that area harder.
+This is central to Harrington. When your child **excels** (e.g. aces a challenge quickly), Harrington creates an **adaptive suggestion** to pitch that area harder.
 
 - You see suggestions on the **dashboard nudge** and under **Insights → Adaptive suggestions**.
 - **You are always in control** — approve or decline any suggestion. Nothing changes on its own.
@@ -136,7 +136,7 @@ Keep a running log of your child's learning.
 
 - **New record** — log an **observation**, **question**, **discussion**, or **assessment**, optionally linked to a topic, with a title, notes, and a confidence rating.
 - **Record (voice)** — capture a lesson conversation. While recording, a **live transcript** appears on screen. Save it with a title, optional notes, and a linked topic; the audio is stored privately and plays back inline.
-- **Analyze & get advice** — on any recording or discussion, Homestead reads the transcript (or your notes) and gives the **parent** targeted coaching: what the child seems to understand, **where and why** they're misunderstanding, how to approach the topic next, and a warm phrase to try. You can save the advice back into records.
+- **Analyze & get advice** — on any recording or discussion, Harrington reads the transcript (or your notes) and gives the **parent** targeted coaching: what the child seems to understand, **where and why** they're misunderstanding, how to approach the topic next, and a warm phrase to try. You can save the advice back into records.
 - **Filter** records by type, and open the linked topic from any record.
 
 ---

@@ -1,4 +1,4 @@
-// Homestead Co-op Broker — a Puter serverless worker.
+// Harrington Co-op Broker — a Puter serverless worker.
 //
 // This is a THIN broker for homeschool "pods" (families who share teaching
 // duties). It holds only:
@@ -19,13 +19,14 @@
 //                 read or written by this worker.
 
 const CARD_TTL_SECONDS = 60 * 60 * 48; // Today cards self-expire after ~2 days.
+const KV_PREFIX = 'harrington:coop';
 
 const K = {
-  pod: (id) => `coop:pod:${id}`,
-  invite: (code) => `coop:invite:${code}`,
-  userPods: (uuid) => `coop:userpods:${uuid}`,
-  card: (podId, cardId) => `coop:card:${podId}:${cardId}`,
-  cardPrefix: (podId) => `coop:card:${podId}:`,
+  pod: (id) => `${KV_PREFIX}:pod:${id}`,
+  invite: (code) => `${KV_PREFIX}:invite:${code}`,
+  userPods: (uuid) => `${KV_PREFIX}:userpods:${uuid}`,
+  card: (podId, cardId) => `${KV_PREFIX}:card:${podId}:${cardId}`,
+  cardPrefix: (podId) => `${KV_PREFIX}:card:${podId}:`,
 };
 
 function json(data, status = 200) {
@@ -225,6 +226,6 @@ router.get('/card/shared-to-me', async ({ request, user }) => {
 
 // --- misc -----------------------------------------------------------------
 
-router.get('/health', async () => json({ status: 'ok', service: 'homestead-coop-broker' }));
+router.get('/health', async () => json({ status: 'ok', service: 'harrington-coop-broker' }));
 
 router.get('/*rest', async ({ params }) => bad(`Not found: /${params.rest || ''}`, 404));

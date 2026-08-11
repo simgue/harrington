@@ -1,13 +1,13 @@
-# Contributing to Homestead
+# Contributing to Harrington
 
-Thanks for your interest in improving Homestead! Contributions of all kinds are
+Thanks for your interest in improving Harrington! Contributions of all kinds are
 welcome — bug fixes, features, docs, and design.
 
 ## Ground rules
 
 - By contributing, you agree your contributions are licensed under the
   **MIT License** (see [`LICENSE`](LICENSE)).
-- **Do not commit a copy of the curriculum dataset.** Homestead loads the
+- **Do not commit a copy of the curriculum dataset.** Harrington loads the
   Marble Skill Taxonomy at runtime from its open repository. Bundling or forking
   the data has separate licensing obligations (see [`DATA-LICENSE.md`](DATA-LICENSE.md)).
 - Keep the curriculum attribution intact — in the app UI, `NOTICE`, and README.

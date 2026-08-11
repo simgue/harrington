@@ -1,6 +1,6 @@
 name: Deploy to Puter
 
-# Auto-deploys src/ to homestead.puter.site on every push to main.
+# Auto-deploys src/ to the configured Harrington Puter site on every push to main.
 #
 # Uses scripts/deploy-puter.mjs (the @heyputer/puter.js SDK) rather than
 # `puter site deploy`: the CLI (@heyputer/cli@0.1.2) flattens the directory

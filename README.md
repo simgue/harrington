@@ -1,13 +1,18 @@
-# Homestead
+# Harrington
 
-**A mastery-based homeschool platform for ages 5–13.**
+**A family learning platform built around interests, projects, and clear paths
+to mastery.**
 
-Homestead turns an open, connected curriculum of ~1,590 micro-topics into a clear
-learning path where every idea is genuinely mastered before the next begins — and
-the whole experience adapts to the child. It's built for a homeschooling parent
-teaching one or more children.
+Harrington is a family-specific fork of
+[Homestead](https://github.com/tbh-23/Homestead). It keeps the complete working
+application while we test a much smaller proof of concept: can Marble's connected
+curriculum help parents see progress and possible paths to mastery without making
+the child's day feel school-like, score-led, or predetermined?
 
-**Live at [homestead.puter.site](https://homestead.puter.site).**
+Start with the [Harrington proof-of-concept brief](docs/POC.md) and its
+[small learning spine](docs/POC-SPINE.md). The original Homestead demo remains available at
+[homestead.puter.site](https://homestead.puter.site); it is not a Harrington
+deployment.
 
 ## Highlights
 
@@ -29,10 +34,11 @@ teaching one or more children.
   and add extra practice to.
 - **Records & voice analysis** — log observations and record lesson conversations
   with live transcripts and AI coaching for the parent.
-- **Homestead Helper** — an AI chat coach for parents, grounded in the child's
+- **Harrington Helper** — an AI chat coach for parents, grounded in the child's
   real progress.
-- **Gamified for kids** — XP, levels, collectible badges, celebration effects,
-  and a colorful full-screen **Kid Mode**.
+- **Retained for evaluation** — the inherited XP, levels, collectible badges,
+  celebration effects, and full-screen **Kid Mode** remain in the codebase, but
+  the POC does not expose Kid Mode through normal navigation.
 - **Commune (shared teaching)** — team up with other families in a private
   “commune,” approve and share what a child is working on for a given day, and
   cover each other's kids with a one-tap printable Day Sheet. Only the day's
@@ -42,12 +48,12 @@ teaching one or more children.
 
 ## Research-Backed Evidence
 
-Homestead is built on learning-science foundations, not ad hoc design choices.
+Harrington is built on learning-science foundations, not ad hoc design choices.
 Each one below comes with its main caveat too — the lab effect and the
 classroom effect aren't always the same size.
 
 - **Mastery learning** — requiring students to reach a high level of
-  proficiency (Homestead uses 90%+) on one unit before advancing to the next
+  proficiency (Harrington uses 90%+) on one unit before advancing to the next
   produces large, consistent achievement gains, especially for struggling
   learners. See Kulik, Kulik & Bangert-Drowns (1990), *Effectiveness of
   Mastery Learning Programs: A Meta-Analysis*, Review of Educational
@@ -66,7 +72,7 @@ classroom effect aren't always the same size.
   *Caveat:* the effect is strongest for material tested the same way it was
   practiced (facts, definitions, recall-type questions); it transfers less
   reliably to novel problem-solving or far-transfer tasks, which is part of
-  why Homestead also spaces problem-solving retries, not just flashcards.
+  why Harrington also spaces problem-solving retries, not just flashcards.
 - **Spaced (distributed) practice** — spreading study of the same material
   over expanding intervals, instead of massing it into one session, is the
   other top-rated technique alongside testing. See Cepeda, Pashler, Vul,
@@ -76,7 +82,7 @@ classroom effect aren't always the same size.
   — and Hattie & Donoghue (2021), *A Meta-Analysis of Ten Learning
   Techniques*, Frontiers in Education —
   [open access](https://www.frontiersin.org/journals/education/articles/10.3389/feduc.2021.581216/full).
-  Homestead's memory cards use a Leitner-style expanding schedule, and
+  Harrington's memory cards use a Leitner-style expanding schedule, and
   missed mastery-test questions are now queued for spaced retry the same
   way, extending the effect from facts to problem-solving.
   *Caveat:* the effect is less bulletproof in real classrooms than in the
@@ -89,7 +95,7 @@ classroom effect aren't always the same size.
 ## Commune — shared teaching
 
 Homeschooling parents often share teaching duties. **Commune** lets a small
-group of families do that inside Homestead without giving up their privacy.
+group of families do that inside Harrington without giving up their privacy.
 
 **How to use it (in the app):**
 
@@ -136,14 +142,14 @@ their own account.
 
 ## Deployment
 
-Pushes to `main` deploy automatically to
-[homestead.puter.site](https://homestead.puter.site) via the
-[`Deploy to Puter`](.github/workflows/deploy.yml) GitHub Actions workflow, which
-runs [`scripts/deploy-puter.mjs`](scripts/deploy-puter.mjs).
+The inherited [`Deploy to Puter`](.github/workflows/deploy.yml) workflow can
+deploy Harrington after a `PUTER_AUTH_TOKEN` repository secret has been
+configured. The default target is `harrington.puter.site`; no Harrington
+production deployment is assumed by this repository.
 
 The script uploads `src/` to Puter hosting with its directory structure
 preserved, into a fresh `release-<timestamp>` folder, then atomically re-points
-the `homestead` subdomain at it (zero downtime) and prunes old releases. It uses
+the configured subdomain at it (zero downtime) and prunes old releases. It uses
 the [`@heyputer/puter.js`](https://www.npmjs.com/package/@heyputer/puter.js) SDK
 directly rather than the Puter CLI, because the CLI flattens nested directories
 (so `src/js/views/dashboard.js` would 404). You can also run it from the Actions
@@ -153,9 +159,12 @@ Deployment requires a `PUTER_AUTH_TOKEN` repository secret (generate one at
 `puter.com/dashboard` → **Create token**). If it's missing, the workflow fails
 fast before touching the live site.
 
+The Commune worker is likewise configured with Harrington-specific names. It
+must be deployed separately before that retained upstream feature is used.
+
 ## The curriculum data
 
-The curriculum is **not** bundled — Homestead fetches the latest data at runtime
+The curriculum is **not** bundled — Harrington fetches the latest data at runtime
 from the open-source **Marble Skill Taxonomy**:
 
 - https://github.com/withmarbleapp/os-taxonomy
@@ -164,6 +173,10 @@ This means the curriculum stays up to date automatically, and the app notifies
 you when topics are added or removed upstream.
 
 ## Licensing
+
+Harrington is derived from Homestead under the MIT License. The original
+copyright and licence notice are preserved, and Homestead remains configured as
+the `upstream` Git remote for future comparison and selective updates.
 
 - **Application code:** MIT — see [`LICENSE`](LICENSE).
 - **Curriculum data:** licensed separately by its authors (ODbL 1.0 for the
@@ -185,4 +198,4 @@ redistribute a *modified copy of the dataset itself*).
 
 Issues and pull requests are welcome. By contributing, you agree your
 contributions are licensed under the MIT License. Please don't commit copies of
-the taxonomy dataset into this repository — Homestead loads it at runtime.
+the taxonomy dataset into this repository — Harrington loads it at runtime.
