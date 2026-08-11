@@ -1,5 +1,4 @@
 // Small UI helpers: DOM, icons, toasts, modals.
-import { createIcons, icons } from 'https://cdn.jsdelivr.net/npm/lucide@latest/+esm';
 
 export function el(html) {
   const t = document.createElement('template');
@@ -14,7 +13,7 @@ export function esc(s) {
 let iconTimer = null;
 export function refreshIcons() {
   clearTimeout(iconTimer);
-  iconTimer = setTimeout(() => { try { createIcons({ icons }); } catch (e) {} }, 10);
+  iconTimer = setTimeout(() => { try { window.lucide?.createIcons(); } catch (e) {} }, 10);
 }
 
 export function toast(msg, kind = 'default') {

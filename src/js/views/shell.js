@@ -9,7 +9,6 @@ const NAV = [
   { name: 'timeline', label: 'Timeline', icon: 'git-branch' },
   { name: 'records', label: 'Records', icon: 'notebook-pen' },
   { name: 'insights', label: 'Insights', icon: 'sparkles' },
-  { name: 'coop', label: 'Commune', icon: 'users' },
 ];
 
 export function renderShell({ route, navigate, content }) {
@@ -70,7 +69,7 @@ export function renderShell({ route, navigate, content }) {
   top.querySelector('#mob-student').appendChild(studentSwitcher(navigate, true));
 
   // Bottom nav (mobile)
-  const bottom = el(`<nav class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-paper-card/95 backdrop-blur border-t border-paper-line grid grid-cols-6"></nav>`);
+  const bottom = el(`<nav class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-paper-card/95 backdrop-blur border-t border-paper-line grid grid-cols-5"></nav>`);
   NAV.forEach(item => {
     const b = el(`<button class="flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium ${route.name === item.name ? 'text-brand-dark' : 'text-ink-faint'}">
       <i data-lucide="${item.icon}" class="w-5 h-5"></i>${item.label}</button>`);
@@ -81,6 +80,9 @@ export function renderShell({ route, navigate, content }) {
   const main = el(`<div class="flex-1 min-w-0 flex flex-col"></div>`);
   main.appendChild(top);
   const scroll = el(`<div class="flex-1 pb-24 lg:pb-0"></div>`);
+  scroll.appendChild(el(`<div class="bg-[#f7f0dd] border-b border-[#ead8a7] px-4 py-2 text-center text-xs text-[#6f5520]">
+    Self-hosted preview · family data stays on this server · AI and shared-family features are not connected yet
+  </div>`));
   scroll.appendChild(content);
   main.appendChild(scroll);
   main.appendChild(bottom);
@@ -161,16 +163,14 @@ function openAddStudent() {
 }
 
 function accountBox() {
-  const state = store.get();
   const box = el(`<div class="flex items-center gap-2.5">
     <div class="w-8 h-8 rounded-lg bg-paper-line flex items-center justify-center">
-      <i data-lucide="user" class="w-4 h-4 text-ink-soft"></i>
+      <i data-lucide="hard-drive" class="w-4 h-4 text-ink-soft"></i>
     </div>
     <div class="flex-1 min-w-0">
-      <p class="text-xs font-600 truncate">${state.user?.username || 'Parent'}</p>
-      <button id="out" class="text-xs text-ink-faint hover:text-ink-soft">Sign out</button>
+      <p class="text-xs font-600 truncate">Private family space</p>
+      <p class="text-xs text-ink-faint">Saved by Harrington</p>
     </div>
   </div>`);
-  box.querySelector('#out').onclick = () => store.signOut();
   return box;
 }

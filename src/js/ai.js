@@ -1,4 +1,5 @@
-// AI helpers via Puter.js. Returns HTML strings ready to inject.
+// AI helpers through Harrington's optional, self-hosted provider endpoint.
+import * as backend from './backend.js';
 
 function toHtml(text) {
   // Minimal markdown -> HTML (paragraphs, bold, bullet lists, headings).
@@ -29,8 +30,8 @@ function toHtml(text) {
 const US_SPELLING = ' Always write in American English spelling (e.g. "practice", "artifact", "color", "organize", "labeled", "favorite", "math", "recognize", "center").';
 
 async function ask(prompt) {
-  const res = await puter.ai.chat(prompt + US_SPELLING, { model: 'gpt-4o-mini' });
-  const text = typeof res === 'string' ? res : (res?.message?.content || res?.text || String(res));
+  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }], 'small');
+  const text = res?.content || res?.text || String(res);
   return toHtml(text);
 }
 
@@ -56,8 +57,8 @@ function parseJson(text) {
 }
 
 async function askJson(prompt, model = 'gpt-4o-mini') {
-  const res = await puter.ai.chat(prompt + US_SPELLING, { model });
-  const text = typeof res === 'string' ? res : (res?.message?.content || res?.text || String(res));
+  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }], model);
+  const text = res?.content || res?.text || String(res);
   return parseJson(text);
 }
 
@@ -423,8 +424,8 @@ ${context}
 If they mention a struggling topic, suggest a clear plan: how to reteach it simply, one hands-on activity, a way to check understanding, and what usually trips kids up. Point them to Harrington features by name when relevant (a topic's Lesson, Print & go materials, Active recall cards, the timed Challenge, or recording a discussion for AI analysis). If you don't have enough info, ask one short clarifying question.`;
 
   const convo = [{ role: 'system', content: sys }, ...messages];
-  const res = await puter.ai.chat(convo, { model: 'gpt-4o' });
-  const text = typeof res === 'string' ? res : (res?.message?.content || res?.text || String(res));
+  const res = await backend.chat(convo, 'strong');
+  const text = res?.content || res?.text || String(res);
   return toHtml(text);
 }
 

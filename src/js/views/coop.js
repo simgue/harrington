@@ -4,11 +4,11 @@
 //
 // Privacy: this screen only ever sends topic references + an optional note to
 // the broker (via src/js/coop.js). A family's progress, records, and mastery
-// never leave their own account. The covering parent reconstructs the actual
+// never leave their own server. The covering parent reconstructs the actual
 // lesson/activities locally from the shared topic ids.
 //
-// (Internal identifiers still say "pod"/"coop" — the deployed broker's API and
-// storage use those names. Only the user-facing wording is "commune".)
+// This retained view is not linked from the self-hosted preview until a
+// Harrington-owned broker exists.
 
 import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';

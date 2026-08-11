@@ -26,7 +26,7 @@ export function syncCurriculum() {
   const prev = store.getCurriculumSnapshot();
   const next = snapshot(d);
 
-  // First run for this account: remember the baseline and add a gentle welcome
+  // First run for this family space: remember the baseline and add a gentle welcome
   // note so the notification center isn't empty and the feature is discoverable.
   if (!prev || !Array.isArray(prev.topicIds)) {
     store.setCurriculumSnapshot(next);

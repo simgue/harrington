@@ -15,7 +15,7 @@ Closes #
 ## Checklist
 
 - [ ] Follows the existing code style (vanilla JS, `el()` helper, Tailwind, Lucide icons)
-- [ ] No build step introduced; no framework/bundler added
+- [ ] No application framework/bundler added; generated assets are current
 - [ ] No copy of the taxonomy dataset committed
 - [ ] Curriculum attribution left intact
 - [ ] User-facing text is in American English

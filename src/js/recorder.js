@@ -1,6 +1,7 @@
-// Voice recording: capture lesson conversations, store to Puter FS (per-parent), play back.
+// Voice recording: capture lesson conversations, store on the Harrington server, play back.
 import { el, refreshIcons, toast, openModal } from './ui.js';
 import * as store from './store.js';
+import * as backend from './backend.js';
 import { getData, SUBJECTS, topicAge } from './data.js';
 import { aiDiscussionAnalysis } from './ai.js';
 
@@ -55,15 +56,15 @@ function makeTranscriber(onUpdate) {
 }
 
 export async function saveAudio(recId, blob, ext) {
-  const path = `harrington/recordings/${recId}.${ext}`;
-  await puter.fs.write(path, blob, { createMissingParents: true });
-  return path;
+  const name = `${recId}.${ext}`;
+  await backend.saveAudio(name, blob);
+  return name;
 }
 
 const urlCache = new Map();
 export async function loadAudioUrl(path) {
   if (urlCache.has(path)) return urlCache.get(path);
-  const blob = await puter.fs.read(path);
+  const blob = await backend.loadAudio(path);
   const url = URL.createObjectURL(blob);
   urlCache.set(path, url);
   return url;
@@ -131,7 +132,7 @@ export function openRecorder(studentId, topic = null, section = null) {
       <div class="w-20 h-20 rounded-full bg-[#b0413a]/10 flex items-center justify-center mx-auto mb-4">
         <i data-lucide="mic" class="w-9 h-9 text-[#b0413a]"></i>
       </div>
-      <p class="text-sm text-ink-soft mb-4 max-w-xs mx-auto">Press start, then talk through the lesson together. The recording is saved privately to your account.</p>
+      <p class="text-sm text-ink-soft mb-4 max-w-xs mx-auto">Press start, then talk through the lesson together. The recording is saved privately on your Harrington server.</p>
       <div class="inline-flex items-center gap-1.5 text-xs ${canTranscribe ? 'text-brand-dark' : 'text-ink-faint'} mb-5">
         <i data-lucide="${canTranscribe ? 'captions' : 'captions-off'}" class="w-3.5 h-3.5"></i>${canTranscribe ? 'Live transcript on — enables AI analysis afterwards' : 'Live transcript not supported in this browser'}
       </div>

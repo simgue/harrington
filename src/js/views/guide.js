@@ -166,8 +166,8 @@ const GUIDE_SECTIONS = [
     ['Licensing', 'Marble Skill Taxonomy (v1) © Generative Spark, Inc., licensed under ODbL 1.0 (database) and CC BY-SA 4.0 (content).'],
   ]},
   { h: 'Getting started', items: [
-    ['Sign in', 'Click “Sign in to begin”. Your students, progress, records, and recordings are saved privately to your own account — nothing is shared or public.'],
-    ['Add your first student', 'Enter their name and birth year. Harrington uses the birth year to place them on the age 5–13 timeline and build their calendar.'],
+    ['Start Harrington', 'Run the family-owned Harrington server and open its local address. No external account or sign-in is required.'],
+    ['Add a sample learner', 'Enter a synthetic name and birth year. Harrington uses the birth year to place them on the age 5–13 timeline and build their calendar. Use sample data until backups and private remote access are ready.'],
     ['Welcome tour & guide', 'A guided welcome tour runs the first time. You can reopen it or this full guide anytime from “Guide” in the sidebar, and download this document as a PDF.'],
     ['Navigate', 'Use the left sidebar (or the bottom bar on mobile) to move between Dashboard, Calendar, Timeline, Records, and Insights. Switch or add students from the selector at the top of the sidebar.'],
   ]},
@@ -190,7 +190,7 @@ const GUIDE_SECTIONS = [
     ['Topic cards', 'Mastery status plus quick buttons for Lesson, Take test, and Details.'],
     ['Section checks', 'Unlock once all a section’s topics are mastered; locked sections show how many topics remain. Each section also has a Record button.'],
     ['Subject capstone', 'The final subject test unlocks when every section is passed, and offers a printable certificate.'],
-    ['Topic page toolkit', 'Topic mastery test, challenge (after mastery), active recall, evidence of mastery, a quick check, AI teaching helper, activities & games, records, section recordings, section check, “How this connects,” and reference links.'],
+    ['Topic page toolkit', 'Topic mastery test, challenge (after mastery), active recall, evidence of mastery, a quick check, activities & games, records, section recordings, section check, “How this connects,” and reference links. AI-generated tools remain disabled until a provider is configured.'],
   ]},
   { h: 'How topics connect', items: [
     ['Comes before', 'Each topic lists the prerequisites to master first, tagged Required or Helpful (straight from the taxonomy) with the reason each matters and its current mastery status.'],
@@ -198,14 +198,14 @@ const GUIDE_SECTIONS = [
     ['Leads to', 'Shows what mastering this topic unlocks next. Every item is tappable to jump straight to that topic.'],
   ]},
   { h: 'Lessons, printables & activities', items: [
-    ['Full lesson', 'A complete, ready-to-teach plan: objective, materials, parent notes (focus / likely struggles / advice), a “say this / do this” script, guided and independent practice, questions, common mistakes, a mastery check, and an extension. Print it or generate a different version.'],
+    ['Full lesson', 'The retained generator can create a ready-to-teach plan once a family-controlled AI provider is configured. Generation is disabled in this preview.'],
     ['Print & go materials', 'The lowest-prep printables for the topic — worksheets with answer keys, flashcards, matching sheets, tracing pages, sorting cards. Preview, print one, or print all.'],
     ['Activities & games', 'Each idea expands into materials, setup, numbered steps, a worked example, and a tip. Everything generated is saved and reused.'],
   ]},
   { h: 'Tests & mastery', items: [
     ['Every level tested', 'Each topic, section, and subject has its own test. Passing a topic test (90%+) marks the topic mastered.'],
     ['Two formats', 'On-screen (multiple-choice, auto-graded with answer review) or on paper / hands-on (print with answer key, or observe, then tick what was correct — the score is calculated for you).'],
-    ['Verified answers', 'Questions are written by a strong AI model, then independently re-solved by a second pass to discard anything ambiguous or wrong; numeric answers are re-checked by a built-in calculator. Digital questions are all multiple-choice for exact, fair grading.'],
+    ['Verified answers', 'Once AI is configured, the intended flow writes questions with one pass, independently re-solves them with another, and rejects ambiguity; numeric answers are also checked by a built-in calculator.'],
     ['Results & certificates', 'Results are saved per student, and passing the subject capstone offers a printable certificate.'],
   ]},
   { h: 'Active recall (retrieval practice)', items: [
@@ -236,7 +236,8 @@ const GUIDE_SECTIONS = [
     ['Recommended next', 'The best unlocked topics to work on in that subject, plus launching the subject capstone test.'],
   ]},
   { h: 'Harrington Helper (AI chat)', items: [
-    ['Ask anything', 'A floating chat button (bottom-right, on every screen) opens an AI teaching coach for you, the parent. Ask things like “my child is struggling with subtraction and telling time — any ideas?”'],
+    ['Preview status', 'The AI helper is disabled in the self-hosted preview. It will return only through an explicit, family-controlled provider adapter.'],
+    ['Ask anything', 'Once configured, a teaching coach for the parent can answer questions such as “my child is struggling with subtraction and telling time — any ideas?”'],
     ['Knows your student', 'It’s grounded in the active child’s real data — age, per-subject mastery, what they’re working on, and your recent notes — so advice is tailored, not generic.'],
     ['Practical & connected', 'It gives concrete activities, ways to re-explain, and checks for understanding, and points you to the right Harrington feature (lesson, printables, recall, challenge, or recording analysis).'],
   ]},
@@ -247,7 +248,7 @@ const GUIDE_SECTIONS = [
   ]},
   { h: 'Multiple students & privacy', items: [
     ['Multiple students', 'Add students anytime and switch in one tap; each keeps their own progress, calendar, records, recordings, challenges, adaptations, and recall schedule.'],
-    ['Privacy', 'Everything — students, progress, records, voice recordings, and settings — is stored privately in your own account. The curriculum comes from the open Marble Skill Taxonomy; your child’s data is never published or shared.'],
+    ['Privacy', 'Family state, lesson caches, and recordings are stored in the private data directory on your Harrington server. It listens only on the local computer by default. Do not expose the preview publicly: application authentication and encrypted backups are not implemented yet. AI is disabled and receives no family data.'],
   ]},
 ];
 
