@@ -1,0 +1,6 @@
+.git
+.github
+data/private
+node_modules
+npm-debug.log*
+tests

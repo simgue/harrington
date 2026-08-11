@@ -1,0 +1,11 @@
+services:
+  harrington:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4173:4173"
+    volumes:
+      - harrington-data:/data
+
+volumes:
+  harrington-data:

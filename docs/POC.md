@@ -2,17 +2,17 @@
 
 Harrington begins with the complete Homestead application so the proof of
 concept can test a real, connected learning experience instead of rebuilding
-authentication, storage, curriculum loading, graph navigation, scheduling,
-records, lessons, and mastery mechanics from scratch.
+curriculum loading, graph navigation, scheduling, records, lessons, and mastery
+mechanics from scratch.
 
 The original Homestead repository remains configured as the `upstream` Git
 remote. Harrington keeps the upstream MIT licence and the required Marble Skill
 Taxonomy attribution.
 
-Harrington uses its own Puter storage keys, file paths, deployment subdomain,
-and Commune worker name. The retained features are therefore isolated from the
-upstream Homestead installation, although the Harrington worker must be deployed
-before Commune can be used.
+Harrington now runs through its own small server. Family state, lesson caches,
+and recordings are stored in a directory controlled by the family; no external
+account is required. AI and Commune remain disabled until they have explicit,
+self-hosted adapters.
 
 ## POC question
 
@@ -56,7 +56,7 @@ available for evaluation but are not part of the initial proof:
 - child gamification and timed challenges
 - Commune and external-teacher handoffs
 - full-year scheduling and automated compliance reporting
-- production Puter deployment
+- production hosting, authentication, and encrypted backups
 - complete Victorian Curriculum or Wurundjeri seasonal overlays
 
 Keeping these features avoids destructive pruning before the family has used
@@ -91,7 +91,7 @@ The proof is useful when a parent can answer, without exposing a child to scores
 - What evidence shows that a key skill was demonstrated?
 - Are literacy and numeracy progressing?
 - Which curriculum areas are being missed?
-- Can all family-created data be exported independently of Puter?
+- Can all family-created data be exported and restored independently of its host?
 
 The POC should be evaluated with synthetic data first. A production data model,
 privacy review, Victorian mapping, and long-term hosting decision follow only

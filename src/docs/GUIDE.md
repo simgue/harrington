@@ -4,13 +4,18 @@
 
 This guide explains everything the platform does and how to use it.
 
+> **Self-hosted preview:** No external account is required. Family state,
+> lesson caches, and recordings stay on your Harrington server. AI-generated
+> materials, AI analysis, and Commune are disabled until self-hosted adapters
+> are configured.
+
 ---
 
 ## Getting started
 
-1. **Sign in.** On the welcome screen, click **Sign in to begin**. Your students, progress, records, and recordings are saved privately to your own account (nothing is shared or public).
-2. **Add your first student.** Enter their name and birth year. Harrington uses the birth year to place them on the age 5–13 timeline and to build their day-by-day calendar.
-3. **You're in.** You land on the Dashboard. Use the left sidebar (or the bottom bar on mobile) to move between the five areas: **Dashboard, Calendar, Timeline, Records, Insights**.
+1. **Start Harrington.** Run `npm start` and open `http://127.0.0.1:4173`. No sign-in is required.
+2. **Add a sample learner.** Enter a synthetic name and birth year. Harrington uses the birth year to place them on the age 5–13 timeline and build their calendar.
+3. **Explore.** You land on the Dashboard. Use the left sidebar (or the bottom bar on mobile) to move between the five areas: **Dashboard, Calendar, Timeline, Records, Insights**.
 
 You can add more students anytime and switch between them from the student selector at the top of the sidebar.
 
@@ -61,7 +66,7 @@ Open any topic for the full toolkit:
 - **Challenge quiz** (after mastery) — an optional timed stretch (see *Challenges*).
 - **What mastery looks like** — the evidence criteria to aim for.
 - **Quick check** — a natural-language question to gauge understanding.
-- **AI teaching helper** — "Explain simply" (a kid-friendly explanation) and "Make a mini-quiz".
+- **AI teaching helper (disabled in this preview)** — once a provider is configured, this can offer "Explain simply" and "Make a mini-quiz".
 - **Activities & games** — hands-on ideas; click any for full step-by-step instructions.
 - **Records for this topic** — observations, notes, and recordings tied to this topic.
 - **Section check** — take the section's test from here too.
@@ -72,7 +77,8 @@ Open any topic for the full toolkit:
 
 ## Lessons, printables & activities
 
-Every topic has ready-to-teach material — no prep required.
+The lesson-generation screens are retained but disabled until a self-hosted AI
+provider is configured.
 
 - **Open full lesson** — a complete plan generated for that topic: objective, materials, a **"Notes for you (the parent)"** panel (what to focus on, where kids struggle, and advice), a hook, a step-by-step **"say this / do this"** script, guided practice, an independent activity, discussion questions, common mistakes, a mastery check, and an extension. You can **print** it or **generate a different version**.
 - **Print & go materials** — the lowest-prep printables for the topic (worksheets with answer keys, cut-out flashcards, matching sheets, tracing pages, or sorting cards). Preview in-app, print one, or print all. Name/date lines are already on the page.
@@ -88,7 +94,7 @@ Generated lessons and printables are **saved and reused**, so they load instantl
 - **Two formats** — Harrington recommends the best one per subject, and you can switch:
   - **On screen (digital)** — multiple-choice, auto-graded instantly, with an answer review.
   - **On paper / hands-on (physical)** — print the test with an answer key, or observe hands-on tasks, then tick what was correct and Harrington scores it.
-- **Answers are verified.** Questions are written by a strong AI model, then a **second, independent AI pass re-solves every question** and throws out anything ambiguous or wrong. Numeric answers are re-checked by a built-in calculator. Digital questions are all multiple-choice for fair, exact grading.
+- **Answers can be verified once AI is configured.** The intended flow writes questions with one model pass, independently re-solves them with another, and rejects ambiguity. Numeric answers are also checked by a built-in calculator.
 - **Results are saved** per student, and passing the subject capstone offers a **printable certificate**.
 
 ---
@@ -172,7 +178,11 @@ Add a student anytime from the selector at the top of the sidebar, switch the ac
 
 ## Privacy & data
 
-Everything — students, progress, records, voice recordings, and settings — is stored **privately in your own account**. The curriculum data comes from the open Marble Skill Taxonomy; your child's data is never published or shared.
+Students, progress, records, voice recordings, and settings are stored in the
+private data directory on your Harrington server. The server listens only on
+the local computer by default. The preview has no application authentication,
+so do not expose it to the public internet. AI is disabled and receives no
+family data.
 
 ---
 

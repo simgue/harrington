@@ -5,8 +5,8 @@
 // Nothing private is involved: a card carries only topic references + a note.
 // The lesson, activities, and resources are all rebuilt locally from the topic
 // (which carries its own age range), using the same generator + cache the
-// normal lesson view uses. Generation is billed to the covering parent's own
-// Puter account (user-pays); results are cached per topic after the first time.
+// normal lesson view uses. AI generation is disabled until a family-controlled
+// provider is configured; completed results are cached per topic.
 
 import { getData } from '../data.js';
 import * as store from '../store.js';

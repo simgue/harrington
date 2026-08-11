@@ -224,7 +224,7 @@ function todayCard(active, navigate) {
       <h2 class="font-600 flex items-center gap-2"><i data-lucide="calendar-check" class="w-4.5 h-4.5 text-brand-dark"></i>Today · ${dateLabel}</h2>
       <button id="cal" class="text-xs font-medium text-brand-dark flex items-center gap-1">Open calendar<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
     </div>
-    <div id="body" class="grid sm:grid-cols-2 gap-2.5"></div>
+    <div id="body" class="grid sm:grid-cols-2 gap-2.5 min-w-0"></div>
   </div>`);
   card.querySelector('#cal').onclick = () => navigate('calendar');
   const body = card.querySelector('#body');
@@ -234,7 +234,7 @@ function todayCard(active, navigate) {
   } else {
     topics.slice(0, 4).forEach(t => {
       const meta = SUBJECTS[t.subject];
-      const row = el(`<button class="text-left flex items-center gap-2.5 p-2.5 rounded-xl border border-paper-line hover:border-brand/40 hover:bg-paper transition-colors">
+      const row = el(`<button class="w-full min-w-0 text-left flex items-center gap-2.5 p-2.5 rounded-xl border border-paper-line hover:border-brand/40 hover:bg-paper transition-colors">
         <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5" style="color:${meta.color}"></i></span>
         <span class="flex-1 min-w-0"><span class="block text-sm font-600 truncate">${t.name}</span><span class="block text-xs text-ink-faint truncate">${t.subject}</span></span>
       </button>`);
@@ -247,7 +247,7 @@ function todayCard(active, navigate) {
   if (extras.refresher) {
     const t = extras.refresher;
     const meta = SUBJECTS[t.subject];
-    const ref = el(`<button class="text-left flex items-center gap-2.5 p-2.5 rounded-xl border border-dashed border-paper-line hover:border-brand/40 hover:bg-paper transition-colors sm:col-span-2">
+    const ref = el(`<button class="w-full min-w-0 text-left flex items-center gap-2.5 p-2.5 rounded-xl border border-dashed border-paper-line hover:border-brand/40 hover:bg-paper transition-colors sm:col-span-2">
       <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="dumbbell" class="w-3.5 h-3.5" style="color:${meta.color}"></i></span>
       <span class="flex-1 min-w-0"><span class="block text-sm font-600 truncate">Refresher quiz · ${t.name}</span><span class="block text-xs text-ink-faint truncate">Keep an earlier ${t.subject} skill sharp</span></span>
       <i data-lucide="file-check-2" class="w-4 h-4 shrink-0" style="color:${meta.color}"></i>

@@ -2,13 +2,17 @@
   "name": "harrington",
   "version": "1.0.0",
   "private": true,
-  "description": "A family learning platform built on Puter.js and the Marble Skill Taxonomy. Static front end (no build step); this manifest exists only for the deploy scripts.",
+  "description": "A private, self-hosted family learning platform built on the Marble Skill Taxonomy.",
   "scripts": {
-    "test": "node --test tests/*.test.mjs",
-    "deploy:site": "node scripts/deploy-puter.mjs",
-    "deploy:worker": "node scripts/deploy-worker.mjs"
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "build": "npm run build:css && npm run build:assets",
+    "build:css": "tailwindcss -c tailwind.config.cjs -i src/css/tailwind-input.css -o src/css/tailwind.css --minify",
+    "build:assets": "node scripts/build-assets.mjs",
+    "test": "npm run build && node --test tests/*.test.mjs"
   },
-  "dependencies": {
-    "@heyputer/puter.js": "^2.6.0"
+  "devDependencies": {
+    "lucide": "^0.468.0",
+    "tailwindcss": "^3.4.17"
   }
 }
