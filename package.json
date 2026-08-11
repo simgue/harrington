@@ -1,9 +1,10 @@
 {
-  "name": "homestead",
+  "name": "harrington",
   "version": "1.0.0",
   "private": true,
-  "description": "A mastery-based homeschool platform for ages 5-13, built on Puter.js. Static front end (no build step); this manifest exists only for the deploy scripts.",
+  "description": "A family learning platform built on Puter.js and the Marble Skill Taxonomy. Static front end (no build step); this manifest exists only for the deploy scripts.",
   "scripts": {
+    "test": "node --test tests/*.test.mjs",
     "deploy:site": "node scripts/deploy-puter.mjs",
     "deploy:worker": "node scripts/deploy-worker.mjs"
   },

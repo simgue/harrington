@@ -139,10 +139,10 @@ function renderSignIn() {
             <div class="w-9 h-9 rounded-lg bg-brand flex items-center justify-center">
               <i data-lucide="compass" class="w-5 h-5 text-white"></i>
             </div>
-            <span class="font-display text-xl font-600">Homestead</span>
+            <span class="font-display text-xl font-600">Harrington</span>
           </div>
-          <h1 class="font-display text-3xl sm:text-4xl font-600 leading-tight mb-3">A mastery-based path from age 5 to 13.</h1>
-          <p class="text-ink-soft mb-8 leading-relaxed">Homestead turns a 1,590-topic curriculum into a clear, connected timeline — so every idea is truly mastered before the next one begins.</p>
+          <h1 class="font-display text-3xl sm:text-4xl font-600 leading-tight mb-3">Interests lead the day. The graph keeps the long view.</h1>
+          <p class="text-ink-soft mb-8 leading-relaxed">Harrington helps children choose meaningful work while parents quietly keep sight of essential skills, evidence, and possible paths to mastery.</p>
           <button id="signin" class="w-full px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium flex items-center justify-center gap-2 transition-colors">
             <i data-lucide="log-in" class="w-4 h-4"></i> Sign in to begin
           </button>
@@ -151,10 +151,10 @@ function renderSignIn() {
       </div>
       <div class="hidden lg:flex items-center justify-center bg-brand-light border-l border-paper-line p-10">
         <div class="max-w-md space-y-4">
-          ${featureCard('git-branch', 'Connected learning', 'Every topic shows its prerequisites and what it unlocks next.')}
-          ${featureCard('shield-check', 'Mastery gating', 'Topics stay locked until their foundations are mastered.')}
-          ${featureCard('notebook-pen', 'Record everything', 'Log observations, questions and discussions per subject.')}
-          ${featureCard('sparkles', 'Teacher feedback', 'Get guidance based on your student\u2019s real progress.')}
+          ${featureCard('compass', 'Interest-led choices', 'Start with what the child wants to explore and offer several meaningful ways in.')}
+          ${featureCard('git-branch', 'Connected learning', 'Parents can see prerequisites, evidence, and what each skill may unlock.')}
+          ${featureCard('shield-check', 'Private mastery view', 'Keep essential-skill gates behind the scenes and give children descriptive feedback.')}
+          ${featureCard('notebook-pen', 'Real learning records', 'Capture projects, observations, questions, performances, and unplanned discoveries.')}
         </div>
       </div>
     </div>`);
@@ -186,7 +186,7 @@ function renderOnboard() {
             <i data-lucide="user-plus" class="w-6 h-6 text-brand-dark"></i>
           </div>
           <h1 class="font-display text-2xl font-600">Add your first student</h1>
-          <p class="text-ink-soft text-sm mt-1">Tell us who's learning so we can shape their timeline.</p>
+          <p class="text-ink-soft text-sm mt-1">Tell us who's learning so you can begin from their interests and keep their learning journey in view.</p>
         </div>
         <form id="f" class="bg-paper-card border border-paper-line rounded-2xl p-5 space-y-4">
           <div>
@@ -196,9 +196,9 @@ function renderOnboard() {
           <div>
             <label class="text-sm font-medium block mb-1.5">Birth year</label>
             <input name="birthYear" type="number" required min="2005" max="2024" placeholder="e.g. 2017" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
-            <p class="text-xs text-ink-faint mt-1">We use this to place them on the age 5–13 timeline.</p>
+            <p class="text-xs text-ink-faint mt-1">We use this to show age-relevant ideas and connections for you to consider.</p>
           </div>
-          <button class="w-full px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Create timeline</button>
+          <button class="w-full px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Set up their learning space</button>
         </form>
       </div>
     </div>`);
@@ -209,7 +209,7 @@ function renderOnboard() {
     const by = parseInt(fd.get('birthYear'), 10);
     if (!name || !by) return;
     store.addStudent(name, by);
-    toast(`${name}'s timeline is ready`, 'success');
+    toast(`${name}'s learning space is ready`, 'success');
     navigate('dashboard');
   };
   return node;

@@ -12,7 +12,7 @@
 //
 // Env:
 //   PUTER_AUTH_TOKEN  (required)  account token; in CI it comes from a GH secret
-//   PUTER_SUBDOMAIN   (default "homestead")
+//   PUTER_SUBDOMAIN   (default "harrington")
 //   DEPLOY_SRC        (default "src")   local directory to deploy
 //   KEEP_RELEASES     (default "3")     how many release dirs to retain
 
@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { init } from '@heyputer/puter.js/src/init.cjs';
 
 const TOKEN = process.env.PUTER_AUTH_TOKEN;
-const SUBDOMAIN = process.env.PUTER_SUBDOMAIN || 'homestead';
+const SUBDOMAIN = process.env.PUTER_SUBDOMAIN || 'harrington';
 const SRC = process.env.DEPLOY_SRC || 'src';
 const KEEP = Math.max(1, parseInt(process.env.KEEP_RELEASES || '3', 10));
 const CONCURRENCY = 6;

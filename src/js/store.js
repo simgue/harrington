@@ -1,6 +1,6 @@
 // App state + persistence. Auth and data via Puter (scoped to the signed-in parent).
 
-const KEY = 'homestead:v1';
+const KEY = 'harrington:v1';
 
 export const MASTERY = {
   none:       { label: 'Not started', rank: 0, color: '#c9c3b8' },
@@ -542,7 +542,7 @@ export function setCurriculumSnapshot(snap) { state.curriculumSnapshot = snap; p
 // ---- Lesson cache (shared per parent account, not student-specific) ----
 // Lessons are reusable teaching material keyed by topic/activity, cached in KV.
 const lessonCache = new Map();
-function lessonKey(id) { return 'homestead:lesson:' + id; }
+function lessonKey(id) { return 'harrington:lesson:' + id; }
 
 export async function getCachedLesson(id) {
   if (lessonCache.has(id)) return lessonCache.get(id);

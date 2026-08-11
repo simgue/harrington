@@ -41,7 +41,7 @@ const STARTERS = [
 ];
 
 export function assistantLauncher() {
-  const btn = el(`<button id="asst-launch" class="fixed z-[80] bottom-20 right-4 lg:bottom-6 lg:right-6 w-14 h-14 rounded-full bg-brand hover:bg-brand-dark text-white flex items-center justify-center transition-colors" title="Ask the Homestead Helper" style="box-shadow:0 6px 20px rgba(47,96,73,0.35)">
+  const btn = el(`<button id="asst-launch" class="fixed z-[80] bottom-20 right-4 lg:bottom-6 lg:right-6 w-14 h-14 rounded-full bg-brand hover:bg-brand-dark text-white flex items-center justify-center transition-colors" title="Ask the Harrington Helper" style="box-shadow:0 6px 20px rgba(47,96,73,0.35)">
     <i data-lucide="messages-square" class="w-6 h-6"></i>
   </button>`);
   btn.onclick = () => toggle();
@@ -66,7 +66,7 @@ function open() {
     <div class="px-4 py-3 border-b border-paper-line flex items-center gap-2.5 bg-brand text-white shrink-0">
       <span class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center"><i data-lucide="sparkles" class="w-4.5 h-4.5"></i></span>
       <div class="flex-1 min-w-0">
-        <p class="font-600 text-sm leading-tight">Homestead Helper</p>
+        <p class="font-600 text-sm leading-tight">Harrington Helper</p>
         <p class="text-[11px] text-white/80 leading-tight">Teaching tips${s ? ' for ' + s.name : ''}</p>
       </div>
       <button id="asst-close" class="w-8 h-8 rounded-lg hover:bg-white/15 flex items-center justify-center"><i data-lucide="x" class="w-4.5 h-4.5"></i></button>

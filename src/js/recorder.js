@@ -55,7 +55,7 @@ function makeTranscriber(onUpdate) {
 }
 
 export async function saveAudio(recId, blob, ext) {
-  const path = `homestead/recordings/${recId}.${ext}`;
+  const path = `harrington/recordings/${recId}.${ext}`;
   await puter.fs.write(path, blob, { createMissingParents: true });
   return path;
 }

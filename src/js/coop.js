@@ -1,4 +1,4 @@
-// Client wrapper for the Homestead co-op broker worker.
+// Client wrapper for the Harrington co-op broker worker.
 //
 // The broker is a thin, privacy-preserving relay: it holds only pod membership
 // and opt-in "Today cards" (topic references + an optional parent note). All
@@ -10,7 +10,7 @@
 
 // Set by scripts/deploy-worker.mjs on first deploy. Confirm it matches the URL
 // that script prints (it will if the worker name is unchanged).
-export const BROKER_URL = 'https://homestead-coop-broker.puter.work';
+export const BROKER_URL = 'https://harrington-coop-broker.puter.work';
 
 async function call(path, { method = 'GET', body = null } = {}) {
   const opts = { method, headers: {} };

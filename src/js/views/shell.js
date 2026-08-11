@@ -25,7 +25,7 @@ export function renderShell({ route, navigate, content }) {
         <div class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center">
           <i data-lucide="compass" class="w-4.5 h-4.5 text-white"></i>
         </div>
-        <span class="font-display text-lg font-600 flex-1">Homestead</span>
+        <span class="font-display text-lg font-600 flex-1">Harrington</span>
         <span id="bell-desktop"></span>
       </div>
       <div class="p-3" id="student-switch"></div>
@@ -59,7 +59,7 @@ export function renderShell({ route, navigate, content }) {
         <div class="w-7 h-7 rounded-lg bg-brand flex items-center justify-center">
           <i data-lucide="compass" class="w-4 h-4 text-white"></i>
         </div>
-        <span class="font-display font-600">Homestead</span>
+        <span class="font-display font-600">Harrington</span>
       </div>
       <div class="flex items-center gap-2">
         <span id="mob-bell"></span>

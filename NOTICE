@@ -1,5 +1,12 @@
+Harrington
+==========
+
+Harrington is a derivative of Homestead
+(https://github.com/tbh-23/Homestead). The original Homestead copyright and MIT
+licence notice are preserved in LICENSE.
+
 Homestead
-=========
+---------
 
 Homestead is a mastery-based homeschool application. The application code is
 licensed under the MIT License (see LICENSE).

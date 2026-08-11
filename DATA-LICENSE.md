@@ -1,7 +1,7 @@
 # Data licensing & attribution
 
-Homestead's **application code** is MIT-licensed (see [`LICENSE`](LICENSE)). The
-**curriculum data** it uses is *not* Homestead's and is under separate licenses.
+Harrington's **application code** is MIT-licensed (see [`LICENSE`](LICENSE)). The
+**curriculum data** it uses is *not* Harrington's and is under separate licenses.
 This document explains what applies and what your obligations are if you fork,
 distribute, or build on this project.
 
@@ -10,7 +10,7 @@ distribute, or build on this project.
 
 ## Where the data comes from
 
-Homestead does **not** bundle or fork the dataset. It fetches the latest data at
+Harrington does **not** bundle or fork the dataset. It fetches the latest data at
 runtime directly from the open-source repository:
 
 - **Marble Skill Taxonomy** — https://github.com/withmarbleapp/os-taxonomy
@@ -23,18 +23,18 @@ runtime directly from the open-source repository:
 | **Marble's textual content** | Topic `name` / `description` / `evidence` / `assessmentPrompt`, dependency `reason`s, cluster `summary`s | **CC BY-SA 4.0** — attribution + share-alike. |
 | **Curriculum-standard codes** | Codes referenced by the app (Common Core, NGSS, UK National Curriculum, etc.) | **Not** Marble's to relicense — each under its **own upstream license**. See the taxonomy repo's `PROVENANCE.md`. |
 
-## What this means for Homestead (a "produced work")
+## What this means for Harrington (a "produced work")
 
 ODbL distinguishes a **derivative database** (extending/modifying the taxonomy →
 must stay open under ODbL) from a **produced work** (using the data inside a
 product or app → stays under your own license).
 
-Homestead is a **produced work**: it consumes the data to power an app. Because
+Harrington is a **produced work**: it consumes the data to power an app. Because
 of this:
 
-- ✅ The Homestead **app code stays MIT** — open-sourcing it does **not** force
+- ✅ The Harrington **app code stays MIT** — open-sourcing it does **not** force
   ODbL or CC BY-SA onto your code.
-- ✅ You may use Homestead commercially.
+- ✅ You may use Harrington commercially.
 - ⚠️ You **must provide attribution** to the Marble Skill Taxonomy (below). It is
   shown in the app UI and included in `NOTICE`; keep it.
 - ⚠️ If you ever **modify or redistribute the dataset itself** (not just use it),
@@ -45,7 +45,7 @@ of this:
 
 ### A note on AI-generated content
 
-Homestead generates lessons, tests, recall cards, and feedback using an AI model,
+Harrington generates lessons, tests, recall cards, and feedback using an AI model,
 sometimes with a topic's CC BY-SA description as part of the prompt. The status of
 such AI outputs is an evolving area. If you want to be conservative, treat
 app-displayed material derived from Marble's text as CC BY-SA 4.0 and attribute

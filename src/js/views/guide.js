@@ -5,21 +5,21 @@ import * as store from '../store.js';
 const FEATURES = [
   {
     icon: 'compass', color: '#3f7d5e',
-    title: 'Welcome to Homestead',
-    tagline: 'A mastery-based path from age 5 to 13.',
-    body: `Homestead turns a connected curriculum of ~1,590 micro-topics into a clear learning path where every idea is truly mastered before the next begins — and the whole experience adapts to your child. This quick tour shows you around.`,
+    title: 'Welcome to Harrington',
+    tagline: 'Begin with what matters to your child',
+    body: `Start with an interest, a question, or a project your child cares about. Harrington gives you meaningful ways to explore it together, while you choose what feels right for today. This quick tour shows you around.`,
   },
   {
     icon: 'trending-up', color: '#2f6049',
-    title: 'The mastery ladder',
-    tagline: 'Topic → Section → Subject',
-    body: `Pass a <b>topic</b> test (90%+) to master it. Master every topic in a <b>section</b> to unlock its section check. Pass every section to unlock the final <b>subject</b> test. Nothing unlocks until the step below is solid.`,
+    title: 'A quiet map for parents',
+    tagline: 'See connections without prescribing the day',
+    body: `Behind the scenes, the curriculum graph helps you see helpful foundations, evidence, and possible next steps. It is a parent tool for making informed choices — not a script your child has to follow.`,
   },
   {
     icon: 'layout-dashboard', color: '#3d6b93',
     title: 'Dashboard',
-    tagline: 'Your daily snapshot',
-    body: `See overall mastery, what to work on next, today's plan, per-subject progress, and recent activity. Quick buttons let you open the timeline, record a conversation, or add a note.`,
+    tagline: 'Your view of the learning journey',
+    body: `See recent activity, ideas to explore, and the connections you may want to keep in view. Quick buttons let you open the map, record a conversation, or add a note.`,
   },
   {
     icon: 'calendar-days', color: '#b0603a',
@@ -31,7 +31,7 @@ const FEATURES = [
     icon: 'git-branch', color: '#3f7d5e',
     title: 'Timeline',
     tagline: 'The connected map',
-    body: `Explore each subject as gated sections. Every topic shows its prerequisites and what it unlocks. Open a topic for its <b>lesson</b>, <b>print & go materials</b>, activities, and its <b>mastery test</b>.`,
+    body: `Explore how ideas relate across each subject. Every topic shows helpful prerequisites and what it may open up, alongside <b>lessons</b>, <b>print & go materials</b>, and activities. The existing mastery tools are there for parents to use and evaluate when useful.`,
   },
   {
     icon: 'notebook-text', color: '#7a5a9e',
@@ -42,20 +42,20 @@ const FEATURES = [
   {
     icon: 'file-check-2', color: '#3d6b93',
     title: 'Tests you can trust',
-    tagline: 'Every answer verified',
-    body: `Each topic, section, and subject has a test — digital (auto-graded) or printable/hands-on. Questions are written by a strong AI, then <b>independently re-solved</b> to throw out anything wrong or ambiguous. 90% passes.`,
+    tagline: 'A parent tool under evaluation',
+    body: `Topic, section, and subject checks are available digitally or as printable/hands-on activities. Questions are written by a strong AI, then <b>independently re-solved</b> to throw out anything wrong or ambiguous. Use these existing mastery tools when they serve your family.`,
   },
   {
     icon: 'zap', color: '#c08a2e',
     title: 'Challenges & adaptivity',
     tagline: 'The platform adapts to your child',
-    body: `After mastery, an optional <b>timed challenge</b> stretches your child for fun. Strong results prompt Homestead to suggest making that area harder — <b>you approve or decline</b>, always in control.`,
+    body: `After mastery, an optional <b>timed challenge</b> stretches your child for fun. Strong results prompt Harrington to suggest making that area harder — <b>you approve or decline</b>, always in control.`,
   },
   {
     icon: 'mic', color: '#b0413a',
     title: 'Records & voice analysis',
-    tagline: 'Capture and understand',
-    body: `Log observations, questions, and discussions — or <b>record a conversation</b> with a live transcript. Homestead can <b>analyze</b> it and tell you where and <i>why</i> your child may be misunderstanding, with advice on what to do next.`,
+    tagline: 'Keep the long view',
+    body: `Log observations, questions, projects, and discussions — or <b>record a conversation</b> with a live transcript. Over time, these records become evidence of learning and help you notice patterns, strengths, and useful next questions.`,
   },
   {
     icon: 'sparkles', color: '#3f7d5e',
@@ -65,7 +65,7 @@ const FEATURES = [
   },
 ];
 
-const SEEN_KEY = 'homestead:welcomeSeen';
+const SEEN_KEY = 'harrington:welcomeSeen';
 
 // Show the welcome tour automatically the first time (per browser).
 export function maybeShowWelcome() {
@@ -122,7 +122,7 @@ export function openGuide() {
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-center gap-3 z-10">
       <span class="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0"><i data-lucide="book-open" class="w-5 h-5 text-brand-dark"></i></span>
       <div class="flex-1 min-w-0">
-        <h3 class="font-display text-lg font-600 leading-tight">How Homestead works</h3>
+        <h3 class="font-display text-lg font-600 leading-tight">How Harrington works</h3>
         <p class="text-xs text-ink-faint">A quick guide to every feature</p>
       </div>
       <button id="tour" class="text-xs font-medium text-brand-dark shrink-0 flex items-center gap-1"><i data-lucide="play-circle" class="w-3.5 h-3.5"></i>Replay tour</button>
@@ -151,23 +151,23 @@ export function openGuide() {
 
 // ---- Full, detailed, printable/downloadable guide ----
 const GUIDE_SECTIONS = [
-  { h: 'What Homestead is', items: [
+  { h: 'What Harrington is', items: [
     ['Overview', 'A mastery-based homeschool platform for ages 5–13. It turns an open, connected curriculum of ~1,590 micro-topics into a clear learning path where every idea is genuinely mastered before the next begins — and the whole experience adapts to your child.'],
     ['How learning is organized', 'Everything is built on three levels: Topics (single teachable ideas) → Sections (a group of related topics in one age band) → Subjects (the eight subject areas). You climb the ladder one verified step at a time.'],
-    ['Who it’s for', 'A homeschooling parent teaching one or more children. You are the teacher; Homestead supplies the curriculum, ready-to-teach lessons, tests, tracking, and adaptive guidance.'],
+    ['Who it’s for', 'A homeschooling parent teaching one or more children. You are the teacher; Harrington supplies the curriculum, ready-to-teach lessons, tests, tracking, and adaptive guidance.'],
   ]},
   { h: 'The curriculum (from the Marble Skill Taxonomy)', items: [
     ['Source', 'The full curriculum comes from the open-source Marble Skill Taxonomy (github.com/withmarbleapp/os-taxonomy) — a structured, research-backed map of what children learn across the primary/elementary years.'],
     ['Scale', 'About 1,590 micro-topics wired together by ~3,221 prerequisite dependencies, spanning 8 subjects: Mathematics, English, Science, History, Personal & Social Development, Life Skills, Computing, and Learning to Learn.'],
     ['Each topic includes', 'A plain-language description, an approximate age range, “evidence of mastery” criteria, a natural-language quick-check prompt, a type (conceptual / procedural / etc.), and links to the curriculum standards it aligns to (Common Core, NGSS, UK National Curriculum, and more).'],
-    ['The prerequisite graph', 'Topics are connected by directed “depends on” links, each tagged hard (required) or soft (helpful) with a one-line reason. Homestead uses these exact links to show what comes before a topic and what it unlocks — and to gate the mastery ladder. Nothing here is invented; it mirrors the source data.'],
+    ['The prerequisite graph', 'Topics are connected by directed “depends on” links, each tagged hard (required) or soft (helpful) with a one-line reason. Harrington uses these exact links to show what comes before a topic and what it unlocks — and to gate the mastery ladder. Nothing here is invented; it mirrors the source data.'],
     ['Domain summaries', 'Parent-friendly summaries for each subject/domain/age band explain, in a sentence, what your child is learning in that section.'],
-    ['Always up to date', 'Homestead fetches the latest curriculum directly from the repository every time it loads, so new or revised material flows in automatically — no updates to install. The Notifications bell tells you what changed.'],
+    ['Always up to date', 'Harrington fetches the latest curriculum directly from the repository every time it loads, so new or revised material flows in automatically — no updates to install. The Notifications bell tells you what changed.'],
     ['Licensing', 'Marble Skill Taxonomy (v1) © Generative Spark, Inc., licensed under ODbL 1.0 (database) and CC BY-SA 4.0 (content).'],
   ]},
   { h: 'Getting started', items: [
     ['Sign in', 'Click “Sign in to begin”. Your students, progress, records, and recordings are saved privately to your own account — nothing is shared or public.'],
-    ['Add your first student', 'Enter their name and birth year. Homestead uses the birth year to place them on the age 5–13 timeline and build their calendar.'],
+    ['Add your first student', 'Enter their name and birth year. Harrington uses the birth year to place them on the age 5–13 timeline and build their calendar.'],
     ['Welcome tour & guide', 'A guided welcome tour runs the first time. You can reopen it or this full guide anytime from “Guide” in the sidebar, and download this document as a PDF.'],
     ['Navigate', 'Use the left sidebar (or the bottom bar on mobile) to move between Dashboard, Calendar, Timeline, Records, and Insights. Switch or add students from the selector at the top of the sidebar.'],
   ]},
@@ -216,7 +216,7 @@ const GUIDE_SECTIONS = [
   ]},
   { h: 'Challenges & adaptivity', items: [
     ['Timed challenge', 'After a topic is mastered, an optional beat-the-clock round pitched a little harder — bigger numbers, an extra step, or a taste of what’s next — fun and doable. It tracks a personal best.'],
-    ['Adaptivity engine', 'When your child excels (e.g. aces a challenge quickly), Homestead creates a suggestion to pitch that area harder.'],
+    ['Adaptivity engine', 'When your child excels (e.g. aces a challenge quickly), Harrington creates a suggestion to pitch that area harder.'],
     ['You’re in control', 'Approve or decline every suggestion from the dashboard nudge or Insights. Approving makes future tests in that area a notch harder; see active adaptations as chips and revert any anytime.'],
   ]},
   { h: 'Calendar — adaptive daily plan', items: [
@@ -228,17 +228,17 @@ const GUIDE_SECTIONS = [
     ['Records', 'Log observations, questions, discussions, or assessments — optionally linked to a topic, with notes and a confidence rating.'],
     ['Voice recording everywhere', 'Record a lesson conversation from the dashboard, any topic, or any section. A live on-screen transcript is captured while you record; audio is stored privately and plays back inline.'],
     ['Recordings folder', 'A general folder (from the dashboard) holds every recording, grouped by section, each with playback, transcript, and analysis.'],
-    ['AI summary & advice', 'Homestead reads a recording’s transcript (or your notes) and tells you what the child understands, where and WHY they may be misunderstanding, concrete next steps, and a phrase to try. The summary is saved onto the recording so it stays with it.'],
+    ['AI summary & advice', 'Harrington reads a recording’s transcript (or your notes) and tells you what the child understands, where and WHY they may be misunderstanding, concrete next steps, and a phrase to try. The summary is saved onto the recording so it stays with it.'],
   ]},
   { h: 'Insights', items: [
     ['Adaptive suggestions', 'Approve/decline difficulty changes and see active adaptations per subject/domain.'],
     ['Progress review', 'An encouraging, AI-written per-subject review drawing on progress and your records: strengths, watch areas, and concrete next steps.'],
     ['Recommended next', 'The best unlocked topics to work on in that subject, plus launching the subject capstone test.'],
   ]},
-  { h: 'Homestead Helper (AI chat)', items: [
+  { h: 'Harrington Helper (AI chat)', items: [
     ['Ask anything', 'A floating chat button (bottom-right, on every screen) opens an AI teaching coach for you, the parent. Ask things like “my child is struggling with subtraction and telling time — any ideas?”'],
     ['Knows your student', 'It’s grounded in the active child’s real data — age, per-subject mastery, what they’re working on, and your recent notes — so advice is tailored, not generic.'],
-    ['Practical & connected', 'It gives concrete activities, ways to re-explain, and checks for understanding, and points you to the right Homestead feature (lesson, printables, recall, challenge, or recording analysis).'],
+    ['Practical & connected', 'It gives concrete activities, ways to re-explain, and checks for understanding, and points you to the right Harrington feature (lesson, printables, recall, challenge, or recording analysis).'],
   ]},
   { h: 'Notifications', items: [
     ['Curriculum updates', 'The curriculum auto-refreshes from the open repository; when topics are added or removed upstream you’re notified with a per-subject breakdown and examples — the new material is already live in your timeline and calendar.'],
@@ -261,7 +261,7 @@ function downloadGuide() {
       <h2>${esc(sec.h)}</h2>
       ${sec.items.map(([t, b]) => `<div class="row"><div class="t">${esc(t)}</div><div class="b">${esc(b)}</div></div>`).join('')}
     </section>`).join('');
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Homestead — Complete Guide</title>
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Harrington — Complete Guide</title>
   <style>
     *{box-sizing:border-box}
     body{font-family:Georgia,'Times New Roman',serif;color:#1c1a17;margin:0;padding:56px 64px;line-height:1.55;max-width:860px;margin:0 auto}
@@ -278,10 +278,10 @@ function downloadGuide() {
     section{break-inside:avoid}
     @media print{body{padding:0.6in}a{color:inherit}}
   </style></head><body>
-    <div class="brand"><span class="logo">H</span><span style="font-size:20px;font-weight:700">Homestead</span></div>
+    <div class="brand"><span class="logo">H</span><span style="font-size:20px;font-weight:700">Harrington</span></div>
     <h1>Complete Feature Guide</h1>
     <div class="sub">A mastery-based homeschool platform for ages 5–13 &middot; Generated ${date}</div>
-    <div class="intro">Homestead turns the open Marble Skill Taxonomy — ~1,590 connected micro-topics across 8 subjects, wired by ~3,221 prerequisites — into a clear learning path where every idea is truly mastered before the next begins, and the whole experience adapts to your child. This guide lists every feature and how to use it.</div>
+    <div class="intro">Harrington turns the open Marble Skill Taxonomy — ~1,590 connected micro-topics across 8 subjects, wired by ~3,221 prerequisites — into a clear learning path where every idea is truly mastered before the next begins, and the whole experience adapts to your child. This guide lists every feature and how to use it.</div>
     ${sections}
     <footer>Curriculum: Marble Skill Taxonomy (v1) &middot; © Generative Spark, Inc. &middot; licensed under ODbL 1.0 (database) and CC BY-SA 4.0 (content). Tip: in the print dialog, choose “Save as PDF” as the destination to download this guide.</footer>
     <script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script>

@@ -9,11 +9,11 @@ your report and work on a fix as quickly as we reasonably can.
 
 ## Scope & notes
 
-- Homestead is a static front-end app. Authentication, storage, and AI are
+- Harrington is a static front-end app. Authentication, storage, and AI are
   provided by [Puter.js](https://puter.com); account and infrastructure security
   for those services is handled by Puter.
 - Each parent's data (students, progress, records, recordings) is stored in their
   own Puter account and is not shared by the app.
 - Please never include real children's personal data in a report.
 
-Thank you for helping keep families using Homestead safe.
+Thank you for helping keep families using Harrington safe.

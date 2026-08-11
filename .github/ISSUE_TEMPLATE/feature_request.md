@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an idea for Homestead
+about: Suggest an idea for Harrington
 title: "[Feature] "
 labels: enhancement
 ---

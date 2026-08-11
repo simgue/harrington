@@ -28,7 +28,7 @@ export function evaluateChallenge(studentId, challenge) {
       store.addNotification({
         type: 'suggestion',
         title: `New adaptive suggestion for ${name}`,
-        body: `${name} is excelling in ${domain} (${subject}). Homestead suggests pitching future ${domain} work harder. Review and approve it under Insights → Adaptive suggestions.`,
+        body: `${name} is excelling in ${domain} (${subject}). Harrington suggests pitching future ${domain} work harder. Review and approve it under Insights → Adaptive suggestions.`,
         meta: { subject, domain, studentId },
       });
     }
