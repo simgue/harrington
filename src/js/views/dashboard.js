@@ -173,7 +173,7 @@ export function renderDashboard(params, { navigate }) {
     <div id="act" class="space-y-2"></div>
   </div>`);
   const actWrap = actCard.querySelector('#act');
-  if (recent.length === 0) actWrap.appendChild(el(`<p class="text-sm text-ink-faint">No progress recorded yet. Open the timeline to begin.</p>`));
+  if (recent.length === 0) actWrap.appendChild(el(`<p class="text-sm text-ink-faint">No progress recorded yet. Open the graph to begin.</p>`));
   recent.forEach(a => {
     const meta = SUBJECTS[a.topic.subject];
     const row = el(`<button class="w-full text-left flex items-center gap-2.5 py-1.5">

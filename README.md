@@ -204,6 +204,7 @@ redistribute a *modified copy of the dataset itself*).
 
 ## Contributing
 
-Issues and pull requests are welcome. By contributing, you agree your
-contributions are licensed under the MIT License. Please don't commit copies of
-the taxonomy dataset into this repository — Harrington loads it at runtime.
+Work is tracked in Linear, not GitHub Issues. See [`docs/LINEAR.md`](docs/LINEAR.md).
+Pull requests are welcome. By contributing, you agree your contributions are
+licensed under the MIT License. Please don't commit copies of the taxonomy
+dataset into this repository — Harrington caches it locally at runtime.

@@ -47,6 +47,10 @@ The first proof of concept concentrates on:
    planned, so the next recommendation and later reporting can be grounded in
    real learning.
 
+The parent graph is the current live surface. The daily focus layer
+(literacy / numeracy / interest invitations) stays backlog until the local
+runtime and graph explorer have been used.
+
 ## Keep, but do not optimise yet
 
 The fork retains the complete upstream feature set. These capabilities remain

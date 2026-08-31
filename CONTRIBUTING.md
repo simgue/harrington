@@ -11,6 +11,8 @@ welcome — bug fixes, features, docs, and design.
   Marble Skill Taxonomy at runtime from its open repository. Bundling or forking
   the data has separate licensing obligations (see [`DATA-LICENSE.md`](DATA-LICENSE.md)).
 - Keep the curriculum attribution intact — in the app UI, `NOTICE`, and README.
+- **Linear is the tracker**, matching Yew, FamousFor, and AskBetter. Do not
+  open GitHub Issues for backlog work. See [`docs/LINEAR.md`](docs/LINEAR.md).
 
 ## Project setup
 

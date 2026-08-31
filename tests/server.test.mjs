@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:http';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { after, before, test } from 'node:test';
+import { after, before, describe, test } from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
 
 const repoRoot = new URL('..', import.meta.url);
@@ -43,6 +44,7 @@ async function startServer() {
   });
 }
 
+describe('self-hosted Harrington server', { concurrency: false }, () => {
 before(startServer);
 after(async () => {
   child?.kill('SIGTERM');
@@ -163,4 +165,73 @@ test('serves a cached Marble taxonomy file and rejects unknown names', async () 
 
   const health = await fetch(`${baseUrl}/api/health`);
   assert.equal((await health.json()).taxonomyCached, true);
+});
+});
+
+test('fetches an allowlisted taxonomy file from upstream and caches it on disk', async () => {
+  const fixture = { topics: [{ id: 'count-to-5', name: 'Count to 5' }] };
+  let upstreamHits = 0;
+  const upstream = createServer((req, res) => {
+    if (req.url === '/topics.json') {
+      upstreamHits += 1;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(fixture));
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamPort = upstream.address().port;
+  const isolatedDir = await mkdtemp(join(tmpdir(), 'harrington-taxonomy-'));
+  const isolated = spawn(process.execPath, ['server.mjs'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      HARRINGTON_HOST: '127.0.0.1',
+      HARRINGTON_PORT: '0',
+      HARRINGTON_DATA_DIR: isolatedDir,
+      HARRINGTON_TAXONOMY_UPSTREAM: `http://127.0.0.1:${upstreamPort}`,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  try {
+    const isolatedUrl = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('taxonomy server did not start')), 5000);
+      let output = '';
+      isolated.stdout.on('data', (chunk) => {
+        output += chunk.toString();
+        const match = output.match(/http:\/\/127\.0\.0\.1:(\d+)/);
+        if (match) {
+          clearTimeout(timer);
+          resolve(`http://127.0.0.1:${match[1]}`);
+        }
+      });
+      isolated.stderr.on('data', (chunk) => { output += chunk.toString(); });
+      isolated.once('exit', (code) => {
+        clearTimeout(timer);
+        reject(new Error(`taxonomy server exited with ${code}: ${output}`));
+      });
+    });
+
+    const first = await fetch(`${isolatedUrl}/api/taxonomy/topics.json`);
+    assert.equal(first.status, 200);
+    assert.deepEqual(await first.json(), fixture);
+    assert.equal(upstreamHits, 1);
+    assert.deepEqual(JSON.parse(await readFile(join(isolatedDir, 'taxonomy', 'topics.json'), 'utf8')), fixture);
+
+    const second = await fetch(`${isolatedUrl}/api/taxonomy/topics.json`);
+    assert.equal(second.status, 200);
+    assert.deepEqual(await second.json(), fixture);
+    assert.equal(upstreamHits, 1);
+
+    const missing = await fetch(`${isolatedUrl}/api/taxonomy/manifest.json`);
+    assert.equal(missing.status, 502);
+  } finally {
+    isolated.kill('SIGTERM');
+    await new Promise((resolve) => isolated.once('exit', resolve));
+    upstream.close();
+    await rm(isolatedDir, { recursive: true, force: true });
+  }
 });

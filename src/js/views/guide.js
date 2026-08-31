@@ -183,14 +183,14 @@ const GUIDE_SECTIONS = [
     ['Active recall due', 'A card showing how many memory-review cards are due today, launching a mixed recall session.'],
     ['Recordings folder', 'One tap into the general folder of all voice recordings, grouped by section.'],
     ['Nudges & feeds', 'An adaptive-suggestion nudge when your child is excelling, plus recent progress and latest records.'],
-    ['Quick actions', 'Open the timeline, record a conversation, or add a note.'],
+    ['Quick actions', 'Open the graph, record a conversation, or add a note.'],
   ]},
-  { h: 'Timeline', items: [
-    ['Connected map', 'Explore each subject as gated sections from age 5 to 13, with a banner explaining the topic → section → subject ladder.'],
-    ['Topic cards', 'Mastery status plus quick buttons for Lesson, Take test, and Details.'],
-    ['Section checks', 'Unlock once all a section’s topics are mastered; locked sections show how many topics remain. Each section also has a Record button.'],
-    ['Subject capstone', 'The final subject test unlocks when every section is passed, and offers a printable certificate.'],
+  { h: 'Graph', items: [
+    ['Curriculum map', 'Start at a subject and drill into domains, age-banded sections, and topics. Mastery stays in the parent view.'],
+    ['Topic cards', 'Each topic still shows hard and soft prerequisites, what it unlocks, and opens the existing topic page.'],
+    ['Section checks', 'Unlock once all a section’s topics are mastered; locked sections show how many topics remain.'],
     ['Topic page toolkit', 'Topic mastery test, challenge (after mastery), active recall, evidence of mastery, a quick check, activities & games, records, section recordings, section check, “How this connects,” and reference links. AI-generated tools remain disabled until a provider is configured.'],
+    ['Age-order timeline', 'The older section-by-section timeline remains at #timeline if you want the gated age path.'],
   ]},
   { h: 'How topics connect', items: [
     ['Comes before', 'Each topic lists the prerequisites to master first, tagged Required or Helpful (straight from the taxonomy) with the reason each matters and its current mastery status.'],
