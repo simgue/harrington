@@ -1,4 +1,5 @@
 import { SUBJECTS, getData } from '../data.js';
+import { graphParamsForTopic } from './graph.js';
 import * as store from '../store.js';
 import { el, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { isUnlocked, blockingPrereqs, MASTERY, sectionForTopic, topicsMasteryStats, sectionTestReady } from '../mastery.js';
@@ -26,8 +27,8 @@ export function renderTopic(params, { navigate }) {
   const blocking = active ? blockingPrereqs(active.id, t.id) : [];
 
   // back + breadcrumb
-  const back = el(`<button class="flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink mb-4"><i data-lucide="arrow-left" class="w-4 h-4"></i>Back to timeline</button>`);
-  back.onclick = () => navigate('timeline');
+  const back = el(`<button class="flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink mb-4"><i data-lucide="arrow-left" class="w-4 h-4"></i>Back to graph</button>`);
+  back.onclick = () => navigate('graph', graphParamsForTopic(t));
   root.appendChild(back);
 
   // Header

@@ -9,12 +9,16 @@ const publicDir = join(repoRoot, 'src');
 const dataDir = resolve(process.env.HARRINGTON_DATA_DIR || join(repoRoot, 'data', 'private'));
 const lessonsDir = join(dataDir, 'lessons');
 const audioDir = join(dataDir, 'audio');
+const taxonomyDir = join(dataDir, 'taxonomy');
 const stateFile = join(dataDir, 'family-state.json');
 const host = process.env.HARRINGTON_HOST || '127.0.0.1';
 const configuredPort = Number.parseInt(process.env.HARRINGTON_PORT || process.env.PORT || '4173', 10);
 const port = Number.isInteger(configuredPort) && configuredPort >= 0 ? configuredPort : 4173;
 const JSON_LIMIT = 5 * 1024 * 1024;
 const AUDIO_LIMIT = 100 * 1024 * 1024;
+const TAXONOMY_FILES = new Set(['topics.json', 'dependencies.json', 'clusters.json', 'manifest.json']);
+const TAXONOMY_UPSTREAM = process.env.HARRINGTON_TAXONOMY_UPSTREAM
+  || 'https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@main/data';
 
 const MIME = {
   '.css': 'text/css; charset=utf-8',
@@ -121,9 +125,57 @@ function routeKey(pathname, prefix) {
   }
 }
 
+async function taxonomyCached() {
+  try {
+    await stat(join(taxonomyDir, 'topics.json'));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function loadTaxonomyFile(name) {
+  if (!TAXONOMY_FILES.has(name)) {
+    throw Object.assign(new Error('Unknown taxonomy file'), { statusCode: 404 });
+  }
+  const cachePath = join(taxonomyDir, name);
+  const cached = await readFile(cachePath).catch((error) => {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (cached) return cached;
+
+  const response = await fetch(`${TAXONOMY_UPSTREAM.replace(/\/$/, '')}/${name}`);
+  if (!response.ok) {
+    throw Object.assign(
+      new Error(`Could not download curriculum file ${name} (${response.status})`),
+      { statusCode: 502 },
+    );
+  }
+  const body = Buffer.from(await response.arrayBuffer());
+  await mkdir(taxonomyDir, { recursive: true });
+  await atomicWrite(cachePath, body);
+  return body;
+}
+
 async function handleApi(req, res, url) {
   if (url.pathname === '/api/health' && req.method === 'GET') {
-    sendJson(res, 200, { ok: true, mode: 'self-hosted', aiConfigured: false });
+    sendJson(res, 200, {
+      ok: true,
+      mode: 'self-hosted',
+      aiConfigured: false,
+      taxonomyCached: await taxonomyCached(),
+    });
+    return true;
+  }
+
+  const taxonomyName = routeKey(url.pathname, '/api/taxonomy/');
+  if (taxonomyName !== null && req.method === 'GET') {
+    const body = await loadTaxonomyFile(taxonomyName);
+    send(res, 200, body, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'private, max-age=3600',
+    });
     return true;
   }
 

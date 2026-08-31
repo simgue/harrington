@@ -2,6 +2,7 @@
   "name": "harrington",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "A private, self-hosted family learning platform built on the Marble Skill Taxonomy.",
   "scripts": {
     "start": "node server.mjs",

@@ -6,7 +6,7 @@ import { openGuide } from './guide.js';
 const NAV = [
   { name: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
   { name: 'calendar', label: 'Calendar', icon: 'calendar-days' },
-  { name: 'timeline', label: 'Timeline', icon: 'git-branch' },
+  { name: 'graph', label: 'Graph', icon: 'git-fork' },
   { name: 'records', label: 'Records', icon: 'notebook-pen' },
   { name: 'insights', label: 'Insights', icon: 'sparkles' },
 ];

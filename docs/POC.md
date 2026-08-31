@@ -28,8 +28,9 @@ the focus layer does not break prerequisite paths.
 
 The first proof of concept concentrates on:
 
-1. **Curriculum graph** — load the Marble taxonomy and make prerequisite and
-   unlock paths easy for a parent to explore.
+1. **Curriculum graph** — load the Marble taxonomy and let a parent start at
+   the top of the subject map, then drill into domains, sections, topics, and
+   prerequisite / unlock paths.
 2. **Child context** — begin with synthetic profiles corresponding to an early
    learner, a six-year-old hands-on learner, and a nine-year-old artistic
    learner. Do not enter real child records until storage and export have been

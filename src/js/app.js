@@ -4,10 +4,12 @@ import { syncCurriculum } from './curriculum-sync.js';
 import { maybeShowWelcome } from './views/guide.js';
 import { el, refreshIcons, toast } from './ui.js';
 import { renderShell } from './views/shell.js';
+import { graphHash } from './graph.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderTimeline } from './views/timeline.js';
 import { renderCalendar } from './views/calendar.js';
 import { renderTopic } from './views/topic.js';
+import { renderGraph } from './views/graph.js';
 import { renderRecords } from './views/records.js';
 import { renderInsights } from './views/insights.js';
 
@@ -18,16 +20,32 @@ const route = { name: 'dashboard', params: {} };
 export function navigate(name, params = {}) {
   route.name = name;
   route.params = params;
-  window.location.hash = name + (params.id ? '/' + params.id : '');
+  window.location.hash = hashFor(name, params);
   render();
   window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+function hashFor(name, params = {}) {
+  if (name === 'graph') return graphHash(params);
+  return name + (params.id ? '/' + params.id : '');
 }
 
 function parseHash() {
   const h = window.location.hash.replace(/^#/, '');
   if (!h) return { name: 'dashboard', params: {} };
-  const [name, id] = h.split('/');
-  return { name, params: id ? { id } : {} };
+  const parts = h.split('/').map((part) => {
+    try { return decodeURIComponent(part); }
+    catch { return part; }
+  });
+  const [name, ...rest] = parts;
+  if (name === 'graph') {
+    return { name, params: { subject: rest[0], domain: rest[1], age: rest[2] } };
+  }
+  return { name, params: rest[0] ? { id: rest[0] } : {} };
+}
+
+function sameRoute(a, b) {
+  return hashFor(a.name, a.params) === hashFor(b.name, b.params);
 }
 
 let taxonomyReady = false;
@@ -62,6 +80,7 @@ function render() {
     dashboard: renderDashboard,
     calendar: renderCalendar,
     timeline: renderTimeline,
+    graph: renderGraph,
     topic: renderTopic,
     records: renderRecords,
     insights: renderInsights,
@@ -161,7 +180,7 @@ function renderOnboard() {
 
 window.addEventListener('hashchange', () => {
   const r = parseHash();
-  if (r.name !== route.name || r.params.id !== route.params.id) {
+  if (!sameRoute(r, route)) {
     route.name = r.name; route.params = r.params;
     render();
   }

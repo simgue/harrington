@@ -69,13 +69,16 @@ test('unmigrated connected features fail closed', async () => {
 });
 
 test('interface assets are served by Harrington instead of public CDNs', async () => {
-  const [index, ui] = await Promise.all([
+  const [index, ui, data] = await Promise.all([
     source('src/index.html'),
     source('src/js/ui.js'),
+    source('src/js/data.js'),
   ]);
 
   assert.doesNotMatch(index, /cdn\.tailwindcss\.com|fonts\.googleapis\.com|fonts\.gstatic\.com/);
   assert.doesNotMatch(ui, /cdn\.jsdelivr\.net|https?:\/\//);
+  assert.doesNotMatch(data, /cdn\.jsdelivr\.net|https?:\/\//);
+  assert.match(data, /\/api\/taxonomy/);
   assert.match(index, /css\/tailwind\.css/);
   assert.match(index, /vendor\/lucide\.min\.js/);
 });

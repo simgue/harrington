@@ -39,7 +39,8 @@ src/js/
   app.js              Router, server connection, onboarding, and top-level render
   backend.js          Same-origin Harrington API client
   store.js            State + server persistence, all data accessors
-  data.js             Loads the taxonomy and builds the graph
+  data.js             Loads the taxonomy from the local server cache
+  graph.js            Subject → domain → section hierarchy helpers
   mastery.js          Mastery ladder logic, sections, stats
   scheduler.js        The day-by-day calendar plan
   adapt.js            Adaptivity engine (difficulty suggestions)
@@ -47,7 +48,7 @@ src/js/
   ai.js               All AI helpers (lessons, tests, recall, chat, etc.)
   recorder.js         Voice recording + live transcript
   ui.js               DOM helpers, modals, toasts, icons
-  views/              One module per screen/feature (dashboard, timeline,
+  views/              One module per screen (dashboard, graph, timeline,
                       topic, calendar, records, insights, recall, challenge,
                       masterytest, lesson, printables, recordings, guide,
                       assistant, notifications, shell)
@@ -70,5 +71,6 @@ src/docs/GUIDE.md     The full written feature guide
 
 ## Reporting issues
 
-Open an issue with steps to reproduce, what you expected, what happened, and your
-browser. Please don't include any personal/child data in reports.
+File work in the Linear Harrington team (`HAR`). Include steps to reproduce,
+what you expected, what happened, and your browser. Please don't include any
+personal or child data in reports.

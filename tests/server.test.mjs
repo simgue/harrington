@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -59,6 +59,7 @@ test('serves Harrington and reports self-hosted health', async () => {
     ok: true,
     mode: 'self-hosted',
     aiConfigured: false,
+    taxonomyCached: false,
   });
 
   const page = await fetch(baseUrl);
@@ -146,4 +147,20 @@ test('rejects invalid writes and leaves AI disabled by default', async () => {
   });
   assert.equal(ai.status, 503);
   assert.match((await ai.json()).error, /not configured/i);
+});
+
+test('serves a cached Marble taxonomy file and rejects unknown names', async () => {
+  const unknown = await fetch(`${baseUrl}/api/taxonomy/secret.json`);
+  assert.equal(unknown.status, 404);
+
+  const payload = { topics: [{ id: 'count-to-5', name: 'Count to 5' }] };
+  await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
+  await writeFile(join(dataDir, 'taxonomy', 'topics.json'), JSON.stringify(payload));
+
+  const cached = await fetch(`${baseUrl}/api/taxonomy/topics.json`);
+  assert.equal(cached.status, 200);
+  assert.deepEqual(await cached.json(), payload);
+
+  const health = await fetch(`${baseUrl}/api/health`);
+  assert.equal((await health.json()).taxonomyCached, true);
 });

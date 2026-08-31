@@ -10,8 +10,10 @@ curriculum help parents see progress and possible paths to mastery without makin
 the child's day feel school-like, score-led, or predetermined?
 
 Start with the [Harrington proof-of-concept brief](docs/POC.md) and its
-[small learning spine](docs/POC-SPINE.md). Homestead remains an upstream code
-reference, not a Harrington deployment or service dependency.
+[small learning spine](docs/POC-SPINE.md). Work is tracked in Linear on the
+[Harrington](https://linear.app/karatgurk/team/HAR/overview) team; see
+[docs/LINEAR.md](docs/LINEAR.md). Homestead remains an upstream code reference,
+not a Harrington deployment or service dependency.
 
 ## Current self-hosted preview
 
@@ -27,8 +29,9 @@ authentication, encrypted backups, and private remote access are implemented.
 
 - **Mastery ladder** — Topics → Sections → Subjects, each gated at 90%+ so
   learning always builds on solid foundations.
-- **Connected timeline** — every topic shows its prerequisites and what it
-  unlocks, straight from the curriculum's dependency graph.
+- **Curriculum graph** — parents start at a subject and drill into domains,
+  age-banded sections, and topics. Prerequisites and unlocks stay visible;
+  mastery stays in the parent view.
 - **Ready-to-teach lessons (retained)** — generation requires a future AI
   provider adapter; completed lessons will be cached on the family server.
 - **Verified tests (retained)** — generation and independent re-solving require
@@ -168,13 +171,14 @@ and restore testing must be added before remote access.
 
 ## The curriculum data
 
-The curriculum is **not** bundled — Harrington fetches the latest data at runtime
-from the open-source **Marble Skill Taxonomy**:
+The curriculum is **not** committed to Git. The local Harrington server fetches
+the open-source **Marble Skill Taxonomy** once, caches it under
+`data/private/taxonomy/`, and serves it to the browser at `/api/taxonomy/*`:
 
 - https://github.com/withmarbleapp/os-taxonomy
 
-This means the curriculum stays up to date automatically, and the app notifies
-you when topics are added or removed upstream.
+The first launch needs the network for that download. Later launches use the
+on-disk cache. The app notifies you when topics are added or removed upstream.
 
 ## Licensing
 

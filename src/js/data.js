@@ -1,7 +1,7 @@
 // Loads the Marble Skill Taxonomy and builds the learning graph.
 // Data source: https://github.com/withmarbleapp/os-taxonomy (ODbL 1.0 / CC BY-SA 4.0)
 
-const CDN = 'https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@main/data';
+const TAXONOMY_API = '/api/taxonomy';
 
 export const SUBJECTS = {
   'Mathematics':                  { color: '#3f7d5e', icon: 'calculator' },
@@ -21,10 +21,10 @@ let _cache = null;
 export async function loadTaxonomy() {
   if (_cache) return _cache;
   const [topicsRes, depsRes, clustersRes, manifestRes] = await Promise.all([
-    fetch(`${CDN}/topics.json`),
-    fetch(`${CDN}/dependencies.json`),
-    fetch(`${CDN}/clusters.json`),
-    fetch(`${CDN}/manifest.json`).catch(() => null),
+    fetch(`${TAXONOMY_API}/topics.json`),
+    fetch(`${TAXONOMY_API}/dependencies.json`),
+    fetch(`${TAXONOMY_API}/clusters.json`),
+    fetch(`${TAXONOMY_API}/manifest.json`).catch(() => null),
   ]);
   if (!topicsRes.ok || !depsRes.ok) throw new Error('Could not load the curriculum data.');
   const topicsJson = await topicsRes.json();

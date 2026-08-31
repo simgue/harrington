@@ -9,7 +9,6 @@ import { openMasteryTest } from './masterytest.js';
 import { openRecordingsLibrary } from './recordings.js';
 import { openDueRecall } from './recall.js';
 import { openDuePractice } from './practice.js';
-import { setTimelineSubject } from './timeline.js';
 import { BADGES } from '../game.js';
 
 export function renderDashboard(params, { navigate }) {
@@ -31,12 +30,12 @@ export function renderDashboard(params, { navigate }) {
       <p class="text-ink-soft text-sm mt-0.5">Age ${age} · ${stats.totalMastered} of ${stats.total} topics mastered across ${Object.keys(SUBJECTS).length} subjects</p>
     </div>
     <div class="flex gap-2">
-      <button id="qtime" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors"><i data-lucide="git-branch" class="w-4 h-4"></i>Open timeline</button>
+      <button id="qtime" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors"><i data-lucide="git-fork" class="w-4 h-4"></i>Open graph</button>
       <button id="qmic" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#b0413a] hover:bg-[#963731] text-white text-sm font-medium transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
       <button id="qrec" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-paper-card border border-paper-line text-sm font-medium hover:border-brand/40 transition-colors"><i data-lucide="plus" class="w-4 h-4"></i>Note</button>
     </div>
   </div>`));
-  root.querySelector('#qtime').onclick = () => navigate('timeline');
+  root.querySelector('#qtime').onclick = () => navigate('graph');
   root.querySelector('#qmic').onclick = () => openRecorder(active.id);
   root.querySelector('#qrec').onclick = () => openRecordForm(active.id);
 
@@ -85,7 +84,7 @@ export function renderDashboard(params, { navigate }) {
   const nextWrap = nextCard.querySelector('#next');
   const nexts = recommendedNext(active.id, 4);
   if (nexts.length === 0) {
-    nextWrap.appendChild(el(`<p class="text-sm text-ink-faint col-span-2">Everything available is mastered — explore the timeline to go further.</p>`));
+    nextWrap.appendChild(el(`<p class="text-sm text-ink-faint col-span-2">Everything available is mastered — explore the graph to go further.</p>`));
   } else {
     nexts.forEach(n => {
       const meta = SUBJECTS[n.topic.subject];
@@ -146,7 +145,7 @@ export function renderDashboard(params, { navigate }) {
         <span class="block text-xs font-600 mt-0.5" style="color:${meta.color}">${s.pct}% complete</span>
       </span>
     </button>`);
-    card.onclick = () => { setTimelineSubject(sub); navigate('timeline'); };
+    card.onclick = () => navigate('graph', { subject: sub });
     grid.appendChild(card);
   });
   root.appendChild(grid);
