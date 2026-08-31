@@ -12,7 +12,6 @@ const TYPE_META = {
 };
 
 export async function openPrintables(topic) {
-  const student = store.activeStudent();
   const body = el(`<div class="p-0">
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
       <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${SUBJECTS[topic.subject].color}18"><i data-lucide="printer" class="w-5 h-5" style="color:${SUBJECTS[topic.subject].color}"></i></span>
@@ -33,7 +32,7 @@ export async function openPrintables(topic) {
   try {
     let data = await store.getCachedLesson(cacheId);
     if (!data) {
-      data = await aiPrintables(topic, student?.name);
+      data = await aiPrintables(topic);
       await store.saveCachedLesson(cacheId, data);
     }
     const printables = (data && data.printables) || [];

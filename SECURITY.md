@@ -15,8 +15,10 @@ your report and work on a fix as quickly as we reasonably can.
 - The preview does not yet include application authentication. Do not bind it to
   a public interface or expose it to the internet without a trusted
   authentication reverse proxy.
-- AI and shared-family features are disabled by default. No family data is sent
-  to an AI provider by this preview.
+- AI generation is disabled until `HARRINGTON_AI_BASE_URL` and
+  `HARRINGTON_AI_MODEL` are set. When they are set, topic text (never a child's
+  name) is sent only to that configured OpenAI-compatible endpoint. Shared-family
+  features remain disabled by default.
 - Please never include real children's personal data in a report.
 
 Thank you for helping keep families using Harrington safe.

@@ -21,6 +21,9 @@ async function startServer() {
       HARRINGTON_HOST: '127.0.0.1',
       HARRINGTON_PORT: '0',
       HARRINGTON_DATA_DIR: dataDir,
+      HARRINGTON_AI_BASE_URL: '',
+      HARRINGTON_AI_MODEL: '',
+      HARRINGTON_AI_API_KEY: '',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -119,6 +122,15 @@ test('persists lesson cache entries and recordings', async () => {
   });
   assert.equal(savedLesson.status, 204);
   assert.deepEqual(await (await fetch(`${baseUrl}/api/lessons/${lessonId}`)).json(), lesson);
+
+  const topicLesson = { objective: 'count to five', duration: '20 minutes' };
+  const topicKey = encodeURIComponent('topic:count-to-5');
+  assert.equal((await fetch(`${baseUrl}/api/lessons/${topicKey}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(topicLesson),
+  })).status, 204);
+  assert.deepEqual(await (await fetch(`${baseUrl}/api/lessons/${topicKey}`)).json(), topicLesson);
 
   const audio = new Uint8Array([1, 2, 3, 4]);
   const savedAudio = await fetch(`${baseUrl}/api/audio/recording-1.webm`, {
@@ -234,4 +246,202 @@ test('fetches an allowlisted taxonomy file from upstream and caches it on disk',
     upstream.close();
     await rm(isolatedDir, { recursive: true, force: true });
   }
+});
+
+function listen(server) {
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+}
+
+async function readRequestBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+async function spawnHarrington(extraEnv = {}) {
+  const dir = await mkdtemp(join(tmpdir(), 'harrington-ai-'));
+  const proc = spawn(process.execPath, ['server.mjs'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      HARRINGTON_HOST: '127.0.0.1',
+      HARRINGTON_PORT: '0',
+      HARRINGTON_DATA_DIR: dir,
+      HARRINGTON_AI_BASE_URL: '',
+      HARRINGTON_AI_MODEL: '',
+      HARRINGTON_AI_API_KEY: '',
+      ...extraEnv,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const url = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('AI test server did not start')), 5000);
+    let output = '';
+    proc.stdout.on('data', (chunk) => {
+      output += chunk.toString();
+      const match = output.match(/http:\/\/127\.0\.0\.1:(\d+)/);
+      if (match) {
+        clearTimeout(timer);
+        resolve(`http://127.0.0.1:${match[1]}`);
+      }
+    });
+    proc.stderr.on('data', (chunk) => { output += chunk.toString(); });
+    proc.once('exit', (code) => {
+      clearTimeout(timer);
+      reject(new Error(`AI test server exited with ${code}: ${output}`));
+    });
+  });
+  return {
+    url,
+    dir,
+    async stop() {
+      proc.kill('SIGTERM');
+      await new Promise((resolve) => proc.once('exit', resolve));
+      await rm(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
+  test('reports aiConfigured only when base URL and model are both set', async () => {
+    const incomplete = await spawnHarrington({ HARRINGTON_AI_MODEL: 'llama3.2' });
+    try {
+      const health = await (await fetch(`${incomplete.url}/api/health`)).json();
+      assert.equal(health.aiConfigured, false);
+      const ai = await fetch(`${incomplete.url}/api/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], model: 'gpt-4o-mini' }),
+      });
+      assert.equal(ai.status, 503);
+    } finally {
+      await incomplete.stop();
+    }
+
+    const urlOnly = await spawnHarrington({ HARRINGTON_AI_BASE_URL: 'http://127.0.0.1:9/v1' });
+    try {
+      assert.equal((await (await fetch(`${urlOnly.url}/api/health`)).json()).aiConfigured, false);
+    } finally {
+      await urlOnly.stop();
+    }
+  });
+
+  test('forwards chat completions to the configured model and returns { content }', async () => {
+    const captured = [];
+    const upstream = createServer(async (req, res) => {
+      const body = JSON.parse(await readRequestBody(req));
+      captured.push({
+        url: req.url,
+        method: req.method,
+        authorization: req.headers.authorization || null,
+        body,
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        choices: [{ message: { content: '{"objective":"count to five"}' } }],
+      }));
+    });
+    await listen(upstream);
+    const port = upstream.address().port;
+    const harrington = await spawnHarrington({
+      HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${port}/v1/`,
+      HARRINGTON_AI_MODEL: 'llama3.2',
+      HARRINGTON_AI_API_KEY: 'test-family-key',
+    });
+
+    try {
+      const health = await (await fetch(`${harrington.url}/api/health`)).json();
+      assert.equal(health.aiConfigured, true);
+
+      const ai = await fetch(`${harrington.url}/api/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Write a lesson' }],
+          model: 'gpt-4o-mini',
+        }),
+      });
+      assert.equal(ai.status, 200);
+      assert.deepEqual(await ai.json(), { content: '{"objective":"count to five"}' });
+
+      assert.equal(captured.length, 1);
+      assert.equal(captured[0].method, 'POST');
+      assert.equal(captured[0].url, '/v1/chat/completions');
+      assert.equal(captured[0].authorization, 'Bearer test-family-key');
+      assert.equal(captured[0].body.model, 'llama3.2');
+      assert.deepEqual(captured[0].body.messages, [{ role: 'user', content: 'Write a lesson' }]);
+      assert.notEqual(captured[0].body.model, 'gpt-4o-mini');
+
+      const aliases = ['small', 'strong', 'gpt-4o', 'gpt-4o-mini'];
+      for (const model of aliases) {
+        const response = await fetch(`${harrington.url}/api/ai`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{ role: 'user', content: model }],
+            model,
+          }),
+        });
+        assert.equal(response.status, 200);
+      }
+      assert.ok(captured.slice(1).every((entry) => entry.body.model === 'llama3.2'));
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+  });
+
+  test('keeps provider failures fail-closed without leaking secrets', async () => {
+    const secret = 'sk-secret-SHOULD-NOT-LEAK';
+    const upstream = createServer(async (req, res) => {
+      await readRequestBody(req);
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: { message: `Invalid API key ${secret}` } }));
+    });
+    await listen(upstream);
+    const harrington = await spawnHarrington({
+      HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`,
+      HARRINGTON_AI_MODEL: 'llama3.2',
+      HARRINGTON_AI_API_KEY: secret,
+    });
+
+    try {
+      const ai = await fetch(`${harrington.url}/api/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], model: 'small' }),
+      });
+      assert.equal(ai.status, 502);
+      const body = await ai.json();
+      assert.match(body.error, /failed/i);
+      assert.doesNotMatch(JSON.stringify(body), new RegExp(secret));
+      assert.doesNotMatch(body.error, /sk-/);
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+  });
+
+  test('times out a hung provider with 504', async () => {
+    const upstream = createServer(() => {});
+    await listen(upstream);
+    const harrington = await spawnHarrington({
+      HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`,
+      HARRINGTON_AI_MODEL: 'llama3.2',
+      HARRINGTON_AI_TIMEOUT_MS: '150',
+    });
+
+    try {
+      const ai = await fetch(`${harrington.url}/api/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }] }),
+      });
+      assert.equal(ai.status, 504);
+      assert.match((await ai.json()).error, /timed out/i);
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+  });
 });

@@ -19,11 +19,14 @@ not a Harrington deployment or service dependency.
 
 Harrington no longer requires an external account. Its own Node server stores
 family state, lesson caches, and recordings in a family-controlled data
-directory. AI generation and Commune are intentionally disabled until they have
-explicit self-hosted adapters.
+directory. Lesson generation is optional: it stays fail-closed until you point
+Harrington at a local OpenAI-compatible endpoint (Ollama is the documented
+example). Commune is still disabled until it has an explicit self-hosted adapter.
 
 This preview binds to the local computer only. Use synthetic learner names until
 authentication, encrypted backups, and private remote access are implemented.
+Never send a real child's name into a model prompt — generators use “your child”
+and an age band only.
 
 ## Highlights
 
@@ -32,8 +35,10 @@ authentication, encrypted backups, and private remote access are implemented.
 - **Curriculum graph** — parents start at a subject and drill into domains,
   age-banded sections, and topics. Prerequisites and unlocks stay visible;
   mastery stays in the parent view.
-- **Ready-to-teach lessons (retained)** — generation requires a future AI
-  provider adapter; completed lessons will be cached on the family server.
+- **Ready-to-teach lessons** — **Open full lesson** calls the family-controlled
+  `/api/ai` adapter, then caches the result once per topic (`topic:{id}`) on the
+  family server. Unconfigured servers keep returning 503. Do not pre-generate the
+  whole taxonomy.
 - **Verified tests (retained)** — generation and independent re-solving require
   a future AI provider adapter; digital and printable test mechanics remain.
 - **Active recall (retained)** — generated memory cards require the same future
@@ -141,8 +146,8 @@ membership and sharing service can be operated independently by Harrington.
   recordings.
 - No external account or application bundler. `server.mjs` is the entry point;
   the committed browser assets are regenerated with `npm run build`.
-- Marble remains an open runtime curriculum source. AI is optional and currently
-  unconfigured.
+- Marble remains an open runtime curriculum source. AI is optional and
+  fail-closed until `HARRINGTON_AI_BASE_URL` and `HARRINGTON_AI_MODEL` are set.
 
 ## Running locally
 
@@ -155,6 +160,52 @@ npm start
 
 Then open `http://127.0.0.1:4173`. No login is required. Private preview data is
 written under `data/private/` and excluded from Git.
+
+### Optional local model (Ollama)
+
+Lesson generation stays off until both of these are set. There is no default
+cloud URL or API key.
+
+```bash
+# Install Ollama from https://ollama.com, then pull one instruction model:
+ollama pull llama3.2
+
+export HARRINGTON_AI_BASE_URL=http://127.0.0.1:11434/v1
+export HARRINGTON_AI_MODEL=llama3.2
+# Optional. Ollama usually needs none; some reverse proxies want Bearer:
+# export HARRINGTON_AI_API_KEY=your-proxy-token
+
+npm start
+```
+
+Restart Harrington after changing these variables. `/api/health` reports
+`aiConfigured: true` only when both the base URL and model are set. Inherited
+client aliases (`small`, `strong`, `gpt-4o-mini`, `gpt-4o`) are mapped to
+`HARRINGTON_AI_MODEL`; the adapter never calls a vendor by those names.
+
+Local models can take a while to write lesson JSON. The adapter waits up to
+three minutes (`HARRINGTON_AI_TIMEOUT_MS` to override) and then fails closed.
+
+Docker on the same machine as Ollama typically needs
+`HARRINGTON_AI_BASE_URL=http://host.docker.internal:11434/v1`. Do not publish a
+key or a cloud endpoint in `compose.yaml`.
+
+### URL-swap priming (same adapter, no batch job)
+
+The adapter is URL-swappable. Point `HARRINGTON_AI_BASE_URL` at any
+OpenAI-compatible `/v1` (Ollama, llama.cpp, vLLM, or a vendor/LiteLLM endpoint
+on the family server) without code changes.
+
+Do **not** pre-generate all ~1,590 Marble topics. The lesson cache is
+generate-once per topic the family actually opens. If a local model's JSON is
+weak, you may temporarily point at a stronger endpoint to fill **only the
+topics you open** (or a small focus band later), then switch back to Ollama.
+A cloud or vendor endpoint means topic text leaves the house. Never use Puter.
+Never put learner names in prompts.
+
+Chat / Harrington Helper is a later slice: interactive chat needs a live local
+model, and progress or records must not be dumped into prompts. The same
+`/api/ai` pipe would use whatever is configured.
 
 Docker is also supported:
 

@@ -22,6 +22,7 @@ test('the Harrington runtime has no Puter dependency', async () => {
     'src/js/graph.js',
     'src/js/views/graph.js',
     'src/js/mastery.js',
+    'server.mjs',
   ];
   const runtimeSources = await Promise.all(runtimePaths.map(source));
 

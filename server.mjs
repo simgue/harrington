@@ -19,6 +19,8 @@ const AUDIO_LIMIT = 100 * 1024 * 1024;
 const TAXONOMY_FILES = new Set(['topics.json', 'dependencies.json', 'clusters.json', 'manifest.json']);
 const TAXONOMY_UPSTREAM = process.env.HARRINGTON_TAXONOMY_UPSTREAM
   || 'https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@main/data';
+const AI_UNCONFIGURED = 'AI is not configured for this self-hosted Harrington server';
+const DEFAULT_AI_TIMEOUT_MS = 180_000;
 
 const MIME = {
   '.css': 'text/css; charset=utf-8',
@@ -125,6 +127,95 @@ function routeKey(pathname, prefix) {
   }
 }
 
+function envTrim(name) {
+  return (process.env[name] || '').trim();
+}
+
+function aiSettings() {
+  const baseUrl = envTrim('HARRINGTON_AI_BASE_URL').replace(/\/+$/, '');
+  const model = envTrim('HARRINGTON_AI_MODEL');
+  const apiKey = envTrim('HARRINGTON_AI_API_KEY');
+  const timeoutRaw = Number.parseInt(envTrim('HARRINGTON_AI_TIMEOUT_MS'), 10);
+  return {
+    configured: Boolean(baseUrl && model),
+    baseUrl,
+    model,
+    apiKey,
+    timeoutMs: Number.isInteger(timeoutRaw) && timeoutRaw > 0 ? timeoutRaw : DEFAULT_AI_TIMEOUT_MS,
+  };
+}
+
+function completionContent(payload) {
+  const choice = payload?.choices?.[0];
+  if (!choice) return '';
+  const content = choice.message?.content ?? choice.text;
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content.map((part) => {
+      if (typeof part === 'string') return part;
+      if (part && typeof part.text === 'string') return part.text;
+      return '';
+    }).join('');
+  }
+  return content == null ? '' : String(content);
+}
+
+async function handleAiChat(req, res) {
+  const settings = aiSettings();
+  if (!settings.configured) {
+    sendJson(res, 503, { error: AI_UNCONFIGURED });
+    return;
+  }
+
+  const body = await readJson(req);
+  if (!Array.isArray(body.messages)) {
+    throw Object.assign(new Error('Request body must include a messages array'), { statusCode: 400 });
+  }
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), settings.timeoutMs);
+  let response;
+  try {
+    response = await fetch(`${settings.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: settings.model,
+        messages: body.messages,
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      sendJson(res, 504, { error: 'The AI provider timed out' });
+      return;
+    }
+    sendJson(res, 502, { error: 'The AI provider is unreachable' });
+    return;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!response.ok) {
+    await response.text().catch(() => '');
+    sendJson(res, 502, { error: 'The AI provider failed' });
+    return;
+  }
+
+  let payload;
+  try {
+    payload = await response.json();
+  } catch {
+    sendJson(res, 502, { error: 'The AI provider returned an invalid response' });
+    return;
+  }
+
+  sendJson(res, 200, { content: completionContent(payload) });
+}
+
 async function taxonomyCached() {
   try {
     await stat(join(taxonomyDir, 'topics.json'));
@@ -163,7 +254,7 @@ async function handleApi(req, res, url) {
     sendJson(res, 200, {
       ok: true,
       mode: 'self-hosted',
-      aiConfigured: false,
+      aiConfigured: aiSettings().configured,
       taxonomyCached: await taxonomyCached(),
     });
     return true;
@@ -251,7 +342,7 @@ async function handleApi(req, res, url) {
   }
 
   if (url.pathname === '/api/ai' && req.method === 'POST') {
-    sendJson(res, 503, { error: 'AI is not configured for this self-hosted Harrington server' });
+    await handleAiChat(req, res);
     return true;
   }
 

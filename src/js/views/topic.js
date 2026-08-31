@@ -95,7 +95,7 @@ export function renderTopic(params, { navigate }) {
   mainCol.appendChild(recallSectionCard(t, active));
 
   // --- AI tools ---
-  mainCol.appendChild(aiSection(t, active));
+  mainCol.appendChild(aiSection(t));
 
   // --- Activities & Games ---
   mainCol.appendChild(activitiesSection(t));
@@ -370,7 +370,7 @@ function activitiesSection(t) {
   return section('sparkles', 'Activities & games', body);
 }
 
-function aiSection(t, student) {
+function aiSection(t) {
   const body = el(`<div></div>`);
   const btns = el(`<div class="flex flex-wrap gap-2 mb-1">
     <button id="explain" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors"><i data-lucide="wand-2" class="w-4 h-4"></i>Explain simply</button>
@@ -385,7 +385,7 @@ function aiSection(t, student) {
     const loading = el(`<div class="flex items-center gap-2 text-sm text-ink-soft py-2"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>${label}</div>`);
     out.appendChild(loading);
     try {
-      const text = await fn(t, student?.name);
+      const text = await fn(t);
       out.innerHTML = `<div class="ai-prose text-sm text-ink-soft bg-paper border border-paper-line rounded-xl p-4">${text}</div>`;
     } catch (e) {
       out.innerHTML = `<p class="text-sm text-[#b0413a]">Couldn't generate that right now. Please try again.</p>`;

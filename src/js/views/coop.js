@@ -366,7 +366,7 @@ function coveringSection() {
       const teach = cardEl.querySelector('.teach');
       topics.forEach((topic) => {
         const b = el(`<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-paper-line text-sm font-medium hover:border-brand/40 transition-colors"><i data-lucide="notebook-text" class="w-3.5 h-3.5"></i>Teach: ${esc(topic.name)}</button>`);
-        b.onclick = () => openLesson(topic, card.childDisplayName);
+        b.onclick = () => openLesson(topic);
         teach.appendChild(b);
       });
       if (topics.length) {
