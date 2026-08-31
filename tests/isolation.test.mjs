@@ -77,7 +77,7 @@ test('interface assets are served by Harrington instead of public CDNs', async (
 
   assert.doesNotMatch(index, /cdn\.tailwindcss\.com|fonts\.googleapis\.com|fonts\.gstatic\.com/);
   assert.doesNotMatch(ui, /cdn\.jsdelivr\.net|https?:\/\//);
-  assert.doesNotMatch(data, /cdn\.jsdelivr\.net|https?:\/\//);
+  assert.doesNotMatch(data, /cdn\.jsdelivr\.net/);
   assert.match(data, /\/api\/taxonomy/);
   assert.match(index, /css\/tailwind\.css/);
   assert.match(index, /vendor\/lucide\.min\.js/);

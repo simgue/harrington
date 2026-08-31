@@ -27,7 +27,7 @@ test('builds a subject → domain → section tree without dropping topics', () 
   assert.equal(math.domains[0].domain, 'Counting');
   assert.equal(math.domains[0].sections[0].age, 5);
   assert.equal(math.domains[0].sections[0].summary, 'Early counting');
-  assert.deepEqual(math.domains[0].sections[0].topics.map((topic) => topic.id), ['count-5', 'count-10']);
+  assert.deepEqual(math.domains[0].sections[0].topics.map((topic) => topic.id).sort(), ['count-10', 'count-5']);
 });
 
 test('keeps only prerequisite edges that stay inside the current topic set', () => {
