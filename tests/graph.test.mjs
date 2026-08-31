@@ -1,6 +1,19 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { buildCurriculumTree, graphHash, localEdges } from '../src/js/graph.js';
+import {
+  atlasIslandSpan,
+  buildCurriculumTree,
+  buildSectionGraph,
+  defaultSectionAge,
+  graphHash,
+  hopNodeId,
+  layeredDagLayout,
+  localEdges,
+  MAX_SECTION_HOPS,
+  normalizeGraphView,
+  quietMasteryFill,
+} from '../src/js/graph.js';
 
 const subjects = {
   Mathematics: { color: '#3f7d5e', icon: 'calculator' },
@@ -46,4 +59,147 @@ test('encodes graph drill-down hashes', () => {
     graphHash({ subject: 'Mathematics', domain: 'Phonics & Word Reading', age: 5 }),
     'graph/Mathematics/Phonics%20%26%20Word%20Reading/5',
   );
+});
+
+test('treats atlas as the default graph view and list as the optional one', () => {
+  assert.equal(normalizeGraphView(), 'atlas');
+  assert.equal(normalizeGraphView('atlas'), 'atlas');
+  assert.equal(normalizeGraphView('list'), 'list');
+  assert.equal(normalizeGraphView('table'), 'atlas');
+});
+
+test('sizes atlas islands by topic count without using mastery', () => {
+  assert.equal(atlasIslandSpan(547, 547), 6);
+  assert.equal(atlasIslandSpan(286, 547), 4);
+  assert.equal(atlasIslandSpan(80, 547), 3);
+  assert.equal(atlasIslandSpan(12, 547), 2);
+});
+
+test('picks a default age band near the student, else the youngest', () => {
+  const domain = {
+    sections: [{ age: 5 }, { age: 6 }, { age: 7 }, { age: 8 }],
+  };
+  assert.equal(defaultSectionAge(domain), 5);
+  assert.equal(defaultSectionAge(domain, 6), 6);
+  assert.equal(defaultSectionAge(domain, 12), 8);
+  assert.equal(defaultSectionAge({ sections: [] }), null);
+});
+
+test('lays a section DAG in columns so a topic sits after its prerequisites', () => {
+  const layout = layeredDagLayout(
+    [
+      { id: 'a', kind: 'topic' },
+      { id: 'b', kind: 'topic' },
+      { id: 'c', kind: 'topic' },
+    ],
+    [
+      { from: 'a', to: 'b', strength: 'hard' },
+      { from: 'b', to: 'c', strength: 'soft' },
+    ],
+  );
+  const byId = Object.fromEntries(layout.nodes.map((node) => [node.id, node]));
+  assert.ok(byId.a.column < byId.b.column);
+  assert.ok(byId.b.column < byId.c.column);
+  assert.ok(byId.b.x > byId.a.x);
+  assert.ok(layout.width > 0 && layout.height > 0);
+});
+
+test('places collapsed neighbor hops on the rim instead of exploding them', () => {
+  const layout = layeredDagLayout(
+    [
+      { id: 'home', kind: 'topic' },
+      { id: hopNodeId('Mathematics|Place Value|6'), kind: 'hop', side: 'in' },
+      { id: hopNodeId('Mathematics|Addition|7'), kind: 'hop', side: 'out' },
+    ],
+    [
+      { from: hopNodeId('Mathematics|Place Value|6'), to: 'home', strength: 'hard' },
+      { from: 'home', to: hopNodeId('Mathematics|Addition|7'), strength: 'soft' },
+    ],
+  );
+  const byId = Object.fromEntries(layout.nodes.map((node) => [node.id, node]));
+  const inbound = byId[hopNodeId('Mathematics|Place Value|6')];
+  const outbound = byId[hopNodeId('Mathematics|Addition|7')];
+  assert.ok(inbound.column < byId.home.column);
+  assert.ok(outbound.column > byId.home.column);
+});
+
+test('longest-path layering survives a cycle without hanging', () => {
+  const layout = layeredDagLayout(
+    [
+      { id: 'a', kind: 'topic' },
+      { id: 'b', kind: 'topic' },
+    ],
+    [
+      { from: 'a', to: 'b', strength: 'hard' },
+      { from: 'b', to: 'a', strength: 'hard' },
+    ],
+  );
+  assert.equal(layout.nodes.length, 2);
+  assert.ok(layout.nodes.every((node) => Number.isFinite(node.column)));
+});
+
+test('builds a section graph with local edges, hop caps, and sibling bands', () => {
+  const place = { id: 'place-6', name: 'Tens', subject: 'Mathematics', domain: 'Place Value', ageRangeStart: 6 };
+  const add7 = { id: 'add-7', name: 'Add later', subject: 'Mathematics', domain: 'Addition', ageRangeStart: 7 };
+  const extra = Array.from({ length: 8 }, (_, index) => ({
+    id: `extra-${index}`,
+    name: `Extra ${index}`,
+    subject: 'Science',
+    domain: `Domain ${index}`,
+    ageRangeStart: 6,
+  }));
+  const home = [counting, ten];
+  const prereqsOf = new Map([
+    ['count-5', []],
+    ['count-10', [{ id: 'count-5', strength: 'hard' }, { id: 'place-6', strength: 'hard' }]],
+    ['add-7', [{ id: 'count-10', strength: 'soft' }]],
+  ]);
+  const unlocksOf = new Map([
+    ['count-5', [{ id: 'count-10', strength: 'hard' }]],
+    ['count-10', [{ id: 'add-7', strength: 'soft' }]],
+    ['place-6', [{ id: 'count-10', strength: 'hard' }]],
+  ]);
+  extra.forEach((topic) => {
+    prereqsOf.set(topic.id, []);
+    prereqsOf.get('count-10').push({ id: topic.id, strength: 'soft' });
+    unlocksOf.set(topic.id, [{ id: 'count-10', strength: 'soft' }]);
+  });
+  const byId = new Map([counting, ten, place, add7, ...extra].map((topic) => [topic.id, topic]));
+
+  const graph = buildSectionGraph(
+    { subject: 'Mathematics', domain: 'Counting', age: 5, topics: home },
+    { prereqsOf, unlocksOf, byId },
+    { siblingAges: [6], neighborCap: MAX_SECTION_HOPS },
+  );
+
+  assert.deepEqual(
+    graph.edges.filter((edge) => edge.from === 'count-5' && edge.to === 'count-10'),
+    [{ from: 'count-5', to: 'count-10', strength: 'hard' }],
+  );
+  assert.ok(graph.hops.some((hop) => hop.domain === 'Place Value' && hop.age === 6));
+  assert.ok(graph.hops.some((hop) => hop.domain === 'Counting' && hop.age === 6 && hop.side === 'out'));
+  assert.ok(graph.hops.length <= MAX_SECTION_HOPS);
+  assert.equal(graph.truncated, true);
+  assert.ok(graph.layout.nodes.every((node) => node.kind !== 'topic' || home.some((topic) => topic.id === node.id)));
+  const topicNodes = graph.layout.nodes.filter((node) => node.kind === 'topic');
+  assert.equal(topicNodes.length, 2);
+});
+
+test('quiet atlas fills stay free of percentages', () => {
+  const empty = quietMasteryFill('#3f7d5e', 0);
+  const some = quietMasteryFill('#3f7d5e', 80);
+  assert.match(empty, /^#[0-9a-f]{6}$/i);
+  assert.match(some, /^#[0-9a-f]{6}$/i);
+  assert.notEqual(empty, some);
+});
+
+test('graph chrome offers Visual and List without naming the card list Graph', async () => {
+  const source = await readFile(new URL('../src/js/views/graph.js', import.meta.url), 'utf8');
+  assert.match(source, /label: 'Visual'/);
+  assert.match(source, /label: 'List'/);
+  assert.match(source, /Curriculum atlas/);
+  assert.match(source, /Curriculum list/);
+  assert.match(source, /setGraphView/);
+  assert.match(source, /renderConnections/);
+  assert.doesNotMatch(source, />Curriculum graph</);
 });

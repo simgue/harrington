@@ -26,6 +26,7 @@ let state = {
   practice: {},       // studentId -> { itemId -> { topicId, subject, q, type, options, answer, box, due, reps, lapses, last } }
   activity: {},       // studentId -> { 'yyyy-mm-dd': true }  (days with recall/lesson/mastery activity)
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
+  graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
 };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -59,6 +60,7 @@ export async function loadAll() {
       state.practice = data.practice || {};
       state.activity = data.activity || {};
       state.game = data.game || {};
+      state.graphView = data.graphView === 'list' ? 'list' : 'atlas';
     }
   } catch (e) {
     console.warn('load failed', e);
@@ -87,6 +89,7 @@ export function persist() {
         practice: state.practice,
         activity: state.activity,
         game: state.game,
+        graphView: state.graphView === 'list' ? 'list' : 'atlas',
     };
     saveQueue = saveQueue
       .catch(() => {})
@@ -507,6 +510,17 @@ export function clearNotifications() { state.notifications = []; persist(); emit
 // ---- Curriculum snapshot (for detecting repo updates) ----
 export function getCurriculumSnapshot() { return state.curriculumSnapshot; }
 export function setCurriculumSnapshot(snap) { state.curriculumSnapshot = snap; persist(); }
+
+export function graphView() {
+  return state.graphView === 'list' ? 'list' : 'atlas';
+}
+export function setGraphView(mode) {
+  const next = mode === 'list' ? 'list' : 'atlas';
+  if (state.graphView === next) return;
+  state.graphView = next;
+  persist();
+  emit();
+}
 
 // ---- Lesson cache (shared by this family) ----
 // Lessons are reusable teaching material keyed by topic/activity.
