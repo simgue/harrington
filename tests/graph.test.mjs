@@ -5,14 +5,21 @@ import {
   atlasIslandSpan,
   buildCurriculumTree,
   buildSectionGraph,
+  buildSkillTree,
+  buildWorldMap,
+  defaultDomain,
   defaultSectionAge,
+  domainHopId,
   graphHash,
   hopNodeId,
   layeredDagLayout,
   localEdges,
+  MAX_DOMAIN_GATEWAYS,
   MAX_SECTION_HOPS,
   normalizeGraphView,
   quietMasteryFill,
+  resolveSkillNodeState,
+  worldMapDrawnTopicCount,
 } from '../src/js/graph.js';
 
 const subjects = {
@@ -197,9 +204,111 @@ test('graph chrome offers Visual and List without naming the card list Graph', a
   const source = await readFile(new URL('../src/js/views/graph.js', import.meta.url), 'utf8');
   assert.match(source, /label: 'Visual'/);
   assert.match(source, /label: 'List'/);
-  assert.match(source, /Curriculum atlas/);
+  assert.match(source, /World Map/);
   assert.match(source, /Curriculum list/);
   assert.match(source, /setGraphView/);
-  assert.match(source, /renderConnections/);
+  assert.match(source, /renderWorldMap/);
+  assert.match(source, /renderSkillTree/);
+  assert.match(source, /Quest log/);
   assert.doesNotMatch(source, />Curriculum graph</);
+  assert.doesNotMatch(source, /Curriculum atlas/);
+  assert.doesNotMatch(source, /percent complete/i);
+  assert.doesNotMatch(source, /\bXP\b/);
+  assert.doesNotMatch(source, /Kid Mode/);
+});
+
+test('skill node state follows hard prereqs and mastery, and locked is never ready', () => {
+  const prereqsOf = new Map([
+    ['count-10', [{ id: 'count-5', strength: 'hard' }]],
+    ['count-5', []],
+    ['place', [{ id: 'count-10', strength: 'hard' }, { id: 'phonics', strength: 'soft' }]],
+  ]);
+
+  assert.equal(resolveSkillNodeState('count-5', {}, prereqsOf), 'ready');
+  assert.equal(resolveSkillNodeState('count-10', {}, prereqsOf), 'locked');
+  assert.equal(resolveSkillNodeState('count-10', { 'count-5': 'mastered' }, prereqsOf), 'ready');
+  assert.equal(resolveSkillNodeState('count-10', { 'count-5': 'mastered', 'count-10': 'learning' }, prereqsOf), 'in-progress');
+  assert.equal(resolveSkillNodeState('count-10', { 'count-5': 'mastered', 'count-10': 'mastered' }, prereqsOf), 'mastered');
+  assert.equal(resolveSkillNodeState('place', { 'count-10': 'mastered' }, prereqsOf), 'ready');
+  assert.equal(resolveSkillNodeState('place', {}, prereqsOf), 'locked');
+  assert.notEqual(resolveSkillNodeState('count-10', {}, prereqsOf), 'ready');
+});
+
+test('world map draws realms and domain clusters, never every topic', () => {
+  const tree = buildCurriculumTree({
+    bySubject: {
+      Mathematics: [ten, counting],
+      English: [phonics],
+    },
+    clusterMap: {},
+  }, subjects);
+  const scene = buildWorldMap(tree);
+  assert.equal(scene.kind, 'world');
+  assert.equal(scene.realms.length, 2);
+  assert.equal(worldMapDrawnTopicCount(scene), 0);
+  assert.equal(scene.topicNodes.length, 0);
+  assert.ok(scene.realms.every((realm) => realm.kind === 'realm'));
+  const math = scene.realms.find((realm) => realm.subject === 'Mathematics');
+  assert.equal(math.clusters.length, 1);
+  assert.equal(math.clusters[0].kind, 'domain-cluster');
+  assert.notEqual(math.clusters[0].kind, 'topic');
+});
+
+test('skill tree stays inside one domain and collapses neighbors into gateways', () => {
+  const place = { id: 'place-6', name: 'Tens', subject: 'Mathematics', domain: 'Place Value', ageRangeStart: 6 };
+  const add7 = { id: 'add-7', name: 'Add later', subject: 'Mathematics', domain: 'Addition', ageRangeStart: 7 };
+  const extra = Array.from({ length: 10 }, (_, index) => ({
+    id: `extra-${index}`,
+    name: `Extra ${index}`,
+    subject: 'Science',
+    domain: `Domain ${index}`,
+    ageRangeStart: 6,
+  }));
+  const home = [counting, ten];
+  const prereqsOf = new Map([
+    ['count-5', []],
+    ['count-10', [{ id: 'count-5', strength: 'hard' }, { id: 'place-6', strength: 'hard' }]],
+    ['add-7', [{ id: 'count-10', strength: 'soft' }]],
+  ]);
+  const unlocksOf = new Map([
+    ['count-5', [{ id: 'count-10', strength: 'hard' }]],
+    ['count-10', [{ id: 'add-7', strength: 'soft' }]],
+    ['place-6', [{ id: 'count-10', strength: 'hard' }]],
+  ]);
+  extra.forEach((topic) => {
+    prereqsOf.set(topic.id, []);
+    prereqsOf.get('count-10').push({ id: topic.id, strength: 'soft' });
+    unlocksOf.set(topic.id, [{ id: 'count-10', strength: 'soft' }]);
+  });
+  const byId = new Map([counting, ten, place, add7, ...extra].map((topic) => [topic.id, topic]));
+  const allTopics = [counting, ten, place, add7, ...extra];
+
+  const graph = buildSkillTree(
+    { subject: 'Mathematics', domain: 'Counting', topics: home },
+    { prereqsOf, unlocksOf, byId },
+    { siblingDomains: ['Place Value', 'Addition'], neighborCap: MAX_DOMAIN_GATEWAYS },
+  );
+
+  const topicNodes = graph.layout.nodes.filter((node) => node.kind === 'topic');
+  assert.equal(topicNodes.length, 2);
+  assert.ok(topicNodes.every((node) => home.some((topic) => topic.id === node.id)));
+  assert.ok(topicNodes.length < allTopics.length);
+  assert.ok(graph.hops.some((hop) => hop.domain === 'Place Value'));
+  assert.ok(graph.hops.some((hop) => hop.domain === 'Addition'));
+  assert.ok(graph.hops.length <= MAX_DOMAIN_GATEWAYS);
+  assert.ok(graph.layout.nodes.some((node) => node.id === domainHopId('Mathematics|Place Value')));
+  const byLayoutId = Object.fromEntries(graph.layout.nodes.map((node) => [node.id, node]));
+  assert.ok(byLayoutId['count-5'].column < byLayoutId['count-10'].column);
+});
+
+test('picks a default domain near the student age', () => {
+  const subject = {
+    domains: [
+      { domain: 'Counting', sections: [{ age: 5 }, { age: 6 }] },
+      { domain: 'Algebra', sections: [{ age: 11 }, { age: 12 }] },
+    ],
+  };
+  assert.equal(defaultDomain(subject).domain, 'Counting');
+  assert.equal(defaultDomain(subject, 12).domain, 'Algebra');
+  assert.equal(defaultDomain({ domains: [] }), null);
 });
