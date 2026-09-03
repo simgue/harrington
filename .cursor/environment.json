@@ -1,0 +1,16 @@
+{
+  "name": "Harrington",
+  "install": "npm install && npm run build",
+  "terminals": [
+    {
+      "name": "harrington-server",
+      "command": "npm start"
+    }
+  ],
+  "ports": [
+    {
+      "name": "Harrington web app",
+      "port": 4173
+    }
+  ]
+}
