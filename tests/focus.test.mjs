@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import {
   buildDailySurfaceFromContext,
@@ -6,6 +7,9 @@ import {
   invitationEvidenceSummary,
   path_to,
 } from '../src/js/focus.js';
+
+const repoRoot = new URL('..', import.meta.url);
+const source = (path) => readFile(new URL(path, repoRoot), 'utf8');
 
 const topics = [
   { id: 'eng-phonics', name: 'Blend simple sounds', subject: 'English', domain: 'Phonics & Word Reading', ageRangeStart: 6, centrality: 0.9, description: 'Sound out simple words.' },
@@ -54,6 +58,25 @@ test('frontier_for returns capped ready-now and hard blockers with why-locked pa
   assert.equal(literacy.blocked[0].topic.id, 'eng-speaking');
   assert.equal(literacy.blocked[0].blockers[0].id, 'eng-phonics');
   assert.ok(literacy.blocked[1].whyLockedPath.length >= 1);
+});
+
+test('frontier_for accepts store progress objects with { status, updatedAt }', () => {
+  const shapedProgress = {
+    'eng-phonics': { status: 'mastered', updatedAt: 1 },
+    'eng-speaking': { status: 'learning', updatedAt: 2 },
+    'math-counting': { status: 'mastered', updatedAt: 3 },
+  };
+  const literacy = frontier_for({
+    data,
+    progress: shapedProgress,
+    studentAge: 6,
+    subject: 'English',
+    domains: ['Phonics & Word Reading', 'Speaking & Listening', 'Writing Composition'],
+    capReady: 3,
+    capBlocked: 2,
+  });
+  assert.ok(literacy.ready.some((entry) => entry.topic.id === 'eng-speaking'));
+  assert.ok(literacy.blocked.some((entry) => entry.topic.id === 'eng-writing'));
 });
 
 test('path_to applies light interest bias for bird shelter', () => {
@@ -111,4 +134,18 @@ test('coverage labels require a linked record with coverage payload', () => {
   assert.deepEqual(invitationEvidenceSummary(records, 'invite-a'), { recordCount: 2, coverageCount: 0 });
   assert.deepEqual(invitationEvidenceSummary(records, 'invite-b'), { recordCount: 1, coverageCount: 1 });
   assert.deepEqual(invitationEvidenceSummary(records, 'invite-c'), { recordCount: 0, coverageCount: 0 });
+});
+
+test('recorder and records escape invitation/topic text and keep safe attachment limits', async () => {
+  const [recorderSource, recordsSource] = await Promise.all([
+    source('src/js/recorder.js'),
+    source('src/js/views/records.js'),
+  ]);
+
+  assert.match(recorderSource, /import \{ el, esc, refreshIcons, toast, openModal \} from '\.\/ui\.js'/);
+  assert.match(recorderSource, /esc\(invitation\.title \|\| invitation\.id\)/);
+  assert.match(recorderSource, /coverageOptions\.map\(\(item\) => esc\(item\.name\)\)/);
+  assert.match(recordsSource, /const MAX_ATTACHMENT_BYTES = 300 \* 1024;/);
+  assert.match(recordsSource, /const MAX_ATTACHMENTS = 2;/);
+  assert.match(recordsSource, /wouldExceedStateLimit\(/);
 });

@@ -12,8 +12,9 @@ const TYPES = {
   recording: { icon: 'mic', label: 'Recording', color: '#b0413a', hint: 'A recorded voice conversation' },
 };
 
-const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
-const MAX_ATTACHMENTS = 3;
+const MAX_ATTACHMENT_BYTES = 300 * 1024;
+const MAX_ATTACHMENTS = 2;
+const MAX_STATE_BYTES_BEFORE_SAVE = Math.floor(4.5 * 1024 * 1024);
 
 let recFilter = 'all';
 
@@ -50,11 +51,43 @@ function attachmentBlock(record) {
         <span class="font-medium text-ink-soft truncate">${esc(file.name || 'Attachment')}</span>
       </div>
       ${file.isImage ? `<img src="${file.dataUrl}" alt="${esc(file.name || 'Attachment')}" class="w-full max-h-52 object-cover rounded-md border border-paper-line" />` : ''}
-      <a href="${file.dataUrl}" download="${esc(file.name || 'attachment')}" class="text-xs font-medium text-brand-dark inline-flex items-center gap-1.5 mt-1"><i data-lucide="download" class="w-3.5 h-3.5"></i>Download</a>
+      <a href="${esc(file.dataUrl || '')}" download="${esc(file.name || 'attachment')}" class="text-xs font-medium text-brand-dark inline-flex items-center gap-1.5 mt-1"><i data-lucide="download" class="w-3.5 h-3.5"></i>Download</a>
     </div>`);
     wrap.appendChild(row);
   }
   return wrap;
+}
+
+function wouldExceedStateLimit(studentId, draftRecord) {
+  try {
+    const state = store.get();
+    const records = { ...(state.records || {}) };
+    const existing = Array.isArray(records[studentId]) ? records[studentId] : [];
+    records[studentId] = [{ id: 'preview', createdAt: Date.now(), ...draftRecord }, ...existing];
+    const payload = {
+      students: state.students,
+      activeStudentId: state.activeStudentId,
+      progress: state.progress,
+      records,
+      tests: state.tests,
+      plan: state.plan,
+      challenges: state.challenges,
+      adaptations: state.adaptations,
+      suggestions: state.suggestions,
+      notifications: state.notifications,
+      curriculumSnapshot: state.curriculumSnapshot,
+      recall: state.recall,
+      practice: state.practice,
+      activity: state.activity,
+      game: state.game,
+      daily: state.daily,
+      graphView: state.graphView === 'list' ? 'list' : 'atlas',
+    };
+    return new Blob([JSON.stringify(payload)]).size > MAX_STATE_BYTES_BEFORE_SAVE;
+  } catch {
+    // Fail open if local byte estimation fails; server still enforces limit.
+    return false;
+  }
 }
 
 export function renderRecords(params, { navigate }) {
@@ -125,7 +158,7 @@ function recordCard(r, student, d, navigate) {
     ${r.title ? `<p class="font-600">${esc(r.title)}</p>` : ''}
     ${r.note ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
     ${r.transcript ? `<details class="mt-2 group"><summary class="text-xs text-ink-faint cursor-pointer select-none flex items-center gap-1 list-none"><i data-lucide="chevron-right" class="w-3.5 h-3.5 transition-transform group-open:rotate-90"></i>Transcript</summary><p class="text-sm text-ink-soft mt-1.5 leading-relaxed whitespace-pre-wrap bg-paper border border-paper-line rounded-lg p-2.5">${esc(r.transcript)}</p></details>` : ''}
-    ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${SUBJECTS[topic.subject].icon}" class="w-3.5 h-3.5"></i>${topic.name}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
+    ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${SUBJECTS[topic.subject].icon}" class="w-3.5 h-3.5"></i>${esc(topic.name)}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
   </div>`);
   if (r.audioPath) card.appendChild(audioPlayer(r.audioPath, r.duration));
   const attachments = attachmentBlock(r);
@@ -215,7 +248,7 @@ export function openRecordForm(studentId, topic = null, options = {}) {
     .map((id) => d.byId.get(id))
     .filter(Boolean);
   const body = el(`<div class="p-5">
-    <h3 class="font-display text-lg font-600 mb-4">${topic ? 'Record for ' + topic.name : 'New record'}</h3>
+    <h3 class="font-display text-lg font-600 mb-4">${topic ? 'Record for ' + esc(topic.name) : 'New record'}</h3>
     ${invitation ? `<p class="text-xs text-ink-faint mb-3">Linked invitation: <span class="font-medium text-ink-soft">${esc(invitation.title || invitation.id)}</span></p>` : ''}
     <form id="f" class="space-y-4">
       <div>
@@ -293,7 +326,7 @@ export function openRecordForm(studentId, topic = null, options = {}) {
       if (q.length < 2) return;
       const matches = d.topics.filter(t => t.name.toLowerCase().includes(q)).slice(0, 6);
       matches.forEach(t => {
-        const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${t.name}</span><span class="text-xs text-ink-faint">${t.subject}</span></button>`);
+        const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
         r.onclick = () => { hidden.value = t.id; search.value = t.name; results.innerHTML = ''; };
         results.appendChild(r);
       });
@@ -335,6 +368,10 @@ export function openRecordForm(studentId, topic = null, options = {}) {
         topicName: item.name,
         label: `${item.subject} · ${item.domain}`,
       }));
+    }
+    if (wouldExceedStateLimit(studentId, rec)) {
+      toast('Attachment set is too large for local save. Try fewer/smaller files.', 'error');
+      return;
     }
     store.addRecord(studentId, rec);
     toast('Record saved', 'success');

@@ -56,7 +56,11 @@ function containsAny(haystack, needles) {
 }
 
 function statusOf(progress, topicId) {
-  return progress[topicId] || 'none';
+  const value = progress[topicId];
+  if (!value) return 'none';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && typeof value.status === 'string') return value.status;
+  return 'none';
 }
 
 function isHardUnlocked(topicId, progress, prereqsOf) {

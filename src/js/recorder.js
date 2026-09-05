@@ -1,5 +1,5 @@
 // Voice recording: capture lesson conversations, store on the Harrington server, play back.
-import { el, refreshIcons, toast, openModal } from './ui.js';
+import { el, esc, refreshIcons, toast, openModal } from './ui.js';
 import * as store from './store.js';
 import * as backend from './backend.js';
 import { getData, SUBJECTS, topicAge } from './data.js';
@@ -116,7 +116,7 @@ export function openRecorder(studentId, topic = null, section = null, options = 
       <span class="w-8 h-8 rounded-lg bg-[#b0413a]/10 flex items-center justify-center"><i data-lucide="mic" class="w-4.5 h-4.5 text-[#b0413a]"></i></span>
       <h3 class="font-display text-lg font-600">Record conversation</h3>
     </div>
-    <p class="text-xs text-ink-faint mb-4">${contextLabel}</p>
+    <p class="text-xs text-ink-faint mb-4">${esc(contextLabel)}</p>
 
     <div id="stage"></div>
   </div>`);
@@ -223,7 +223,7 @@ export function openRecorder(studentId, topic = null, section = null, options = 
         <audio class="w-full" controls src="${url}"></audio>
       </div>
       <form id="f" class="space-y-3.5">
-        ${invitation ? `<p class="text-xs text-ink-faint">Linked invitation: <span class="font-medium text-ink-soft">${invitation.title || invitation.id}</span></p>` : ''}
+        ${invitation ? `<p class="text-xs text-ink-faint">Linked invitation: <span class="font-medium text-ink-soft">${esc(invitation.title || invitation.id)}</span></p>` : ''}
         ${!topic ? `<div>
           <label class="text-sm font-medium block mb-1.5">Link to topic <span class="text-ink-faint font-normal">(optional)</span></label>
           <input id="search" placeholder="Search topics\u2026" autocomplete="off" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
@@ -240,11 +240,11 @@ export function openRecorder(studentId, topic = null, section = null, options = 
         </div>
         ${coverageOptions.length ? `<label class="flex items-start gap-2 text-sm rounded-lg border border-paper-line bg-paper px-3 py-2.5">
           <input type="checkbox" name="claimCoverage" class="mt-0.5" />
-          <span>Mark curriculum coverage for ${coverageOptions.map((item) => item.name).join(', ')}.</span>
+          <span>Mark curriculum coverage for ${coverageOptions.map((item) => esc(item.name)).join(', ')}.</span>
         </label>` : ''}
         ${(transcript || speechSupported()) ? `<div>
           <label class="text-sm font-medium mb-1.5 flex items-center gap-1.5"><i data-lucide="captions" class="w-4 h-4 text-brand-dark"></i>Transcript <span class="text-ink-faint font-normal">(used for AI analysis — edit if needed)</span></label>
-          <textarea name="transcript" rows="4" placeholder="${transcript ? '' : 'No speech was captured. You can type or paste what was said here.'}" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none text-sm">${transcript || ''}</textarea>
+          <textarea name="transcript" rows="4" placeholder="${transcript ? '' : 'No speech was captured. You can type or paste what was said here.'}" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none text-sm">${esc(transcript || '')}</textarea>
         </div>` : ''}
         <div class="flex gap-2">
           <button type="button" id="redo" class="px-4 py-2.5 rounded-xl border border-paper-line text-sm font-medium hover:border-ink-faint/40 transition-colors">Re-record</button>
@@ -264,7 +264,7 @@ export function openRecorder(studentId, topic = null, section = null, options = 
         results.innerHTML = '';
         if (q.length < 2) return;
         d.topics.filter(t => t.name.toLowerCase().includes(q)).slice(0, 6).forEach(t => {
-          const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${t.name}</span><span class="text-xs text-ink-faint">${t.subject}</span></button>`);
+          const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
           r.onclick = () => { hidden.value = t.id; search.value = t.name; results.innerHTML = ''; };
           results.appendChild(r);
         });
