@@ -26,6 +26,7 @@ let state = {
   practice: {},       // studentId -> { itemId -> { topicId, subject, q, type, options, answer, box, due, reps, lapses, last } }
   activity: {},       // studentId -> { 'yyyy-mm-dd': true }  (days with recall/lesson/mastery activity)
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
+  daily: {},          // studentId -> { chips:[...], freeText:'', queue:{ dateKey, interestKey, invites:[...] } }
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
 };
 
@@ -60,6 +61,7 @@ export async function loadAll() {
       state.practice = data.practice || {};
       state.activity = data.activity || {};
       state.game = data.game || {};
+      state.daily = data.daily || {};
       state.graphView = data.graphView === 'list' ? 'list' : 'atlas';
     }
   } catch (e) {
@@ -89,6 +91,7 @@ export function persist() {
         practice: state.practice,
         activity: state.activity,
         game: state.game,
+        daily: state.daily,
         graphView: state.graphView === 'list' ? 'list' : 'atlas',
     };
     saveQueue = saveQueue
@@ -108,6 +111,7 @@ export function addStudent(name, birthYear) {
   state.students.push({ id, name, birthYear, color, createdAt: Date.now(), startDate });
   state.progress[id] = state.progress[id] || {};
   state.records[id] = state.records[id] || [];
+  state.daily[id] = state.daily[id] || { chips: ['Bird shelter'], freeText: '', queue: null };
   state.activeStudentId = id;
   persist(); emit();
   return id;
@@ -120,6 +124,7 @@ export function updateStudent(id, patch) {
 export function removeStudent(id) {
   state.students = state.students.filter(s => s.id !== id);
   delete state.progress[id]; delete state.records[id];
+  delete state.daily[id];
   if (state.activeStudentId === id) state.activeStudentId = state.students[0]?.id || null;
   persist(); emit();
 }
@@ -272,6 +277,35 @@ export function setAdaptation(studentId, subject, domain, level) {
   persist(); emit();
 }
 export function allAdaptations(studentId) { return state.adaptations[studentId] || {}; }
+
+// ---- Daily focus (per-child) ----
+function dailyOf(studentId) {
+  if (!state.daily[studentId]) state.daily[studentId] = { chips: ['Bird shelter'], freeText: '', queue: null };
+  const daily = state.daily[studentId];
+  daily.chips = Array.isArray(daily.chips) ? daily.chips.filter(Boolean) : ['Bird shelter'];
+  daily.freeText = String(daily.freeText || '');
+  daily.queue = daily.queue || null;
+  return daily;
+}
+export function dailyState(studentId) {
+  return dailyOf(studentId);
+}
+export function setDailyInterests(studentId, { chips = [], freeText = '' }) {
+  const daily = dailyOf(studentId);
+  daily.chips = [...new Set((chips || []).map(chip => String(chip).trim()).filter(Boolean))];
+  daily.freeText = String(freeText || '').trim();
+  persist(); emit();
+}
+export function setDailyQueue(studentId, queue) {
+  const daily = dailyOf(studentId);
+  daily.queue = queue || null;
+  persist(); emit();
+}
+export function clearDailyQueue(studentId) {
+  const daily = dailyOf(studentId);
+  daily.queue = null;
+  persist(); emit();
+}
 
 // ---- Adaptive suggestions the parent can approve or dismiss ----
 export function addSuggestion(studentId, sug) {

@@ -10,6 +10,7 @@ import { openRecordingsLibrary } from './recordings.js';
 import { openDueRecall } from './recall.js';
 import { openDuePractice } from './practice.js';
 import { BADGES } from '../game.js';
+import { renderDailyParentSurface } from './daily-focus.js';
 
 export function renderDashboard(params, { navigate }) {
   const active = store.activeStudent();
@@ -38,6 +39,9 @@ export function renderDashboard(params, { navigate }) {
   root.querySelector('#qtime').onclick = () => navigate('graph');
   root.querySelector('#qmic').onclick = () => openRecorder(active.id);
   root.querySelector('#qrec').onclick = () => openRecordForm(active.id);
+
+  // HAR-4 parent-first daily surface.
+  root.appendChild(renderDailyParentSurface(active, { navigate }));
 
   // Adaptive suggestion nudge
   const pending = store.pendingSuggestions(active.id);

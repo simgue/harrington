@@ -97,9 +97,16 @@ export function audioPlayer(path, duration) {
 
 // ---- The recorder modal ----
 // section (optional): { id, subject, domain, age } — links the recording to a section.
-export function openRecorder(studentId, topic = null, section = null) {
+export function openRecorder(studentId, topic = null, section = null, options = {}) {
   if (!studentId) { toast('Add a student first', 'error'); return; }
   const d = getData();
+  const invitation = options.invitation || null;
+  const coverageTopicIds = Array.isArray(options.coverageTopicIds)
+    ? options.coverageTopicIds
+    : (invitation?.targetTopicIds || (topic ? [topic.id] : []));
+  const coverageOptions = [...new Set(coverageTopicIds)]
+    .map((id) => d.byId.get(id))
+    .filter(Boolean);
   const contextLabel = topic ? 'Linked to ' + topic.name
     : section ? `Linked to ${section.domain} · Age ${section.age}`
     : 'Capture a lesson discussion, then link it to a topic.';
@@ -216,6 +223,7 @@ export function openRecorder(studentId, topic = null, section = null) {
         <audio class="w-full" controls src="${url}"></audio>
       </div>
       <form id="f" class="space-y-3.5">
+        ${invitation ? `<p class="text-xs text-ink-faint">Linked invitation: <span class="font-medium text-ink-soft">${invitation.title || invitation.id}</span></p>` : ''}
         ${!topic ? `<div>
           <label class="text-sm font-medium block mb-1.5">Link to topic <span class="text-ink-faint font-normal">(optional)</span></label>
           <input id="search" placeholder="Search topics\u2026" autocomplete="off" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
@@ -230,6 +238,10 @@ export function openRecorder(studentId, topic = null, section = null) {
           <label class="text-sm font-medium block mb-1.5">Notes <span class="text-ink-faint font-normal">(optional)</span></label>
           <textarea name="note" rows="2" placeholder="Key questions, moments, or things to revisit\u2026" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none"></textarea>
         </div>
+        ${coverageOptions.length ? `<label class="flex items-start gap-2 text-sm rounded-lg border border-paper-line bg-paper px-3 py-2.5">
+          <input type="checkbox" name="claimCoverage" class="mt-0.5" />
+          <span>Mark curriculum coverage for ${coverageOptions.map((item) => item.name).join(', ')}.</span>
+        </label>` : ''}
         ${(transcript || speechSupported()) ? `<div>
           <label class="text-sm font-medium mb-1.5 flex items-center gap-1.5"><i data-lucide="captions" class="w-4 h-4 text-brand-dark"></i>Transcript <span class="text-ink-faint font-normal">(used for AI analysis — edit if needed)</span></label>
           <textarea name="transcript" rows="4" placeholder="${transcript ? '' : 'No speech was captured. You can type or paste what was said here.'}" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none text-sm">${transcript || ''}</textarea>
@@ -282,6 +294,15 @@ export function openRecorder(studentId, topic = null, section = null) {
           sectionId: section ? section.id : (topicId ? sectionIdForTopic(d.byId.get(topicId)) : null),
           sectionLabel: section ? `${section.domain} · Age ${section.age}` : null,
           subject: section ? section.subject : (topicId ? d.byId.get(topicId)?.subject : null),
+          invitationId: invitation?.id || null,
+          invitationTitle: invitation?.title || null,
+          coverage: fd.get('claimCoverage') && coverageOptions.length
+            ? coverageOptions.map((item) => ({
+              topicId: item.id,
+              topicName: item.name,
+              label: `${item.subject} · ${item.domain}`,
+            }))
+            : null,
           audioPath: path,
           duration,
         });

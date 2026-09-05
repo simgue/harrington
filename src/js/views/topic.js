@@ -1,7 +1,7 @@
 import { SUBJECTS, getData } from '../data.js';
 import { graphParamsForTopic } from './graph.js';
 import * as store from '../store.js';
-import { el, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { isUnlocked, blockingPrereqs, MASTERY, sectionForTopic, topicsMasteryStats, sectionTestReady } from '../mastery.js';
 import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';
@@ -435,9 +435,20 @@ function recordItem(r) {
       ${r.rating ? `<span class="flex items-center gap-0.5 text-ink-faint">${'\u2605'.repeat(r.rating)}${'\u2606'.repeat(5-r.rating)}</span>` : ''}
       <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
     </div>
-    ${r.title ? `<p class="font-600 text-sm">${r.title}</p>` : ''}
-    ${r.note ? `<p class="text-sm text-ink-soft mt-0.5 leading-relaxed whitespace-pre-wrap">${r.note}</p>` : ''}
+    ${r.invitationTitle ? `<p class="text-[11px] text-ink-faint mb-1">Invitation: <span class="font-medium text-ink-soft">${esc(r.invitationTitle)}</span></p>` : ''}
+    ${Array.isArray(r.coverage) && r.coverage.length ? `<p class="text-[11px] text-brand-dark font-medium mb-1">Coverage logged · ${r.coverage.map((entry) => esc(entry.label || entry.topicName || '')).join(' · ')}</p>` : ''}
+    ${r.title ? `<p class="font-600 text-sm">${esc(r.title)}</p>` : ''}
+    ${r.note ? `<p class="text-sm text-ink-soft mt-0.5 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
   </div>`);
+  const files = Array.isArray(r.attachments) ? r.attachments : (r.attachment ? [r.attachment] : []);
+  files.forEach((file) => {
+    const block = el(`<div class="mt-2 rounded-lg border border-paper-line bg-paper-card p-2.5">
+      <p class="text-[11px] text-ink-faint mb-1">${esc(file.name || 'Attachment')}</p>
+      ${file.isImage ? `<img src="${file.dataUrl}" alt="${esc(file.name || 'Attachment')}" class="w-full max-h-40 object-cover rounded-md border border-paper-line" />` : ''}
+      <a href="${file.dataUrl}" download="${esc(file.name || 'attachment')}" class="inline-flex items-center gap-1 text-xs font-medium text-brand-dark mt-1"><i data-lucide="download" class="w-3.5 h-3.5"></i>Download</a>
+    </div>`);
+    item.appendChild(block);
+  });
   if (r.audioPath) item.appendChild(audioPlayer(r.audioPath, r.duration));
   return item;
 }
