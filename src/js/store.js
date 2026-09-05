@@ -1,6 +1,5 @@
-// App state + persistence. Auth and data via Puter (scoped to the signed-in parent).
-
-const KEY = 'harrington:v1';
+// App state + persistence through the family-owned Harrington server.
+import * as backend from './backend.js';
 
 export const MASTERY = {
   none:       { label: 'Not started', rank: 0, color: '#c9c3b8' },
@@ -11,7 +10,7 @@ export const MASTERY = {
 
 const listeners = new Set();
 let state = {
-  user: null,
+  user: { username: 'Family' },
   students: [],       // {id, name, birthYear, avatar, color}
   activeStudentId: null,
   progress: {},       // studentId -> { topicId -> { status, updatedAt } }
@@ -21,65 +20,31 @@ let state = {
   challenges: {},     // studentId -> [ {id, topicId, subject, domain, correct, total, seconds, createdAt} ]
   adaptations: {},    // studentId -> { 'Subject|Domain': { level:'advanced', since } }
   suggestions: {},    // studentId -> [ {id, kind, subject, domain, reason, status, createdAt} ]
-  notifications: [],  // account-wide: [ {id, type, title, body, meta, read, createdAt} ]
+  notifications: [],  // family-wide: [ {id, type, title, body, meta, read, createdAt} ]
   curriculumSnapshot: null, // {version, generatedAt, topicIds:[...], count}
   recall: {},         // studentId -> { cardId -> { topicId, box, due, reps, lapses, last } }
   practice: {},       // studentId -> { itemId -> { topicId, subject, q, type, options, answer, box, due, reps, lapses, last } }
   activity: {},       // studentId -> { 'yyyy-mm-dd': true }  (days with recall/lesson/mastery activity)
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
+  graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
 };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 function emit() { listeners.forEach(fn => fn(state)); }
 export function get() { return state; }
 
-// ---- Auth ----
-export async function refreshAuth() {
-  try {
-    if (puter.auth.isSignedIn()) {
-      state.user = await puter.auth.getUser();
-    } else {
-      state.user = null;
-    }
-  } catch { state.user = null; }
+// ---- Server connection ----
+export async function connect() {
+  await backend.health();
+  state.user = { username: 'Family' };
   return state.user;
-}
-
-export async function signIn() {
-  await puter.auth.signIn();
-  await refreshAuth();
-  await loadAll();
-  emit();
-}
-
-export async function signOut() {
-  try { await puter.auth.signOut(); } catch {}
-  state.user = null;
-  state.students = [];
-  state.activeStudentId = null;
-  state.progress = {};
-  state.records = {};
-  state.tests = {};
-  state.plan = {};
-  state.challenges = {};
-  state.adaptations = {};
-  state.suggestions = {};
-  state.notifications = [];
-  state.curriculumSnapshot = null;
-  state.recall = {};
-  state.practice = {};
-  state.activity = {};
-  state.game = {};
-  emit();
 }
 
 // ---- Persistence ----
 export async function loadAll() {
-  if (!state.user) return;
   try {
-    const raw = await puter.kv.get(KEY);
-    if (raw) {
-      const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const data = await backend.loadState();
+    if (data && Object.keys(data).length) {
       state.students = data.students || [];
       state.activeStudentId = data.activeStudentId || (state.students[0] && state.students[0].id) || null;
       state.progress = data.progress || {};
@@ -95,17 +60,20 @@ export async function loadAll() {
       state.practice = data.practice || {};
       state.activity = data.activity || {};
       state.game = data.game || {};
+      state.graphView = data.graphView === 'list' ? 'list' : 'atlas';
     }
-  } catch (e) { console.warn('load failed', e); }
+  } catch (e) {
+    console.warn('load failed', e);
+    throw e;
+  }
 }
 
 let saveTimer = null;
+let saveQueue = Promise.resolve();
 export function persist() {
-  if (!state.user) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    try {
-      await puter.kv.set(KEY, JSON.stringify({
+  saveTimer = setTimeout(() => {
+    const snapshot = {
         students: state.students,
         activeStudentId: state.activeStudentId,
         progress: state.progress,
@@ -121,8 +89,12 @@ export function persist() {
         practice: state.practice,
         activity: state.activity,
         game: state.game,
-      }));
-    } catch (e) { console.warn('save failed', e); }
+        graphView: state.graphView === 'list' ? 'list' : 'atlas',
+    };
+    saveQueue = saveQueue
+      .catch(() => {})
+      .then(() => backend.saveState(snapshot))
+      .catch((e) => { console.warn('save failed', e); });
   }, 400);
 }
 
@@ -198,7 +170,7 @@ export function updateRecord(studentId, recId, patch) {
 export function removeRecord(studentId, recId) {
   const rec = (state.records[studentId] || []).find(r => r.id === recId);
   if (rec && rec.audioPath) {
-    puter.fs.delete(rec.audioPath).catch(() => {});
+    backend.deleteAudio(rec.audioPath).catch(() => {});
   }
   state.records[studentId] = (state.records[studentId] || []).filter(r => r.id !== recId);
   persist(); emit();
@@ -513,7 +485,7 @@ export function grantBadge(studentId, badgeId) {
 }
 export function earnedBadges(studentId) { return gameOf(studentId).badges; }
 
-// ---- Notifications (account-wide) ----
+// ---- Notifications (family-wide) ----
 export function notifications() { return state.notifications; }
 export function unreadCount() { return state.notifications.filter(n => !n.read).length; }
 export function addNotification(n) {
@@ -539,17 +511,26 @@ export function clearNotifications() { state.notifications = []; persist(); emit
 export function getCurriculumSnapshot() { return state.curriculumSnapshot; }
 export function setCurriculumSnapshot(snap) { state.curriculumSnapshot = snap; persist(); }
 
-// ---- Lesson cache (shared per parent account, not student-specific) ----
-// Lessons are reusable teaching material keyed by topic/activity, cached in KV.
+export function graphView() {
+  return state.graphView === 'list' ? 'list' : 'atlas';
+}
+export function setGraphView(mode) {
+  const next = mode === 'list' ? 'list' : 'atlas';
+  if (state.graphView === next) return;
+  state.graphView = next;
+  persist();
+  emit();
+}
+
+// ---- Lesson cache (shared by this family) ----
+// Lessons are reusable teaching material keyed by topic/activity.
 const lessonCache = new Map();
-function lessonKey(id) { return 'harrington:lesson:' + id; }
 
 export async function getCachedLesson(id) {
   if (lessonCache.has(id)) return lessonCache.get(id);
   try {
-    const raw = await puter.kv.get(lessonKey(id));
-    if (raw) {
-      const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const data = await backend.loadLesson(id);
+    if (data) {
       lessonCache.set(id, data);
       return data;
     }
@@ -559,7 +540,7 @@ export async function getCachedLesson(id) {
 
 export async function saveCachedLesson(id, data) {
   lessonCache.set(id, data);
-  try { await puter.kv.set(lessonKey(id), JSON.stringify(data)); } catch {}
+  try { await backend.saveLesson(id, data); } catch {}
 }
 
 export { emit };

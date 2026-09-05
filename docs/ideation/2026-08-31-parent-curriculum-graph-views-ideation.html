@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ideation: Parent curriculum graph views</title>
+  <style>
+    :root {
+      --paper: #f7f3ea;
+      --card: #fffdf7;
+      --ink: #2c2924;
+      --ink-soft: #5c564c;
+      --ink-faint: #8a847a;
+      --line: #e4dccb;
+      --brand: #3f7d5e;
+      --brand-ink: #2d5a44;
+      --math: #3f7d5e;
+      --english: #b0603a;
+      --science: #3d6b93;
+      --warn: #8a4a20;
+      --warn-bg: #fbf1e6;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--paper); color: var(--ink); }
+    body {
+      margin: 0;
+      font: 16px/1.55 "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+      color: var(--ink);
+    }
+    .page { max-width: 52rem; margin: 0 auto; padding: 2.25rem 1.25rem 4rem; }
+    h1, h2, h3, .sans { font-family: "Source Sans 3", "Segoe UI", system-ui, sans-serif; }
+    h1 { font-size: 1.85rem; font-weight: 650; letter-spacing: -0.02em; line-height: 1.2; margin: 0 0 0.4rem; }
+    h2 { font-size: 1.25rem; font-weight: 650; margin: 2.2rem 0 0.7rem; }
+    h3 { font-size: 1.05rem; font-weight: 650; margin: 0 0 0.35rem; }
+    p { max-width: 70ch; }
+    .meta { color: var(--ink-soft); font-size: 0.92rem; margin: 0 0 1.4rem; }
+    .lede { font-size: 1.05rem; color: var(--ink-soft); }
+    nav.toc a { color: var(--brand-ink); text-decoration: none; border-bottom: 1px solid #c9d8ce; }
+    nav.toc ol { padding-left: 1.2rem; }
+    .rec {
+      background: #e8f1eb;
+      border: 1px solid #c5d9cc;
+      border-radius: var(--radius);
+      padding: 1rem 1.15rem;
+      margin: 1.4rem 0;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.15rem 1.2rem;
+      margin: 1.1rem 0 1.4rem;
+    }
+    .kvs { display: grid; grid-template-columns: 7.5rem 1fr; gap: 0.35rem 0.8rem; font-size: 0.95rem; }
+    .kvs dt { color: var(--ink-faint); font-family: "Source Sans 3", system-ui, sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; margin: 0; padding-top: 0.15rem; }
+    .kvs dd { margin: 0; }
+    .viz {
+      width: 100%;
+      max-width: 46rem;
+      background: #f3eee3;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      margin: 0.8rem 0 0.4rem;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+    th, td { text-align: left; vertical-align: top; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--line); }
+    th { font-family: "Source Sans 3", system-ui, sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-faint); font-weight: 650; }
+    code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.86em; background: #efe8d8; padding: 0.05em 0.3em; border-radius: 4px; }
+    a { color: var(--brand-ink); }
+    footer.composition-signal { margin-top: 2.5rem; color: var(--ink-faint); font-size: 0.82rem; }
+    .badge { display: inline-block; font-family: "Source Sans 3", system-ui, sans-serif; font-size: 0.72rem; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; background: #e8f1eb; color: var(--brand-ink); padding: 0.15rem 0.45rem; border-radius: 999px; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <p class="sans badge">Ideation · not a plan</p>
+    <h1>Parent curriculum graph views</h1>
+    <p class="meta sans">
+      Date <time datetime="2026-08-31">2026-08-31</time>
+      · Topic <strong>parent-curriculum-graph-views</strong>
+      · Focus visual ways to see Harrington’s Marble curriculum
+      · Mode repo-grounded
+    </p>
+    <p class="lede">Simon opened Graph and got cards. Mathematics became a list of domains, then “4 bands” for ages 5–8. He wanted a picture of the whole curriculum, and more than one way to look at it. These are viewing modes, not a build spec.</p>
+
+    <div class="rec">
+      <h2 style="margin-top:0">Recommended composition</h2>
+      <p><strong>Default: the Atlas</strong> — Graph opens on the whole curriculum as a map, not eight subject cards. Clicking Mathematics fills the map with twelve domain tiles. Clicking Addition &amp; Subtraction opens the <strong>section graph</strong> (a real node-link drawing of that age band, with other bands sitting as collapsed nodes).</p>
+      <p><strong>Toggle 1: Path</strong> — “Why this?” isolates one topic’s hard ancestors and unlocks. Use it from a selected node or from a locked topic page.</p>
+      <p><strong>Toggle 2: List</strong> — the current card drill-down, kept as a scan/search fallback. Not a peer tab, not the thing named Graph.</p>
+      <p>Do not ship six equal tabs. The Atlas is the destination. Path and List are tools on top of it.</p>
+    </div>
+
+    <nav class="toc sans" aria-label="Sections">
+      <p><strong>On this page</strong></p>
+      <ol>
+        <li><a href="#grounding">Grounding context</a></li>
+        <li><a href="#axes">Topic axes</a></li>
+        <li><a href="#ideas">Ranked ideas</a></li>
+        <li><a href="#rejected">Rejection summary</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="grounding">Grounding context</h2>
+    <p>Harrington is a local-only family fork of Homestead. The POC question in <a href="../POC.md">docs/POC.md</a> is whether a parent can use Marble’s prerequisite graph to see paths to mastery while the child’s day stays interest-led and score-free. The daily focus layer is later (<a href="https://linear.app/karatgurk/issue/HAR-4/daily-focus-layer-literacy-numeracy-interest-invitations-evidence">HAR-4</a>). Graph is the behind-the-scenes explorer.</p>
+    <p><code>src/js/views/graph.js</code> is a four-level card tree: subjects → domains → age bands → topic cards. <code>src/js/graph.js</code> already computes <code>localEdges</code> (edges whose both ends sit in the current topic set). The section view prints “N connections inside this section. Arrows show…” and then draws no arrows. The topic page already lists prereqs and unlocks, capped at eight, as a vertical stack.</p>
+    <p>Cached Marble v1 (2026-07-08): <strong>1,590 topics, 3,221 edges</strong> (2,025 hard / 1,196 soft), 8 subjects, <strong>54 domains, 321 sections</strong>. Mathematics is 503 topics in 12 domains. Typical section is 1–18 topics (median 4–5). 2,466 edges stay in-domain; 594 cross domains inside a subject; 161 cross subjects. Median degree is 2. One hundred topics have no prereqs.</p>
+    <p>Simon’s example is real: Counting &amp; Cardinality has four bands (ages 5–8, 14 topics). Addition &amp; Subtraction ages 5–8 is 11 + 17 + 13 + 4 topics — the “4 bands” he saw. Age 6 Addition &amp; Subtraction already has 17 topics and hard edges into Place Value, so a section-only picture will lie unless you can hop.</p>
+    <p>Product rails: parent-only mastery; children never see scores; full taxonomy stays loaded so explanations still work outside the later focus layer; do not turn Graph into a school coverage dashboard that fights the Waldorf-inspired spine.</p>
+    <p>Past learnings: none. <code>docs/solutions/</code> does not exist. Slack was not requested.</p>
+    <p>External: Marble’s own <a href="https://withmarble.com/curriculum/">curriculum globe</a> is a tap-a-dot 3D map of this same dataset — impressive, weak at answering “is subtraction ready?” Khan Academy shipped then <em>retired</em> an all-skills Knowledge Map (2013) for a dashboard. Achieve the Core’s Coherence Map is the useful prior art: ego-view of one standard, solid arrows for must-come-first, dashed for related. Metacademy hid long edges as wisps.</p>
+    <p>Harness note: this run had no subagent or structured-question tool. Grounding, frames, and critique ran in one context. Verifier independence is lost; confidence numbers are therefore conservative.</p>
+
+    <h2 id="axes">Topic axes</h2>
+    <ol>
+      <li><strong>Whole-map altitude</strong> — see the curriculum at once without 1,590 dots.</li>
+      <li><strong>Local visual graph</strong> — a true node-link drawing that stays drawable.</li>
+      <li><strong>Prerequisite readiness</strong> — why this topic is or is not ready.</li>
+      <li><strong>Hierarchical drill-down</strong> — domains and age bands without becoming a list.</li>
+      <li><strong>Parent signal, not school report</strong> — mastery visible to the parent, never a child scoreboard.</li>
+    </ol>
+
+    <h2 id="ideas">Ranked ideas</h2>
+    <p class="sans"><a href="#idea-1">1. The Atlas</a> · <a href="#idea-2">2. Section Connections</a> · <a href="#idea-3">3. Why This Path</a> · <a href="#idea-4">4. Domain River</a> · <a href="#idea-5">5. Age Horizon</a> · <a href="#idea-6">6. Quiet coverage wash</a></p>
+
+    <article class="card" id="idea-1">
+      <h3>1. The Atlas — whole curriculum at high altitude</h3>
+      <p class="sans" style="color:var(--ink-faint);margin-top:0">Axis whole-map altitude · Confidence 82% · Complexity Medium</p>
+      <p><strong>What it looks like.</strong> Graph opens on one map: eight subject islands, sized by topic count (Science and Mathematics dominate; Computing and Learning to Learn are small). Inside each island, domain tiles. Optional faint cells for the 321 age-banded sections. No topic names at this altitude. Parent mastery is a quiet fill on the tile, never a percentage badge a child could read over a shoulder.</p>
+      <svg class="viz" viewBox="0 0 720 220" role="img" aria-label="Sketch of an eight-subject atlas">
+        <rect width="720" height="220" fill="#f3eee3"/>
+        <rect x="16" y="18" width="250" height="184" rx="12" fill="#d7e6dc" stroke="#3f7d5e"/>
+        <text x="28" y="40" font-size="13" font-family="system-ui" fill="#2d5a44">Mathematics · 503</text>
+        <rect x="28" y="54" width="70" height="36" rx="6" fill="#fffdf7"/><text x="34" y="76" font-size="9" font-family="system-ui">Add/Sub</text>
+        <rect x="106" y="54" width="70" height="36" rx="6" fill="#fffdf7"/><text x="112" y="76" font-size="9" font-family="system-ui">Count</text>
+        <rect x="184" y="54" width="70" height="36" rx="6" fill="#fffdf7"/><text x="190" y="76" font-size="9" font-family="system-ui">Place val</text>
+        <rect x="28" y="98" width="70" height="36" rx="6" fill="#fffdf7"/><text x="34" y="120" font-size="9" font-family="system-ui">Fractions</text>
+        <rect x="106" y="98" width="70" height="36" rx="6" fill="#fffdf7"/><text x="112" y="120" font-size="9" font-family="system-ui">Measure</text>
+        <rect x="184" y="98" width="70" height="36" rx="6" fill="#fffdf7"/><text x="190" y="120" font-size="9" font-family="system-ui">Geometry</text>
+        <rect x="280" y="18" width="210" height="110" rx="12" fill="#d9e4ee" stroke="#3d6b93"/>
+        <text x="292" y="40" font-size="13" font-family="system-ui" fill="#3d6b93">Science · 547</text>
+        <rect x="504" y="18" width="200" height="84" rx="12" fill="#f3ddd0" stroke="#b0603a"/>
+        <text x="516" y="40" font-size="13" font-family="system-ui" fill="#b0603a">English · 286</text>
+        <rect x="280" y="140" width="90" height="62" rx="10" fill="#eee6d6" stroke="#8a5a2b"/>
+        <text x="290" y="176" font-size="11" font-family="system-ui">History</text>
+        <rect x="380" y="140" width="110" height="62" rx="10" fill="#e8e0f0" stroke="#7a5a9e"/>
+        <text x="390" y="176" font-size="11" font-family="system-ui">PSD</text>
+        <rect x="504" y="114" width="88" height="88" rx="10" fill="#f4e6c8" stroke="#c08a2e"/>
+        <text x="514" y="164" font-size="11" font-family="system-ui">Life</text>
+        <rect x="600" y="114" width="50" height="42" rx="8" fill="#dce8ea" stroke="#4a7a86"/>
+        <text x="608" y="140" font-size="10" font-family="system-ui">Comp</text>
+        <rect x="600" y="162" width="50" height="40" rx="8" fill="#f0d8e0" stroke="#a3486b"/>
+        <text x="608" y="186" font-size="10" font-family="system-ui">L2L</text>
+      </svg>
+      <dl class="kvs">
+        <dt>Question</dt>
+        <dd>What does “the whole curriculum” actually contain, and where does this family live on it?</dd>
+        <dt>You click</dt>
+        <dd>A subject island to expand its domains in place. A domain tile to zoom into Connections or the Domain River. Empty ocean is not clickable. Hover names the tile and topic count.</dd>
+        <dt>Math example</dt>
+        <dd>Mathematics is the large green island. Twelve tiles: Counting &amp; Cardinality is small (14 topics); Addition &amp; Subtraction, Place Value, Fractions, Geometry, Measurement are the big ones. Simon sees immediately that “4 bands of Counting” is a corner of math, not the subject.</dd>
+        <dt>Cost / risk</dt>
+        <dd>Drawing 321 section cells is fine; drawing 1,590 topic dots is how you recreate Marble’s globe and Khan’s retired map. If mastery fill is too loud, the Atlas becomes a coverage report card and fights the POC spine. Do not size tiles by “percent mastered” — size by topic count, tint by parent progress.</dd>
+        <dt>Basis</dt>
+        <dd>direct: Graph copy already claims “the full Marble map” while rendering eight cards (<code>graph.js:31-51</code>). Live counts: 8 / 54 / 321 / 1590. POC asks which areas are being missed. external: Marble globe; Khan retired the all-node map.</dd>
+        <dt>Why it matters</dt>
+        <dd>This is the only mode that answers Simon’s first sentence: a visual of the entirety. Everything else is a zoom.</dd>
+        <dt>Downsides</dt>
+        <dd>A map without edges will still feel like “not a graph” if you stop here. Atlas must zoom into Connections or it is a pretty treemap.</dd>
+      </dl>
+    </article>
+
+    <article class="card" id="idea-2">
+      <h3>2. Section Connections — a true graph that never draws 1,590 nodes</h3>
+      <p class="sans" style="color:var(--ink-faint);margin-top:0">Axis local visual graph · Confidence 86% · Complexity Medium</p>
+      <p><strong>What it looks like.</strong> A left-to-right or bottom-to-top DAG. Each topic is a labeled node. Hard edges are solid; soft edges are dashed. Nodes already mastered (parent view) sit quieter. Topics from neighboring sections appear as collapsed capsules on the rim — “Place Value · Age 6” — not exploded into their internals. Expand a capsule to pull those topics in. Collapse them again. Never force-layout the full taxonomy.</p>
+      <svg class="viz" viewBox="0 0 720 200" role="img" aria-label="Sketch of a section DAG with a collapsed neighbor">
+        <rect width="720" height="200" fill="#f3eee3"/>
+        <text x="24" y="22" font-size="11" font-family="system-ui" fill="#5c564c">Addition &amp; Subtraction · Age 6 · 17 topics · edges inside this band plus hops</text>
+        <rect x="24" y="80" width="120" height="36" rx="8" fill="#fffdf7" stroke="#3f7d5e"/>
+        <text x="34" y="102" font-size="10" font-family="system-ui">Fluent within 10</text>
+        <rect x="200" y="48" width="150" height="36" rx="8" fill="#fffdf7" stroke="#3f7d5e"/>
+        <text x="210" y="70" font-size="10" font-family="system-ui">Add/sub within 20</text>
+        <rect x="200" y="116" width="150" height="36" rx="8" fill="#fffdf7" stroke="#3f7d5e"/>
+        <text x="210" y="138" font-size="10" font-family="system-ui">Adding within 100</text>
+        <rect x="400" y="80" width="160" height="40" rx="8" fill="#2d5a44"/>
+        <text x="410" y="104" font-size="10" font-family="system-ui" fill="#fff">You · Fluent within 100</text>
+        <rect x="590" y="24" width="110" height="52" rx="10" fill="#e8f1eb" stroke="#3f7d5e" stroke-dasharray="4 3"/>
+        <text x="600" y="46" font-size="10" font-family="system-ui">Place Value · 6</text>
+        <text x="600" y="62" font-size="9" font-family="system-ui" fill="#5c564c">collapsed hop</text>
+        <line x1="144" y1="98" x2="200" y2="66" stroke="#3f7d5e"/>
+        <line x1="144" y1="98" x2="200" y2="134" stroke="#3f7d5e"/>
+        <line x1="350" y1="66" x2="400" y2="96" stroke="#3f7d5e"/>
+        <line x1="350" y1="134" x2="400" y2="104" stroke="#3f7d5e"/>
+        <line x1="560" y1="100" x2="590" y2="56" stroke="#8a4a20" stroke-dasharray="4 3"/>
+      </svg>
+      <dl class="kvs">
+        <dt>Question</dt>
+        <dd>How do these topics actually depend on each other — not as chips on a card, as a picture?</dd>
+        <dt>You click</dt>
+        <dd>A node opens the existing topic page (prereqs/unlocks already live there). A rim capsule expands that section into the same canvas. Double-click background to collapse back to the home section. Hover an edge to read the taxonomy <code>reason</code>.</dd>
+        <dt>Math example</dt>
+        <dd>Addition &amp; Subtraction · Age 6: 17 nodes. “Adding and subtracting tens mentally” shows a dashed-rim hop to Place Value because it hard-depends on “10 More or 10 Less” and “The two digits of a two-digit number.” Age 7 “Fluent adding and subtracting within 100” sits downstream and unlocks nine later topics — those stay collapsed until asked.</dd>
+        <dt>Cost / risk</dt>
+        <dd>Age 6 Add/Sub (17) and Fractions age 9 (18) are the worst local cases and still drawable. Expanding two or three neighbor sections at once can reach ~40–50 nodes — set a hard cap (one home section + one expanded hop) or the canvas turns to hair. Do not use a physics force-graph; use a layered DAG (Sugiyama / column-by-age). <code>localEdges</code> alone is not enough: 594 cross-domain edges would vanish and the picture would lie.</dd>
+        <dt>Basis</dt>
+        <dd>direct: <code>localEdges</code> exists and is tested; the UI throws the result away for a list. Section sizes are small. Cross-domain edges are common in math. external: Coherence Map ego/neighborhood, not a global hairball; Metacademy wisps for long edges.</dd>
+        <dt>Why it matters</dt>
+        <dd>This is the mode that makes the nav item named Graph stop being a lie, without melting the browser.</dd>
+        <dt>Downsides</dt>
+        <dd>Parents who wanted “the entirety” still need the Atlas above this. A section DAG without hops will hide Place Value and recreate the current lie in prettier form.</dd>
+      </dl>
+    </article>
+
+    <article class="card" id="idea-3">
+      <h3>3. Why This Path — readiness as a trail, not a list</h3>
+      <p class="sans" style="color:var(--ink-faint);margin-top:0">Axis prerequisite readiness · Confidence 84% · Complexity Low–Medium</p>
+      <p><strong>What it looks like.</strong> One selected topic in the center. Upstream: the transitive <em>hard</em> ancestor cone (the real blockers). Downstream: what this topic unlocks. Soft helpers sit as small unlabeled ticks, or hide behind a “show helpful” switch. Mastered ancestors go quiet; blocking ones stay warm. This is the visual version of the topic page’s “Foundations needed first” banner.</p>
+      <dl class="kvs">
+        <dt>Question</dt>
+        <dd>Why is this topic ready or locked, and what does mastering it open?</dd>
+        <dt>You click</dt>
+        <dd>A blocking node to jump there. “Show helpful” to reveal soft edges. “Show full Atlas context” to zoom out without losing the selected topic. From today’s topic page, “See the path” enters this mode instead of another list.</dd>
+        <dt>Math example</dt>
+        <dd>Select “Fluent adding and subtracting within 100” (age 7). Upstream hard trail includes Adding within 100, Fluent within 20, number bonds, and Place Value’s two-digit structure. Downstream lights nine topics, including columnar addition at age 7+. A parent sees the stuck point is “Fluent within 20,” not “math.” Soft “estimating by rounding” stays optional.</dd>
+        <dt>Cost / risk</dt>
+        <dd>Transitive hard cones are usually small (median in-degree 2) but a high-centrality fluency topic can fan out. Cap depth at two or three hops and offer “show more.” Do not mix soft edges into the blocking story — gating only uses hard (<code>mastery.js</code>). Do not show percents on the path if a child can see the screen.</dd>
+        <dt>Basis</dt>
+        <dd>direct: POC exit criteria name this question. <code>isUnlocked</code> / <code>blockingPrereqs</code> already compute it. Topic page lists ≤8 neighbors with no transitive picture. external: Achieve the Core Coherence Map.</dd>
+        <dt>Why it matters</dt>
+        <dd>This is the mode that makes the graph useful for teaching tomorrow, not just browsing.</dd>
+        <dt>Downsides</dt>
+        <dd>Path mode without Atlas context feels like a second topic page. It should be a toggle, not a home screen.</dd>
+      </dl>
+    </article>
+
+    <article class="card" id="idea-4">
+      <h3>4. Domain River — age bands as a picture, not “4 bands”</h3>
+      <p class="sans" style="color:var(--ink-faint);margin-top:0">Axis hierarchical drill-down · Confidence 78% · Complexity Medium</p>
+      <p><strong>What it looks like.</strong> One domain as a horizontal river. Each age is a pool. Topics are stones in the pool, packed by <code>orderTopics</code> (age, then centrality). Arrows flow left-to-right when a prereq sits in an earlier band. Cluster summaries become the pool subtitle — the sentence already in <code>clusters.json</code>. This replaces the domain’s card list without becoming Timeline (Timeline is still the gated mastery ladder per subject).</p>
+      <dl class="kvs">
+        <dt>Question</dt>
+        <dd>How does this one domain grow from age 5 to later — and what lives in each band?</dd>
+        <dt>You click</dt>
+        <dd>A pool to isolate that age (then Connections can take over). A stone to open the topic or Path. A faint hop leaving the river (to Place Value) to jump domains.</dd>
+        <dt>Math example</dt>
+        <dd>Addition &amp; Subtraction: pools 5 (11 topics, “combine and separate up to 20”), 6 (17, fluency within 20 and two-digit work), 7 (13, up to 1000), 8 (4, larger numbers and formal methods), then thinner 9–11 pools. Counting &amp; Cardinality is a short river: fat age-5 pool (9 topics), then 2 / 2 / 1. Simon’s “4 bands” becomes a shape.</dd>
+        <dt>Cost / risk</dt>
+        <dd>Seventeen stones in the age-6 pool will crowd. Collapse to “keystone” nodes (high centrality / high unlock count) plus a count chip, then expand the pool. Do not draw every inter-age edge; draw only edges that leave a pool. If this becomes the default, the whole-curriculum question stays unanswered — River is a zoom, not a home.</dd>
+        <dt>Basis</dt>
+        <dd>direct: Simon’s disappointment was this exact screen. Cluster summaries already exist. Timeline already owns the gated age rail — Graph should not clone it. Reasoned: a spatial band is still hierarchy, but it is not a list.</dd>
+        <dt>Why it matters</dt>
+        <dd>It keeps his drill-down instinct and stops the punchline from being another chevron list.</dd>
+        <dt>Downsides</dt>
+        <dd>Easy to overbuild. If Atlas zoom already lands on Connections, River may be redundant. Prefer River only if Atlas→DAG feels too sudden.</dd>
+      </dl>
+    </article>
+
+    <article class="card" id="idea-5">
+      <h3>5. Age Horizon — everything around this child, across subjects</h3>
+      <p class="sans" style="color:var(--ink-faint);margin-top:0">Axis whole-map altitude · Confidence 70% · Complexity Medium</p>
+      <p><strong>What it looks like.</strong> A landscape of every domain that has a section at the child’s age, plus one year either side. Subjects are rows or colored ridges. This is the “what exists around six” view — useful for a hands-on six-year-old profile in the spine — not a syllabus.</p>
+      <dl class="kvs">
+        <dt>Question</dt>
+        <dd>What is in reach at this age, across the whole map, without touring eight subject lists?</dd>
+        <dt>You click</dt>
+        <dd>A domain ridge to enter that domain’s River or Connections. Age chips (±1) to slide the horizon. A “show later” fade for things the taxonomy places well above the child’s age.</dd>
+        <dt>Math example</dt>
+        <dd>For a six-year-old: Add/Sub (17 topics this year), Counting (2), Place Value (9), Measurement (10), Geometry (9), Mathematical Thinking (8), plus English phonics/handwriting ridges and Science inquiry — one screen, not a tour.</dd>
+        <dt>Cost / risk</dt>
+        <dd>Age 5 and 9 are dense (297 and 308 topics). Horizon must stay at domain/section grain, not topics. It can also imply “you should cover all of this this year,” which the spine rejects. Keep copy observational: “in the map around this age,” not “this year’s work.”</dd>
+        <dt>Basis</dt>
+        <dd>direct: <code>AGES</code> is 5–13; <code>recommendedNext</code> already clamps to age+1. Spine names a six-year-old and a nine-year-old. Reasoned: subject-first Atlas hides the age question Simon also asked when he noticed “4 bands.”</dd>
+        <dt>Why it matters</dt>
+        <dd>It is the second legitimate “whole curriculum” cut — by age instead of by subject.</dd>
+        <dt>Downsides</dt>
+        <dd>A third home screen. Keep it as an Atlas toggle (“By subject / By age”), not a tab.</dd>
+      </dl>
+    </article>
+
+    <article class="card" id="idea-6">
+      <h3>6. Quiet coverage wash — missed areas without a report card</h3>
+      <p class="sans" style="color:var(--ink-faint);margin-top:0">Axis parent signal, not school report · Confidence 64% · Complexity Low</p>
+      <p><strong>What it looks like.</strong> Not a view of its own. A wash on Atlas tiles: untouched / visited / quietly solid. No percentages in the chrome. No red. Literacy and numeracy hard-gate domains can carry a slightly firmer outline because the spine treats them differently. Creativity, curiosity, and wellbeing domains never get a “behind” state.</p>
+      <dl class="kvs">
+        <dt>Question</dt>
+        <dd>Which curriculum areas have gone quiet — for the parent, not the child?</dd>
+        <dt>You click</dt>
+        <dd>A pale tile to see when it was last evidenced (once records exist). No click should open a score.</dd>
+        <dt>Math example</dt>
+        <dd>If the family has been living in Measurement and Insects, Addition &amp; Subtraction’s tile stays pale. That is the “areas being missed” POC question, answered at domain grain, not 503 math topic scores.</dd>
+        <dt>Cost / risk</dt>
+        <dd>This is the mode most likely to fight the product thesis. If it looks like a gradebook, kill the wash and keep the Atlas empty of progress. Do not build this before Atlas and Connections exist — it is tint, not structure.</dd>
+        <dt>Basis</dt>
+        <dd>direct: POC asks which areas are being missed; also says scores stay parent-only and creativity is never a blocking metric. <code>parentMastery</code> bars already appear on every current card — so we already leak a schoolish signal; the wash should be quieter than today’s bars, not louder.</dd>
+        <dt>Why it matters</dt>
+        <dd>If Atlas has no progress encoding at all, a parent cannot scan gaps. If it has today’s bars, Graph stays a report.</dd>
+        <dt>Downsides</dt>
+        <dd>Easy to over-express. Lowest-ranked survivor; ship last, or not at all, if the Atlas already feels too evaluative.</dd>
+      </dl>
+    </article>
+
+    <h2 id="rejected">Rejection summary</h2>
+    <table>
+      <thead><tr><th>Idea</th><th>Why it died</th></tr></thead>
+      <tbody>
+        <tr><td>Force-directed drawing of all 1,590 nodes</td><td>Scale: 3,221 edges will melt a family laptop and answer no POC question. Khan retired this shape.</td></tr>
+        <tr><td>Clone Marble’s 3D globe</td><td>Same dataset, wrong job. Pretty; weak at “is this ready?” and “what is missing?”</td></tr>
+        <tr><td>Six equal Graph tabs</td><td>Simon asked for ways to view, not a settings panel. One home + toggles.</td></tr>
+        <tr><td>Child-facing constellation / Kid Mode graph</td><td>Parent-only mastery is already decided. Out of scope.</td></tr>
+        <tr><td>Replace Graph with Timeline</td><td>Already exists at <code>#timeline</code> as a gated section rail. Still a list. Different question.</td></tr>
+        <tr><td>Sunburst / icicle of every topic</td><td>Hierarchy without dependencies. 1,590 leaves are unreadable. Atlas already covers altitude at the right grain (54 / 321).</td></tr>
+        <tr><td>Search-only explorer</td><td>Useful later; does not give a visual of the entirety.</td></tr>
+        <tr><td>Pretty-up the current cards</td><td>Does not address the disappointment. The lie is structural.</td></tr>
+        <tr><td>Coverage dashboard as default</td><td>Fights Waldorf-inspired, interest-led spine. Wash only, and optional.</td></tr>
+        <tr><td>Path-first as the home screen</td><td>Requires a topic to start from. Fine as a toggle, wrong as Graph landing.</td></tr>
+      </tbody>
+    </table>
+    <p>Axis coverage: all five axes have a survivor. Age Horizon and Atlas share whole-map altitude on purpose (subject cut vs age cut). No independent basis verifier ran (harness had no subagent tool); arbitration is orchestrator-only.</p>
+
+    <h2>Sources</h2>
+    <ul>
+      <li><a href="../POC.md">docs/POC.md</a> and <a href="../POC-SPINE.md">docs/POC-SPINE.md</a></li>
+      <li><a href="../../src/js/views/graph.js">src/js/views/graph.js</a>, <a href="../../src/js/graph.js">src/js/graph.js</a>, <a href="../../src/js/data.js">src/js/data.js</a>, <a href="../../src/js/mastery.js">src/js/mastery.js</a>, <a href="../../src/js/views/topic.js">src/js/views/topic.js</a></li>
+      <li><a href="https://linear.app/karatgurk/issue/HAR-3/parent-curriculum-graph-subject-to-topic-drill-down">HAR-3</a>, <a href="https://linear.app/karatgurk/issue/HAR-4/daily-focus-layer-literacy-numeracy-interest-invitations-evidence">HAR-4</a></li>
+      <li><a href="https://withmarble.com/curriculum/">Marble curriculum globe</a></li>
+      <li><a href="https://khanacademy.fandom.com/wiki/Knowledge_Map">Khan Academy Knowledge Map (retired 2013)</a></li>
+      <li><a href="https://csaa.wested.org/resource/coherence-map-connecting-the-common-core-state-standards-for-mathematics/">Achieve the Core Coherence Map</a></li>
+    </ul>
+
+    <footer class="composition-signal">Composed 2026-08-31 by ce-ideate from Simon’s Graph disappointment on branch cursor/local-harrington-standup-399d. In-thread substitution: no subagent fleet, no structured question tool, no independent verifier.</footer>
+  </main>
+</body>
+</html>

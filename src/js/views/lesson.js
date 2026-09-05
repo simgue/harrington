@@ -1,13 +1,27 @@
 import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
+import * as backend from '../backend.js';
 import { el, refreshIcons, toast, openModal } from '../ui.js';
 import { aiLesson, aiActivityDetail } from '../ai.js';
 import { openPrintables } from './printables.js';
 
+function isAiUnconfiguredError(error) {
+  return /not configured/i.test(String(error?.message || ''));
+}
+
+async function requireConfiguredAi() {
+  try {
+    const health = await backend.health();
+    if (health && health.aiConfigured === false) {
+      throw new Error('AI is not configured');
+    }
+  } catch (error) {
+    if (isAiUnconfiguredError(error)) throw error;
+  }
+}
+
 // ---- Full lesson plan modal ----
-export async function openLesson(topic, childName) {
-  const student = store.activeStudent();
-  const learner = childName || student?.name;
+export async function openLesson(topic) {
   const body = el(`<div class="p-0">
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
       <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${SUBJECTS[topic.subject].color}18"><i data-lucide="notebook-text" class="w-5 h-5" style="color:${SUBJECTS[topic.subject].color}"></i></span>
@@ -37,7 +51,7 @@ export async function openLesson(topic, childName) {
     stage.appendChild(loadingBlock('Writing a fresh version\u2026', ''));
     refreshIcons();
     try {
-      const fresh = await aiLesson(topic, learner);
+      const fresh = await aiLesson(topic);
       await store.saveCachedLesson(cacheId, fresh);
       currentLesson = fresh;
       stage.innerHTML = '';
@@ -49,7 +63,8 @@ export async function openLesson(topic, childName) {
   try {
     let lesson = await store.getCachedLesson(cacheId);
     if (!lesson) {
-      lesson = await aiLesson(topic, learner);
+      await requireConfiguredAi();
+      lesson = await aiLesson(topic);
       await store.saveCachedLesson(cacheId, lesson);
     }
     currentLesson = lesson;
@@ -59,7 +74,7 @@ export async function openLesson(topic, childName) {
   } catch (e) {
     console.error(e);
     stage.innerHTML = '';
-    stage.appendChild(errorBlock(() => { m.close(); openLesson(topic); }));
+    stage.appendChild(errorBlock(() => { m.close(); openLesson(topic); }, isAiUnconfiguredError(e)));
     refreshIcons();
   }
 }
@@ -225,10 +240,10 @@ function loadingBlock(title, sub) {
     ${sub ? `<p class="text-xs text-ink-faint mt-1 max-w-xs mx-auto">${sub}</p>` : ''}
   </div>`);
 }
-function errorBlock(retry) {
+function errorBlock(retry, unconfigured = false) {
   const b = el(`<div class="text-center py-10">
     <i data-lucide="cloud-off" class="w-8 h-8 text-ink-faint mx-auto mb-3"></i>
-    <p class="text-sm text-ink-soft mb-3">Couldn\u2019t create the lesson right now.</p>
+    <p class="text-sm text-ink-soft mb-3">${unconfigured ? 'AI is not configured.' : 'Couldn\u2019t create the lesson right now.'}</p>
     <button id="r" class="px-4 py-2 rounded-lg bg-brand text-white text-sm font-medium">Try again</button>
   </div>`);
   b.querySelector('#r').onclick = retry;

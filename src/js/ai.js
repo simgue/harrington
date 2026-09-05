@@ -1,4 +1,5 @@
-// AI helpers via Puter.js. Returns HTML strings ready to inject.
+// AI helpers through Harrington's optional, self-hosted provider endpoint.
+import * as backend from './backend.js';
 
 function toHtml(text) {
   // Minimal markdown -> HTML (paragraphs, bold, bullet lists, headings).
@@ -28,19 +29,62 @@ function toHtml(text) {
 
 const US_SPELLING = ' Always write in American English spelling (e.g. "practice", "artifact", "color", "organize", "labeled", "favorite", "math", "recognize", "center").';
 
+// Prompts describe a generic learner. Never interpolate a real child name.
+export function promptLearnerLabel() {
+  return 'your child';
+}
+
+function ageBand(topic) {
+  return `ages ${topic.ageRangeStart}-${topic.ageRangeEnd}`;
+}
+
+export function buildExplainPrompt(topic) {
+  const name = promptLearnerLabel();
+  return `You are a warm, expert homeschool tutor. Explain the topic "${topic.name}" (${topic.subject}, ${ageBand(topic)}) in simple, friendly language a parent can read aloud to ${name}. Topic description: ${topic.description}. Keep it under 160 words. Use one everyday analogy and end with a single sentence a parent could say to check understanding. Use short paragraphs.`;
+}
+
+export function buildLessonPrompt(topic) {
+  const name = promptLearnerLabel();
+  return `You are an expert homeschool curriculum writer. Write a complete, ready-to-teach lesson a parent can use TODAY with ${name} on the topic "${topic.name}" (${topic.subject} > ${topic.domain}, ${ageBand(topic)}).
+Topic description: ${topic.description}
+Mastery evidence to aim for: ${(topic.evidence || []).join('; ') || 'general understanding'}
+
+Return ONLY valid JSON (no markdown, no commentary) matching exactly this shape:
+{
+  "objective": "one clear sentence: what the child will be able to do",
+  "duration": "e.g. 20-30 minutes",
+  "materials": ["everyday item 1", "item 2"],
+  "parentTips": {
+    "focus": "1-2 sentences: the single most important thing for the parent to focus on so the child truly gets it",
+    "struggles": "1-2 sentences: where children most often struggle here and how to spot it",
+    "advice": "1-2 sentences: warm, practical advice on pacing, encouragement, or when to pause and revisit"
+  },
+  "hook": "2-3 sentences: a fun way to introduce the idea and get curiosity going",
+  "teach": [
+    { "title": "short step title", "say": "exactly what the parent can say, in plain words", "do": "what to physically do or show" }
+  ],
+  "guidedPractice": ["a task the parent and child do together", "another"],
+  "independentActivity": { "title": "activity name", "steps": ["step 1", "step 2", "step 3"] },
+  "questions": ["discussion / check question 1", "question 2", "question 3"],
+  "commonMistakes": ["a mistake children make and how to gently correct it"],
+  "masteryCheck": "one concrete thing the child should be able to do to show they've mastered it",
+  "extension": "an optional harder challenge for children ready to go further"
+}
+Make "teach" have 3-5 steps. Keep language warm, concrete and age-appropriate. Use real, specific examples (numbers, words, objects) rather than generic filler. The parentTips must be specific to THIS topic, not generic teaching advice.`;
+}
+
 async function ask(prompt) {
-  const res = await puter.ai.chat(prompt + US_SPELLING, { model: 'gpt-4o-mini' });
-  const text = typeof res === 'string' ? res : (res?.message?.content || res?.text || String(res));
+  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }], 'small');
+  const text = res?.content || res?.text || String(res);
   return toHtml(text);
 }
 
-export function aiExplain(topic, childName) {
-  const name = childName || 'a young learner';
-  return ask(`You are a warm, expert homeschool tutor. Explain the topic "${topic.name}" (${topic.subject}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}) in simple, friendly language a parent can read aloud to ${name}. Topic description: ${topic.description}. Keep it under 160 words. Use one everyday analogy and end with a single sentence a parent could say to check understanding. Use short paragraphs.`);
+export function aiExplain(topic) {
+  return ask(buildExplainPrompt(topic));
 }
 
-export function aiQuiz(topic, childName) {
-  return ask(`Create a short 4-question mini-quiz to check mastery of "${topic.name}" (${topic.subject}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}). Description: ${topic.description}. Mastery evidence: ${(topic.evidence||[]).join('; ')}. Mix question types (recall, apply, explain). Number the questions. After the questions add a short "**Answers**" section. Keep it concise and age-appropriate.`);
+export function aiQuiz(topic) {
+  return ask(`Create a short 4-question mini-quiz to check mastery of "${topic.name}" (${topic.subject}, ${ageBand(topic)}). Description: ${topic.description}. Mastery evidence: ${(topic.evidence||[]).join('; ')}. Mix question types (recall, apply, explain). Number the questions. After the questions add a short "**Answers**" section. Keep it concise and age-appropriate.`);
 }
 
 // ---- Structured lesson generation ----
@@ -56,8 +100,8 @@ function parseJson(text) {
 }
 
 async function askJson(prompt, model = 'gpt-4o-mini') {
-  const res = await puter.ai.chat(prompt + US_SPELLING, { model });
-  const text = typeof res === 'string' ? res : (res?.message?.content || res?.text || String(res));
+  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }], model);
+  const text = res?.content || res?.text || String(res);
   return parseJson(text);
 }
 
@@ -201,43 +245,15 @@ Return ONLY valid JSON (no markdown):
 }
 
 // A complete, ready-to-teach lesson for a single topic.
-export function aiLesson(topic, childName) {
-  const name = childName || 'your child';
-  const prompt =
-`You are an expert homeschool curriculum writer. Write a complete, ready-to-teach lesson a parent can use TODAY with ${name} on the topic "${topic.name}" (${topic.subject} > ${topic.domain}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}).
-Topic description: ${topic.description}
-Mastery evidence to aim for: ${(topic.evidence || []).join('; ') || 'general understanding'}
-
-Return ONLY valid JSON (no markdown, no commentary) matching exactly this shape:
-{
-  "objective": "one clear sentence: what the child will be able to do",
-  "duration": "e.g. 20-30 minutes",
-  "materials": ["everyday item 1", "item 2"],
-  "parentTips": {
-    "focus": "1-2 sentences: the single most important thing for the parent to focus on so the child truly gets it",
-    "struggles": "1-2 sentences: where children most often struggle here and how to spot it",
-    "advice": "1-2 sentences: warm, practical advice on pacing, encouragement, or when to pause and revisit"
-  },
-  "hook": "2-3 sentences: a fun way to introduce the idea and get curiosity going",
-  "teach": [
-    { "title": "short step title", "say": "exactly what the parent can say, in plain words", "do": "what to physically do or show" }
-  ],
-  "guidedPractice": ["a task the parent and child do together", "another"],
-  "independentActivity": { "title": "activity name", "steps": ["step 1", "step 2", "step 3"] },
-  "questions": ["discussion / check question 1", "question 2", "question 3"],
-  "commonMistakes": ["a mistake children make and how to gently correct it"],
-  "masteryCheck": "one concrete thing the child should be able to do to show they've mastered it",
-  "extension": "an optional harder challenge for children ready to go further"
-}
-Make "teach" have 3-5 steps. Keep language warm, concrete and age-appropriate. Use real, specific examples (numbers, words, objects) rather than generic filler. The parentTips must be specific to THIS topic, not generic teaching advice.`;
-  return askJson(prompt);
+export function aiLesson(topic) {
+  return askJson(buildLessonPrompt(topic));
 }
 
 // Ready-to-print materials for a topic. The AI picks the 2-3 formats that need
 // the LEAST parent prep while being genuinely useful for this specific topic.
-export function aiPrintables(topic, childName) {
+export function aiPrintables(topic) {
   const prompt =
-`You are a homeschool materials designer. Create ready-to-print materials for teaching "${topic.name}" (${topic.subject} > ${topic.domain}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}).
+`You are a homeschool materials designer. Create ready-to-print materials for teaching "${topic.name}" (${topic.subject} > ${topic.domain}, ${ageBand(topic)}).
 Topic description: ${topic.description}
 Mastery evidence: ${(topic.evidence || []).join('; ') || 'general understanding'}
 
@@ -262,7 +278,7 @@ Use real, specific, age-appropriate content (actual numbers, words, examples) �
 // Detailed how-to for one specific activity or game idea.
 export function aiActivityDetail(topic, activity, kind) {
   const prompt =
-`You are a homeschool tutor. Expand this ${kind} idea into clear, do-it-now instructions for a parent teaching "${topic.name}" (${topic.subject}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}).
+`You are a homeschool tutor. Expand this ${kind} idea into clear, do-it-now instructions for a parent teaching "${topic.name}" (${topic.subject}, ${ageBand(topic)}).
 ${kind} idea: "${activity.title}" — ${activity.body}
 Topic description: ${topic.description}
 
@@ -361,7 +377,7 @@ Use real, specific, age-appropriate content — never placeholders.`;
 // child answers from memory (retrieval practice). Returned as plain Q/A pairs.
 export function aiRecallCards(topic, age) {
   const prompt =
-`You are an expert tutor creating ACTIVE RECALL flashcards for "${topic.name}" (${topic.subject} > ${topic.domain}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}) for a child aged ${age}.
+`You are an expert tutor creating ACTIVE RECALL flashcards for "${topic.name}" (${topic.subject} > ${topic.domain}, ${ageBand(topic)}) for a child aged ${age}.
 Topic description: ${topic.description || ''}
 Mastery evidence: ${(topic.evidence || []).join('; ') || 'core understanding'}
 
@@ -389,7 +405,7 @@ Use real, specific content — never placeholders.`;
 export function aiDiscussionAnalysis({ studentName, age, topic, transcript, note }) {
   const name = studentName || 'the child';
   const topicLine = topic
-    ? `Topic being discussed: "${topic.name}" (${topic.subject} > ${topic.domain}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}). Description: ${topic.description || ''}. Mastery evidence: ${(topic.evidence || []).join('; ') || 'n/a'}.`
+    ? `Topic being discussed: "${topic.name}" (${topic.subject} > ${topic.domain}, ${ageBand(topic)}). Description: ${topic.description || ''}. Mastery evidence: ${(topic.evidence || []).join('; ') || 'n/a'}.`
     : 'No specific topic was linked to this discussion.';
   const body = (transcript && transcript.trim())
     ? `Transcript of the recorded discussion between parent and child:\n"""\n${transcript.trim().slice(0, 4000)}\n"""`
@@ -423,8 +439,8 @@ ${context}
 If they mention a struggling topic, suggest a clear plan: how to reteach it simply, one hands-on activity, a way to check understanding, and what usually trips kids up. Point them to Harrington features by name when relevant (a topic's Lesson, Print & go materials, Active recall cards, the timed Challenge, or recording a discussion for AI analysis). If you don't have enough info, ask one short clarifying question.`;
 
   const convo = [{ role: 'system', content: sys }, ...messages];
-  const res = await puter.ai.chat(convo, { model: 'gpt-4o' });
-  const text = typeof res === 'string' ? res : (res?.message?.content || res?.text || String(res));
+  const res = await backend.chat(convo, 'strong');
+  const text = res?.content || res?.text || String(res);
   return toHtml(text);
 }
 

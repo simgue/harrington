@@ -4,27 +4,45 @@
 to mastery.**
 
 Harrington is a family-specific fork of
-[Homestead](https://github.com/tbh-23/Homestead). It keeps the complete working
-application while we test a much smaller proof of concept: can Marble's connected
+[Homestead](https://github.com/tbh-23/Homestead). It keeps the useful learning
+mechanics while we test a much smaller proof of concept: can Marble's connected
 curriculum help parents see progress and possible paths to mastery without making
 the child's day feel school-like, score-led, or predetermined?
 
 Start with the [Harrington proof-of-concept brief](docs/POC.md) and its
-[small learning spine](docs/POC-SPINE.md). The original Homestead demo remains available at
-[homestead.puter.site](https://homestead.puter.site); it is not a Harrington
-deployment.
+[small learning spine](docs/POC-SPINE.md). Work is tracked in Linear on the
+[Harrington](https://linear.app/karatgurk/team/HAR/overview) team; see
+[docs/LINEAR.md](docs/LINEAR.md). Homestead remains an upstream code reference,
+not a Harrington deployment or service dependency.
+
+## Current self-hosted preview
+
+Harrington no longer requires an external account. Its own Node server stores
+family state, lesson caches, and recordings in a family-controlled data
+directory. Lesson generation is optional: it stays fail-closed until you point
+Harrington at a local OpenAI-compatible endpoint (Ollama is the documented
+example). Commune is still disabled until it has an explicit self-hosted adapter.
+
+This preview binds to the local computer only. Use synthetic learner names until
+authentication, encrypted backups, and private remote access are implemented.
+Never send a real child's name into a model prompt — generators use “your child”
+and an age band only.
 
 ## Highlights
 
 - **Mastery ladder** — Topics → Sections → Subjects, each gated at 90%+ so
   learning always builds on solid foundations.
-- **Connected timeline** — every topic shows its prerequisites and what it
-  unlocks, straight from the curriculum's dependency graph.
-- **Ready-to-teach lessons** — full plans with parent notes, plus low-prep,
-  printable “print & go” materials (worksheets, flashcards, and more).
-- **Verified tests** — topic, section, and subject mastery tests, written and
-  then independently re-solved so answers are trustworthy; digital or printable.
-- **Active recall** — spaced-repetition memory cards per topic, with due reviews.
+- **Curriculum graph** — parents start at a subject and drill into domains,
+  age-banded sections, and topics. Prerequisites and unlocks stay visible;
+  mastery stays in the parent view.
+- **Ready-to-teach lessons** — **Open full lesson** calls the family-controlled
+  `/api/ai` adapter, then caches the result once per topic (`topic:{id}`) on the
+  family server. Unconfigured servers keep returning 503. Do not pre-generate the
+  whole taxonomy.
+- **Verified tests (retained)** — generation and independent re-solving require
+  a future AI provider adapter; digital and printable test mechanics remain.
+- **Active recall (retained)** — generated memory cards require the same future
+  provider adapter; the spaced-review mechanics remain.
 - **Spaced practice** — mastery-test questions a child misses are queued and
   resurfaced on an expanding review schedule until they stick, extending spaced
   repetition from facts to problem-solving.
@@ -32,18 +50,20 @@ deployment.
   a child excels.
 - **Adaptive daily calendar** — a day-by-day plan you can reschedule, mark done,
   and add extra practice to.
-- **Records & voice analysis** — log observations and record lesson conversations
-  with live transcripts and AI coaching for the parent.
-- **Harrington Helper** — an AI chat coach for parents, grounded in the child's
-  real progress.
+- **Records & voice capture** — log observations and store lesson recordings on
+  the family server. AI coaching is disabled in this preview.
+- **Harrington Helper (retained, disabled)** — the upstream AI coach remains in
+  the codebase while a family-controlled provider interface is designed.
 - **Retained for evaluation** — the inherited XP, levels, collectible badges,
   celebration effects, and full-screen **Kid Mode** remain in the codebase, but
   the POC does not expose Kid Mode through normal navigation.
-- **Commune (shared teaching)** — team up with other families in a private
+- **Commune (retained, disabled)** — the shared-teaching experience remains for
+  later migration to Harrington-owned infrastructure. It is not exposed in the
+  preview navigation. The intended experience lets families team up in a private
   “commune,” approve and share what a child is working on for a given day, and
   cover each other's kids with a one-tap printable Day Sheet. Only the day's
-  topics and an optional note are shared; each family's data stays in their own
-  account.
+  topics and an optional note are shared; each family's data stays on its own
+  server.
 - **Insights & notifications**, a **streak tracker**, and a **downloadable guide**.
 
 ## Research-Backed Evidence
@@ -97,7 +117,7 @@ classroom effect aren't always the same size.
 Homeschooling parents often share teaching duties. **Commune** lets a small
 group of families do that inside Harrington without giving up their privacy.
 
-**How to use it (in the app):**
+**Intended design (not active in the preview):**
 
 1. **Open the Commune tab** and either create a commune or join one with an
    invite code another family shares.
@@ -111,66 +131,105 @@ group of families do that inside Harrington without giving up their privacy.
 
 **What stays private:** only the topics a parent explicitly approves for that day
 (plus an optional note) are ever shared. Progress, mastery, records, and
-recordings never leave a family's own account. The covering parent's app rebuilds
+recordings never leave a family's own server. The covering parent's app rebuilds
 each lesson locally from the shared topic, so *what and how to teach* is available
 without ever exposing how the child is actually doing.
 
-Commune runs on a [Puter](https://puter.com) serverless worker that stores only
-commune membership and the opt-in daily cards — never any family's learning data.
+Commune is unavailable in the self-hosted preview. It will return only after its
+membership and sharing service can be operated independently by Harrington.
 
 ## Tech
 
-- Static front end: HTML + CSS + vanilla JavaScript (ES modules), styled with
-  Tailwind (CDN).
-- Backend, auth, storage, and AI via [Puter.js](https://puter.com).
-- No build step. The site is served from the [`src/`](src) directory —
-  `src/index.html` is the entry point.
+- Browser app: HTML + CSS + vanilla JavaScript (ES modules), styled with a
+  locally built Tailwind stylesheet and vendored Lucide icons.
+- Dependency-free Node server for static files, family state, lesson caches, and
+  recordings.
+- No external account or application bundler. `server.mjs` is the entry point;
+  the committed browser assets are regenerated with `npm run build`.
+- Marble remains an open runtime curriculum source. AI is optional and
+  fail-closed until `HARRINGTON_AI_BASE_URL` and `HARRINGTON_AI_MODEL` are set.
 
 ## Running locally
 
-Any static file server works, pointed at `src/`, for example:
+Install and start Harrington:
 
 ```bash
-npx serve src
-# or
-cd src && python3 -m http.server 8000
+npm install
+npm start
 ```
 
-Then open the served URL. Sign in with a Puter account when prompted; each
-parent's students, progress, records, and recordings are stored privately in
-their own account.
+Then open `http://127.0.0.1:4173`. No login is required. Private preview data is
+written under `data/private/` and excluded from Git.
+
+### Optional local model (Ollama)
+
+Lesson generation stays off until both of these are set. There is no default
+cloud URL or API key.
+
+```bash
+# Install Ollama from https://ollama.com, then pull one instruction model:
+ollama pull llama3.2
+
+export HARRINGTON_AI_BASE_URL=http://127.0.0.1:11434/v1
+export HARRINGTON_AI_MODEL=llama3.2
+# Optional. Ollama usually needs none; some reverse proxies want Bearer:
+# export HARRINGTON_AI_API_KEY=your-proxy-token
+
+npm start
+```
+
+Restart Harrington after changing these variables. `/api/health` reports
+`aiConfigured: true` only when both the base URL and model are set. Inherited
+client aliases (`small`, `strong`, `gpt-4o-mini`, `gpt-4o`) are mapped to
+`HARRINGTON_AI_MODEL`; the adapter never calls a vendor by those names.
+
+Local models can take a while to write lesson JSON. The adapter waits up to
+three minutes (`HARRINGTON_AI_TIMEOUT_MS` to override) and then fails closed.
+
+Docker on the same machine as Ollama typically needs
+`HARRINGTON_AI_BASE_URL=http://host.docker.internal:11434/v1`. Do not publish a
+key or a cloud endpoint in `compose.yaml`.
+
+### URL-swap priming (same adapter, no batch job)
+
+The adapter is URL-swappable. Point `HARRINGTON_AI_BASE_URL` at any
+OpenAI-compatible `/v1` (Ollama, llama.cpp, vLLM, or a vendor/LiteLLM endpoint
+on the family server) without code changes.
+
+Do **not** pre-generate all ~1,590 Marble topics. The lesson cache is
+generate-once per topic the family actually opens. If a local model's JSON is
+weak, you may temporarily point at a stronger endpoint to fill **only the
+topics you open** (or a small focus band later), then switch back to Ollama.
+A cloud or vendor endpoint means topic text leaves the house. Never use Puter.
+Never put learner names in prompts.
+
+Chat / Harrington Helper is a later slice: interactive chat needs a live local
+model, and progress or records must not be dumped into prompts. The same
+`/api/ai` pipe would use whatever is configured.
+
+Docker is also supported:
+
+```bash
+docker compose up --build
+```
 
 ## Deployment
 
-The inherited [`Deploy to Puter`](.github/workflows/deploy.yml) workflow can
-deploy Harrington after a `PUTER_AUTH_TOKEN` repository secret has been
-configured. The default target is `harrington.puter.site`; no Harrington
-production deployment is assumed by this repository.
-
-The script uploads `src/` to Puter hosting with its directory structure
-preserved, into a fresh `release-<timestamp>` folder, then atomically re-points
-the configured subdomain at it (zero downtime) and prunes old releases. It uses
-the [`@heyputer/puter.js`](https://www.npmjs.com/package/@heyputer/puter.js) SDK
-directly rather than the Puter CLI, because the CLI flattens nested directories
-(so `src/js/views/dashboard.js` would 404). You can also run it from the Actions
-tab via **workflow_dispatch**.
-
-Deployment requires a `PUTER_AUTH_TOKEN` repository secret (generate one at
-`puter.com/dashboard` → **Create token**). If it's missing, the workflow fails
-fast before touching the live site.
-
-The Commune worker is likewise configured with Harrington-specific names. It
-must be deployed separately before that retained upstream feature is used.
+The included container stores private data in the `harrington-data` volume and
+publishes only to `127.0.0.1:4173`. This is safe for a local preview, but it is
+not a production internet deployment: authentication, TLS, encrypted backups,
+and restore testing must be added before remote access.
 
 ## The curriculum data
 
-The curriculum is **not** bundled — Harrington fetches the latest data at runtime
-from the open-source **Marble Skill Taxonomy**:
+The curriculum is **not** committed to Git. The local Harrington server fetches
+the open-source **Marble Skill Taxonomy** once, caches it under
+`data/private/taxonomy/`, and serves it to the browser at `/api/taxonomy/*`:
 
 - https://github.com/withmarbleapp/os-taxonomy
 
-This means the curriculum stays up to date automatically, and the app notifies
-you when topics are added or removed upstream.
+The first launch needs the network for that download. Later launches use the
+on-disk cache. The app notifies you when topics are added or removed upstream.
 
 ## Licensing
 
@@ -196,6 +255,7 @@ redistribute a *modified copy of the dataset itself*).
 
 ## Contributing
 
-Issues and pull requests are welcome. By contributing, you agree your
-contributions are licensed under the MIT License. Please don't commit copies of
-the taxonomy dataset into this repository — Harrington loads it at runtime.
+Work is tracked in Linear, not GitHub Issues. See [`docs/LINEAR.md`](docs/LINEAR.md).
+Pull requests are welcome. By contributing, you agree your contributions are
+licensed under the MIT License. Please don't commit copies of the taxonomy
+dataset into this repository — Harrington caches it locally at runtime.

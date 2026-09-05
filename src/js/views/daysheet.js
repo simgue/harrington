@@ -5,8 +5,8 @@
 // Nothing private is involved: a card carries only topic references + a note.
 // The lesson, activities, and resources are all rebuilt locally from the topic
 // (which carries its own age range), using the same generator + cache the
-// normal lesson view uses. Generation is billed to the covering parent's own
-// Puter account (user-pays); results are cached per topic after the first time.
+// normal lesson view uses. AI generation is disabled until a family-controlled
+// provider is configured; completed results are cached per topic.
 
 import { getData } from '../data.js';
 import * as store from '../store.js';
@@ -18,11 +18,11 @@ function esc(s) { return String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;
 
 // Rebuild one topic's teaching payload (lesson + activities + resources),
 // reusing the shared per-topic lesson cache.
-async function buildTopicMaterial(topic, childName) {
+async function buildTopicMaterial(topic) {
   const cacheId = 'topic:' + topic.id;
   let lesson = await store.getCachedLesson(cacheId);
   if (!lesson) {
-    lesson = await aiLesson(topic, childName);
+    lesson = await aiLesson(topic);
     try { await store.saveCachedLesson(cacheId, lesson); } catch {}
   }
   return {
@@ -58,7 +58,7 @@ async function gatherAll(cards, onProgress) {
     const materials = [];
     for (const topic of topics) {
       onProgress?.(++done, total, topic.name);
-      try { materials.push(await buildTopicMaterial(topic, card.childDisplayName)); }
+      try { materials.push(await buildTopicMaterial(topic)); }
       catch { /* skip a topic that fails to generate rather than abort the sheet */ }
     }
     out.push({ card, materials });

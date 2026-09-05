@@ -2,16 +2,16 @@ import { loadTaxonomy } from './data.js';
 import * as store from './store.js';
 import { syncCurriculum } from './curriculum-sync.js';
 import { maybeShowWelcome } from './views/guide.js';
-import { assistantLauncher } from './views/assistant.js';
 import { el, refreshIcons, toast } from './ui.js';
 import { renderShell } from './views/shell.js';
+import { graphHash } from './graph.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderTimeline } from './views/timeline.js';
 import { renderCalendar } from './views/calendar.js';
 import { renderTopic } from './views/topic.js';
+import { renderGraph } from './views/graph.js';
 import { renderRecords } from './views/records.js';
 import { renderInsights } from './views/insights.js';
-import { renderCoop } from './views/coop.js';
 
 const app = document.getElementById('app');
 
@@ -20,16 +20,32 @@ const route = { name: 'dashboard', params: {} };
 export function navigate(name, params = {}) {
   route.name = name;
   route.params = params;
-  window.location.hash = name + (params.id ? '/' + params.id : '');
+  window.location.hash = hashFor(name, params);
   render();
   window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+function hashFor(name, params = {}) {
+  if (name === 'graph') return graphHash(params);
+  return name + (params.id ? '/' + params.id : '');
 }
 
 function parseHash() {
   const h = window.location.hash.replace(/^#/, '');
   if (!h) return { name: 'dashboard', params: {} };
-  const [name, id] = h.split('/');
-  return { name, params: id ? { id } : {} };
+  const parts = h.split('/').map((part) => {
+    try { return decodeURIComponent(part); }
+    catch { return part; }
+  });
+  const [name, ...rest] = parts;
+  if (name === 'graph') {
+    return { name, params: { subject: rest[0], domain: rest[1], age: rest[2] } };
+  }
+  return { name, params: rest[0] ? { id: rest[0] } : {} };
+}
+
+function sameRoute(a, b) {
+  return hashFor(a.name, a.params) === hashFor(b.name, b.params);
 }
 
 let taxonomyReady = false;
@@ -38,11 +54,10 @@ let welcomeChecked = false;
 async function boot() {
   renderLoading('Loading your homeschool workspace\u2026');
   try {
-    await store.refreshAuth();
-    if (store.get().user) await store.loadAll();
+    await Promise.all([store.connect(), store.loadAll()]);
     await loadTaxonomy();
     taxonomyReady = true;
-    if (store.get().user) { try { syncCurriculum(); } catch (e) { console.warn('sync failed', e); } }
+    try { syncCurriculum(); } catch (e) { console.warn('sync failed', e); }
   } catch (e) {
     console.error(e);
     renderError(e.message || 'Something went wrong while starting up.');
@@ -57,7 +72,6 @@ function render() {
   if (!taxonomyReady) return;
   const state = store.get();
 
-  if (!state.user) { renderSignIn(); return; }
   if (state.students.length === 0 && route.name !== 'onboard') {
     route.name = 'onboard';
   }
@@ -66,10 +80,10 @@ function render() {
     dashboard: renderDashboard,
     calendar: renderCalendar,
     timeline: renderTimeline,
+    graph: renderGraph,
     topic: renderTopic,
     records: renderRecords,
     insights: renderInsights,
-    coop: renderCoop,
     onboard: renderOnboard,
   };
   const viewFn = views[route.name] || renderDashboard;
@@ -87,13 +101,7 @@ function render() {
   app.appendChild(shell);
   refreshIcons();
 
-  // Mount the floating parent assistant once (persists across view changes).
-  if (route.name !== 'onboard' && !document.getElementById('asst-launch')) {
-    document.body.appendChild(assistantLauncher());
-    refreshIcons();
-  }
-
-  // Show the welcome tour once, after the first signed-in render.
+  // Show the welcome tour once, after the first family-workspace render.
   if (!welcomeChecked) {
     welcomeChecked = true;
     setTimeout(() => { try { maybeShowWelcome(); } catch (e) {} }, 400);
@@ -129,54 +137,6 @@ function renderError(msg) {
   refreshIcons();
 }
 
-function renderSignIn() {
-  app.innerHTML = '';
-  const node = el(`
-    <div class="min-h-screen grid lg:grid-cols-2">
-      <div class="flex items-center justify-center p-8">
-        <div class="max-w-sm w-full fade-up">
-          <div class="flex items-center gap-2.5 mb-8">
-            <div class="w-9 h-9 rounded-lg bg-brand flex items-center justify-center">
-              <i data-lucide="compass" class="w-5 h-5 text-white"></i>
-            </div>
-            <span class="font-display text-xl font-600">Harrington</span>
-          </div>
-          <h1 class="font-display text-3xl sm:text-4xl font-600 leading-tight mb-3">Interests lead the day. The graph keeps the long view.</h1>
-          <p class="text-ink-soft mb-8 leading-relaxed">Harrington helps children choose meaningful work while parents quietly keep sight of essential skills, evidence, and possible paths to mastery.</p>
-          <button id="signin" class="w-full px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium flex items-center justify-center gap-2 transition-colors">
-            <i data-lucide="log-in" class="w-4 h-4"></i> Sign in to begin
-          </button>
-          <p class="text-xs text-ink-faint mt-4 text-center">Your students and records are saved privately to your account.</p>
-        </div>
-      </div>
-      <div class="hidden lg:flex items-center justify-center bg-brand-light border-l border-paper-line p-10">
-        <div class="max-w-md space-y-4">
-          ${featureCard('compass', 'Interest-led choices', 'Start with what the child wants to explore and offer several meaningful ways in.')}
-          ${featureCard('git-branch', 'Connected learning', 'Parents can see prerequisites, evidence, and what each skill may unlock.')}
-          ${featureCard('shield-check', 'Private mastery view', 'Keep essential-skill gates behind the scenes and give children descriptive feedback.')}
-          ${featureCard('notebook-pen', 'Real learning records', 'Capture projects, observations, questions, performances, and unplanned discoveries.')}
-        </div>
-      </div>
-    </div>`);
-  node.querySelector('#signin').onclick = async () => {
-    try { await store.signIn(); try { syncCurriculum(); } catch (e) {} render(); } catch (e) { toast('Sign in was canceled', 'error'); }
-  };
-  app.appendChild(node);
-  refreshIcons();
-}
-
-function featureCard(icon, title, body) {
-  return `<div class="bg-paper-card/70 border border-paper-line rounded-xl p-4 flex gap-3">
-    <div class="w-9 h-9 rounded-lg bg-brand/10 flex items-center justify-center shrink-0">
-      <i data-lucide="${icon}" class="w-4.5 h-4.5 text-brand-dark"></i>
-    </div>
-    <div>
-      <p class="font-600 text-sm">${title}</p>
-      <p class="text-xs text-ink-soft leading-relaxed mt-0.5">${body}</p>
-    </div>
-  </div>`;
-}
-
 function renderOnboard() {
   const node = el(`
     <div class="min-h-screen flex items-center justify-center p-6">
@@ -186,12 +146,15 @@ function renderOnboard() {
             <i data-lucide="user-plus" class="w-6 h-6 text-brand-dark"></i>
           </div>
           <h1 class="font-display text-2xl font-600">Add your first student</h1>
-          <p class="text-ink-soft text-sm mt-1">Tell us who's learning so you can begin from their interests and keep their learning journey in view.</p>
+          <p class="text-ink-soft text-sm mt-1">Set up a sample learner so you can explore Harrington without creating an external account.</p>
         </div>
         <form id="f" class="bg-paper-card border border-paper-line rounded-2xl p-5 space-y-4">
+          <div class="rounded-xl bg-[#f7f0dd] border border-[#ead8a7] px-3.5 py-3 text-xs text-[#6f5520] leading-relaxed">
+            This preview saves to your local Harrington server. Use a sample name until encrypted backups and private remote access are ready.
+          </div>
           <div>
             <label class="text-sm font-medium block mb-1.5">Student's name</label>
-            <input name="name" required placeholder="e.g. Maya" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+            <input name="name" required placeholder="e.g. Sample Learner" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
           </div>
           <div>
             <label class="text-sm font-medium block mb-1.5">Birth year</label>
@@ -217,7 +180,7 @@ function renderOnboard() {
 
 window.addEventListener('hashchange', () => {
   const r = parseHash();
-  if (r.name !== route.name || r.params.id !== route.params.id) {
+  if (!sameRoute(r, route)) {
     route.name = r.name; route.params = r.params;
     render();
   }

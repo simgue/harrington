@@ -9,79 +9,80 @@ const importSource = async (path) => {
   return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 };
 
-test('Harrington runtime, storage, and deployment surfaces remain isolated', async (t) => {
-  const kvCalls = { get: [], set: [] };
-  const workerCalls = [];
-  globalThis.puter = {
-    auth: {
-      isSignedIn: () => true,
-      getUser: async () => ({ uuid: 'parent-1' }),
-    },
-    kv: {
-      get: async (key) => { kvCalls.get.push(key); return null; },
-      set: async (key, value) => { kvCalls.set.push({ key, value }); },
-    },
-    workers: {
-      exec: async (url, options) => {
-        workerCalls.push({ url, options });
-        return { ok: true, json: async () => ({ pod: { id: 'pod-1' } }) };
-      },
-    },
-  };
+test('the Harrington runtime has no Puter dependency', async () => {
+  const runtimePaths = [
+    'package.json',
+    'src/index.html',
+    'src/js/app.js',
+    'src/js/backend.js',
+    'src/js/store.js',
+    'src/js/recorder.js',
+    'src/js/ai.js',
+    'src/js/coop.js',
+    'src/js/graph.js',
+    'src/js/views/graph.js',
+    'src/js/mastery.js',
+    'server.mjs',
+  ];
+  const runtimeSources = await Promise.all(runtimePaths.map(source));
 
-  await t.test('persists account state and lesson cache only in Harrington KV keys', async () => {
-    const store = await importSource('src/js/store.js');
-    await store.refreshAuth();
-    store.addStudent('Ada', 2018);
-    await new Promise((resolve) => setTimeout(resolve, 450));
-    await store.saveCachedLesson('math-1', { title: 'Counting' });
+  for (let index = 0; index < runtimeSources.length; index += 1) {
+    assert.doesNotMatch(
+      runtimeSources[index],
+      /\bputer\b/i,
+      `${runtimePaths[index]} still contains a Puter runtime reference`,
+    );
+  }
+});
 
-    assert.deepEqual(kvCalls.set.map(({ key }) => key), [
-      'harrington:v1',
-      'harrington:lesson:math-1',
-    ]);
-    assert.ok(kvCalls.set.every(({ key }) => key.startsWith('harrington:')));
-  });
+test('the browser starts in a private family workspace without sign-in', async () => {
+  const [app, store, shell] = await Promise.all([
+    source('src/js/app.js'),
+    source('src/js/store.js'),
+    source('src/js/views/shell.js'),
+  ]);
 
-  await t.test('calls the Harrington Commune worker through Puter', async () => {
-    const coop = await importSource('src/js/coop.js');
-    await coop.createPod('Oak Street', 'Ada');
+  assert.doesNotMatch(app, /renderSignIn|sign in to begin/i);
+  assert.match(store, /username:\s*'Family'/);
+  assert.match(shell, /Private family space/);
+  assert.doesNotMatch(shell, /Sign out/);
+});
 
-    assert.equal(coop.BROKER_URL, 'https://harrington-coop-broker.puter.work');
-    assert.equal(workerCalls[0].url, 'https://harrington-coop-broker.puter.work/pod/create');
-    assert.equal(workerCalls[0].options.method, 'POST');
-  });
+test('unmigrated connected features fail closed', async () => {
+  const [ai, backend, coopSource, coop] = await Promise.all([
+    source('src/js/ai.js'),
+    source('src/js/backend.js'),
+    source('src/js/coop.js'),
+    importSource('src/js/coop.js'),
+  ]);
 
-  await t.test('uses Harrington-only audio, site deployment, and worker deployment identifiers', async () => {
-    const [recorder, siteDeploy, workerDeploy] = await Promise.all([
-      source('src/js/recorder.js'),
-      source('scripts/deploy-puter.mjs'),
-      source('scripts/deploy-worker.mjs'),
-    ]);
+  assert.match(ai, /backend\.chat/);
+  assert.doesNotMatch(ai, /https?:\/\//);
+  assert.match(backend, /\/api\/ai/);
+  assert.match(coopSource, /not available in the self-hosted preview/i);
+  assert.doesNotMatch(coopSource, /https?:\/\//);
+  for (const action of [
+    () => coop.createPod(),
+    () => coop.joinPod(),
+    () => coop.myPods(),
+    () => coop.shareCard(),
+    () => coop.cardsSharedToMe(),
+  ]) {
+    await assert.rejects(action, /not available in the self-hosted preview/i);
+  }
+});
 
-    assert.match(recorder, /const path = `harrington\/recordings\/\$\{recId\}\.\$\{ext\}`/);
-    assert.match(siteDeploy, /const SUBDOMAIN = process\.env\.PUTER_SUBDOMAIN \|\| 'harrington';/);
-    assert.match(workerDeploy, /const WORKER_NAME = 'harrington-coop-broker';/);
-    assert.match(workerDeploy, /const REMOTE_PATH = 'harrington\/coop-broker\.js';/);
-  });
+test('interface assets are served by Harrington instead of public CDNs', async () => {
+  const [index, ui, data] = await Promise.all([
+    source('src/index.html'),
+    source('src/js/ui.js'),
+    source('src/js/data.js'),
+  ]);
 
-  await t.test('keeps service runtime namespaces out of Homestead and inside Harrington', async () => {
-    const worker = await source('workers/coop-broker.js');
-    const runtimeSurfaces = await Promise.all([
-      source('src/js/store.js'),
-      source('src/js/recorder.js'),
-      source('src/js/coop.js'),
-      worker,
-    ]);
-
-    for (const surface of runtimeSurfaces) {
-      assert.doesNotMatch(surface, /['"`][^'"`]*homestead[^'"`]*['"`]/i);
-    }
-    assert.match(worker, /const KV_PREFIX = 'harrington:coop';/);
-    assert.match(worker, /pod: \(id\) => `\$\{KV_PREFIX\}:pod:\$\{id\}`/);
-    assert.match(worker, /invite: \(code\) => `\$\{KV_PREFIX\}:invite:\$\{code\}`/);
-    assert.match(worker, /userPods: \(uuid\) => `\$\{KV_PREFIX\}:userpods:\$\{uuid\}`/);
-    assert.match(worker, /card: \(podId, cardId\) => `\$\{KV_PREFIX\}:card:\$\{podId\}:\$\{cardId\}`/);
-    assert.match(worker, /cardPrefix: \(podId\) => `\$\{KV_PREFIX\}:card:\$\{podId\}:/);
-  });
+  assert.doesNotMatch(index, /cdn\.tailwindcss\.com|fonts\.googleapis\.com|fonts\.gstatic\.com/);
+  assert.doesNotMatch(ui, /cdn\.jsdelivr\.net|https?:\/\//);
+  assert.doesNotMatch(data, /cdn\.jsdelivr\.net/);
+  assert.match(data, /\/api\/taxonomy/);
+  assert.match(index, /css\/tailwind\.css/);
+  assert.match(index, /vendor\/lucide\.min\.js/);
 });

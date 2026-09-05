@@ -31,5 +31,8 @@ data/clusters.json
 data/curriculum-standards.json
 data/manifest.json
 
+# Private family records written by the self-hosted server.
+data/private/
+
 # Local Claude Code config (machine-specific; not shared)
 .claude/

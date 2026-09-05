@@ -9,11 +9,16 @@ your report and work on a fix as quickly as we reasonably can.
 
 ## Scope & notes
 
-- Harrington is a static front-end app. Authentication, storage, and AI are
-  provided by [Puter.js](https://puter.com); account and infrastructure security
-  for those services is handled by Puter.
-- Each parent's data (students, progress, records, recordings) is stored in their
-  own Puter account and is not shared by the app.
+- Harrington includes a small local server. It binds to `127.0.0.1` by default
+  and stores family state, lesson caches, and recordings under
+  `data/private/` (or `HARRINGTON_DATA_DIR`).
+- The preview does not yet include application authentication. Do not bind it to
+  a public interface or expose it to the internet without a trusted
+  authentication reverse proxy.
+- AI generation is disabled until `HARRINGTON_AI_BASE_URL` and
+  `HARRINGTON_AI_MODEL` are set. When they are set, topic text (never a child's
+  name) is sent only to that configured OpenAI-compatible endpoint. Shared-family
+  features remain disabled by default.
 - Please never include real children's personal data in a report.
 
 Thank you for helping keep families using Harrington safe.

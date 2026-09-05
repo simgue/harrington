@@ -9,7 +9,6 @@ import { openMasteryTest } from './masterytest.js';
 import { openRecordingsLibrary } from './recordings.js';
 import { openDueRecall } from './recall.js';
 import { openDuePractice } from './practice.js';
-import { setTimelineSubject } from './timeline.js';
 import { BADGES } from '../game.js';
 
 export function renderDashboard(params, { navigate }) {
@@ -31,12 +30,12 @@ export function renderDashboard(params, { navigate }) {
       <p class="text-ink-soft text-sm mt-0.5">Age ${age} · ${stats.totalMastered} of ${stats.total} topics mastered across ${Object.keys(SUBJECTS).length} subjects</p>
     </div>
     <div class="flex gap-2">
-      <button id="qtime" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors"><i data-lucide="git-branch" class="w-4 h-4"></i>Open timeline</button>
+      <button id="qtime" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors"><i data-lucide="git-fork" class="w-4 h-4"></i>Open graph</button>
       <button id="qmic" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#b0413a] hover:bg-[#963731] text-white text-sm font-medium transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
       <button id="qrec" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-paper-card border border-paper-line text-sm font-medium hover:border-brand/40 transition-colors"><i data-lucide="plus" class="w-4 h-4"></i>Note</button>
     </div>
   </div>`));
-  root.querySelector('#qtime').onclick = () => navigate('timeline');
+  root.querySelector('#qtime').onclick = () => navigate('graph');
   root.querySelector('#qmic').onclick = () => openRecorder(active.id);
   root.querySelector('#qrec').onclick = () => openRecordForm(active.id);
 
@@ -85,7 +84,7 @@ export function renderDashboard(params, { navigate }) {
   const nextWrap = nextCard.querySelector('#next');
   const nexts = recommendedNext(active.id, 4);
   if (nexts.length === 0) {
-    nextWrap.appendChild(el(`<p class="text-sm text-ink-faint col-span-2">Everything available is mastered — explore the timeline to go further.</p>`));
+    nextWrap.appendChild(el(`<p class="text-sm text-ink-faint col-span-2">Everything available is mastered — explore the graph to go further.</p>`));
   } else {
     nexts.forEach(n => {
       const meta = SUBJECTS[n.topic.subject];
@@ -146,7 +145,7 @@ export function renderDashboard(params, { navigate }) {
         <span class="block text-xs font-600 mt-0.5" style="color:${meta.color}">${s.pct}% complete</span>
       </span>
     </button>`);
-    card.onclick = () => { setTimelineSubject(sub); navigate('timeline'); };
+    card.onclick = () => navigate('graph', { subject: sub });
     grid.appendChild(card);
   });
   root.appendChild(grid);
@@ -174,7 +173,7 @@ export function renderDashboard(params, { navigate }) {
     <div id="act" class="space-y-2"></div>
   </div>`);
   const actWrap = actCard.querySelector('#act');
-  if (recent.length === 0) actWrap.appendChild(el(`<p class="text-sm text-ink-faint">No progress recorded yet. Open the timeline to begin.</p>`));
+  if (recent.length === 0) actWrap.appendChild(el(`<p class="text-sm text-ink-faint">No progress recorded yet. Open the graph to begin.</p>`));
   recent.forEach(a => {
     const meta = SUBJECTS[a.topic.subject];
     const row = el(`<button class="w-full text-left flex items-center gap-2.5 py-1.5">
@@ -224,7 +223,7 @@ function todayCard(active, navigate) {
       <h2 class="font-600 flex items-center gap-2"><i data-lucide="calendar-check" class="w-4.5 h-4.5 text-brand-dark"></i>Today · ${dateLabel}</h2>
       <button id="cal" class="text-xs font-medium text-brand-dark flex items-center gap-1">Open calendar<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
     </div>
-    <div id="body" class="grid sm:grid-cols-2 gap-2.5"></div>
+    <div id="body" class="grid sm:grid-cols-2 gap-2.5 min-w-0"></div>
   </div>`);
   card.querySelector('#cal').onclick = () => navigate('calendar');
   const body = card.querySelector('#body');
@@ -234,7 +233,7 @@ function todayCard(active, navigate) {
   } else {
     topics.slice(0, 4).forEach(t => {
       const meta = SUBJECTS[t.subject];
-      const row = el(`<button class="text-left flex items-center gap-2.5 p-2.5 rounded-xl border border-paper-line hover:border-brand/40 hover:bg-paper transition-colors">
+      const row = el(`<button class="w-full min-w-0 text-left flex items-center gap-2.5 p-2.5 rounded-xl border border-paper-line hover:border-brand/40 hover:bg-paper transition-colors">
         <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5" style="color:${meta.color}"></i></span>
         <span class="flex-1 min-w-0"><span class="block text-sm font-600 truncate">${t.name}</span><span class="block text-xs text-ink-faint truncate">${t.subject}</span></span>
       </button>`);
@@ -247,7 +246,7 @@ function todayCard(active, navigate) {
   if (extras.refresher) {
     const t = extras.refresher;
     const meta = SUBJECTS[t.subject];
-    const ref = el(`<button class="text-left flex items-center gap-2.5 p-2.5 rounded-xl border border-dashed border-paper-line hover:border-brand/40 hover:bg-paper transition-colors sm:col-span-2">
+    const ref = el(`<button class="w-full min-w-0 text-left flex items-center gap-2.5 p-2.5 rounded-xl border border-dashed border-paper-line hover:border-brand/40 hover:bg-paper transition-colors sm:col-span-2">
       <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="dumbbell" class="w-3.5 h-3.5" style="color:${meta.color}"></i></span>
       <span class="flex-1 min-w-0"><span class="block text-sm font-600 truncate">Refresher quiz · ${t.name}</span><span class="block text-xs text-ink-faint truncate">Keep an earlier ${t.subject} skill sharp</span></span>
       <i data-lucide="file-check-2" class="w-4 h-4 shrink-0" style="color:${meta.color}"></i>
