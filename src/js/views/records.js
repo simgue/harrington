@@ -16,13 +16,18 @@ const MAX_ATTACHMENT_BYTES = 300 * 1024;
 const MAX_ATTACHMENTS = 2;
 const MAX_STATE_BYTES_BEFORE_SAVE = Math.floor(4.5 * 1024 * 1024);
 
+function formatBytes(bytes) {
+  if (bytes >= 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))}MB`;
+  return `${Math.round(bytes / 1024)}KB`;
+}
+
 let recFilter = 'all';
 
 function fileToAttachment(file) {
   return new Promise((resolve, reject) => {
     if (!file) { resolve(null); return; }
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      reject(new Error(`${file.name} is larger than 5MB`));
+      reject(new Error(`${file.name} is larger than ${formatBytes(MAX_ATTACHMENT_BYTES)}`));
       return;
     }
     const reader = new FileReader();
@@ -272,7 +277,7 @@ export function openRecordForm(studentId, topic = null, options = {}) {
       <div>
         <label class="text-sm font-medium block mb-1.5">File or photo <span class="text-ink-faint font-normal">(optional, up to ${MAX_ATTACHMENTS} files)</span></label>
         <input name="attachments" type="file" multiple accept="image/*,.pdf,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv" class="w-full text-sm file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-paper file:text-ink-soft file:font-medium" />
-        <p class="text-xs text-ink-faint mt-1">Stored locally with this family record.</p>
+        <p class="text-xs text-ink-faint mt-1">Stored locally with this family record (max ${formatBytes(MAX_ATTACHMENT_BYTES)} each).</p>
       </div>
       ${coverageOptions.length ? `<label class="flex items-start gap-2 text-sm rounded-lg border border-paper-line bg-paper px-3 py-2.5">
         <input type="checkbox" name="claimCoverage" class="mt-0.5" />
