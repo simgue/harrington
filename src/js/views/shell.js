@@ -4,7 +4,7 @@ import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
 
 const NAV = [
-  { name: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
+  { name: 'dashboard', label: 'Daily', icon: 'sun' },
   { name: 'calendar', label: 'Calendar', icon: 'calendar-days' },
   { name: 'graph', label: 'Graph', icon: 'git-fork' },
   { name: 'records', label: 'Records', icon: 'notebook-pen' },

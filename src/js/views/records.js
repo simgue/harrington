@@ -12,7 +12,88 @@ const TYPES = {
   recording: { icon: 'mic', label: 'Recording', color: '#b0413a', hint: 'A recorded voice conversation' },
 };
 
+const MAX_ATTACHMENT_BYTES = 300 * 1024;
+const MAX_ATTACHMENTS = 2;
+const MAX_STATE_BYTES_BEFORE_SAVE = Math.floor(4.5 * 1024 * 1024);
+
+function formatBytes(bytes) {
+  if (bytes >= 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))}MB`;
+  return `${Math.round(bytes / 1024)}KB`;
+}
+
 let recFilter = 'all';
+
+function fileToAttachment(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) { resolve(null); return; }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      reject(new Error(`${file.name} is larger than ${formatBytes(MAX_ATTACHMENT_BYTES)}`));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+    reader.onload = () => resolve({
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      size: file.size,
+      dataUrl: String(reader.result || ''),
+      isImage: (file.type || '').startsWith('image/'),
+    });
+    reader.readAsDataURL(file);
+  });
+}
+
+function attachmentBlock(record) {
+  const files = Array.isArray(record.attachments)
+    ? record.attachments
+    : (record.attachment ? [record.attachment] : []);
+  if (!files.length) return null;
+  const wrap = el(`<div class="mt-2.5 pt-2.5 border-t border-paper-line space-y-2"></div>`);
+  for (const file of files) {
+    const row = el(`<div class="rounded-lg border border-paper-line bg-paper p-2.5">
+      <div class="flex items-center gap-1.5 text-xs text-ink-faint mb-1">
+        <i data-lucide="${file.isImage ? 'image' : 'paperclip'}" class="w-3.5 h-3.5"></i>
+        <span class="font-medium text-ink-soft truncate">${esc(file.name || 'Attachment')}</span>
+      </div>
+      ${file.isImage ? `<img src="${file.dataUrl}" alt="${esc(file.name || 'Attachment')}" class="w-full max-h-52 object-cover rounded-md border border-paper-line" />` : ''}
+      <a href="${esc(file.dataUrl || '')}" download="${esc(file.name || 'attachment')}" class="text-xs font-medium text-brand-dark inline-flex items-center gap-1.5 mt-1"><i data-lucide="download" class="w-3.5 h-3.5"></i>Download</a>
+    </div>`);
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
+function wouldExceedStateLimit(studentId, draftRecord) {
+  try {
+    const state = store.get();
+    const records = { ...(state.records || {}) };
+    const existing = Array.isArray(records[studentId]) ? records[studentId] : [];
+    records[studentId] = [{ id: 'preview', createdAt: Date.now(), ...draftRecord }, ...existing];
+    const payload = {
+      students: state.students,
+      activeStudentId: state.activeStudentId,
+      progress: state.progress,
+      records,
+      tests: state.tests,
+      plan: state.plan,
+      challenges: state.challenges,
+      adaptations: state.adaptations,
+      suggestions: state.suggestions,
+      notifications: state.notifications,
+      curriculumSnapshot: state.curriculumSnapshot,
+      recall: state.recall,
+      practice: state.practice,
+      activity: state.activity,
+      game: state.game,
+      daily: state.daily,
+      graphView: state.graphView === 'list' ? 'list' : 'atlas',
+    };
+    return new Blob([JSON.stringify(payload)]).size > MAX_STATE_BYTES_BEFORE_SAVE;
+  } catch {
+    // Fail open if local byte estimation fails; server still enforces limit.
+    return false;
+  }
+}
 
 export function renderRecords(params, { navigate }) {
   const d = getData();
@@ -77,12 +158,16 @@ function recordCard(r, student, d, navigate) {
       <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
       <button class="del text-ink-faint hover:text-[#b0413a] p-0.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
     </div>
+    ${r.invitationTitle ? `<p class="text-[11px] text-ink-faint mb-1">Invitation: <span class="font-medium text-ink-soft">${esc(r.invitationTitle)}</span></p>` : ''}
+    ${Array.isArray(r.coverage) && r.coverage.length ? `<p class="text-[11px] text-brand-dark font-medium mb-1">Coverage logged · ${r.coverage.map((item) => esc(item.label || item.topicName || item.topicId || '')).join(' · ')}</p>` : ''}
     ${r.title ? `<p class="font-600">${esc(r.title)}</p>` : ''}
     ${r.note ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
     ${r.transcript ? `<details class="mt-2 group"><summary class="text-xs text-ink-faint cursor-pointer select-none flex items-center gap-1 list-none"><i data-lucide="chevron-right" class="w-3.5 h-3.5 transition-transform group-open:rotate-90"></i>Transcript</summary><p class="text-sm text-ink-soft mt-1.5 leading-relaxed whitespace-pre-wrap bg-paper border border-paper-line rounded-lg p-2.5">${esc(r.transcript)}</p></details>` : ''}
-    ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${SUBJECTS[topic.subject].icon}" class="w-3.5 h-3.5"></i>${topic.name}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
+    ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${SUBJECTS[topic.subject].icon}" class="w-3.5 h-3.5"></i>${esc(topic.name)}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
   </div>`);
   if (r.audioPath) card.appendChild(audioPlayer(r.audioPath, r.duration));
+  const attachments = attachmentBlock(r);
+  if (attachments) card.appendChild(attachments);
 
   // Analyze button for discussions / recordings
   const analyzable = r.type === 'recording' || r.type === 'discussion';
@@ -157,11 +242,19 @@ function openAnalysis(record, student, topic) {
   });
 }
 
-export function openRecordForm(studentId, topic = null) {
+export function openRecordForm(studentId, topic = null, options = {}) {
   if (!studentId) { toast('Add a student first', 'error'); return; }
   const d = getData();
+  const invitation = options.invitation || null;
+  const coverageTopicIds = Array.isArray(options.coverageTopicIds)
+    ? options.coverageTopicIds
+    : (invitation?.targetTopicIds || (topic ? [topic.id] : []));
+  const coverageOptions = [...new Set(coverageTopicIds)]
+    .map((id) => d.byId.get(id))
+    .filter(Boolean);
   const body = el(`<div class="p-5">
-    <h3 class="font-display text-lg font-600 mb-4">${topic ? 'Record for ' + topic.name : 'New record'}</h3>
+    <h3 class="font-display text-lg font-600 mb-4">${topic ? 'Record for ' + esc(topic.name) : 'New record'}</h3>
+    ${invitation ? `<p class="text-xs text-ink-faint mb-3">Linked invitation: <span class="font-medium text-ink-soft">${esc(invitation.title || invitation.id)}</span></p>` : ''}
     <form id="f" class="space-y-4">
       <div>
         <label class="text-sm font-medium block mb-1.5">Type</label>
@@ -181,6 +274,15 @@ export function openRecordForm(studentId, topic = null) {
         <label class="text-sm font-medium block mb-1.5">Notes</label>
         <textarea name="note" rows="4" placeholder="What happened? What did they say or ask?" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none"></textarea>
       </div>
+      <div>
+        <label class="text-sm font-medium block mb-1.5">File or photo <span class="text-ink-faint font-normal">(optional, up to ${MAX_ATTACHMENTS} files)</span></label>
+        <input name="attachments" type="file" multiple accept="image/*,.pdf,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv" class="w-full text-sm file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-paper file:text-ink-soft file:font-medium" />
+        <p class="text-xs text-ink-faint mt-1">Stored locally with this family record (max ${formatBytes(MAX_ATTACHMENT_BYTES)} each).</p>
+      </div>
+      ${coverageOptions.length ? `<label class="flex items-start gap-2 text-sm rounded-lg border border-paper-line bg-paper px-3 py-2.5">
+        <input type="checkbox" name="claimCoverage" class="mt-0.5" />
+        <span>Mark curriculum coverage for ${coverageOptions.map((item) => esc(item.name)).join(', ')}.</span>
+      </label>` : ''}
       <div>
         <label class="text-sm font-medium block mb-1.5">Confidence <span class="text-ink-faint font-normal">(optional)</span></label>
         <div id="stars" class="flex gap-1"></div>
@@ -229,21 +331,53 @@ export function openRecordForm(studentId, topic = null) {
       if (q.length < 2) return;
       const matches = d.topics.filter(t => t.name.toLowerCase().includes(q)).slice(0, 6);
       matches.forEach(t => {
-        const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${t.name}</span><span class="text-xs text-ink-faint">${t.subject}</span></button>`);
+        const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
         r.onclick = () => { hidden.value = t.id; search.value = t.name; results.innerHTML = ''; };
         results.appendChild(r);
       });
     });
   }
 
-  body.querySelector('#f').onsubmit = e => {
+  body.querySelector('#f').onsubmit = async e => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const note = fd.get('note').trim();
     const title = fd.get('title').trim();
     if (!note && !title) { toast('Add a title or note', 'error'); return; }
-    const rec = { type: selType, title, note, rating: rating || null, topicId: fd.get('topicId') || null };
+    const files = Array.from(body.querySelector('input[name="attachments"]')?.files || []);
+    if (files.length > MAX_ATTACHMENTS) {
+      toast(`Please select up to ${MAX_ATTACHMENTS} files`, 'error');
+      return;
+    }
+    let attachments = [];
+    try {
+      attachments = (await Promise.all(files.map(fileToAttachment))).filter(Boolean);
+    } catch (err) {
+      toast(err.message || 'Could not read attachment', 'error');
+      return;
+    }
+    const rec = {
+      type: selType,
+      title,
+      note,
+      rating: rating || null,
+      topicId: fd.get('topicId') || null,
+      invitationId: invitation?.id || null,
+      invitationTitle: invitation?.title || null,
+    };
     if (rec.topicId) rec.topicName = d.byId.get(rec.topicId)?.name || null;
+    if (attachments.length) rec.attachments = attachments;
+    if (fd.get('claimCoverage') && coverageOptions.length) {
+      rec.coverage = coverageOptions.map((item) => ({
+        topicId: item.id,
+        topicName: item.name,
+        label: `${item.subject} · ${item.domain}`,
+      }));
+    }
+    if (wouldExceedStateLimit(studentId, rec)) {
+      toast('Attachment set is too large for local save. Try fewer/smaller files.', 'error');
+      return;
+    }
     store.addRecord(studentId, rec);
     toast('Record saved', 'success');
     m.close();
