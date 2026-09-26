@@ -10,7 +10,8 @@ import { openRecordingsLibrary } from './recordings.js';
 import { openDueRecall } from './recall.js';
 import { openDuePractice } from './practice.js';
 import { BADGES } from '../game.js';
-import { meadowScene, petalRing, weekFlower } from '../meadow.js';
+import { meadowScene, petalRing, weekFlower, growthIcon, growthChip, stageForStatus, stageForArea, GROWTH } from '../meadow.js';
+import { openKidMode } from './kidmode.js';
 
 // Pastel stop colours for the day's path, cycled per topic.
 const STOPS = [
@@ -48,12 +49,14 @@ export function renderDashboard(params, { navigate }) {
           <span class="w-9 h-9 rounded-full bg-butter text-ink flex items-center justify-center"><i data-lucide="mic" class="w-4.5 h-4.5"></i></span>Record what happened</button>
         <button id="qrec" class="flex items-center gap-2 h-12 px-4 rounded-full bg-paper-card text-brand text-sm font-600 hover:bg-brand-light transition-colors"><i data-lucide="pencil-line" class="w-4 h-4"></i>Note</button>
         <button id="qtime" class="flex items-center gap-2 h-12 px-4 rounded-full bg-paper-card text-brand text-sm font-600 hover:bg-brand-light transition-colors"><i data-lucide="map" class="w-4 h-4"></i>Open map</button>
+        <button id="qkid" class="flex items-center gap-2 h-12 px-4 rounded-full bg-butter text-ink text-sm font-600 hover:bg-butter/80 transition-colors"><i data-lucide="sprout" class="w-4 h-4"></i>${name}'s view</button>
       </div>
     </div>
   </header>`);
   hero.querySelector('#qtime').onclick = () => navigate('graph');
   hero.querySelector('#qmic').onclick = () => openRecorder(active.id);
   hero.querySelector('#qrec').onclick = () => openRecordForm(active.id);
+  hero.querySelector('#qkid').onclick = () => openKidMode();
   root.appendChild(hero);
 
   // Adaptive suggestion nudge
@@ -97,10 +100,10 @@ export function renderDashboard(params, { navigate }) {
     nexts.forEach(n => {
       const meta = SUBJECTS[n.topic.subject];
       const row = el(`<button class="text-left flex items-start gap-3 p-3.5 rounded-2xl card-hover" style="background:${meta.color}12">
-        <span class="w-9 h-9 rounded-full bg-paper-card flex items-center justify-center shrink-0"><i data-lucide="${meta.icon}" class="w-4 h-4" style="color:${meta.color}"></i></span>
+        <span class="w-10 h-10 rounded-full bg-paper-card flex items-center justify-center shrink-0">${growthIcon(stageForStatus(n.status, true), 30)}</span>
         <span class="flex-1 min-w-0">
           <span class="block text-sm font-600 leading-snug clamp-2">${esc(n.topic.name)}</span>
-          <span class="block text-xs mt-0.5 truncate" style="color:${meta.color}">${n.topic.subject} · ${MASTERY[n.status].label}</span>
+          <span class="block text-xs mt-0.5 truncate" style="color:${meta.color}">${n.topic.subject} · ${GROWTH[stageForStatus(n.status, true)].label}</span>
         </span>
       </button>`);
       row.onclick = () => navigate('topic', { id: n.topic.id });
@@ -152,6 +155,7 @@ export function renderDashboard(params, { navigate }) {
         <span class="block text-sm font-600 truncate">${sub}</span>
         <span class="block text-xs text-ink-faint mt-0.5">${s.mastered}/${s.total} mastered</span>
         <span class="block text-xs font-600 mt-0.5" style="color:${meta.color}">${s.pct}% complete</span>
+        <span class="block mt-1.5">${growthChip(stageForArea(s.pct, s.mastered + s.inProgress > 0))}</span>
       </span>
     </button>`);
     card.onclick = () => navigate('graph', { subject: sub });
@@ -181,16 +185,15 @@ export function renderDashboard(params, { navigate }) {
   const twoCol = el(`<div class="grid lg:grid-cols-2 gap-5"></div>`);
 
   const actCard = el(`<section class="meadow-card p-5 sm:p-6">
-    <h2 class="font-display text-lg font-600 flex items-center gap-2 mb-3"><i data-lucide="sprout" class="w-5 h-5 text-brand"></i>Recent progress</h2>
+    <h2 class="font-display text-lg font-600 flex items-center gap-2 mb-3"><i data-lucide="sprout" class="w-5 h-5 text-brand"></i>Recent growth</h2>
     <div id="act" class="space-y-1"></div>
   </section>`);
   const actWrap = actCard.querySelector('#act');
   if (recent.length === 0) actWrap.appendChild(el(`<p class="text-sm text-ink-faint">No progress recorded yet. Open the map to begin.</p>`));
   recent.forEach(a => {
     const row = el(`<button class="w-full text-left flex items-center gap-2.5 py-2 px-2 -mx-2 rounded-xl hover:bg-paper">
-      <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${MASTERY[a.status].color}"></span>
       <span class="flex-1 min-w-0 text-sm truncate">${esc(a.topic.name)}</span>
-      <span class="text-xs font-medium shrink-0 px-2 py-0.5 rounded-full" style="color:${MASTERY[a.status].color};background:${MASTERY[a.status].color}14">${MASTERY[a.status].label}</span>
+      <span class="shrink-0">${growthChip(stageForStatus(a.status, true), MASTERY[a.status].label)}</span>
     </button>`);
     row.onclick = () => navigate('topic', { id: a.topic.id });
     actWrap.appendChild(row);

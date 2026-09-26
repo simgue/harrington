@@ -10,6 +10,7 @@ import { openChallenge } from './challenge.js';
 import { openDueRecall } from './recall.js';
 import { activityIdeas, gameIdeas } from '../resources.js';
 import { MASTERY } from '../mastery.js';
+import { growthIcon, stageForStatus } from '../meadow.js';
 
 let viewMonth = null;   // Date on the 1st of the shown month
 let selectedKey = null; // yyyy-mm-dd
@@ -313,7 +314,7 @@ function dayTopicRow(t, active, navigate) {
         <span class="block text-sm font-600 leading-snug">${t.name}</span>
         <span class="block text-xs text-ink-faint">${t.subject} · ${t.domain}</span>
       </span>
-      <span class="w-2 h-2 rounded-full mt-1 shrink-0" style="background:${MASTERY[status].color}"></span>
+      <span title="${MASTERY[status].label}">${growthIcon(stageForStatus(status, true), 22)}</span>
     </button>
     <div class="flex items-center gap-3 mt-2 pt-2 border-t border-paper-line">
       <button class="lesson text-xs font-medium text-brand-dark flex items-center gap-1"><i data-lucide="notebook-text" class="w-3.5 h-3.5"></i>Lesson</button>

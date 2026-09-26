@@ -51,3 +51,55 @@ export function petalRing(pct, color, { size = 52, stroke = 6, icon = null, trac
   </span>`;
 }
 
+
+// ---- Growth stages (from the Paper Garden theme) ----
+// Progress shown as a plant instead of a score: Seed (not yet open),
+// Sprout (ready to start), Bud (being learned), Bloom (mastered). Each stage
+// differs in shape as well as colour, and always travels with a word.
+export const GROWTH = {
+  seed:   { label: 'Seed',   kid: 'Planted',   color: '#6f665a', tint: '#f1e6cc' },
+  sprout: { label: 'Sprout', kid: 'Sprouting', color: '#3f6b3b', tint: '#e4eedf' },
+  bud:    { label: 'Bud',    kid: 'Budding',   color: '#8a6412', tint: '#fbecc4' },
+  bloom:  { label: 'Bloom',  kid: 'In bloom',  color: '#a4473a', tint: '#fbe5de' },
+};
+
+// Skill-tree state → stage.
+export function stageForSkillState(state) {
+  return { locked: 'seed', ready: 'sprout', 'in-progress': 'bud', mastered: 'bloom' }[state] || 'seed';
+}
+
+// Mastery status (none/learning/practicing/mastered) → stage. A topic nobody
+// has started is a sprout when its foundations are in place, else a seed.
+export function stageForStatus(status, unlocked = false) {
+  if (status === 'mastered') return 'bloom';
+  if (status === 'learning' || status === 'practicing') return 'bud';
+  return unlocked ? 'sprout' : 'seed';
+}
+
+// A whole subject or area: bloom once mostly mastered, bud while growing.
+export function stageForArea(pct, started = false) {
+  if (pct >= 90) return 'bloom';
+  if (pct >= 30) return 'bud';
+  if (pct > 0 || started) return 'sprout';
+  return 'seed';
+}
+
+const SOIL = '<path d="M4 27C9 21.5 23 21.5 28 27Z" fill="#d9ccb0"/>';
+const LEAVES = '<path d="M16 19.5C12 19.5 9 16.5 9 13.5C13 13.5 16 15.5 16 19.5Z" fill="#a9c9a0" stroke="#3f6b3b" stroke-width="1.1"/><path d="M16 17.5C20 17.5 23 14.5 23 11.5C19 11.5 16 13.5 16 17.5Z" fill="#a9c9a0" stroke="#3f6b3b" stroke-width="1.1"/>';
+const PLANTS = {
+  seed: `${SOIL}<ellipse cx="16" cy="22.5" rx="3.1" ry="4.2" fill="#8a6412" transform="rotate(-24 16 22.5)"/><path d="M14.6 20.6q1-1.4 2.2-1.6" fill="none" stroke="#fbecc4" stroke-width="1" stroke-linecap="round"/>`,
+  sprout: `${SOIL}<path d="M16 25V15" stroke="#3f6b3b" stroke-width="2" stroke-linecap="round"/>${LEAVES}`,
+  bud: `${SOIL}<path d="M16 25V11" stroke="#3f6b3b" stroke-width="2" stroke-linecap="round"/>${LEAVES}<path d="M16 3.5C20 6.5 20.2 11 16 12.5C11.8 11 12 6.5 16 3.5Z" fill="#f2c14e" stroke="#8a6412" stroke-width="1.1"/><path d="M13.2 11.2Q16 9.6 18.8 11.2" fill="none" stroke="#3f6b3b" stroke-width="1.1"/>`,
+  bloom: `${SOIL}<path d="M16 25V12" stroke="#3f6b3b" stroke-width="2" stroke-linecap="round"/>${LEAVES}<g fill="#f3b7a8" stroke="#a4473a" stroke-width="0.9"><circle cx="16" cy="4.6" r="3"/><circle cx="20.2" cy="7.7" r="3"/><circle cx="18.6" cy="12.3" r="3"/><circle cx="13.4" cy="12.3" r="3"/><circle cx="11.8" cy="7.7" r="3"/></g><circle cx="16" cy="8.8" r="2.5" fill="#f2c14e" stroke="#8a6412" stroke-width="0.9"/>`,
+};
+
+// The plant for a stage as inline SVG, decorative (pair it with a label).
+export function growthIcon(stage, size = 24) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" aria-hidden="true" class="shrink-0">${PLANTS[stage] || PLANTS.seed}</svg>`;
+}
+
+// Small pill: plant + stage word (+ optional detail such as "Learning").
+export function growthChip(stage, detail = '', { kid = false } = {}) {
+  const g = GROWTH[stage] || GROWTH.seed;
+  return `<span class="inline-flex items-center gap-1 pl-0.5 pr-2 py-0.5 rounded-full text-xs font-600" style="background:${g.tint};color:${g.color}">${growthIcon(stage, 18)}${kid ? g.kid : g.label}${detail ? `<span class="font-500 opacity-90">· ${detail}</span>` : ''}</span>`;
+}

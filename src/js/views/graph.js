@@ -19,6 +19,7 @@ import { MASTERY, topicsMasteryStats, isUnlocked, blockingPrereqs } from '../mas
 import { el, esc, refreshIcons, toast } from '../ui.js';
 import { openLesson } from './lesson.js';
 import { openRecordForm } from './records.js';
+import { GROWTH, growthChip, growthIcon, stageForSkillState, stageForStatus } from '../meadow.js';
 
 let selectedSkillId = null;
 
@@ -346,7 +347,8 @@ function skillLegend() {
   const row = el(`<div class="flex flex-wrap items-center gap-3 text-[11px] text-ink-soft mb-3"></div>`);
   for (const [id, label] of items) {
     const chrome = SKILL_STATE_CHROME[id];
-    row.appendChild(el(`<span class="inline-flex items-center gap-1.5"><span class="skill-legend-orb skill-orb-state-${id}" style="background:${chrome.fill};box-shadow:0 0 0 2px ${chrome.ring}"></span>${label}</span>`));
+    const stage = stageForSkillState(id);
+    row.appendChild(el(`<span class="inline-flex items-center gap-1.5">${growthIcon(stage, 22)}<span><span class="font-600" style="color:${GROWTH[stage].color}">${GROWTH[stage].label}</span> · ${label}</span></span>`));
   }
   row.appendChild(el(`<span class="inline-flex items-center gap-1.5 ml-1"><span class="w-6 border-t-2 border-ink/70"></span>Required</span>`));
   row.appendChild(el(`<span class="inline-flex items-center gap-1.5"><span class="w-6 border-t-2 border-dashed border-ink-faint"></span>Helpful</span>`));
@@ -399,10 +401,10 @@ function renderSkillDag(graph, { navigate, color, active, prereqsOf, selectedId,
       const chrome = SKILL_STATE_CHROME[state];
       const selected = topic.id === selectedId;
       const blocking = blockerSet.has(topic.id);
-      const icon = state === 'locked' ? 'lock' : state === 'mastered' ? 'check' : state === 'in-progress' ? 'circle-dot' : 'circle';
-      const btn = el(`<button type="button" class="skill-node absolute ${selected ? 'is-selected' : ''} ${blocking ? 'is-blocking' : ''}" style="left:${node.x}px;top:${node.y}px;width:${node.width}px;height:${node.height}px" title="${esc(topic.name)} · ${chrome.label}">
+      const stage = stageForSkillState(state);
+      const btn = el(`<button type="button" class="skill-node absolute ${selected ? 'is-selected' : ''} ${blocking ? 'is-blocking' : ''}" style="left:${node.x}px;top:${node.y}px;width:${node.width}px;height:${node.height}px" title="${esc(topic.name)} · ${GROWTH[stage].label} · ${chrome.label}">
         <span class="skill-orb skill-orb-state-${state}" style="background:${chrome.fill};box-shadow:0 0 0 ${selected ? 4 : 2}px ${chrome.ring}${state === 'ready' ? ', 0 0 16px rgba(47,98,133,0.45)' : state === 'mastered' ? ', 0 0 0 2px #cfe0c6' : ''}">
-          <i data-lucide="${icon}" class="w-4 h-4 text-white"></i>
+          <span class="w-10 h-10 rounded-full bg-paper-card flex items-center justify-center">${growthIcon(stage, 30)}</span>
         </span>
         <span class="skill-node-label">${esc(topic.name)}</span>
       </button>`);
@@ -460,7 +462,7 @@ function renderQuestLog(topic, { active, navigate, prereqsOf, unlocksOf, byId, s
         </div>
         <button type="button" class="quest-close text-ink-faint hover:text-ink p-1" aria-label="Close quest log"><i data-lucide="x" class="w-4 h-4"></i></button>
       </div>
-      <p class="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full text-white mb-3" style="background:${chrome.fill}">${chrome.label}</p>
+      <p class="mb-3">${growthChip(stageForSkillState(state), chrome.label)}</p>
       <p class="text-sm text-ink-soft leading-relaxed">${esc(topic.description || 'A demonstrable skill in this domain.')}</p>
     </div>`));
 
@@ -687,6 +689,7 @@ function renderSection(params, active, navigate) {
   const list = el(`<div class="space-y-2.5"></div>`);
   for (const topic of node.topics) {
     const status = active ? store.statusOf(active.id, topic.id) : 'none';
+    const listStage = stageForStatus(status, active ? isUnlocked(active.id, topic.id) : false);
     const prereqs = (d.prereqsOf.get(topic.id) || []).map((edge) => {
       const other = d.byId.get(edge.id);
       return other ? { ...edge, topic: other } : null;
@@ -694,11 +697,11 @@ function renderSection(params, active, navigate) {
     const unlockCount = (d.unlocksOf.get(topic.id) || []).length;
     const row = el(`<button class="w-full text-left bg-paper-card border border-paper-line rounded-2xl p-4 hover:border-brand/40 transition-colors">
       <span class="flex items-start gap-3">
-        <span class="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0" style="background:${MASTERY[status].color}" title="${MASTERY[status].label}"></span>
+        <span class="mt-0.5" title="${GROWTH[listStage].label} · ${MASTERY[status].label}">${growthIcon(listStage, 26)}</span>
         <span class="min-w-0 flex-1">
           <span class="block font-600">${topic.name}</span>
           <span class="block text-sm text-ink-soft mt-1 leading-relaxed">${topic.description || ''}</span>
-          <span class="block text-xs text-ink-faint mt-2">${MASTERY[status].label} · ages ${topic.ageRangeStart}–${topic.ageRangeEnd}${unlockCount ? ` · unlocks ${unlockCount}` : ''}</span>
+          <span class="block text-xs text-ink-faint mt-2"><span class="font-600" style="color:${GROWTH[listStage].color}">${GROWTH[listStage].label}</span> · ${MASTERY[status].label} · ages ${topic.ageRangeStart}–${topic.ageRangeEnd}${unlockCount ? ` · unlocks ${unlockCount}` : ''}</span>
           ${prereqLine(prereqs)}
         </span>
         <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0 mt-1"></i>

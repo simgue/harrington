@@ -1,6 +1,7 @@
 import { SUBJECTS, getData } from '../data.js';
 import { graphParamsForTopic } from './graph.js';
 import * as store from '../store.js';
+import { growthChip, growthIcon, stageForStatus } from '../meadow.js';
 import { el, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { isUnlocked, blockingPrereqs, MASTERY, sectionForTopic, topicsMasteryStats, sectionTestReady } from '../mastery.js';
 import { openMasteryTest } from './masterytest.js';
@@ -39,6 +40,7 @@ export function renderTopic(params, { navigate }) {
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">${t.domain}</span>
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">Ages ${t.ageRangeStart}–${t.ageRangeEnd}</span>
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-faint capitalize">${(t.type||'').toLowerCase()}</span>
+        ${active ? growthChip(stageForStatus(store.statusOf(active.id, t.id), unlocked), MASTERY[store.statusOf(active.id, t.id)].label) : ''}
       </div>
       <h1 class="font-display text-2xl sm:text-3xl font-600 leading-tight">${t.name}</h1>
       <p class="text-ink-soft mt-2 leading-relaxed">${t.description || ''}</p>
@@ -278,9 +280,7 @@ function connectionsSection(t, student, navigate) {
     const st = student ? store.statusOf(student.id, p.id) : 'none';
     const mastered = st === 'mastered';
     const row = el(`<button class="w-full text-left flex items-center gap-2.5 p-2.5 rounded-lg border border-paper-line bg-paper hover:border-brand/40 hover:bg-brand-light/30 transition-colors group">
-      <span class="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style="background:${mastered ? MASTERY.mastered.color : MASTERY[st].color + '33'}">
-        <i data-lucide="${mastered ? 'check' : (role === 'pre' ? 'circle' : 'lock-open')}" class="w-3 h-3 ${mastered ? 'text-white' : 'text-ink-faint'}"></i>
-      </span>
+      ${growthIcon(stageForStatus(st, student ? isUnlocked(student.id, p.id) : false), 26)}
       <span class="flex-1 min-w-0">
         <span class="block text-sm text-ink group-hover:text-brand-dark leading-snug truncate">${topic.name}</span>
         <span class="flex items-center gap-1.5 mt-0.5">
