@@ -105,8 +105,8 @@ export async function openChallenge(topic) {
         b.onclick = () => {
           const right = isCorrect(q, oi);
           if (right) correct++;
-          b.classList.add(right ? 'border-brand' : 'border-[#b0603a]');
-          b.style.background = right ? '#e7f0ea' : '#fbf4ea';
+          b.classList.add(right ? 'border-brand' : 'border-[#a4473a]');
+          b.style.background = right ? '#e4eedf' : '#fbecc4';
           wrap.querySelector('#score').textContent = correct;
           opts.querySelectorAll('button').forEach(x => x.disabled = true);
           setTimeout(() => { idx++; if (idx >= questions.length) { clearInterval(timerId); finish(); } else showQ(); }, 350);

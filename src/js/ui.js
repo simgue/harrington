@@ -21,7 +21,7 @@ export function toast(msg, kind = 'default') {
   const colors = {
     default: 'bg-ink text-white',
     success: 'bg-brand text-white',
-    error: 'bg-[#b0413a] text-white',
+    error: 'bg-[#a4473a] text-white',
   };
   const t = el(`<div class="px-4 py-2.5 rounded-lg text-sm font-medium ${colors[kind] || colors.default} shadow-lg flex items-center gap-2 opacity-0 translate-y-2 transition-all duration-300">${esc(msg)}</div>`);
   root.appendChild(t);

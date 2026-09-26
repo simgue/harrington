@@ -18,18 +18,18 @@ export const XP = {
 
 // Badge catalog. `check(studentId)` returns true when earned.
 export const BADGES = [
-  { id: 'first-topic', icon: 'sprout', color: '#3f7d5e', name: 'First Steps', desc: 'Master your first topic', check: s => masteredCount(s) >= 1 },
-  { id: 'ten-topics', icon: 'trees', color: '#3f7d5e', name: 'Growing Strong', desc: 'Master 10 topics', check: s => masteredCount(s) >= 10 },
-  { id: 'fifty-topics', icon: 'mountain', color: '#3f7d5e', name: 'Trailblazer', desc: 'Master 50 topics', check: s => masteredCount(s) >= 50 },
-  { id: 'first-section', icon: 'flag', color: '#3d6b93', name: 'Section Sweep', desc: 'Pass a section check', check: s => sectionPasses(s) >= 1 },
-  { id: 'first-subject', icon: 'award', color: '#c08a2e', name: 'Subject Champion', desc: 'Master a whole subject', check: s => subjectPasses(s) >= 1 },
-  { id: 'streak-3', icon: 'flame', color: '#c08a2e', name: 'On a Roll', desc: '3-day streak', check: s => store.activityStreak(s) >= 3 },
-  { id: 'streak-7', icon: 'flame', color: '#b0603a', name: 'Week Warrior', desc: '7-day streak', check: s => store.activityStreak(s) >= 7 },
-  { id: 'streak-30', icon: 'crown', color: '#a3486b', name: 'Unstoppable', desc: '30-day streak', check: s => store.activityStreak(s) >= 30 },
-  { id: 'recall-50', icon: 'brain', color: '#7a5a9e', name: 'Memory Master', desc: 'Review 50 recall cards', check: s => recallReviews(s) >= 50 },
-  { id: 'challenge-ace', icon: 'zap', color: '#c08a2e', name: 'Challenge Ace', desc: 'Ace a timed challenge', check: s => challengeAces(s) >= 1 },
-  { id: 'level-5', icon: 'star', color: '#3d6b93', name: 'Rising Star', desc: 'Reach level 5', check: s => store.gameState(s).level >= 5 },
-  { id: 'level-10', icon: 'sparkles', color: '#a3486b', name: 'Superstar', desc: 'Reach level 10', check: s => store.gameState(s).level >= 10 },
+  { id: 'first-topic', icon: 'sprout', color: '#3f6b3b', name: 'First Steps', desc: 'Master your first topic', check: s => masteredCount(s) >= 1 },
+  { id: 'ten-topics', icon: 'trees', color: '#3f6b3b', name: 'Growing Strong', desc: 'Master 10 topics', check: s => masteredCount(s) >= 10 },
+  { id: 'fifty-topics', icon: 'mountain', color: '#3f6b3b', name: 'Trailblazer', desc: 'Master 50 topics', check: s => masteredCount(s) >= 50 },
+  { id: 'first-section', icon: 'flag', color: '#2f6285', name: 'Section Sweep', desc: 'Pass a section check', check: s => sectionPasses(s) >= 1 },
+  { id: 'first-subject', icon: 'award', color: '#8a6412', name: 'Subject Champion', desc: 'Master a whole subject', check: s => subjectPasses(s) >= 1 },
+  { id: 'streak-3', icon: 'flame', color: '#8a6412', name: 'On a Roll', desc: '3-day streak', check: s => store.activityStreak(s) >= 3 },
+  { id: 'streak-7', icon: 'flame', color: '#a4473a', name: 'Week Warrior', desc: '7-day streak', check: s => store.activityStreak(s) >= 7 },
+  { id: 'streak-30', icon: 'crown', color: '#9a4a6e', name: 'Unstoppable', desc: '30-day streak', check: s => store.activityStreak(s) >= 30 },
+  { id: 'recall-50', icon: 'brain', color: '#5b4a86', name: 'Memory Master', desc: 'Review 50 recall cards', check: s => recallReviews(s) >= 50 },
+  { id: 'challenge-ace', icon: 'zap', color: '#8a6412', name: 'Challenge Ace', desc: 'Ace a timed challenge', check: s => challengeAces(s) >= 1 },
+  { id: 'level-5', icon: 'star', color: '#2f6285', name: 'Rising Star', desc: 'Reach level 5', check: s => store.gameState(s).level >= 5 },
+  { id: 'level-10', icon: 'sparkles', color: '#9a4a6e', name: 'Superstar', desc: 'Reach level 10', check: s => store.gameState(s).level >= 10 },
 ];
 
 function masteredCount(studentId) {
@@ -85,7 +85,7 @@ function beep(freqs = [660, 880], dur = 0.12) {
 }
 
 export function confetti(count = 90) {
-  const colors = ['#3f7d5e', '#c08a2e', '#3d6b93', '#b0603a', '#7a5a9e', '#a3486b'];
+  const colors = ['#3f6b3b', '#8a6412', '#2f6285', '#a4473a', '#5b4a86', '#9a4a6e'];
   const layer = el(`<div class="fixed inset-0 z-[120] pointer-events-none overflow-hidden"></div>`);
   document.body.appendChild(layer);
   const W = window.innerWidth;

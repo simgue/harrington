@@ -149,7 +149,7 @@ function renderOnboard() {
           <p class="text-ink-soft text-sm mt-1">Set up a sample learner so you can explore Harrington without creating an external account.</p>
         </div>
         <form id="f" class="bg-paper-card border border-paper-line rounded-2xl p-5 space-y-4">
-          <div class="rounded-xl bg-[#f7f0dd] border border-[#ead8a7] px-3.5 py-3 text-xs text-[#6f5520] leading-relaxed">
+          <div class="rounded-xl bg-[#fbecc4] border border-[#f2c14e] px-3.5 py-3 text-xs text-[#6b4d0e] leading-relaxed">
             This preview saves to your local Harrington server. Use a sample name until encrypted backups and private remote access are ready.
           </div>
           <div>

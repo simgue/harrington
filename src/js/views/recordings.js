@@ -12,12 +12,12 @@ export function openRecordingsLibrary() {
 
   const body = el(`<div class="p-0">
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-center gap-3 z-10">
-      <span class="w-9 h-9 rounded-lg bg-[#b0413a]/10 flex items-center justify-center shrink-0"><i data-lucide="folder" class="w-5 h-5 text-[#b0413a]"></i></span>
+      <span class="w-9 h-9 rounded-lg bg-[#a4473a]/10 flex items-center justify-center shrink-0"><i data-lucide="folder" class="w-5 h-5 text-[#a4473a]"></i></span>
       <div class="flex-1 min-w-0">
         <h3 class="font-display text-lg font-600 leading-tight">Recordings</h3>
         <p class="text-xs text-ink-faint">Every voice recording for ${student.name}, grouped by section</p>
       </div>
-      <button id="new" class="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#b0413a] hover:bg-[#963731] text-white text-sm font-medium transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
+      <button id="new" class="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#a4473a] hover:bg-[#86372c] text-white text-sm font-medium transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
     </div>
     <div id="body" class="px-5 py-4"></div>
   </div>`);
@@ -48,7 +48,7 @@ export function openRecordingsLibrary() {
     bodyWrap.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${recs.length} recording${recs.length > 1 ? 's' : ''} across ${groups.size} section${groups.size > 1 ? 's' : ''}.</p>`));
 
     for (const [, g] of groups) {
-      const meta = SUBJECTS[g.subject] || { color: '#8a847a', icon: 'folder' };
+      const meta = SUBJECTS[g.subject] || { color: '#6f665a', icon: 'folder' };
       const groupEl = el(`<div class="mb-4">
         <div class="flex items-center gap-2 mb-2">
           <span class="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5" style="color:${meta.color}"></i></span>
@@ -71,9 +71,9 @@ function recordingCard(r, student, rerender) {
   const topic = r.topicId ? d.byId.get(r.topicId) : null;
   const card = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
     <div class="flex items-center gap-2 text-xs mb-1">
-      <span class="flex items-center gap-1 font-600 text-[#b0413a]"><i data-lucide="mic" class="w-3.5 h-3.5"></i>Recording</span>
+      <span class="flex items-center gap-1 font-600 text-[#a4473a]"><i data-lucide="mic" class="w-3.5 h-3.5"></i>Recording</span>
       <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
-      <button class="del text-ink-faint hover:text-[#b0413a] p-0.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+      <button class="del text-ink-faint hover:text-[#a4473a] p-0.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
     </div>
     ${r.title ? `<p class="font-600 text-sm">${esc(r.title)}</p>` : ''}
     ${r.topicName ? `<p class="text-[11px] text-ink-faint mt-0.5">on ${esc(r.topicName)}</p>` : ''}
@@ -127,7 +127,7 @@ export function runAnalysis(container, r, student, topic) {
     r.analysis = html; r.analyzedAt = Date.now();
     renderAnalysis(container, r, student, topic);
     toast('Analysis saved to this recording', 'success');
-  }).catch(() => { container.innerHTML = `<p class="text-sm text-[#b0413a]">Couldn't analyze right now.</p>`; });
+  }).catch(() => { container.innerHTML = `<p class="text-sm text-[#a4473a]">Couldn't analyze right now.</p>`; });
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }

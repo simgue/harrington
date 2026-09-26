@@ -154,7 +154,7 @@ function sectionBlock(sec, active, navigate, meta, gated) {
   wrap.appendChild(header);
 
   if (gated) {
-    wrap.appendChild(el(`<div class="px-4 pb-4 -mt-1"><p class="text-xs text-[#b0603a] flex items-center gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5"></i>Pass the previous section's check to unlock this.</p></div>`));
+    wrap.appendChild(el(`<div class="px-4 pb-4 -mt-1"><p class="text-xs text-[#a4473a] flex items-center gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5"></i>Pass the previous section's check to unlock this.</p></div>`));
     col.appendChild(wrap);
     band.appendChild(col);
     return band;
@@ -179,7 +179,7 @@ function sectionBlock(sec, active, navigate, meta, gated) {
           : `Master all ${stats.total} topics above (pass each topic test) to unlock this. ${stats.mastered}/${stats.total} done.`}</p>
     </div>
     <div class="flex items-center gap-2 shrink-0">
-      <button class="rec flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-[#b0413a]/40 text-[#b0413a] font-medium text-sm hover:bg-[#b0413a]/5 transition-colors" title="Record a conversation for this section"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
+      <button class="rec flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-[#a4473a]/40 text-[#a4473a] font-medium text-sm hover:bg-[#a4473a]/5 transition-colors" title="Record a conversation for this section"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
       <button class="test flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${!canTake ? 'bg-paper border border-paper-line text-ink-faint cursor-not-allowed' : passed ? 'bg-paper border border-paper-line text-ink-soft hover:border-brand/40' : 'text-white'} font-medium text-sm transition-colors" ${canTake && !passed ? `style="background:${meta.color}"` : ''} ${!canTake ? 'disabled' : ''}>
         <i data-lucide="${!canTake ? 'lock' : 'file-check-2'}" class="w-4 h-4"></i>${passed ? 'Retake check' : !canTake ? 'Locked' : 'Take section check'}</button>
     </div>
@@ -222,7 +222,7 @@ function topicCard(t, student, navigate, meta) {
           <p class="text-xs text-ink-faint mt-0.5">${t.domain}</p>
           <p class="text-xs text-ink-soft mt-1.5 clamp-2 leading-relaxed">${t.description || ''}</p>
           <div class="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2.5 text-[11px] text-ink-faint">
-            ${!unlocked ? `<span class="flex items-center gap-1 text-[#b0603a] font-medium"><i data-lucide="lock" class="w-3 h-3"></i>${blocking.length} to master first</span>` : `<span class="flex items-center gap-1 font-medium" style="color:${m.color}"><i data-lucide="${statusIcon(status)}" class="w-3 h-3"></i>${m.label}</span>`}
+            ${!unlocked ? `<span class="flex items-center gap-1 text-[#a4473a] font-medium"><i data-lucide="lock" class="w-3 h-3"></i>${blocking.length} to master first</span>` : `<span class="flex items-center gap-1 font-medium" style="color:${m.color}"><i data-lucide="${statusIcon(status)}" class="w-3 h-3"></i>${m.label}</span>`}
             ${prereqCount ? `<span class="flex items-center gap-1"><i data-lucide="corner-left-down" class="w-3 h-3"></i>${prereqCount} prereq${prereqCount>1?'s':''}</span>` : ''}
             ${unlockCount ? `<span class="flex items-center gap-1"><i data-lucide="corner-right-up" class="w-3 h-3"></i>unlocks ${unlockCount}</span>` : ''}
           </div>

@@ -1,6 +1,6 @@
-import { SUBJECTS, getData } from '../data.js';
+import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, fmtDateTime } from '../ui.js';
+import { el, esc, refreshIcons, fmtDateTime } from '../ui.js';
 import { studentStats, recommendedNext, recentActivity, MASTERY } from '../mastery.js';
 import { openRecordForm } from './records.js';
 import { openRecorder } from '../recorder.js';
@@ -10,43 +10,60 @@ import { openRecordingsLibrary } from './recordings.js';
 import { openDueRecall } from './recall.js';
 import { openDuePractice } from './practice.js';
 import { BADGES } from '../game.js';
+import { meadowScene, petalRing, weekFlower } from '../meadow.js';
+
+// Pastel stop colours for the day's path, cycled per topic.
+const STOPS = [
+  { fill: '#f3b7a8', tint: '#fbe5de', deep: '#a4473a' },
+  { fill: '#bfdcec', tint: '#e3eff6', deep: '#2f6285' },
+  { fill: '#d6caea', tint: '#eee8f6', deep: '#5b4a86' },
+  { fill: '#a9c9a0', tint: '#e4eedf', deep: '#3f6b3b' },
+];
 
 export function renderDashboard(params, { navigate }) {
   const active = store.activeStudent();
-  const root = el(`<div class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-up"></div>`);
+  const root = el(`<div class="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-7 fade-up"></div>`);
 
   if (!active) { root.appendChild(el(`<p class="text-ink-soft">Add a student to get started.</p>`)); return root; }
 
   const age = store.studentAge(active);
   const stats = studentStats(active.id);
+  const name = esc(active.name);
 
-  // Greeting header
+  // Meadow header: greeting over hills, with the day's main actions.
   const hour = new Date().getHours();
   const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  root.appendChild(el(`<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-    <div>
-      <p class="text-sm text-ink-faint">${greet}</p>
-      <h1 class="font-display text-2xl sm:text-3xl font-600">${active.name}'s learning</h1>
-      <p class="text-ink-soft text-sm mt-0.5">Age ${age} · ${stats.totalMastered} of ${stats.total} topics mastered across ${Object.keys(SUBJECTS).length} subjects</p>
+  const weekday = new Date().toLocaleDateString(undefined, { weekday: 'long' });
+  const dateLabel = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
+  const hero = el(`<header class="meadow-hero mb-5">
+    ${meadowScene()}
+    <div class="meadow-hero-body flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-6 sm:px-8 pt-6 pb-16 md:pb-8 md:min-h-[9.5rem]">
+      <div>
+        <p class="text-sm font-medium text-brand flex items-center gap-1.5"><i data-lucide="sun" class="w-4 h-4"></i>${greet}</p>
+        <h1 class="font-display text-3xl sm:text-[40px] leading-tight font-600 mt-0.5">${name}'s ${weekday}</h1>
+        <p class="text-sm text-ink-soft mt-1">${dateLabel} · age ${age} · ${stats.totalMastered} of ${stats.total} topics mastered</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button id="qmic" class="flex items-center gap-2.5 h-12 pl-1.5 pr-5 rounded-full bg-brand hover:bg-brand-dark text-paper-card text-sm font-600 transition-colors">
+          <span class="w-9 h-9 rounded-full bg-butter text-ink flex items-center justify-center"><i data-lucide="mic" class="w-4.5 h-4.5"></i></span>Record what happened</button>
+        <button id="qrec" class="flex items-center gap-2 h-12 px-4 rounded-full bg-paper-card text-brand text-sm font-600 hover:bg-brand-light transition-colors"><i data-lucide="pencil-line" class="w-4 h-4"></i>Note</button>
+        <button id="qtime" class="flex items-center gap-2 h-12 px-4 rounded-full bg-paper-card text-brand text-sm font-600 hover:bg-brand-light transition-colors"><i data-lucide="map" class="w-4 h-4"></i>Open map</button>
+      </div>
     </div>
-    <div class="flex gap-2">
-      <button id="qtime" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors"><i data-lucide="git-fork" class="w-4 h-4"></i>Open graph</button>
-      <button id="qmic" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#b0413a] hover:bg-[#963731] text-white text-sm font-medium transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
-      <button id="qrec" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-paper-card border border-paper-line text-sm font-medium hover:border-brand/40 transition-colors"><i data-lucide="plus" class="w-4 h-4"></i>Note</button>
-    </div>
-  </div>`));
-  root.querySelector('#qtime').onclick = () => navigate('graph');
-  root.querySelector('#qmic').onclick = () => openRecorder(active.id);
-  root.querySelector('#qrec').onclick = () => openRecordForm(active.id);
+  </header>`);
+  hero.querySelector('#qtime').onclick = () => navigate('graph');
+  hero.querySelector('#qmic').onclick = () => openRecorder(active.id);
+  hero.querySelector('#qrec').onclick = () => openRecordForm(active.id);
+  root.appendChild(hero);
 
   // Adaptive suggestion nudge
   const pending = store.pendingSuggestions(active.id);
   if (pending.length) {
-    const banner = el(`<button class="w-full text-left rounded-2xl border border-brand/30 bg-brand-light/50 p-4 mb-6 flex items-center gap-3 hover:bg-brand-light transition-colors">
-      <span class="w-10 h-10 rounded-xl bg-brand flex items-center justify-center shrink-0"><i data-lucide="trending-up" class="w-5 h-5 text-white"></i></span>
+    const banner = el(`<button class="w-full text-left rounded-3xl bg-butter-light p-4 mb-5 flex items-center gap-3 hover:shadow-soft transition-shadow">
+      <span class="w-11 h-11 rounded-full bg-butter flex items-center justify-center shrink-0"><i data-lucide="trending-up" class="w-5 h-5 text-ink"></i></span>
       <span class="flex-1 min-w-0">
-        <span class="block font-600 text-sm">${pending.length} adaptive suggestion${pending.length > 1 ? 's' : ''} for ${active.name}</span>
-        <span class="block text-xs text-ink-soft">${active.name} is excelling — review ideas to raise the challenge. You decide.</span>
+        <span class="block font-600 text-sm">${pending.length} adaptive suggestion${pending.length > 1 ? 's' : ''} for ${name}</span>
+        <span class="block text-xs text-ink-soft">${name} is excelling — review ideas to raise the challenge. You decide.</span>
       </span>
       <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0"></i>
     </button>`);
@@ -54,91 +71,83 @@ export function renderDashboard(params, { navigate }) {
     root.appendChild(banner);
   }
 
-  // Streak tracker
-  root.appendChild(streakCard(active));
+  // Main area: today's path (hero) + a quieter side column.
+  const main = el(`<div class="grid lg:grid-cols-[minmax(0,1fr)_20rem] gap-5 mb-5"></div>`);
+  main.appendChild(todayCard(active, navigate));
 
-  // Parent-visible level, XP & badges summary
-  root.appendChild(gameCard(active));
+  const side = el(`<div class="flex flex-col gap-5 min-w-0"></div>`);
+  side.appendChild(weekCard(active));
+  side.appendChild(overallCard(stats));
+  main.appendChild(side);
+  root.appendChild(main);
 
-  // Overall progress ring + subject breakdown
-  const overview = el(`<div class="grid lg:grid-cols-3 gap-4 mb-6"></div>`);
-
-  // big progress card
-  overview.appendChild(el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 flex items-center gap-5">
-    ${ring(stats.pct)}
-    <div>
-      <p class="text-3xl font-700 font-display">${stats.pct}%</p>
-      <p class="text-sm text-ink-soft">overall mastery</p>
-      <p class="text-xs text-ink-faint mt-1">${stats.totalMastered} topics mastered</p>
+  // Work on next
+  const nextCard = el(`<section class="meadow-card p-5 sm:p-6 mb-5" aria-labelledby="next-h">
+    <div class="flex items-baseline justify-between gap-3 mb-3">
+      <h2 id="next-h" class="font-display text-xl font-600 flex items-center gap-2"><i data-lucide="footprints" class="w-5 h-5 text-brand"></i>Stepping stones next</h2>
+      <span class="text-xs text-ink-faint">in mastery order</span>
     </div>
-  </div>`));
-
-  // recommended next (spans 2)
-  const nextCard = el(`<div class="lg:col-span-2 bg-paper-card border border-paper-line rounded-2xl p-5">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="font-600 flex items-center gap-2"><i data-lucide="footprints" class="w-4.5 h-4.5 text-brand-dark"></i>Work on next</h2>
-      <span class="text-xs text-ink-faint">mastery-ordered</span>
-    </div>
-    <div id="next" class="grid sm:grid-cols-2 gap-2"></div>
-  </div>`);
+    <div id="next" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
+  </section>`);
   const nextWrap = nextCard.querySelector('#next');
   const nexts = recommendedNext(active.id, 4);
   if (nexts.length === 0) {
-    nextWrap.appendChild(el(`<p class="text-sm text-ink-faint col-span-2">Everything available is mastered — explore the graph to go further.</p>`));
+    nextWrap.appendChild(el(`<p class="text-sm text-ink-faint sm:col-span-2 lg:col-span-4">Everything available is mastered — explore the map to go further.</p>`));
   } else {
     nexts.forEach(n => {
       const meta = SUBJECTS[n.topic.subject];
-      const row = el(`<button class="text-left flex items-start gap-2.5 p-2.5 rounded-xl border border-paper-line hover:border-brand/40 hover:bg-paper transition-colors">
-        <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5" style="color:${meta.color}"></i></span>
+      const row = el(`<button class="text-left flex items-start gap-3 p-3.5 rounded-2xl card-hover" style="background:${meta.color}12">
+        <span class="w-9 h-9 rounded-full bg-paper-card flex items-center justify-center shrink-0"><i data-lucide="${meta.icon}" class="w-4 h-4" style="color:${meta.color}"></i></span>
         <span class="flex-1 min-w-0">
-          <span class="block text-sm font-600 truncate">${n.topic.name}</span>
-          <span class="block text-xs text-ink-faint truncate">${n.topic.subject} · ${MASTERY[n.status].label}</span>
+          <span class="block text-sm font-600 leading-snug clamp-2">${esc(n.topic.name)}</span>
+          <span class="block text-xs mt-0.5 truncate" style="color:${meta.color}">${n.topic.subject} · ${MASTERY[n.status].label}</span>
         </span>
       </button>`);
       row.onclick = () => navigate('topic', { id: n.topic.id });
       nextWrap.appendChild(row);
     });
   }
-  overview.appendChild(nextCard);
-  root.appendChild(overview);
+  root.appendChild(nextCard);
 
-  // Today's plan (from the calendar track)
-  root.appendChild(todayCard(active, navigate));
-
-  // Active recall due today
+  // Memory: active recall + spaced practice side by side.
+  const memory = el(`<div class="grid md:grid-cols-2 gap-5 mb-5"></div>`);
   const dueRecall = store.recallDueCount(active.id);
-  const recallCard = el(`<button class="w-full text-left rounded-2xl border ${dueRecall ? 'border-brand/30 bg-brand-light/50' : 'border-paper-line bg-paper-card'} p-4 mb-6 flex items-center gap-4 hover:border-brand/40 transition-colors">
-    <span class="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center shrink-0"><i data-lucide="brain" class="w-5.5 h-5.5 text-brand-dark"></i></span>
+  const recallCard = el(`<button class="w-full text-left rounded-3xl ${dueRecall ? 'bg-lavender-light' : 'bg-paper-card shadow-soft'} p-5 flex items-center gap-4 card-hover">
+    <span class="w-12 h-12 rounded-full bg-lavender flex items-center justify-center shrink-0"><i data-lucide="brain" class="w-5.5 h-5.5 text-lavender-deep"></i></span>
     <span class="flex-1 min-w-0">
       <span class="block font-600">Active recall${dueRecall ? ` · ${dueRecall} due` : ''}</span>
-      <span class="block text-sm text-ink-soft">${dueRecall ? 'Quick memory review keeps what they\u2019ve learned from fading.' : 'Practice recall on any topic; reviews will show up here when they\u2019re due.'}</span>
+      <span class="block text-sm text-ink-soft">${dueRecall ? 'Quick memory review keeps what they’ve learned from fading.' : 'Practice recall on any topic; reviews show up here when they’re due.'}</span>
     </span>
-    <span class="shrink-0 flex items-center gap-1.5 text-sm font-medium text-brand-dark">${dueRecall ? 'Review' : 'Study'}<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
+    <span class="shrink-0 flex items-center gap-1 text-sm font-600 text-lavender-deep">${dueRecall ? 'Review' : 'Study'}<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
   </button>`);
   recallCard.onclick = () => openDueRecall();
-  root.appendChild(recallCard);
+  memory.appendChild(recallCard);
 
   // Spaced practice: missed mastery-test questions retried on an expanding schedule
   const duePractice = store.practiceDueCount(active.id);
-  const practiceCard = el(`<button class="w-full text-left rounded-2xl border ${duePractice ? 'border-brand/30 bg-brand-light/50' : 'border-paper-line bg-paper-card'} p-4 mb-6 flex items-center gap-4 hover:border-brand/40 transition-colors">
-    <span class="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center shrink-0"><i data-lucide="repeat" class="w-5.5 h-5.5 text-brand-dark"></i></span>
+  const practiceCard = el(`<button class="w-full text-left rounded-3xl ${duePractice ? 'bg-sky-light' : 'bg-paper-card shadow-soft'} p-5 flex items-center gap-4 card-hover">
+    <span class="w-12 h-12 rounded-full bg-sky flex items-center justify-center shrink-0"><i data-lucide="repeat" class="w-5.5 h-5.5 text-sky-deep"></i></span>
     <span class="flex-1 min-w-0">
       <span class="block font-600">Spaced practice${duePractice ? ` · ${duePractice} due` : ''}</span>
-      <span class="block text-sm text-ink-soft">${duePractice ? `Retry the mastery-test questions ${active.name} missed, before they fade.` : 'Missed test questions come back here on a spaced schedule until they stick.'}</span>
+      <span class="block text-sm text-ink-soft">${duePractice ? `Retry the mastery-test questions ${name} missed, before they fade.` : 'Missed test questions come back here on a spaced schedule until they stick.'}</span>
     </span>
-    <span class="shrink-0 flex items-center gap-1.5 text-sm font-medium text-brand-dark">${duePractice ? 'Practice' : ''}<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
+    <span class="shrink-0 flex items-center gap-1 text-sm font-600 text-sky-deep">${duePractice ? 'Practice' : ''}<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
   </button>`);
   practiceCard.onclick = () => openDuePractice();
-  root.appendChild(practiceCard);
+  memory.appendChild(practiceCard);
+  root.appendChild(memory);
 
-  // Subject grid — each with a circular completion ring
-  root.appendChild(el(`<h2 class="font-600 mb-3 flex items-center gap-2"><i data-lucide="layout-grid" class="w-4.5 h-4.5 text-ink-soft"></i>Subjects</h2>`));
-  const grid = el(`<div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6"></div>`);
+  // Subject meadow — each with a petal ring
+  root.appendChild(el(`<div class="flex items-baseline justify-between mb-3 mt-1">
+    <h2 class="font-display text-xl font-600 flex items-center gap-2"><i data-lucide="flower-2" class="w-5 h-5 text-rose-deep"></i>Subjects</h2>
+    <span class="text-xs text-ink-faint flex items-center gap-1"><i data-lucide="eye-off" class="w-3.5 h-3.5"></i>Only you can see this</span>
+  </div>`));
+  const grid = el(`<div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5"></div>`);
   Object.keys(SUBJECTS).forEach(sub => {
     const meta = SUBJECTS[sub];
     const s = stats.per[sub];
-    const card = el(`<button class="text-left bg-paper-card border border-paper-line rounded-2xl p-4 card-hover flex items-center gap-3.5">
-      <span class="shrink-0">${miniRing(s.pct, meta.color, meta.icon)}</span>
+    const card = el(`<button class="text-left bg-paper-card shadow-soft rounded-3xl p-4 card-hover flex items-center gap-3.5">
+      ${petalRing(s.pct, meta.color, { icon: meta.icon })}
       <span class="flex-1 min-w-0">
         <span class="block text-sm font-600 truncate">${sub}</span>
         <span class="block text-xs text-ink-faint mt-0.5">${s.mastered}/${s.total} mastered</span>
@@ -150,56 +159,58 @@ export function renderDashboard(params, { navigate }) {
   });
   root.appendChild(grid);
 
-  // Recordings folder
+  // Parent-visible level, XP & badges + recordings
+  const extras = el(`<div class="grid lg:grid-cols-2 lg:items-start gap-5 mb-5"></div>`);
+  extras.appendChild(gameCard(active));
   const recCount = store.recordingsFor(active.id).length;
-  const recFolder = el(`<button class="w-full text-left bg-paper-card border border-paper-line rounded-2xl p-5 mb-6 flex items-center gap-4 hover:border-[#b0413a]/40 transition-colors">
-    <span class="w-11 h-11 rounded-xl bg-[#b0413a]/10 flex items-center justify-center shrink-0"><i data-lucide="folder" class="w-5.5 h-5.5 text-[#b0413a]"></i></span>
+  const recFolder = el(`<button class="w-full text-left rounded-3xl bg-rose-light p-5 flex items-center gap-4 card-hover">
+    <span class="w-12 h-12 rounded-full bg-rose flex items-center justify-center shrink-0"><i data-lucide="folder" class="w-5.5 h-5.5 text-rose-deep"></i></span>
     <span class="flex-1 min-w-0">
       <span class="block font-600">Recordings folder</span>
       <span class="block text-sm text-ink-soft">${recCount ? `${recCount} voice recording${recCount > 1 ? 's' : ''}, grouped by section` : 'Capture and revisit lesson conversations, organized by section'}</span>
     </span>
-    <span class="shrink-0 flex items-center gap-1.5 text-sm font-medium text-[#b0413a]">Open<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
+    <span class="shrink-0 flex items-center gap-1 text-sm font-600 text-rose-deep">Open<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
   </button>`);
   recFolder.onclick = () => openRecordingsLibrary();
-  root.appendChild(recFolder);
+  extras.appendChild(recFolder);
+  root.appendChild(extras);
 
   // Recent activity
   const recent = recentActivity(active.id, 6);
   const recentRecords = store.recordsFor(active.id).slice(0, 4);
-  const twoCol = el(`<div class="grid lg:grid-cols-2 gap-4"></div>`);
+  const twoCol = el(`<div class="grid lg:grid-cols-2 gap-5"></div>`);
 
-  const actCard = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5">
-    <h2 class="font-600 flex items-center gap-2 mb-3"><i data-lucide="activity" class="w-4.5 h-4.5 text-brand-dark"></i>Recent progress</h2>
-    <div id="act" class="space-y-2"></div>
-  </div>`);
+  const actCard = el(`<section class="meadow-card p-5 sm:p-6">
+    <h2 class="font-display text-lg font-600 flex items-center gap-2 mb-3"><i data-lucide="sprout" class="w-5 h-5 text-brand"></i>Recent progress</h2>
+    <div id="act" class="space-y-1"></div>
+  </section>`);
   const actWrap = actCard.querySelector('#act');
-  if (recent.length === 0) actWrap.appendChild(el(`<p class="text-sm text-ink-faint">No progress recorded yet. Open the graph to begin.</p>`));
+  if (recent.length === 0) actWrap.appendChild(el(`<p class="text-sm text-ink-faint">No progress recorded yet. Open the map to begin.</p>`));
   recent.forEach(a => {
-    const meta = SUBJECTS[a.topic.subject];
-    const row = el(`<button class="w-full text-left flex items-center gap-2.5 py-1.5">
-      <span class="w-2 h-2 rounded-full shrink-0" style="background:${MASTERY[a.status].color}"></span>
-      <span class="flex-1 min-w-0 text-sm truncate">${a.topic.name}</span>
-      <span class="text-xs font-medium shrink-0" style="color:${MASTERY[a.status].color}">${MASTERY[a.status].label}</span>
+    const row = el(`<button class="w-full text-left flex items-center gap-2.5 py-2 px-2 -mx-2 rounded-xl hover:bg-paper">
+      <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${MASTERY[a.status].color}"></span>
+      <span class="flex-1 min-w-0 text-sm truncate">${esc(a.topic.name)}</span>
+      <span class="text-xs font-medium shrink-0 px-2 py-0.5 rounded-full" style="color:${MASTERY[a.status].color};background:${MASTERY[a.status].color}14">${MASTERY[a.status].label}</span>
     </button>`);
     row.onclick = () => navigate('topic', { id: a.topic.id });
     actWrap.appendChild(row);
   });
   twoCol.appendChild(actCard);
 
-  const recCard = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5">
+  const recCard = el(`<section class="meadow-card p-5 sm:p-6">
     <div class="flex items-center justify-between mb-3">
-      <h2 class="font-600 flex items-center gap-2"><i data-lucide="notebook-pen" class="w-4.5 h-4.5 text-brand-dark"></i>Latest records</h2>
-      <button id="allrec" class="text-xs font-medium text-brand-dark">View all</button>
+      <h2 class="font-display text-lg font-600 flex items-center gap-2"><i data-lucide="notebook-pen" class="w-5 h-5 text-brand"></i>Recent evidence</h2>
+      <button id="allrec" class="text-xs font-600 text-brand px-3 py-1.5 rounded-full hover:bg-brand-light">All records</button>
     </div>
     <div id="rec" class="space-y-2.5"></div>
-  </div>`);
+  </section>`);
   recCard.querySelector('#allrec').onclick = () => navigate('records');
   const recWrap = recCard.querySelector('#rec');
-  if (recentRecords.length === 0) recWrap.appendChild(el(`<p class="text-sm text-ink-faint">No records yet.</p>`));
+  if (recentRecords.length === 0) recWrap.appendChild(el(`<p class="text-sm text-ink-faint">No records yet — voice, photo or a quick note all count.</p>`));
   recentRecords.forEach(r => {
-    recWrap.appendChild(el(`<div class="text-sm">
-      <div class="flex items-center gap-2 text-xs text-ink-faint mb-0.5"><span class="capitalize font-medium text-ink-soft">${r.type}</span><span>·</span><span>${fmtDateTime(r.createdAt)}</span></div>
-      <p class="text-ink-soft clamp-2 leading-snug">${r.title || r.note || ''}</p>
+    recWrap.appendChild(el(`<div class="text-sm rounded-2xl bg-paper p-3">
+      <div class="flex items-center gap-2 text-xs text-ink-faint mb-0.5"><span class="capitalize font-600 text-brand">${r.type}</span><span>·</span><span>${fmtDateTime(r.createdAt)}</span></div>
+      <p class="text-ink-soft clamp-2 leading-snug">${esc(r.title || r.note || '')}</p>
     </div>`));
   });
   twoCol.appendChild(recCard);
@@ -212,30 +223,47 @@ export function renderDashboard(params, { navigate }) {
   return root;
 }
 
+// Today's plan, drawn as a winding meadow path with a numbered stop per topic.
 function todayCard(active, navigate) {
   const todayKey = keyOf(new Date());
   const topics = topicsOn(active, todayKey);
   const extras = dailyExtras(active, todayKey);
-  const dateLabel = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 
-  const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 mb-6">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="font-600 flex items-center gap-2"><i data-lucide="calendar-check" class="w-4.5 h-4.5 text-brand-dark"></i>Today · ${dateLabel}</h2>
-      <button id="cal" class="text-xs font-medium text-brand-dark flex items-center gap-1">Open calendar<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
+  const card = el(`<section class="meadow-card p-5 sm:p-6 min-w-0" aria-labelledby="today-h">
+    <div class="flex items-baseline justify-between gap-3 mb-4">
+      <h2 id="today-h" class="font-display text-2xl font-600">Today's path</h2>
+      <button id="cal" class="text-xs font-600 text-brand flex items-center gap-1 px-3 py-1.5 rounded-full hover:bg-brand-light">Open calendar<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
     </div>
-    <div id="body" class="grid sm:grid-cols-2 gap-2.5 min-w-0"></div>
-  </div>`);
+    <div id="body" class="relative pl-14 space-y-4 min-w-0">
+      <svg class="absolute left-0 top-0 h-full w-12" viewBox="0 0 48 400" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M21 8 C44 60 -2 120 21 170 C44 220 -2 290 21 392" fill="none" stroke="#f1e6cc" stroke-width="14" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+        <path d="M21 8 C44 60 -2 120 21 170 C44 220 -2 290 21 392" fill="none" stroke="#d2bc8e" stroke-width="3" stroke-linecap="round" stroke-dasharray="0.1 10" vector-effect="non-scaling-stroke"/>
+      </svg>
+    </div>
+  </section>`);
   card.querySelector('#cal').onclick = () => navigate('calendar');
   const body = card.querySelector('#body');
+  let stopNo = 0;
+
+  const stop = (n, tone, icon) => `<span aria-hidden="true" class="absolute -left-14 top-1.5 w-10 h-10 rounded-full flex items-center justify-center" style="background:${tone.fill};color:${tone.deep};box-shadow:0 0 0 4px #fffdf8">
+      <i data-lucide="${icon}" class="w-4.5 h-4.5"></i>
+      <span class="absolute -right-1 -bottom-1 w-[18px] h-[18px] rounded-full bg-ink text-paper-card text-[10.5px] font-600 flex items-center justify-center">${n}</span>
+    </span>`;
 
   if (topics.length === 0) {
-    body.appendChild(el(`<p class="text-sm text-ink-faint sm:col-span-2">No new topics scheduled today — a review day. Try the refresher below.</p>`));
+    body.appendChild(el(`<div class="relative rounded-3xl bg-paper p-4">
+      ${stop(++stopNo, STOPS[3], 'sun')}
+      <p class="font-600">A gentle review day</p>
+      <p class="text-sm text-ink-soft mt-0.5">No new topics are scheduled today. Follow an interest, get outside, and record what happens.</p>
+    </div>`));
   } else {
-    topics.slice(0, 4).forEach(t => {
+    topics.slice(0, 4).forEach((t, i) => {
       const meta = SUBJECTS[t.subject];
-      const row = el(`<button class="w-full min-w-0 text-left flex items-center gap-2.5 p-2.5 rounded-xl border border-paper-line hover:border-brand/40 hover:bg-paper transition-colors">
-        <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5" style="color:${meta.color}"></i></span>
-        <span class="flex-1 min-w-0"><span class="block text-sm font-600 truncate">${t.name}</span><span class="block text-xs text-ink-faint truncate">${t.subject}</span></span>
+      const tone = STOPS[i % STOPS.length];
+      const row = el(`<button class="relative w-full min-w-0 text-left flex items-center gap-3 p-4 rounded-3xl card-hover" style="background:${tone.tint}">
+        ${stop(++stopNo, tone, meta.icon)}
+        <span class="flex-1 min-w-0"><span class="block font-600 leading-snug">${esc(t.name)}</span><span class="block text-xs mt-0.5" style="color:${tone.deep}">${t.subject}${t.domain ? ' · ' + esc(t.domain) : ''}</span></span>
+        <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0"></i>
       </button>`);
       row.onclick = () => navigate('topic', { id: t.id });
       body.appendChild(row);
@@ -245,39 +273,65 @@ function todayCard(active, navigate) {
   // refresher quick action
   if (extras.refresher) {
     const t = extras.refresher;
-    const meta = SUBJECTS[t.subject];
-    const ref = el(`<button class="w-full min-w-0 text-left flex items-center gap-2.5 p-2.5 rounded-xl border border-dashed border-paper-line hover:border-brand/40 hover:bg-paper transition-colors sm:col-span-2">
-      <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="dumbbell" class="w-3.5 h-3.5" style="color:${meta.color}"></i></span>
-      <span class="flex-1 min-w-0"><span class="block text-sm font-600 truncate">Refresher quiz · ${t.name}</span><span class="block text-xs text-ink-faint truncate">Keep an earlier ${t.subject} skill sharp</span></span>
-      <i data-lucide="file-check-2" class="w-4 h-4 shrink-0" style="color:${meta.color}"></i>
+    const ref = el(`<button class="relative w-full min-w-0 text-left flex items-center gap-3 p-4 rounded-3xl border-2 border-dashed border-butter card-hover bg-paper-card">
+      ${stop(++stopNo, { fill: '#f2c14e', deep: '#2e2a24' }, 'dumbbell')}
+      <span class="flex-1 min-w-0"><span class="block font-600 truncate">Refresher quiz · ${esc(t.name)}</span><span class="block text-xs text-butter-deep truncate">Keep an earlier ${t.subject} skill sharp</span></span>
+      <i data-lucide="file-check-2" class="w-4 h-4 shrink-0 text-butter-deep"></i>
     </button>`);
     ref.onclick = () => openMasteryTest(t.subject, null, t);
     body.appendChild(ref);
   }
 
+  // Record what happened — the last stop on every day's path.
+  const rec = el(`<div class="relative rounded-3xl bg-brand-light p-4 flex flex-wrap items-center gap-3">
+    ${stop(++stopNo, { fill: '#3f6b3b', deep: '#fffdf8' }, 'pencil-line')}
+    <span class="flex-1 min-w-[10rem]"><span class="block font-600">Record what happened</span><span class="block text-xs text-ink-soft">Unplanned learning counts too.</span></span>
+    <span class="flex gap-1.5">
+      <button data-k="voice" class="flex items-center gap-1.5 h-10 px-3.5 rounded-full bg-paper-card text-brand text-xs font-600 hover:bg-sage-light"><i data-lucide="mic" class="w-4 h-4"></i>Voice</button>
+      <button data-k="note" class="flex items-center gap-1.5 h-10 px-3.5 rounded-full bg-paper-card text-brand text-xs font-600 hover:bg-sage-light"><i data-lucide="pencil" class="w-4 h-4"></i>Note</button>
+    </span>
+  </div>`);
+  rec.querySelector('[data-k="voice"]').onclick = () => openRecorder(active.id);
+  rec.querySelector('[data-k="note"]').onclick = () => openRecordForm(active.id);
+  body.appendChild(rec);
+
   return card;
 }
 
-function ring(pct) {
-  const r = 32, c = 2 * Math.PI * r, off = c * (1 - pct / 100);
-  return `<svg width="84" height="84" viewBox="0 0 84 84" class="shrink-0">
-    <circle cx="42" cy="42" r="${r}" fill="none" stroke="#ece7dd" stroke-width="8"/>
-    <circle cx="42" cy="42" r="${r}" fill="none" stroke="#3f7d5e" stroke-width="8" stroke-linecap="round"
-      stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 42 42)"/>
-  </svg>`;
+// The week as seven little flowers: bloomed on days with learning activity.
+function weekCard(student) {
+  const days = store.recentActivityDays(student.id, 7);
+  const activeDays = days.filter(d => d.active).length;
+  const streak = store.activityStreak(student.id);
+  const today = store.activeToday(student.id);
+  let msg;
+  if (streak === 0) msg = 'A lesson or a recall review today will plant the first flower.';
+  else if (!today) msg = `${streak}-day streak — something small today keeps it growing.`;
+  else if (streak < 3) msg = 'A lovely start. Come back tomorrow to build the habit.';
+  else if (streak < 7) msg = 'Nice rhythm — consistency is what makes learning stick.';
+  else msg = 'A whole meadow of days. This rhythm is really paying off.';
+
+  const flowers = days.map(d => weekFlower(d.active, d.date.toLocaleDateString(undefined, { weekday: 'short' }) + (d.active ? ' · active' : ''))).join('');
+  return el(`<section class="meadow-card p-5" aria-labelledby="week-h">
+    <div class="flex items-baseline justify-between">
+      <h2 id="week-h" class="font-display text-lg font-600">${esc(student.name)}'s week</h2>
+      ${today ? '<span class="text-[11px] font-600 px-2 py-0.5 rounded-full bg-sage text-ink">Active today</span>' : ''}
+    </div>
+    <div class="flex items-center justify-between mt-3 mb-2" role="img" aria-label="Active ${activeDays} of the last 7 days">${flowers}</div>
+    <p class="text-xs text-ink-faint">Active ${activeDays} of the last 7 days</p>
+    <p class="text-sm text-ink-soft mt-2 leading-snug">${msg}</p>
+  </section>`);
 }
 
-// Small per-subject completion ring with the subject icon in the middle.
-function miniRing(pct, color, icon) {
-  const r = 20, c = 2 * Math.PI * r, off = c * (1 - pct / 100);
-  return `<span class="relative inline-flex items-center justify-center" style="width:52px;height:52px">
-    <svg width="52" height="52" viewBox="0 0 52 52">
-      <circle cx="26" cy="26" r="${r}" fill="none" stroke="#ece7dd" stroke-width="5"/>
-      <circle cx="26" cy="26" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round"
-        stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 26 26)"/>
-    </svg>
-    <i data-lucide="${icon}" class="w-4 h-4 absolute" style="color:${color}"></i>
-  </span>`;
+function overallCard(stats) {
+  return el(`<section class="meadow-card p-5 flex items-center gap-4">
+    ${petalRing(stats.pct, '#3f6b3b', { size: 84, stroke: 9, track: '#e4eedf' })}
+    <div>
+      <p class="font-display text-3xl font-600">${stats.pct}%</p>
+      <p class="text-sm text-ink-soft">overall mastery</p>
+      <p class="text-xs text-ink-faint mt-1 flex items-center gap-1"><i data-lucide="eye-off" class="w-3.5 h-3.5"></i>Only you can see this</p>
+    </div>
+  </section>`);
 }
 
 function gameCard(student) {
@@ -285,56 +339,27 @@ function gameCard(student) {
   const earned = store.earnedBadges(student.id);
   const earnedCount = Object.keys(earned).length;
 
-  const card = el(`<div class="rounded-2xl border border-paper-line bg-paper-card p-5 mb-6">
+  const card = el(`<section class="meadow-card p-5">
     <div class="flex items-center gap-4">
-      <span class="relative w-14 h-14 rounded-2xl bg-brand flex items-center justify-center shrink-0">
-        <span class="text-xl font-800 font-display text-white">${g.level}</span>
+      <span class="w-14 h-14 rounded-full bg-butter flex items-center justify-center shrink-0">
+        <span class="text-xl font-display font-600 text-ink">${g.level}</span>
       </span>
       <div class="flex-1 min-w-0">
-        <div class="flex items-center justify-between gap-2 mb-1">
+        <div class="flex items-center justify-between gap-2 mb-1.5">
           <span class="font-600">Level ${g.level}</span>
           <span class="text-xs text-ink-faint">${g.into} / ${g.need} XP</span>
         </div>
-        <div class="h-2 rounded-full bg-paper-line overflow-hidden"><div class="mbar h-full rounded-full bg-brand" style="width:${g.pct}%"></div></div>
-        <p class="text-xs text-ink-faint mt-1">${g.xp.toLocaleString()} total XP · ${earnedCount} badge${earnedCount === 1 ? '' : 's'}</p>
+        <div class="h-2.5 rounded-full bg-butter-light overflow-hidden"><div class="mbar h-full rounded-full bg-butter" style="width:${g.pct}%"></div></div>
+        <p class="text-xs text-ink-faint mt-1.5">${g.xp.toLocaleString()} total XP · ${earnedCount} badge${earnedCount === 1 ? '' : 's'}</p>
       </div>
     </div>
-    <div id="badges" class="flex flex-wrap gap-2 mt-4"></div>
-  </div>`);
+    <div id="badges" class="flex flex-wrap gap-1.5 mt-4"></div>
+  </section>`);
 
   const bwrap = card.querySelector('#badges');
   BADGES.forEach(b => {
     const has = !!earned[b.id];
-    bwrap.appendChild(el(`<span class="w-9 h-9 rounded-xl flex items-center justify-center ${has ? '' : 'opacity-30 grayscale'}" style="background:${b.color}1a" title="${b.name}${has ? '' : ' (locked)'} — ${b.desc}"><i data-lucide="${b.icon}" class="w-4.5 h-4.5" style="color:${b.color}"></i></span>`));
+    bwrap.appendChild(el(`<span class="w-9 h-9 rounded-full flex items-center justify-center ${has ? '' : 'opacity-30 grayscale'}" style="background:${b.color}1a" title="${b.name}${has ? '' : ' (locked)'} — ${b.desc}"><i data-lucide="${b.icon}" class="w-4.5 h-4.5" style="color:${b.color}"></i></span>`));
   });
-  return card;
-}
-
-function streakCard(student) {
-  const streak = store.activityStreak(student.id);
-  const today = store.activeToday(student.id);
-  // Motivational message tuned to the streak length.
-  let msg;
-  if (streak === 0) msg = 'Do a lesson or a recall review today to start a streak!';
-  else if (!today) msg = `You're on a ${streak}-day streak — do something today to keep it alive!`;
-  else if (streak < 3) msg = 'Great start — come back tomorrow to build the habit.';
-  else if (streak < 7) msg = 'Nice momentum! Consistency is what makes learning stick.';
-  else if (streak < 30) msg = 'Fantastic dedication — this streak is really paying off!';
-  else msg = 'Incredible commitment. You\u2019re unstoppable!';
-
-  const flame = streak > 0 ? '#c08a2e' : '#c9c3b8';
-  const card = el(`<div class="rounded-2xl border border-paper-line bg-paper-card p-4 mb-6 flex items-center gap-4">
-    <span class="relative w-14 h-14 rounded-2xl flex items-center justify-center shrink-0" style="background:${flame}1a">
-      <i data-lucide="flame" class="w-7 h-7" style="color:${flame}"></i>
-    </span>
-    <div class="flex-1 min-w-0">
-      <div class="flex items-baseline gap-1.5">
-        <span class="text-2xl font-700 font-display" style="color:${streak > 0 ? '#1c1a17' : '#8a847a'}">${streak}</span>
-        <span class="text-sm font-600 text-ink-soft">day${streak === 1 ? '' : 's'} in a row</span>
-        ${today ? '<span class="ml-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-brand text-white">Active today</span>' : ''}
-      </div>
-      <p class="text-sm text-ink-soft mt-0.5 leading-snug">${msg}</p>
-    </div>
-  </div>`);
   return card;
 }

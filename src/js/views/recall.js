@@ -122,7 +122,7 @@ function runSession(stage, m, student, meta, cards, restart, mixed = false) {
       controls.innerHTML = '';
       controls.appendChild(el(`<p class="text-xs text-ink-faint text-center mb-2">How well did you remember it?</p>`));
       const grid = el(`<div class="grid grid-cols-3 gap-2"></div>`);
-      [['again', 'Missed it', '#b0603a', 'x'], ['good', 'Got it', '#3d6b93', 'check'], ['easy', 'Easy', '#3f7d5e', 'zap']].forEach(([g, label, color, icon]) => {
+      [['again', 'Missed it', '#a4473a', 'x'], ['good', 'Got it', '#2f6285', 'check'], ['easy', 'Easy', '#3f6b3b', 'zap']].forEach(([g, label, color, icon]) => {
         const b = el(`<button class="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border border-paper-line hover:border-brand/40 transition-colors"><i data-lucide="${icon}" class="w-4 h-4" style="color:${color}"></i><span class="text-xs font-medium">${label}</span></button>`);
         b.onclick = () => {
           results[g]++;

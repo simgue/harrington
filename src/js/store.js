@@ -2,10 +2,10 @@
 import * as backend from './backend.js';
 
 export const MASTERY = {
-  none:       { label: 'Not started', rank: 0, color: '#c9c3b8' },
-  learning:   { label: 'Learning',    rank: 1, color: '#d99b45' },
-  practicing: { label: 'Practicing',  rank: 2, color: '#3d6b93' },
-  mastered:   { label: 'Mastered',    rank: 3, color: '#3f7d5e' },
+  none:       { label: 'Not started', rank: 0, color: '#d2c6ad' },
+  learning:   { label: 'Learning',    rank: 1, color: '#8a6412' },
+  practicing: { label: 'Practicing',  rank: 2, color: '#2f6285' },
+  mastered:   { label: 'Mastered',    rank: 3, color: '#3f6b3b' },
 };
 
 const listeners = new Set();
@@ -99,7 +99,7 @@ export function persist() {
 }
 
 // ---- Students ----
-const PALETTE = ['#3f7d5e', '#b0603a', '#3d6b93', '#7a5a9e', '#c08a2e', '#a3486b'];
+const PALETTE = ['#3f6b3b', '#a4473a', '#2f6285', '#5b4a86', '#8a6412', '#9a4a6e'];
 export function addStudent(name, birthYear) {
   const id = 's_' + Math.random().toString(36).slice(2, 9);
   const color = PALETTE[state.students.length % PALETTE.length];
@@ -442,6 +442,17 @@ export function activityStreak(studentId) {
     cur.setDate(cur.getDate() - 1);
   }
   return streak;
+}
+// Whether the student was active on each of the last `days` days, oldest first.
+export function recentActivityDays(studentId, days = 7) {
+  const a = state.activity[studentId] || {};
+  const cur = new Date(); cur.setHours(0, 0, 0, 0);
+  const out = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(cur); d.setDate(cur.getDate() - i);
+    out.push({ date: d, active: !!a[dateKeyLocal(d.getTime())] });
+  }
+  return out;
 }
 export function activeToday(studentId) {
   const a = state.activity[studentId] || {};

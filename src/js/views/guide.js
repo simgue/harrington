@@ -4,61 +4,61 @@ import * as store from '../store.js';
 // ---- Content shared by the welcome tour and the full guide ----
 const FEATURES = [
   {
-    icon: 'compass', color: '#3f7d5e',
+    icon: 'compass', color: '#3f6b3b',
     title: 'Welcome to Harrington',
     tagline: 'Begin with what matters to your child',
     body: `Start with an interest, a question, or a project your child cares about. Harrington gives you meaningful ways to explore it together, while you choose what feels right for today. This quick tour shows you around.`,
   },
   {
-    icon: 'trending-up', color: '#2f6049',
+    icon: 'trending-up', color: '#2e4f2b',
     title: 'A quiet map for parents',
     tagline: 'See connections without prescribing the day',
     body: `Behind the scenes, the curriculum graph helps you see helpful foundations, evidence, and possible next steps. It is a parent tool for making informed choices — not a script your child has to follow.`,
   },
   {
-    icon: 'layout-dashboard', color: '#3d6b93',
+    icon: 'layout-dashboard', color: '#2f6285',
     title: 'Dashboard',
     tagline: 'Your view of the learning journey',
     body: `See recent activity, ideas to explore, and the connections you may want to keep in view. Quick buttons let you open the map, record a conversation, or add a note.`,
   },
   {
-    icon: 'calendar-days', color: '#b0603a',
+    icon: 'calendar-days', color: '#a4473a',
     title: 'Calendar',
     tagline: 'An adaptive daily plan',
     body: `A day-by-day track from your start date to age 13. Each day lists its topics plus auto-rotating <b>refreshers</b>. Miss a day, get ahead, or get stuck? <b>Move</b> topics to any day, <b>mark days done</b>, and <b>add extra practice</b> — the plan adapts to you.`,
   },
   {
-    icon: 'git-branch', color: '#3f7d5e',
+    icon: 'git-branch', color: '#3f6b3b',
     title: 'Timeline',
     tagline: 'The connected map',
     body: `Explore how ideas relate across each subject. Every topic shows helpful prerequisites and what it may open up, alongside <b>lessons</b>, <b>print & go materials</b>, and activities. The existing mastery tools are there for parents to use and evaluate when useful.`,
   },
   {
-    icon: 'notebook-text', color: '#7a5a9e',
+    icon: 'notebook-text', color: '#5b4a86',
     title: 'Lessons & printables',
     tagline: 'Zero prep',
     body: `Every topic has a ready-to-teach lesson with a "say this / do this" script and <b>parent notes</b> (what to focus on, likely struggles, advice). Print-and-go worksheets, flashcards, and more are one tap away — and saved for reuse.`,
   },
   {
-    icon: 'file-check-2', color: '#3d6b93',
+    icon: 'file-check-2', color: '#2f6285',
     title: 'Tests you can trust',
     tagline: 'A parent tool under evaluation',
     body: `Topic, section, and subject checks are available digitally or as printable/hands-on activities. Questions are written by a strong AI, then <b>independently re-solved</b> to throw out anything wrong or ambiguous. Use these existing mastery tools when they serve your family.`,
   },
   {
-    icon: 'zap', color: '#c08a2e',
+    icon: 'zap', color: '#8a6412',
     title: 'Challenges & adaptivity',
     tagline: 'The platform adapts to your child',
     body: `After mastery, an optional <b>timed challenge</b> stretches your child for fun. Strong results prompt Harrington to suggest making that area harder — <b>you approve or decline</b>, always in control.`,
   },
   {
-    icon: 'mic', color: '#b0413a',
+    icon: 'mic', color: '#a4473a',
     title: 'Records & voice analysis',
     tagline: 'Keep the long view',
     body: `Log observations, questions, projects, and discussions — or <b>record a conversation</b> with a live transcript. Over time, these records become evidence of learning and help you notice patterns, strengths, and useful next questions.`,
   },
   {
-    icon: 'sparkles', color: '#3f7d5e',
+    icon: 'sparkles', color: '#3f6b3b',
     title: 'Insights & notifications',
     tagline: 'Guidance for you',
     body: `Insights gives per-subject progress reviews and next steps. The <b>bell</b> keeps you posted on curriculum updates (it auto-refreshes from the open repository), new adaptive suggestions, and challenge best scores.`,
@@ -102,7 +102,7 @@ export function openWelcomeTour() {
       <p class="text-xs font-600 uppercase tracking-wide mb-1" style="color:${f.color}">${f.tagline}</p>
       <h3 class="font-display text-2xl font-600 mb-2">${f.title}</h3>
       <p class="text-sm text-ink-soft leading-relaxed max-w-sm mx-auto">${f.body}</p>`;
-    dots.innerHTML = FEATURES.map((_, n) => `<span class="h-1.5 rounded-full transition-all ${n === i ? 'w-5' : 'w-1.5'}" style="background:${n === i ? f.color : '#d9d3c7'}"></span>`).join('');
+    dots.innerHTML = FEATURES.map((_, n) => `<span class="h-1.5 rounded-full transition-all ${n === i ? 'w-5' : 'w-1.5'}" style="background:${n === i ? f.color : '#d9ccb0'}"></span>`).join('');
     backBtn.classList.toggle('hidden', i === 0);
     nextBtn.textContent = i === FEATURES.length - 1 ? 'Start learning' : 'Next';
     refreshIcons();
@@ -265,17 +265,17 @@ function downloadGuide() {
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Harrington — Complete Guide</title>
   <style>
     *{box-sizing:border-box}
-    body{font-family:Georgia,'Times New Roman',serif;color:#1c1a17;margin:0;padding:56px 64px;line-height:1.55;max-width:860px;margin:0 auto}
+    body{font-family:Georgia,'Times New Roman',serif;color:#2e2a24;margin:0;padding:56px 64px;line-height:1.55;max-width:860px;margin:0 auto}
     .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-    .logo{width:34px;height:34px;border-radius:8px;background:#3f7d5e;color:#fff;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;font-weight:700;font-size:18px}
+    .logo{width:34px;height:34px;border-radius:8px;background:#3f6b3b;color:#fff;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;font-weight:700;font-size:18px}
     h1{font-size:30px;margin:6px 0 4px}
     .sub{color:#6b665d;font-size:14px;margin-bottom:6px}
-    .intro{background:#e7f0ea;border-radius:10px;padding:14px 18px;font-size:15px;margin:18px 0 26px}
-    h2{font-size:16px;text-transform:uppercase;letter-spacing:.06em;color:#2f6049;border-bottom:2px solid #ece7dd;padding-bottom:6px;margin:30px 0 12px}
+    .intro{background:#e4eedf;border-radius:10px;padding:14px 18px;font-size:15px;margin:18px 0 26px}
+    h2{font-size:16px;text-transform:uppercase;letter-spacing:.06em;color:#2e4f2b;border-bottom:2px solid #ede3cf;padding-bottom:6px;margin:30px 0 12px}
     .row{display:grid;grid-template-columns:190px 1fr;gap:14px;padding:7px 0;border-bottom:1px solid #f0ece3}
     .row .t{font-weight:700;font-size:14px}
     .row .b{font-size:14px;color:#3a362f}
-    footer{margin-top:36px;padding-top:14px;border-top:1px solid #ece7dd;font-size:11px;color:#8a847a}
+    footer{margin-top:36px;padding-top:14px;border-top:1px solid #ede3cf;font-size:11px;color:#6f665a}
     section{break-inside:avoid}
     @media print{body{padding:0.6in}a{color:inherit}}
   </style></head><body>

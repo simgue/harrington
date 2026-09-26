@@ -32,7 +32,7 @@ function render(student) {
   const dueRecall = store.recallDueCount(student.id);
 
   overlay.innerHTML = '';
-  const wrap = el(`<div class="min-h-full" style="background:radial-gradient(circle at 20% 0%, #e7f0ea 0%, transparent 45%), radial-gradient(circle at 90% 10%, #fff4e6 0%, transparent 40%), #fbf9f4"></div>`);
+  const wrap = el(`<div class="min-h-full" style="background:radial-gradient(circle at 20% 0%, #e4eedf 0%, transparent 45%), radial-gradient(circle at 90% 10%, #fff4e6 0%, transparent 40%), #fbf6ec"></div>`);
 
   // Top bar
   const top = el(`<div class="max-w-2xl mx-auto px-4 pt-5 flex items-center justify-between">
@@ -46,7 +46,7 @@ function render(student) {
 
   // Hero: avatar, level, XP bar
   main.appendChild(el(`<div class="rounded-3xl bg-paper-card border border-paper-line p-6 text-center">
-    <div class="w-24 h-24 rounded-full mx-auto mb-3 flex items-center justify-center text-white text-3xl font-800 font-display" style="background:${student.color || '#3f7d5e'}">${initials(student.name)}</div>
+    <div class="w-24 h-24 rounded-full mx-auto mb-3 flex items-center justify-center text-white text-3xl font-800 font-display" style="background:${student.color || '#3f6b3b'}">${initials(student.name)}</div>
     <p class="font-display text-2xl font-700">${esc(student.name)}</p>
     <div class="inline-flex items-center gap-2 mt-2 px-3 py-1 rounded-full bg-brand text-white text-sm font-700"><i data-lucide="star" class="w-4 h-4 fill-current"></i>Level ${g.level}</div>
     <div class="mt-4 max-w-xs mx-auto">
@@ -54,8 +54,8 @@ function render(student) {
       <p class="text-xs text-ink-faint mt-1.5">${g.into} / ${g.need} XP to level ${g.level + 1}</p>
     </div>
     <div class="flex items-center justify-center gap-4 mt-4 text-sm">
-      <span class="flex items-center gap-1.5 font-600"><i data-lucide="flame" class="w-4 h-4 text-[#c08a2e]"></i>${streak} day${streak === 1 ? '' : 's'}</span>
-      <span class="flex items-center gap-1.5 font-600"><i data-lucide="medal" class="w-4 h-4 text-[#a3486b]"></i>${earnedCount} badge${earnedCount === 1 ? '' : 's'}</span>
+      <span class="flex items-center gap-1.5 font-600"><i data-lucide="flame" class="w-4 h-4 text-[#8a6412]"></i>${streak} day${streak === 1 ? '' : 's'}</span>
+      <span class="flex items-center gap-1.5 font-600"><i data-lucide="medal" class="w-4 h-4 text-[#9a4a6e]"></i>${earnedCount} badge${earnedCount === 1 ? '' : 's'}</span>
     </div>
   </div>`));
 
@@ -75,22 +75,22 @@ function render(student) {
   // Next thing to learn
   const nexts = recommendedNext(student.id, 1);
   const nextTopic = nexts[0] ? nexts[0].topic : null;
-  actions.appendChild(bigBtn('rocket', 'Learn something new', nextTopic ? nextTopic.name : 'Explore your timeline', '#3f7d5e',
+  actions.appendChild(bigBtn('rocket', 'Learn something new', nextTopic ? nextTopic.name : 'Explore your timeline', '#3f6b3b',
     () => { if (nextTopic) openMasteryTest(nextTopic.subject, null, nextTopic); else toast('Ask a grown-up to open the timeline'); }));
 
   // Recall
-  actions.appendChild(bigBtn('brain', 'Memory review', dueRecall ? `${dueRecall} to review` : 'Keep it sharp', '#7a5a9e',
+  actions.appendChild(bigBtn('brain', 'Memory review', dueRecall ? `${dueRecall} to review` : 'Keep it sharp', '#5b4a86',
     () => { if (dueRecall) openDueRecall(); else if (nextTopic) openRecall(nextTopic); else toast('Nothing to review yet — learn a topic first!'); }, dueRecall || 0));
 
   // Challenge (a mastered topic)
   const d = getData();
   const mastered = Object.entries(store.progressFor(student.id)).filter(([id, v]) => v.status === 'mastered' && d.byId.has(id)).map(([id]) => d.byId.get(id));
   const chTopic = mastered.length ? mastered[Math.floor(Math.random() * mastered.length)] : null;
-  actions.appendChild(bigBtn('zap', 'Beat the clock', chTopic ? 'Timed challenge!' : 'Master a topic first', '#c08a2e',
+  actions.appendChild(bigBtn('zap', 'Beat the clock', chTopic ? 'Timed challenge!' : 'Master a topic first', '#8a6412',
     () => { if (chTopic) openChallenge(chTopic); else toast('Master a topic to unlock challenges!'); }));
 
   // Badges shelf
-  actions.appendChild(bigBtn('medal', 'My badges', `${earnedCount} of ${BADGES.length}`, '#3d6b93', () => renderBadges(student)));
+  actions.appendChild(bigBtn('medal', 'My badges', `${earnedCount} of ${BADGES.length}`, '#2f6285', () => renderBadges(student)));
 
   main.appendChild(actions);
 
@@ -115,7 +115,7 @@ function render(student) {
 function renderBadges(student) {
   const earned = store.earnedBadges(student.id);
   overlay.innerHTML = '';
-  const wrap = el(`<div class="min-h-full" style="background:#fbf9f4"></div>`);
+  const wrap = el(`<div class="min-h-full" style="background:#fbf6ec"></div>`);
   const top = el(`<div class="max-w-2xl mx-auto px-4 pt-5 flex items-center justify-between">
     <button id="back" class="flex items-center gap-1.5 text-sm font-medium text-ink-soft hover:text-ink"><i data-lucide="arrow-left" class="w-4 h-4"></i>Back</button>
     <button id="exit" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-paper-card border border-paper-line text-sm font-medium"><i data-lucide="x" class="w-4 h-4"></i>Exit</button>
@@ -148,7 +148,7 @@ function renderBadges(student) {
 function kidRing(pct, color, icon) {
   const r = 22, c = 2 * Math.PI * r, off = c * (1 - pct / 100);
   return `<span class="relative inline-flex items-center justify-center" style="width:60px;height:60px">
-    <svg width="60" height="60" viewBox="0 0 60 60"><circle cx="30" cy="30" r="${r}" fill="none" stroke="#ece7dd" stroke-width="6"/><circle cx="30" cy="30" r="${r}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 30 30)"/></svg>
+    <svg width="60" height="60" viewBox="0 0 60 60"><circle cx="30" cy="30" r="${r}" fill="none" stroke="#ede3cf" stroke-width="6"/><circle cx="30" cy="30" r="${r}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 30 30)"/></svg>
     <i data-lucide="${icon}" class="w-5 h-5 absolute" style="color:${color}"></i>
   </span>`;
 }
