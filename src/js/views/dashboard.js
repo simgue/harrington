@@ -1,7 +1,7 @@
 import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, fmtDateTime } from '../ui.js';
-import { studentStats, recommendedNext, recentActivity, MASTERY } from '../mastery.js';
+import { studentStats, recommendedNext, recentActivity, todaysChoices, MASTERY } from '../mastery.js';
 import { openRecordForm } from './records.js';
 import { openRecorder } from '../recorder.js';
 import { keyOf, topicsOn, dailyExtras } from '../scheduler.js';
@@ -253,24 +253,41 @@ function todayCard(active, navigate) {
       <span class="absolute -right-1 -bottom-1 w-[18px] h-[18px] rounded-full bg-ink text-paper-card text-[10.5px] font-600 flex items-center justify-center">${n}</span>
     </span>`;
 
-  if (topics.length === 0) {
+  // Literacy and numeracy: two options each, the child picks one.
+  const choices = todaysChoices(active.id, todayKey);
+  const laneTone = { literacy: STOPS[0], numeracy: STOPS[1] };
+  let anyOptions = false;
+  for (const [key, c] of Object.entries(choices)) {
+    if (!c.options.length) continue;
+    anyOptions = true;
+    body.appendChild(choiceStop(active, todayKey, key, c, laneTone[key], stop(++stopNo, laneTone[key], c.lane.icon), navigate));
+  }
+
+  // Anything the calendar scheduled for today, as one compact stop.
+  if (topics.length) {
+    const tone = STOPS[2];
+    const cal = el(`<div class="relative rounded-3xl p-4" style="background:${tone.tint}">
+      ${stop(++stopNo, tone, 'calendar-days')}
+      <p class="font-600 mb-2">From the calendar</p>
+      <div class="space-y-1.5" data-list></div>
+    </div>`);
+    const list = cal.querySelector("[data-list]");
+    topics.slice(0, 4).forEach(t => {
+      const row = el(`<button class="w-full min-w-0 text-left flex items-center gap-2.5 px-3 py-2 rounded-2xl bg-paper-card hover:shadow-soft transition-shadow">
+        ${growthIcon(stageForStatus(store.statusOf(active.id, t.id), true), 26)}
+        <span class="flex-1 min-w-0"><span class="block text-sm font-600 truncate">${esc(t.name)}</span><span class="block text-xs truncate" style="color:${tone.deep}">${t.subject}${t.domain ? ' · ' + esc(t.domain) : ''}</span></span>
+        <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0"></i>
+      </button>`);
+      row.onclick = () => navigate('topic', { id: t.id });
+      list.appendChild(row);
+    });
+    body.appendChild(cal);
+  } else if (!anyOptions) {
     body.appendChild(el(`<div class="relative rounded-3xl bg-paper p-4">
       ${stop(++stopNo, STOPS[3], 'sun')}
       <p class="font-600">A gentle review day</p>
       <p class="text-sm text-ink-soft mt-0.5">No new topics are scheduled today. Follow an interest, get outside, and record what happens.</p>
     </div>`));
-  } else {
-    topics.slice(0, 4).forEach((t, i) => {
-      const meta = SUBJECTS[t.subject];
-      const tone = STOPS[i % STOPS.length];
-      const row = el(`<button class="relative w-full min-w-0 text-left flex items-center gap-3 p-4 rounded-3xl card-hover" style="background:${tone.tint}">
-        ${stop(++stopNo, tone, meta.icon)}
-        <span class="flex-1 min-w-0"><span class="block font-600 leading-snug">${esc(t.name)}</span><span class="block text-xs mt-0.5" style="color:${tone.deep}">${t.subject}${t.domain ? ' · ' + esc(t.domain) : ''}</span></span>
-        <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0"></i>
-      </button>`);
-      row.onclick = () => navigate('topic', { id: t.id });
-      body.appendChild(row);
-    });
   }
 
   // refresher quick action
@@ -299,6 +316,41 @@ function todayCard(active, navigate) {
   body.appendChild(rec);
 
   return card;
+}
+
+// One lane's pick-one stop: two option cards; tapping one makes it the pick
+// (tap again to clear). The arrow opens the topic.
+function choiceStop(active, dateKey, laneKey, c, tone, stopHtml, navigate) {
+  const name = esc(active.name);
+  const wrap = el(`<div class="relative rounded-3xl p-4" style="background:${tone.tint}" role="group" aria-label="${c.lane.label}: pick one">
+    ${stopHtml}
+    <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 mb-3">
+      <p class="font-600">${c.lane.label} <span class="font-400 text-sm text-ink-soft">· ${c.pick ? `${name} picked` : `${name} picks one`}</span></p>
+      <span class="text-xs text-ink-faint flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5"></i>about 15 min</span>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-2.5"></div>
+  </div>`);
+  const grid = wrap.querySelector('.grid');
+  c.options.forEach(t => {
+    const picked = c.pick === t.id;
+    const dimmed = c.pick && !picked;
+    const stage = stageForStatus(store.statusOf(active.id, t.id), true);
+    const card = el(`<div class="relative min-w-0">
+      <button class="pick w-full h-full text-left flex items-start gap-3 p-3.5 pr-12 rounded-2xl bg-paper-card transition ${picked ? 'shadow-[0_0_0_3px_#f2c14e]' : dimmed ? 'opacity-60 hover:opacity-100' : 'hover:shadow-soft'}" aria-pressed="${picked}">
+        ${growthIcon(stage, 36)}
+        <span class="min-w-0">
+          <span class="block text-sm font-600 leading-snug">${esc(t.name)}</span>
+          <span class="block text-xs mt-0.5" style="color:${tone.deep}">${esc(t.domain || t.subject)} · ${GROWTH[stage].label}</span>
+          ${picked ? `<span class="inline-flex items-center gap-1 mt-2 text-[11px] font-700 px-2 py-0.5 rounded-full bg-butter text-ink"><i data-lucide="check" class="w-3 h-3"></i>${name}'s pick</span>` : ''}
+        </span>
+      </button>
+      <button class="open absolute top-2 right-2 w-9 h-9 rounded-full flex items-center justify-center text-ink-faint hover:bg-paper hover:text-ink" aria-label="Open ${esc(t.name)}"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+    </div>`);
+    card.querySelector('.pick').onclick = () => store.pickDaily(active.id, dateKey, laneKey, picked ? null : t.id);
+    card.querySelector('.open').onclick = () => navigate('topic', { id: t.id });
+    grid.appendChild(card);
+  });
+  return wrap;
 }
 
 // The week as seven little flowers: bloomed on days with learning activity.

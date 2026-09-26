@@ -26,6 +26,7 @@ let state = {
   practice: {},       // studentId -> { itemId -> { topicId, subject, q, type, options, answer, box, due, reps, lapses, last } }
   activity: {},       // studentId -> { 'yyyy-mm-dd': true }  (days with recall/lesson/mastery activity)
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
+  daily: {},          // studentId -> { 'yyyy-mm-dd': { offers: {literacy:[topicId], numeracy:[topicId]}, picks: {literacy, numeracy} } }
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
 };
 
@@ -60,6 +61,7 @@ export async function loadAll() {
       state.practice = data.practice || {};
       state.activity = data.activity || {};
       state.game = data.game || {};
+      state.daily = data.daily || {};
       state.graphView = data.graphView === 'list' ? 'list' : 'atlas';
     }
   } catch (e) {
@@ -89,6 +91,7 @@ export function persist() {
         practice: state.practice,
         activity: state.activity,
         game: state.game,
+        daily: state.daily,
         graphView: state.graphView === 'list' ? 'list' : 'atlas',
     };
     saveQueue = saveQueue
@@ -443,6 +446,26 @@ export function activityStreak(studentId) {
   }
   return streak;
 }
+// ---- Daily pick-one choices (literacy / numeracy) ----
+const DAILY_KEEP_DAYS = 14;
+export function dailyFor(studentId, dateKey) {
+  return (state.daily[studentId] || {})[dateKey] || null;
+}
+// Remember the day's offers once, so the choice doesn't shift during the day.
+export function saveDailyOffers(studentId, dateKey, offers) {
+  const days = state.daily[studentId] || (state.daily[studentId] = {});
+  days[dateKey] = { offers, picks: (days[dateKey] && days[dateKey].picks) || {} };
+  for (const key of Object.keys(days).sort().slice(0, -DAILY_KEEP_DAYS)) delete days[key];
+  persist();
+}
+// Choose (or clear, with null) the pick for one lane on one day.
+export function pickDaily(studentId, dateKey, lane, topicId) {
+  const day = dailyFor(studentId, dateKey);
+  if (!day) return;
+  day.picks[lane] = topicId || null;
+  persist(); emit();
+}
+
 // Whether the student was active on each of the last `days` days, oldest first.
 export function recentActivityDays(studentId, days = 7) {
   const a = state.activity[studentId] || {};

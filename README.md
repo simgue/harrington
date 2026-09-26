@@ -54,6 +54,11 @@ and an age band only.
   the family server. AI coaching is disabled in this preview.
 - **Harrington Helper (retained, disabled)** — the upstream AI coach remains in
   the codebase while a family-controlled provider interface is designed.
+- **Daily pick-one choices** — Today's path offers a short literacy choice and
+  a short numeracy choice, two options each, drawn from the POC focus domains
+  (see docs/POC-SPINE.md). In-progress work and domains that have gone quiet
+  come first. The child picks one on the dashboard or in the child view, and
+  the day's offers and picks are saved with the family's data.
 - **Growth stages instead of scores** — progress is shown as a plant: Seed
   (foundations not yet in place), Sprout (ready to start), Bud (being learned)
   and Bloom (mastered). Parents see the stage beside the underlying numbers;
