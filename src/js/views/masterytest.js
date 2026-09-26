@@ -79,8 +79,8 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
     ${isTopic && topic.description ? `<div class="rounded-xl bg-brand-light/50 border border-brand/20 p-3 mb-4"><p class="text-xs text-ink-soft leading-relaxed">${topic.description}</p></div>` : ''}
     ${isSection && section.summary ? `<div class="rounded-xl bg-brand-light/50 border border-brand/20 p-3 mb-4"><p class="text-xs text-ink-soft leading-relaxed">${section.summary}</p></div>` : ''}
 
-    ${last ? `<div class="rounded-xl border ${last.passed ? 'border-brand/30 bg-brand-light/50' : 'border-[#e6cbae] bg-[#fbf4ea]'} p-3 mb-4 flex items-center gap-2.5 text-sm">
-      <i data-lucide="${last.passed ? 'badge-check' : 'history'}" class="w-4 h-4 ${last.passed ? 'text-brand-dark' : 'text-[#b0603a]'}"></i>
+    ${last ? `<div class="rounded-xl border ${last.passed ? 'border-brand/30 bg-brand-light/50' : 'border-[#f3b7a8] bg-[#fbecc4]'} p-3 mb-4 flex items-center gap-2.5 text-sm">
+      <i data-lucide="${last.passed ? 'badge-check' : 'history'}" class="w-4 h-4 ${last.passed ? 'text-brand-dark' : 'text-[#a4473a]'}"></i>
       <span>Last attempt: <strong>${last.pct}%</strong> ${last.passed ? '· Passed' : '· Not yet mastered'} <span class="text-ink-faint">on ${fmtDate(last.createdAt)}</span></span>
     </div>` : ''}
 
@@ -177,7 +177,7 @@ function renderDigital(stage, subject, student, test, m) {
     </div>
     <div id="qs" class="space-y-4"></div>
     <button id="submit" class="mt-5 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors disabled:opacity-50"><i data-lucide="check-check" class="w-4 h-4"></i>Submit &amp; grade</button>
-    <p id="warn" class="text-xs text-[#b0413a] text-center mt-2 hidden">Please answer every question first.</p>
+    <p id="warn" class="text-xs text-[#a4473a] text-center mt-2 hidden">Please answer every question first.</p>
   </div>`);
   const qs = wrap.querySelector('#qs');
 
@@ -221,7 +221,7 @@ function markSelected(container, chosen) {
   });
   chosen.classList.add('border-brand', 'bg-brand-light/50');
   const dot = chosen.querySelector('span');
-  if (dot) { dot.classList.add('border-brand'); dot.style.background = '#3f7d5e'; }
+  if (dot) { dot.classList.add('border-brand'); dot.style.background = '#3f6b3b'; }
 }
 
 function normalize(s) { return String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
@@ -283,7 +283,7 @@ function renderPhysical(stage, subject, student, test, m) {
     const earned = questions.reduce((s, q, i) => s + (marks[i] ? pointsOf(q) : 0), 0);
     const pct = totalPts ? Math.round((earned / totalPts) * 100) : 0;
     live.textContent = pct + '%';
-    live.style.color = pct >= PASS ? '#3f7d5e' : '#b0603a';
+    live.style.color = pct >= PASS ? '#3f6b3b' : '#a4473a';
   };
 
   questions.forEach((q, i) => {
@@ -368,10 +368,10 @@ function renderResult(stage, subject, student, test, graded, m, digitalReview) {
 
   stage.innerHTML = '';
   const wrap = el(`<div class="fade-up text-center py-4">
-    <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4" style="background:${passed ? '#e7f0ea' : '#fbf4ea'}">
-      <i data-lucide="${passed ? 'party-popper' : 'refresh-cw'}" class="w-9 h-9" style="color:${passed ? '#3f7d5e' : '#b0603a'}"></i>
+    <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4" style="background:${passed ? '#e4eedf' : '#fbecc4'}">
+      <i data-lucide="${passed ? 'party-popper' : 'refresh-cw'}" class="w-9 h-9" style="color:${passed ? '#3f6b3b' : '#a4473a'}"></i>
     </div>
-    <p class="text-4xl font-700 font-display" style="color:${passed ? '#3f7d5e' : '#b0603a'}">${graded.pct}%</p>
+    <p class="text-4xl font-700 font-display" style="color:${passed ? '#3f6b3b' : '#a4473a'}">${graded.pct}%</p>
     <p class="text-sm text-ink-soft mt-1">${graded.earned} of ${graded.total} points</p>
     <p class="mt-3 font-600 text-lg">${passed
       ? (isTopic ? `${topic.name} mastered!` : isSection ? `${section.domain} mastered!` : `${subject} mastered!`)
@@ -442,9 +442,9 @@ function renderReview(stage, subject, student, test, graded, m, review) {
     const given = q.type === 'multiple_choice'
       ? (Number.isInteger(answers[i]) ? (q.options?.[answers[i]] ?? '—') : '—')
       : (answers[i] || '—');
-    list.appendChild(el(`<div class="rounded-xl border ${correct ? 'border-brand/30 bg-brand-light/30' : 'border-[#e6cbae] bg-[#fbf4ea]'} p-3.5">
+    list.appendChild(el(`<div class="rounded-xl border ${correct ? 'border-brand/30 bg-brand-light/30' : 'border-[#f3b7a8] bg-[#fbecc4]'} p-3.5">
       <div class="flex items-start gap-2">
-        <i data-lucide="${correct ? 'check-circle-2' : 'x-circle'}" class="w-4 h-4 shrink-0 mt-0.5" style="color:${correct ? '#3f7d5e' : '#b0603a'}"></i>
+        <i data-lucide="${correct ? 'check-circle-2' : 'x-circle'}" class="w-4 h-4 shrink-0 mt-0.5" style="color:${correct ? '#3f6b3b' : '#a4473a'}"></i>
         <div class="flex-1 min-w-0">
           <p class="text-sm font-600">${esc(q.q)}</p>
           <p class="text-xs text-ink-soft mt-1">Their answer: <span class="font-medium">${esc(given)}</span></p>
@@ -492,12 +492,12 @@ function printTest(subject, student, test) {
 
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(test.title || subject + ' Mastery Test')}</title>
   <style>
-    body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1c1a17;margin:0;padding:0.5in;line-height:1.5}
+    body{font-family:'Helvetica Neue',Arial,sans-serif;color:#2e2a24;margin:0;padding:0.5in;line-height:1.5}
     h1{font-size:22px;margin:0 0 2px}
-    .meta{font-size:12px;color:#8a847a;margin-bottom:6px}
+    .meta{font-size:12px;color:#6f665a;margin-bottom:6px}
     .name-line{display:flex;justify-content:space-between;font-size:13px;margin:14px 0 4px}
     .name-line span{border-bottom:1px solid #999;min-width:150px;display:inline-block}
-    .instr{font-style:italic;color:#4a4640;font-size:13px;border-top:1px solid #ddd;border-bottom:1px solid #ddd;padding:8px 0;margin:10px 0 18px}
+    .instr{font-style:italic;color:#5f574c;font-size:13px;border-top:1px solid #ddd;border-bottom:1px solid #ddd;padding:8px 0;margin:10px 0 18px}
     .q{margin-bottom:20px}
     .qt{font-size:15px;margin:0 0 8px}
     .opts{margin-left:16px}
@@ -506,7 +506,7 @@ function printTest(subject, student, test) {
     .lines{margin-left:4px}
     .line{border-bottom:1px solid #bbb;height:22px}
     .key{page-break-before:always}
-    .key h2{font-size:16px;border-bottom:2px solid #1c1a17;padding-bottom:6px}
+    .key h2{font-size:16px;border-bottom:2px solid #2e2a24;padding-bottom:6px}
     .key .k{font-size:14px;line-height:2}
     @media print{body{padding:0.5in}}
   </style></head><body>
@@ -527,15 +527,15 @@ function printCertificate(subject, student, pct) {
   const date = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Certificate — ${esc(student.name)}</title>
   <style>
-    body{font-family:Georgia,serif;margin:0;padding:0;color:#1c1a17}
-    .cert{margin:0.5in;border:3px double #3f7d5e;border-radius:8px;padding:56px 48px;text-align:center;min-height:6.5in;display:flex;flex-direction:column;justify-content:center}
-    .k{font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#3f7d5e;margin-bottom:24px}
+    body{font-family:Georgia,serif;margin:0;padding:0;color:#2e2a24}
+    .cert{margin:0.5in;border:3px double #3f6b3b;border-radius:8px;padding:56px 48px;text-align:center;min-height:6.5in;display:flex;flex-direction:column;justify-content:center}
+    .k{font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#3f6b3b;margin-bottom:24px}
     h1{font-family:'Fraunces',Georgia,serif;font-size:40px;margin:0 0 8px}
-    .sub{font-size:15px;color:#4a4640;margin-bottom:28px}
-    .name{font-family:'Fraunces',Georgia,serif;font-size:34px;color:#2f6049;border-bottom:2px solid #ece7dd;display:inline-block;padding:0 30px 8px;margin-bottom:24px}
+    .sub{font-size:15px;color:#5f574c;margin-bottom:28px}
+    .name{font-family:'Fraunces',Georgia,serif;font-size:34px;color:#2e4f2b;border-bottom:2px solid #ede3cf;display:inline-block;padding:0 30px 8px;margin-bottom:24px}
     .body{font-size:16px;line-height:1.7;max-width:460px;margin:0 auto 32px}
-    .score{font-size:15px;color:#3f7d5e;font-weight:bold}
-    .foot{display:flex;justify-content:space-between;max-width:420px;margin:24px auto 0;font-size:12px;color:#8a847a}
+    .score{font-size:15px;color:#3f6b3b;font-weight:bold}
+    .foot{display:flex;justify-content:space-between;max-width:420px;margin:24px auto 0;font-size:12px;color:#6f665a}
     .foot span{border-top:1px solid #999;padding-top:6px;min-width:150px;display:inline-block}
   </style></head><body>
     <div class="cert">

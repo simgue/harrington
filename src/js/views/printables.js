@@ -136,31 +136,31 @@ function printMaterials(topic, printables) {
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(topic.name)} — Printables</title>
   <style>
     *{box-sizing:border-box}
-    body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1c1a17;margin:0;padding:28px 32px;line-height:1.5}
+    body{font-family:'Helvetica Neue',Arial,sans-serif;color:#2e2a24;margin:0;padding:28px 32px;line-height:1.5}
     h1{font-size:22px;margin:0 0 2px}
-    .hd{border-bottom:2px solid #1c1a17;padding-bottom:8px;margin-bottom:18px}
-    .hd .meta{font-size:12px;color:#8a847a}
-    .name-line{display:flex;justify-content:space-between;font-size:12px;color:#8a847a;margin-bottom:16px}
-    .name-line span{border-bottom:1px solid #c9c3b8;min-width:120px;display:inline-block}
-    .instr{font-style:italic;color:#4a4640;margin-bottom:14px}
+    .hd{border-bottom:2px solid #2e2a24;padding-bottom:8px;margin-bottom:18px}
+    .hd .meta{font-size:12px;color:#6f665a}
+    .name-line{display:flex;justify-content:space-between;font-size:12px;color:#6f665a;margin-bottom:16px}
+    .name-line span{border-bottom:1px solid #d2c6ad;min-width:120px;display:inline-block}
+    .instr{font-style:italic;color:#5f574c;margin-bottom:14px}
     ol.ws{margin:0;padding-left:22px}
     ol.ws li{margin-bottom:20px;font-size:15px}
-    .ans{margin-top:24px;padding-top:10px;border-top:1px dashed #c9c3b8;font-size:12px;color:#8a847a}
+    .ans{margin-top:24px;padding-top:10px;border-top:1px dashed #d2c6ad;font-size:12px;color:#6f665a}
     .cards{display:grid;grid-template-columns:1fr 1fr;gap:0}
     .card{border:1px dashed #999;min-height:150px;padding:12px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
     .card .front{font-size:22px;font-weight:700}
-    .card .back{font-size:14px;color:#4a4640;margin-top:8px}
+    .card .back{font-size:14px;color:#5f574c;margin-top:8px}
     table.match{width:100%;border-collapse:collapse}
     table.match td{padding:14px 10px;font-size:16px;vertical-align:middle}
     table.match td.dot{width:16px;text-align:center;color:#999}
     table.match td.r{text-align:right}
-    .trace{font-family:Georgia,serif;font-size:48px;letter-spacing:6px;color:#d9d3c7;line-height:2.1;border-bottom:1px dashed #d9d3c7}
+    .trace{font-family:Georgia,serif;font-size:48px;letter-spacing:6px;color:#d9ccb0;line-height:2.1;border-bottom:1px dashed #d9ccb0}
     .sort-cats{display:flex;gap:12px;margin-bottom:18px}
-    .sort-cat{flex:1;border:2px solid #1c1a17;border-radius:8px;padding:10px;min-height:120px}
+    .sort-cat{flex:1;border:2px solid #2e2a24;border-radius:8px;padding:10px;min-height:120px}
     .sort-cat h3{margin:0 0 6px;font-size:14px;text-transform:uppercase;letter-spacing:.04em}
     .chips{display:flex;flex-wrap:wrap;gap:8px}
     .chip{border:1px dashed #999;border-radius:6px;padding:8px 12px;font-size:15px}
-    h2.sub{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#4a4640;margin:0 0 10px}
+    h2.sub{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#5f574c;margin:0 0 10px}
     @media print{body{padding:0.5in}}
   </style></head><body>
   ${pages}

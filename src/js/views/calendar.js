@@ -10,6 +10,7 @@ import { openChallenge } from './challenge.js';
 import { openDueRecall } from './recall.js';
 import { activityIdeas, gameIdeas } from '../resources.js';
 import { MASTERY } from '../mastery.js';
+import { growthIcon, stageForStatus } from '../meadow.js';
 
 let viewMonth = null;   // Date on the 1st of the shown month
 let selectedKey = null; // yyyy-mm-dd
@@ -127,7 +128,7 @@ function monthPanel(active, today, navigate) {
       <span class="flex items-center justify-between">
         <span class="text-xs font-600 shrink-0 ${isToday ? 'w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center' : (weekend ? 'text-ink-faint' : 'text-ink')}">${day}</span>
         <span class="flex items-center gap-1">
-          ${extraCount ? `<span class="text-[9px] font-600 text-[#c08a2e]">+${extraCount}</span>` : ''}
+          ${extraCount ? `<span class="text-[9px] font-600 text-[#8a6412]">+${extraCount}</span>` : ''}
           ${dayDone ? '<i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-brand-dark"></i>' : ''}
         </span>
       </span>
@@ -206,7 +207,7 @@ function dayPanel(active, navigate) {
 
 function extraRow(x, active, navigate) {
   const d = getData();
-  const meta = SUBJECTS[x.subject] || { color: '#8a847a', icon: 'plus' };
+  const meta = SUBJECTS[x.subject] || { color: '#6f665a', icon: 'plus' };
   const kindMeta = {
     lesson: { icon: 'notebook-text', label: 'Extra lesson' },
     retest: { icon: 'file-check-2', label: 'Re-test' },
@@ -220,7 +221,7 @@ function extraRow(x, active, navigate) {
       <p class="text-xs text-ink-faint truncate">${kindMeta.label}${x.subject ? ' · ' + x.subject : ''}</p>
     </div>
     <button class="go text-xs font-medium text-brand-dark shrink-0">Open</button>
-    <button class="del text-ink-faint hover:text-[#b0413a] p-1 shrink-0"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+    <button class="del text-ink-faint hover:text-[#a4473a] p-1 shrink-0"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
   </div>`);
   row.querySelector('.go').onclick = () => {
     const topic = x.topicId ? d.byId.get(x.topicId) : null;
@@ -313,7 +314,7 @@ function dayTopicRow(t, active, navigate) {
         <span class="block text-sm font-600 leading-snug">${t.name}</span>
         <span class="block text-xs text-ink-faint">${t.subject} · ${t.domain}</span>
       </span>
-      <span class="w-2 h-2 rounded-full mt-1 shrink-0" style="background:${MASTERY[status].color}"></span>
+      <span title="${MASTERY[status].label}">${growthIcon(stageForStatus(status, true), 22)}</span>
     </button>
     <div class="flex items-center gap-3 mt-2 pt-2 border-t border-paper-line">
       <button class="lesson text-xs font-medium text-brand-dark flex items-center gap-1"><i data-lucide="notebook-text" class="w-3.5 h-3.5"></i>Lesson</button>
@@ -426,7 +427,7 @@ function extrasBlock(active, navigate) {
     const meta = SUBJECTS[t.subject];
     const el3 = el(`<div class="rounded-xl border border-dashed border-paper-line bg-paper p-3">
       <div class="flex items-center gap-2 mb-1">
-        <span class="text-[10px] font-600 px-1.5 py-0.5 rounded-full bg-[#c08a2e]/15 text-[#8a6420]">STRETCH</span>
+        <span class="text-[10px] font-600 px-1.5 py-0.5 rounded-full bg-[#8a6412]/15 text-[#8a6420]">STRETCH</span>
         <span class="text-xs text-ink-faint truncate">${t.subject}</span>
       </div>
       <p class="text-sm font-600 leading-snug">${t.name}</p>

@@ -54,9 +54,14 @@ and an age band only.
   the family server. AI coaching is disabled in this preview.
 - **Harrington Helper (retained, disabled)** — the upstream AI coach remains in
   the codebase while a family-controlled provider interface is designed.
-- **Retained for evaluation** — the inherited XP, levels, collectible badges,
-  celebration effects, and full-screen **Kid Mode** remain in the codebase, but
-  the POC does not expose Kid Mode through normal navigation.
+- **Growth stages instead of scores** — progress is shown as a plant: Seed
+  (foundations not yet in place), Sprout (ready to start), Bud (being learned)
+  and Bloom (mastered). Parents see the stage beside the underlying numbers;
+  the child view shows only plants and words.
+- **Child view** — opened from the dashboard header, it shows the child's
+  garden, big activity buttons and "Tell about my day", with no levels, XP or
+  percentages. The inherited XP, levels, badges and celebration effects remain
+  in the codebase for evaluation.
 - **Commune (retained, disabled)** — the shared-teaching experience remains for
   later migration to Harrington-owned infrastructure. It is not exposed in the
   preview navigation. The intended experience lets families team up in a private

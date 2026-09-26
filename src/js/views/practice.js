@@ -109,8 +109,8 @@ function runSession(stage, m, student, items, restart) {
 function showFeedback(wrap, item, correct, next) {
   const controls = wrap.querySelector('#controls');
   controls.innerHTML = '';
-  controls.appendChild(el(`<div class="rounded-xl border ${correct ? 'border-brand/30 bg-brand-light/30' : 'border-[#e6cbae] bg-[#fbf4ea]'} p-3.5 mb-3 flex items-start gap-2.5">
-    <i data-lucide="${correct ? 'check-circle-2' : 'x-circle'}" class="w-4 h-4 shrink-0 mt-0.5" style="color:${correct ? '#3f7d5e' : '#b0603a'}"></i>
+  controls.appendChild(el(`<div class="rounded-xl border ${correct ? 'border-brand/30 bg-brand-light/30' : 'border-[#f3b7a8] bg-[#fbecc4]'} p-3.5 mb-3 flex items-start gap-2.5">
+    <i data-lucide="${correct ? 'check-circle-2' : 'x-circle'}" class="w-4 h-4 shrink-0 mt-0.5" style="color:${correct ? '#3f6b3b' : '#a4473a'}"></i>
     <p class="text-sm">${correct ? 'Correct!' : `Correct answer: <span class="font-600">${esc(formatAnswer(item))}</span>`}</p>
   </div>`));
   const nextBtn = el(`<button class="w-full px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Continue</button>`);

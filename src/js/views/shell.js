@@ -3,10 +3,21 @@ import { el, initials, openModal, toast } from '../ui.js';
 import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
 
+// Storybook Meadow mark: a sun rising over a hill.
+export function meadowLogo(size = 34) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 36 36" aria-hidden="true" class="shrink-0">
+    <circle cx="18" cy="18" r="18" fill="#bfdcec"/>
+    <path d="M18 6.6v2.4M10.4 9.8l1.7 1.7M25.6 9.8l-1.7 1.7" fill="none" stroke="#f2c14e" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="18" cy="19" r="7.5" fill="#f2c14e"/>
+    <path d="M1.4 25C8 17 27 17 34.1 26A18 18 0 0 1 1.4 25Z" fill="#a9c9a0"/>
+    <path d="M4.5 30C12 24.5 24 25 31.5 30.5A18 18 0 0 1 4.5 30Z" fill="#3f6b3b"/>
+  </svg>`;
+}
+
 const NAV = [
   { name: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
   { name: 'calendar', label: 'Calendar', icon: 'calendar-days' },
-  { name: 'graph', label: 'Graph', icon: 'git-fork' },
+  { name: 'graph', label: 'Map', icon: 'map' },
   { name: 'records', label: 'Records', icon: 'notebook-pen' },
   { name: 'insights', label: 'Insights', icon: 'sparkles' },
 ];
@@ -19,17 +30,15 @@ export function renderShell({ route, navigate, content }) {
 
   // Sidebar (desktop)
   const side = el(`
-    <aside class="hidden lg:flex lg:flex-col w-60 shrink-0 border-r border-paper-line bg-paper-card/60 sticky top-0 h-screen">
-      <div class="px-5 py-5 flex items-center gap-2.5 border-b border-paper-line">
-        <div class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center">
-          <i data-lucide="compass" class="w-4.5 h-4.5 text-white"></i>
-        </div>
-        <span class="font-display text-lg font-600 flex-1">Harrington</span>
+    <aside class="hidden lg:flex lg:flex-col w-60 shrink-0 bg-paper-deep sticky top-0 h-screen">
+      <div class="px-5 pt-6 pb-4 flex items-center gap-2.5">
+        ${meadowLogo(36)}
+        <span class="font-display text-[22px] font-600 flex-1">Harrington</span>
         <span id="bell-desktop"></span>
       </div>
-      <div class="p-3" id="student-switch"></div>
-      <nav class="px-3 flex-1 space-y-1" id="nav-desktop"></nav>
-      <div class="p-3 border-t border-paper-line" id="account"></div>
+      <div class="px-3.5 pb-4" id="student-switch"></div>
+      <nav class="px-3.5 flex-1 space-y-1" id="nav-desktop" aria-label="Main"></nav>
+      <div class="p-3.5" id="account"></div>
     </aside>`);
 
   side.querySelector('#bell-desktop').appendChild(notificationBell());
@@ -37,14 +46,15 @@ export function renderShell({ route, navigate, content }) {
 
   const navD = side.querySelector('#nav-desktop');
   NAV.forEach(item => {
-    const a = el(`<button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-ink-soft hover:bg-paper-line/50 transition-colors ${route.name === item.name ? 'nav-active' : ''}">
+    const on = route.name === item.name;
+    const a = el(`<button class="w-full flex items-center gap-3 px-4 h-11 rounded-full text-[14.5px] font-medium text-ink hover:bg-paper-card transition-colors ${on ? 'nav-active' : ''}" ${on ? 'aria-current="page"' : ''}>
       <i data-lucide="${item.icon}" class="w-4.5 h-4.5"></i>${item.label}</button>`);
     a.onclick = () => navigate(item.name);
     navD.appendChild(a);
   });
 
   // Guide (opens a modal, not a route)
-  const guideBtn = el(`<button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-ink-soft hover:bg-paper-line/50 transition-colors">
+  const guideBtn = el(`<button class="w-full flex items-center gap-3 px-4 h-11 rounded-full text-[14.5px] font-medium text-ink hover:bg-paper-card transition-colors">
     <i data-lucide="book-open" class="w-4.5 h-4.5"></i>Guide</button>`);
   guideBtn.onclick = () => openGuide();
   navD.appendChild(guideBtn);
@@ -53,12 +63,10 @@ export function renderShell({ route, navigate, content }) {
 
   // Top bar (mobile)
   const top = el(`
-    <header class="lg:hidden sticky top-0 z-40 bg-paper/90 backdrop-blur border-b border-paper-line px-4 py-3 flex items-center justify-between">
+    <header class="lg:hidden sticky top-0 z-40 bg-paper-deep px-4 py-2.5 flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <div class="w-7 h-7 rounded-lg bg-brand flex items-center justify-center">
-          <i data-lucide="compass" class="w-4 h-4 text-white"></i>
-        </div>
-        <span class="font-display font-600">Harrington</span>
+        ${meadowLogo(30)}
+        <span class="font-display text-lg font-600">Harrington</span>
       </div>
       <div class="flex items-center gap-2">
         <span id="mob-bell"></span>
@@ -69,10 +77,11 @@ export function renderShell({ route, navigate, content }) {
   top.querySelector('#mob-student').appendChild(studentSwitcher(navigate, true));
 
   // Bottom nav (mobile)
-  const bottom = el(`<nav class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-paper-card/95 backdrop-blur border-t border-paper-line grid grid-cols-5"></nav>`);
+  const bottom = el(`<nav class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-paper-card shadow-[0_-10px_30px_-20px_rgba(94,78,48,0.45)] rounded-t-3xl px-2 pt-2 pb-3 grid grid-cols-5 gap-1" aria-label="Main"></nav>`);
   NAV.forEach(item => {
-    const b = el(`<button class="flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium ${route.name === item.name ? 'text-brand-dark' : 'text-ink-faint'}">
-      <i data-lucide="${item.icon}" class="w-5 h-5"></i>${item.label}</button>`);
+    const on = route.name === item.name;
+    const b = el(`<button class="flex flex-col items-center gap-1 pt-1.5 pb-1 text-[11px] font-medium ${on ? 'text-ink' : 'text-ink-faint'}" ${on ? 'aria-current="page"' : ''}>
+      <span class="w-12 h-8 rounded-full flex items-center justify-center ${on ? 'bg-sage' : ''}"><i data-lucide="${item.icon}" class="w-5 h-5"></i></span>${item.label}</button>`);
     b.onclick = () => navigate(item.name);
     bottom.appendChild(b);
   });
@@ -80,7 +89,7 @@ export function renderShell({ route, navigate, content }) {
   const main = el(`<div class="flex-1 min-w-0 flex flex-col"></div>`);
   main.appendChild(top);
   const scroll = el(`<div class="flex-1 pb-24 lg:pb-0"></div>`);
-  scroll.appendChild(el(`<div class="bg-[#f7f0dd] border-b border-[#ead8a7] px-4 py-2 text-center text-xs text-[#6f5520]">
+  scroll.appendChild(el(`<div class="bg-butter-light px-4 py-2 text-center text-xs text-[#6b4d0e]">
     Self-hosted preview · family data stays on this server · AI and shared-family features are not connected yet
   </div>`));
   scroll.appendChild(content);
@@ -96,8 +105,8 @@ function studentSwitcher(navigate, compact = false) {
   const state = store.get();
   const active = store.activeStudent();
   const btn = el(`
-    <button class="w-full flex items-center gap-2.5 ${compact ? 'px-2 py-1.5' : 'px-2.5 py-2'} rounded-xl border border-paper-line bg-paper-card hover:border-brand/40 transition-colors">
-      <span class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-600 shrink-0" style="background:${active?.color || '#8a847a'}">${active ? initials(active.name) : '?'}</span>
+    <button class="w-full flex items-center gap-2.5 ${compact ? 'p-1 pr-2' : 'p-1.5 pr-3'} rounded-full bg-paper-card shadow-[0_0_0_2px_#f2c14e] hover:shadow-[0_0_0_3px_#f2c14e] transition-shadow" aria-label="Switch learner">
+      <span class="${compact ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'} rounded-full flex items-center justify-center text-white font-display font-600 shrink-0" style="background:${active?.color || '#6f665a'}">${active ? initials(active.name) : '?'}</span>
       ${compact ? '' : `<span class="flex-1 text-left min-w-0"><span class="block text-sm font-600 truncate">${active ? active.name : 'No student'}</span><span class="block text-xs text-ink-faint">${active ? 'Age ' + store.studentAge(active) : 'Add a student'}</span></span>`}
       <i data-lucide="chevrons-up-down" class="w-4 h-4 text-ink-faint shrink-0"></i>
     </button>`);
@@ -118,14 +127,14 @@ function openStudentMenu(navigate) {
   state.students.forEach(s => {
     const age = store.studentAge(s);
     const isActive = s.id === state.activeStudentId;
-    const row = el(`<div class="flex items-center gap-3 p-2.5 rounded-xl border ${isActive ? 'border-brand/50 bg-brand-light/50' : 'border-paper-line'}">
-      <span class="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-600" style="background:${s.color}">${initials(s.name)}</span>
+    const row = el(`<div class="flex items-center gap-3 p-2 pr-3 rounded-full ${isActive ? 'bg-brand-light shadow-[0_0_0_2px_#f2c14e]' : 'bg-paper'}">
+      <span class="w-10 h-10 rounded-full flex items-center justify-center text-white font-display text-base font-600" style="background:${s.color}">${initials(s.name)}</span>
       <div class="flex-1 min-w-0">
         <p class="font-600 text-sm truncate">${s.name}</p>
         <p class="text-xs text-ink-faint">Age ${age} · born ${s.birthYear}</p>
       </div>
-      ${isActive ? '<span class="text-xs font-medium text-brand-dark px-2 py-0.5 rounded-full bg-brand/10">Active</span>' : '<button class="select text-xs font-medium text-ink-soft px-2.5 py-1 rounded-lg border border-paper-line hover:border-brand/40">Switch</button>'}
-      <button class="del text-ink-faint hover:text-[#b0413a] p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+      ${isActive ? '<span class="text-xs font-medium text-brand-dark px-2 py-0.5 rounded-full bg-brand/10">Active</span>' : '<button class="select text-xs font-medium text-brand px-3 py-1.5 rounded-full bg-paper-card hover:bg-brand-light">Switch</button>'}
+      <button class="del text-ink-faint hover:text-[#a4473a] p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
     </div>`);
     row.querySelector('.select')?.addEventListener('click', () => { store.setActiveStudent(s.id); m.close(); toast('Switched to ' + s.name); });
     row.querySelector('.del').addEventListener('click', () => {
@@ -143,13 +152,13 @@ function openAddStudent() {
     <form id="f" class="space-y-4">
       <div>
         <label class="text-sm font-medium block mb-1.5">Name</label>
-        <input name="name" required class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+        <input name="name" required class="w-full px-3.5 py-2.5 rounded-full border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
       </div>
       <div>
         <label class="text-sm font-medium block mb-1.5">Birth year</label>
-        <input name="birthYear" type="number" min="2005" max="2024" required class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+        <input name="birthYear" type="number" min="2005" max="2024" required class="w-full px-3.5 py-2.5 rounded-full border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
       </div>
-      <button class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Add student</button>
+      <button class="w-full px-4 h-12 rounded-full bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Add student</button>
     </form>
   </div>`);
   body.querySelector('#f').onsubmit = e => {
@@ -163,9 +172,9 @@ function openAddStudent() {
 }
 
 function accountBox() {
-  const box = el(`<div class="flex items-center gap-2.5">
-    <div class="w-8 h-8 rounded-lg bg-paper-line flex items-center justify-center">
-      <i data-lucide="hard-drive" class="w-4 h-4 text-ink-soft"></i>
+  const box = el(`<div class="flex items-center gap-2.5 rounded-3xl bg-paper-card p-3">
+    <div class="w-9 h-9 rounded-full bg-sage-light flex items-center justify-center">
+      <i data-lucide="house" class="w-4 h-4 text-brand"></i>
     </div>
     <div class="flex-1 min-w-0">
       <p class="text-xs font-600 truncate">Private family space</p>

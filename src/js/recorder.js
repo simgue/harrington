@@ -106,7 +106,7 @@ export function openRecorder(studentId, topic = null, section = null) {
 
   const body = el(`<div class="p-5">
     <div class="flex items-center gap-2 mb-1">
-      <span class="w-8 h-8 rounded-lg bg-[#b0413a]/10 flex items-center justify-center"><i data-lucide="mic" class="w-4.5 h-4.5 text-[#b0413a]"></i></span>
+      <span class="w-8 h-8 rounded-lg bg-[#a4473a]/10 flex items-center justify-center"><i data-lucide="mic" class="w-4.5 h-4.5 text-[#a4473a]"></i></span>
       <h3 class="font-display text-lg font-600">Record conversation</h3>
     </div>
     <p class="text-xs text-ink-faint mb-4">${contextLabel}</p>
@@ -129,15 +129,15 @@ export function openRecorder(studentId, topic = null, section = null) {
     stage.innerHTML = '';
     const canTranscribe = speechSupported();
     stage.appendChild(el(`<div class="text-center py-6">
-      <div class="w-20 h-20 rounded-full bg-[#b0413a]/10 flex items-center justify-center mx-auto mb-4">
-        <i data-lucide="mic" class="w-9 h-9 text-[#b0413a]"></i>
+      <div class="w-20 h-20 rounded-full bg-[#a4473a]/10 flex items-center justify-center mx-auto mb-4">
+        <i data-lucide="mic" class="w-9 h-9 text-[#a4473a]"></i>
       </div>
       <p class="text-sm text-ink-soft mb-4 max-w-xs mx-auto">Press start, then talk through the lesson together. The recording is saved privately on your Harrington server.</p>
       <div class="inline-flex items-center gap-1.5 text-xs ${canTranscribe ? 'text-brand-dark' : 'text-ink-faint'} mb-5">
         <i data-lucide="${canTranscribe ? 'captions' : 'captions-off'}" class="w-3.5 h-3.5"></i>${canTranscribe ? 'Live transcript on — enables AI analysis afterwards' : 'Live transcript not supported in this browser'}
       </div>
       <div>
-        <button id="start" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#b0413a] hover:bg-[#963731] text-white font-medium transition-colors">
+        <button id="start" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#a4473a] hover:bg-[#86372c] text-white font-medium transition-colors">
           <i data-lucide="circle" class="w-4 h-4 fill-current"></i>Start recording</button>
       </div>
     </div>`));
@@ -186,12 +186,12 @@ export function openRecorder(studentId, topic = null, section = null) {
     stage.innerHTML = '';
     const showCap = speechSupported();
     stage.appendChild(el(`<div class="text-center py-4">
-      <div class="w-16 h-16 rounded-full bg-[#b0413a] flex items-center justify-center mx-auto mb-3 relative">
-        <span class="absolute inset-0 rounded-full bg-[#b0413a]/40 animate-ping"></span>
+      <div class="w-16 h-16 rounded-full bg-[#a4473a] flex items-center justify-center mx-auto mb-3 relative">
+        <span class="absolute inset-0 rounded-full bg-[#a4473a]/40 animate-ping"></span>
         <i data-lucide="mic" class="w-7 h-7 text-white relative"></i>
       </div>
       <p id="timer" class="text-3xl font-700 font-display tabular-nums mb-1">0:00</p>
-      <p class="text-sm text-[#b0413a] font-medium mb-4 flex items-center justify-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#b0413a] animate-pulse"></span>Recording\u2026</p>
+      <p class="text-sm text-[#a4473a] font-medium mb-4 flex items-center justify-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#a4473a] animate-pulse"></span>Recording\u2026</p>
       ${showCap ? `<div class="text-left mb-4">
         <p class="text-[11px] font-600 uppercase tracking-wide text-ink-faint mb-1 flex items-center gap-1"><i data-lucide="captions" class="w-3.5 h-3.5"></i>Live transcript</p>
         <div id="livecap" class="text-sm text-ink-soft bg-paper border border-paper-line rounded-xl p-3 h-28 overflow-y-auto leading-relaxed">Listening…</div>

@@ -51,7 +51,7 @@ export function renderInsights(params, { navigate }) {
       const chips = el(`<div class="flex flex-wrap gap-2"></div>`);
       adaptEntries.forEach(([key]) => {
         const [subject, domain] = key.split('|');
-        const meta = SUBJECTS[subject] || { color: '#8a847a' };
+        const meta = SUBJECTS[subject] || { color: '#6f665a' };
         const chip = el(`<span class="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border" style="border-color:${meta.color}55;color:${meta.color}"><i data-lucide="trending-up" class="w-3 h-3"></i>${domain}<button class="undo ml-0.5"><i data-lucide="x" class="w-3 h-3"></i></button></span>`);
         chip.querySelector('.undo').onclick = () => { store.setAdaptation(active.id, subject, domain, 'standard'); toast(`${domain} back to standard`); navigate('insights'); };
         chips.appendChild(chip);
@@ -88,10 +88,10 @@ export function renderInsights(params, { navigate }) {
       <div class="mbar h-full rounded-full" style="width:${st.pct}%;background:${meta.color}"></div>
     </div>
     <div class="grid grid-cols-4 gap-2 text-center">
-      ${statBox(st.mastered, 'Mastered', '#3f7d5e')}
-      ${statBox(st.practicing, 'Practicing', '#3d6b93')}
-      ${statBox(st.learning, 'Learning', '#d99b45')}
-      ${statBox(st.total - st.mastered - st.inProgress, 'Not started', '#c9c3b8')}
+      ${statBox(st.mastered, 'Mastered', '#3f6b3b')}
+      ${statBox(st.practicing, 'Practicing', '#2f6285')}
+      ${statBox(st.learning, 'Learning', '#8a6412')}
+      ${statBox(st.total - st.mastered - st.inProgress, 'Not started', '#d2c6ad')}
     </div>
   </div>`));
 
@@ -108,7 +108,7 @@ export function renderInsights(params, { navigate }) {
         <p class="text-sm text-ink-soft leading-relaxed">${canTake
           ? 'The capstone across the whole subject. Needs 90%+ to pass — digital or printable.'
           : 'Unlocks once every section has been passed. Work through the timeline\u2019s topic and section checks first.'}</p>
-        ${lastTest ? `<p class="text-xs mt-1.5 flex items-center gap-1.5 ${lastTest.passed ? 'text-brand-dark' : 'text-[#b0603a]'}"><i data-lucide="${lastTest.passed ? 'badge-check' : 'history'}" class="w-3.5 h-3.5"></i>Last: ${lastTest.pct}% ${lastTest.passed ? '· Passed' : '· Try again'} on ${fmtDate(lastTest.createdAt)}</p>` : ''}
+        ${lastTest ? `<p class="text-xs mt-1.5 flex items-center gap-1.5 ${lastTest.passed ? 'text-brand-dark' : 'text-[#a4473a]'}"><i data-lucide="${lastTest.passed ? 'badge-check' : 'history'}" class="w-3.5 h-3.5"></i>Last: ${lastTest.pct}% ${lastTest.passed ? '· Passed' : '· Try again'} on ${fmtDate(lastTest.createdAt)}</p>` : ''}
       </div>
       <button id="test" class="shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${canTake ? 'bg-brand hover:bg-brand-dark text-white' : 'bg-paper border border-paper-line text-ink-faint cursor-not-allowed'} font-medium transition-colors" ${!canTake ? 'disabled' : ''}><i data-lucide="${canTake ? 'file-check-2' : 'lock'}" class="w-4 h-4"></i>${passed ? 'Retake test' : !canTake ? 'Locked' : 'Start test'}</button>
     </div>
@@ -141,7 +141,7 @@ export function renderInsights(params, { navigate }) {
       });
       out.innerHTML = `<div class="ai-prose text-sm text-ink-soft">${html}</div>`;
     } catch (e) {
-      out.innerHTML = `<p class="text-sm text-[#b0413a]">Couldn't generate feedback right now. Please try again.</p>`;
+      out.innerHTML = `<p class="text-sm text-[#a4473a]">Couldn't generate feedback right now. Please try again.</p>`;
     }
     refreshIcons();
   };

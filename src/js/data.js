@@ -4,14 +4,14 @@
 const TAXONOMY_API = '/api/taxonomy';
 
 export const SUBJECTS = {
-  'Mathematics':                  { color: '#3f7d5e', icon: 'calculator' },
-  'English':                      { color: '#b0603a', icon: 'book-open' },
-  'Science':                      { color: '#3d6b93', icon: 'flask-conical' },
-  'History':                      { color: '#8a5a2b', icon: 'landmark' },
-  'Personal & Social Development':{ color: '#7a5a9e', icon: 'heart-handshake' },
-  'Life Skills':                  { color: '#c08a2e', icon: 'sprout' },
-  'Computing':                    { color: '#4a7a86', icon: 'cpu' },
-  'Learning to Learn':            { color: '#a3486b', icon: 'brain' },
+  'Mathematics':                  { color: '#3f6b3b', icon: 'calculator' },
+  'English':                      { color: '#a4473a', icon: 'book-open' },
+  'Science':                      { color: '#2f6285', icon: 'flask-conical' },
+  'History':                      { color: '#8a6412', icon: 'landmark' },
+  'Personal & Social Development':{ color: '#5b4a86', icon: 'heart-handshake' },
+  'Life Skills':                  { color: '#6b6a2a', icon: 'sprout' },
+  'Computing':                    { color: '#3e7470', icon: 'cpu' },
+  'Learning to Learn':            { color: '#9a4a6e', icon: 'brain' },
 };
 
 export const AGES = [5, 6, 7, 8, 9, 10, 11, 12, 13];

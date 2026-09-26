@@ -1,6 +1,7 @@
 import { SUBJECTS, getData } from '../data.js';
 import { graphParamsForTopic } from './graph.js';
 import * as store from '../store.js';
+import { growthChip, growthIcon, stageForStatus } from '../meadow.js';
 import { el, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { isUnlocked, blockingPrereqs, MASTERY, sectionForTopic, topicsMasteryStats, sectionTestReady } from '../mastery.js';
 import { openMasteryTest } from './masterytest.js';
@@ -39,6 +40,7 @@ export function renderTopic(params, { navigate }) {
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">${t.domain}</span>
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">Ages ${t.ageRangeStart}–${t.ageRangeEnd}</span>
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-faint capitalize">${(t.type||'').toLowerCase()}</span>
+        ${active ? growthChip(stageForStatus(store.statusOf(active.id, t.id), unlocked), MASTERY[store.statusOf(active.id, t.id)].label) : ''}
       </div>
       <h1 class="font-display text-2xl sm:text-3xl font-600 leading-tight">${t.name}</h1>
       <p class="text-ink-soft mt-2 leading-relaxed">${t.description || ''}</p>
@@ -46,11 +48,11 @@ export function renderTopic(params, { navigate }) {
 
   // Locked banner
   if (!unlocked) {
-    root.appendChild(el(`<div class="rounded-xl border border-[#e6cbae] bg-[#fbf1e6] p-4 mb-5 flex gap-3">
-      <i data-lucide="lock" class="w-5 h-5 text-[#b0603a] shrink-0 mt-0.5"></i>
+    root.appendChild(el(`<div class="rounded-xl border border-[#f3b7a8] bg-[#fbe5de] p-4 mb-5 flex gap-3">
+      <i data-lucide="lock" class="w-5 h-5 text-[#a4473a] shrink-0 mt-0.5"></i>
       <div>
-        <p class="font-600 text-sm text-[#8a4a20]">Foundations needed first</p>
-        <p class="text-sm text-[#8a5a2b] mt-0.5">Master ${blocking.length} prerequisite${blocking.length>1?'s':''} below before starting this topic — this keeps learning solid.</p>
+        <p class="font-600 text-sm text-[#8e3a2f]">Foundations needed first</p>
+        <p class="text-sm text-[#8a6412] mt-0.5">Master ${blocking.length} prerequisite${blocking.length>1?'s':''} below before starting this topic — this keeps learning solid.</p>
       </div>
     </div>`));
   }
@@ -158,9 +160,9 @@ function masterySection(t, student) {
     body.appendChild(ch);
     body.appendChild(el(`<p class="text-xs text-ink-faint mb-1">A timed, slightly harder stretch to keep them challenged.${chBest ? ` Best: ${chBest.correct}/${chBest.total}.` : ''}</p>`));
   } else {
-    body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-3">Passing this topic's mastery test (${90}%+) marks it <span class="font-600">mastered</span> and counts toward the section check. ${last ? `<span class="text-[#b0603a] font-medium">Last attempt: ${last.pct}%.</span>` : ''}</p>`));
+    body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-3">Passing this topic's mastery test (${90}%+) marks it <span class="font-600">mastered</span> and counts toward the section check. ${last ? `<span class="text-[#a4473a] font-medium">Last attempt: ${last.pct}%.</span>` : ''}</p>`));
     if (!unlocked) {
-      body.appendChild(el(`<p class="text-xs text-[#b0603a] flex items-start gap-1.5 mb-3"><i data-lucide="lock" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i>Master ${blocking.length} prerequisite${blocking.length>1?'s':''} first (see Connections) — but you can still test if you're ready.</p>`));
+      body.appendChild(el(`<p class="text-xs text-[#a4473a] flex items-start gap-1.5 mb-3"><i data-lucide="lock" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i>Master ${blocking.length} prerequisite${blocking.length>1?'s':''} first (see Connections) — but you can still test if you're ready.</p>`));
     }
   }
 
@@ -236,7 +238,7 @@ function sectionRecordingsSection(t, student) {
     recs.slice(0, 4).forEach(r => list.appendChild(recordingItem(r)));
     body.appendChild(list);
   }
-  const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#b0413a] hover:bg-[#963731] text-white font-medium text-sm transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record for this section</button>`);
+  const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#a4473a] hover:bg-[#86372c] text-white font-medium text-sm transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record for this section</button>`);
   btn.onclick = () => openRecorder(student.id, null, sec);
   body.appendChild(btn);
   return section('mic', 'Section recordings', body);
@@ -245,7 +247,7 @@ function sectionRecordingsSection(t, student) {
 function recordingItem(r) {
   const item = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
     <div class="flex items-center gap-2 text-xs mb-1">
-      <span class="flex items-center gap-1 font-600 text-[#b0413a]"><i data-lucide="mic" class="w-3.5 h-3.5"></i>Recording</span>
+      <span class="flex items-center gap-1 font-600 text-[#a4473a]"><i data-lucide="mic" class="w-3.5 h-3.5"></i>Recording</span>
       <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
     </div>
     ${r.title ? `<p class="font-600 text-sm">${r.title}</p>` : ''}
@@ -278,14 +280,12 @@ function connectionsSection(t, student, navigate) {
     const st = student ? store.statusOf(student.id, p.id) : 'none';
     const mastered = st === 'mastered';
     const row = el(`<button class="w-full text-left flex items-center gap-2.5 p-2.5 rounded-lg border border-paper-line bg-paper hover:border-brand/40 hover:bg-brand-light/30 transition-colors group">
-      <span class="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style="background:${mastered ? MASTERY.mastered.color : MASTERY[st].color + '33'}">
-        <i data-lucide="${mastered ? 'check' : (role === 'pre' ? 'circle' : 'lock-open')}" class="w-3 h-3 ${mastered ? 'text-white' : 'text-ink-faint'}"></i>
-      </span>
+      ${growthIcon(stageForStatus(st, student ? isUnlocked(student.id, p.id) : false), 26)}
       <span class="flex-1 min-w-0">
         <span class="block text-sm text-ink group-hover:text-brand-dark leading-snug truncate">${topic.name}</span>
         <span class="flex items-center gap-1.5 mt-0.5">
           ${p.strength === 'hard'
-            ? '<span class="text-[10px] font-600 text-[#b0603a] uppercase tracking-wide">Required</span>'
+            ? '<span class="text-[10px] font-600 text-[#a4473a] uppercase tracking-wide">Required</span>'
             : '<span class="text-[10px] font-medium text-ink-faint uppercase tracking-wide">Helpful</span>'}
           <span class="text-[10px] text-ink-faint">· ${MASTERY[st].label}</span>
         </span>
@@ -388,7 +388,7 @@ function aiSection(t) {
       const text = await fn(t);
       out.innerHTML = `<div class="ai-prose text-sm text-ink-soft bg-paper border border-paper-line rounded-xl p-4">${text}</div>`;
     } catch (e) {
-      out.innerHTML = `<p class="text-sm text-[#b0413a]">Couldn't generate that right now. Please try again.</p>`;
+      out.innerHTML = `<p class="text-sm text-[#a4473a]">Couldn't generate that right now. Please try again.</p>`;
     }
     refreshIcons();
   };
@@ -413,7 +413,7 @@ function recordsSection(t, student, navigate) {
   }
   const sec = section('notebook-pen', 'Records for this topic', body,
     `<span class="flex items-center gap-3">
-      <button id="recrec" class="text-sm font-medium text-[#b0413a] flex items-center gap-1"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
+      <button id="recrec" class="text-sm font-medium text-[#a4473a] flex items-center gap-1"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
       <button id="addrec" class="text-sm font-medium text-brand-dark flex items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i>Add</button>
     </span>`);
   sec.querySelector('#addrec').onclick = () => openRecordForm(student.id, t);
@@ -423,12 +423,12 @@ function recordsSection(t, student, navigate) {
 
 function recordItem(r) {
   const typeMeta = {
-    observation: { icon: 'eye', label: 'Observation', color: '#3d6b93' },
-    question: { icon: 'help-circle', label: 'Question', color: '#c08a2e' },
-    discussion: { icon: 'messages-square', label: 'Discussion', color: '#7a5a9e' },
-    assessment: { icon: 'clipboard-check', label: 'Assessment', color: '#3f7d5e' },
-    recording: { icon: 'mic', label: 'Recording', color: '#b0413a' },
-  }[r.type] || { icon: 'sticky-note', label: 'Note', color: '#8a847a' };
+    observation: { icon: 'eye', label: 'Observation', color: '#2f6285' },
+    question: { icon: 'help-circle', label: 'Question', color: '#8a6412' },
+    discussion: { icon: 'messages-square', label: 'Discussion', color: '#5b4a86' },
+    assessment: { icon: 'clipboard-check', label: 'Assessment', color: '#3f6b3b' },
+    recording: { icon: 'mic', label: 'Recording', color: '#a4473a' },
+  }[r.type] || { icon: 'sticky-note', label: 'Note', color: '#6f665a' };
   const item = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
     <div class="flex items-center gap-2 mb-1 text-xs">
       <span class="flex items-center gap-1 font-600" style="color:${typeMeta.color}"><i data-lucide="${typeMeta.icon}" class="w-3.5 h-3.5"></i>${typeMeta.label}</span>

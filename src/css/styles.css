@@ -1,23 +1,54 @@
+/* Storybook Meadow — locally served typefaces (SIL OFL 1.1, see vendor/fonts). */
+@font-face {
+  font-family: 'Fraunces Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(../vendor/fonts/fraunces-latin-full-normal.woff2) format('woff2-variations');
+}
+@font-face {
+  font-family: 'Lexend Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(../vendor/fonts/lexend-latin-wght-normal.woff2) format('woff2-variations');
+}
+
 :root { color-scheme: light; }
 html { scroll-behavior: smooth; }
 body { -webkit-font-smoothing: antialiased; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d9d3c7; border-radius: 6px; border: 2px solid #fbf9f4; }
-::-webkit-scrollbar-thumb:hover { background: #c7c0b2; }
+::-webkit-scrollbar-thumb { background: #d9ccb0; border-radius: 999px; border: 2px solid #fbf6ec; }
+::-webkit-scrollbar-thumb:hover { background: #c9b994; }
 
-.font-display { letter-spacing: -0.01em; }
+/* Soft, slightly wonky storybook headings. */
+.font-display { letter-spacing: -0.01em; font-variation-settings: 'SOFT' 100, 'WONK' 1; }
+
+:focus-visible { outline: 3px solid #f2c14e; outline-offset: 2px; }
+
+/* Sidebar / bottom-nav active item: a sage pill. */
+.nav-active { background: #a9c9a0; color: #2e2a24 !important; font-weight: 600; }
+.nav-active:hover { background: #a9c9a0 !important; }
+
+/* Meadow card: tinted paper, no hard border, a soft grounded shadow. */
+.meadow-card { background: #fffdf8; border-radius: 1.75rem; box-shadow: 0 1px 0 rgba(46,42,36,.04), 0 14px 30px -20px rgba(94,78,48,.38); }
+
+/* Header band with the hills-and-sun illustration behind the greeting. */
+.meadow-hero { position: relative; overflow: hidden; background: #e3eff6; border-radius: 1.75rem; }
+.meadow-hero > svg.meadow-scene { position: absolute; inset: auto 0 0 0; width: 100%; height: 100%; pointer-events: none; }
+.meadow-hero > .meadow-hero-body { position: relative; }
 
 /* Timeline rail */
-.rail-line { background: linear-gradient(to bottom, transparent, #ece7dd 8%, #ece7dd 92%, transparent); }
+.rail-line { background: linear-gradient(to bottom, transparent, #ede3cf 8%, #ede3cf 92%, transparent); }
 
 /* Topic node connectors */
 .node-lock { filter: grayscale(0.4); opacity: 0.78; }
 
-/* subtle card hover */
-.card-hover { transition: transform .18s ease, border-color .18s ease, background-color .18s ease; }
-.card-hover:hover { transform: translateY(-2px); border-color: #d8d1c4; }
+/* Gentle card hover: lift a little, like turning a page. */
+.card-hover { transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease; }
+.card-hover:hover { transform: translateY(-2px); box-shadow: 0 1px 0 rgba(46,42,36,.04), 0 18px 34px -18px rgba(94,78,48,.45); }
 
 /* mastery bar */
 .mbar { transition: width .5s cubic-bezier(.4,0,.2,1); }
@@ -25,6 +56,10 @@ body { -webkit-font-smoothing: antialiased; }
 /* fade in */
 @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .fade-up { animation: fadeUp .35s ease both; }
+@media (prefers-reduced-motion: reduce) {
+  .fade-up { animation: none; }
+  .card-hover:hover { transform: none; }
+}
 
 /* line clamp helper */
 .clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -32,16 +67,16 @@ body { -webkit-font-smoothing: antialiased; }
 
 .dag-scroller { min-height: 16rem; -webkit-overflow-scrolling: touch; }
 .skill-tree-scroller { min-height: 22rem; background:
-  radial-gradient(circle at 20% 20%, rgba(255,255,255,0.35), transparent 40%),
-  repeating-linear-gradient(90deg, rgba(90,70,40,0.04) 0 1px, transparent 1px 128px),
-  #ebe4d4; }
+  radial-gradient(circle at 20% 20%, rgba(255,255,255,0.45), transparent 40%),
+  repeating-linear-gradient(90deg, rgba(63,107,59,0.05) 0 1px, transparent 1px 128px),
+  #e4eedf; }
 
-.world-map { background: #ebe0c4; }
+.world-map { background: #e3eff6; }
 .world-realm { cursor: pointer; }
 .world-realm:focus { outline: none; }
 .world-realm:focus path,
 .world-realm:hover path { stroke-width: 3.2; }
-.world-realm-label { font-family: Fraunces, Georgia, serif; font-size: 17px; font-weight: 600; }
+.world-realm-label { font-family: 'Fraunces Variable', Fraunces, Georgia, serif; font-variation-settings: 'SOFT' 100, 'WONK' 1; font-size: 17px; font-weight: 600; }
 .world-realm-sub { font-size: 11px; }
 
 .skill-node {
@@ -74,15 +109,15 @@ body { -webkit-font-smoothing: antialiased; }
   text-align: center;
   margin-top: 4px;
   width: 100%;
-  color: #3a362f;
+  color: #2e2a24;
   font-weight: 600;
 }
 .skill-node.is-selected .skill-orb { transform: scale(1.08); }
 .skill-node.is-blocking .skill-orb { animation: skillPulse 1.4s ease-in-out infinite; }
 .skill-gateway {
   border: 1.5px dashed;
-  border-radius: 14px;
-  background: rgba(255,255,255,0.78);
+  border-radius: 18px;
+  background: rgba(255,253,248,0.85);
   padding: 8px 10px;
   transition: border-color .15s ease, transform .15s ease;
 }
@@ -91,21 +126,21 @@ body { -webkit-font-smoothing: antialiased; }
 .quest-log { width: min(22rem, 100%); max-height: 36rem; }
 
 @keyframes skillPulse {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(176, 96, 58, 0.35); }
-  50% { box-shadow: 0 0 0 6px rgba(176, 96, 58, 0.55); }
+  0%, 100% { box-shadow: 0 0 0 3px rgba(164, 71, 58, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(164, 71, 58, 0.55); }
 }
 
 @media (max-width: 800px) {
   .skill-stage { flex-direction: column; }
-  .quest-log { width: 100%; border-left: 0; border-top: 1px solid #ece7dd; max-height: 22rem; }
+  .quest-log { width: 100%; border-left: 0; border-top: 1px solid #ede3cf; max-height: 22rem; }
 }
 
 /* range input */
-input[type=range] { accent-color: #3f7d5e; }
+input[type=range] { accent-color: #3f6b3b; }
 
 /* pretty prose from AI */
 .ai-prose p { margin-bottom: .65rem; }
 .ai-prose ul { list-style: disc; padding-left: 1.15rem; margin-bottom: .65rem; }
 .ai-prose li { margin-bottom: .25rem; }
-.ai-prose strong { color: #1c1a17; font-weight: 600; }
+.ai-prose strong { color: #2e2a24; font-weight: 600; }
 .ai-prose h3, .ai-prose h4 { font-weight: 600; margin: .5rem 0 .35rem; }

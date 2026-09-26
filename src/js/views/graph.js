@@ -19,6 +19,7 @@ import { MASTERY, topicsMasteryStats, isUnlocked, blockingPrereqs } from '../mas
 import { el, esc, refreshIcons, toast } from '../ui.js';
 import { openLesson } from './lesson.js';
 import { openRecordForm } from './records.js';
+import { GROWTH, growthChip, growthIcon, stageForSkillState, stageForStatus } from '../meadow.js';
 
 let selectedSkillId = null;
 
@@ -124,7 +125,7 @@ function renderWorldMap(params, active, navigate) {
       <p class="text-xs text-ink-faint mt-2">${d.meta.topics.toLocaleString()} topics · ${d.meta.dependencies.toLocaleString()} prerequisite links · ${d.meta.version}</p>
     </div>`));
 
-  const stage = el(`<div class="world-map relative rounded-2xl border border-[#d9c9a3] overflow-hidden"></div>`);
+  const stage = el(`<div class="world-map relative rounded-2xl border border-[#cfe0c6] overflow-hidden"></div>`);
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', `0 0 ${WORLD_MAP_VIEWBOX.width} ${WORLD_MAP_VIEWBOX.height}`);
   svg.setAttribute('class', 'w-full h-auto world-map-svg');
@@ -134,12 +135,12 @@ function renderWorldMap(params, active, navigate) {
   const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
   defs.innerHTML = `
     <linearGradient id="parchment" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f4ead2"/>
-      <stop offset="50%" stop-color="#ebe0c4"/>
-      <stop offset="100%" stop-color="#e3d4b0"/>
+      <stop offset="0%" stop-color="#e3eff6"/>
+      <stop offset="50%" stop-color="#e4eedf"/>
+      <stop offset="100%" stop-color="#cfe0c6"/>
     </linearGradient>
     <filter id="realm-glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="1" stdDeviation="3" flood-color="#5b4a28" flood-opacity="0.18"/>
+      <feDropShadow dx="0" dy="1" stdDeviation="3" flood-color="#3f6b3b" flood-opacity="0.18"/>
     </filter>`;
   svg.appendChild(defs);
 
@@ -156,16 +157,16 @@ function renderWorldMap(params, active, navigate) {
     contour.setAttribute('rx', String(420 + i * 48));
     contour.setAttribute('ry', String(240 + i * 32));
     contour.setAttribute('fill', 'none');
-    contour.setAttribute('stroke', '#d2c19a');
+    contour.setAttribute('stroke', '#a9c9a0');
     contour.setAttribute('stroke-width', '0.8');
     contour.setAttribute('opacity', '0.45');
     svg.appendChild(contour);
   }
 
   for (const realm of scene.realms) {
-    const meta = SUBJECTS[realm.subject] || { color: '#3f7d5e', icon: 'map' };
+    const meta = SUBJECTS[realm.subject] || { color: '#3f6b3b', icon: 'map' };
     const stats = active ? topicsMasteryStats(active.id, tree.find((node) => node.subject === realm.subject)?.topics || []) : { pct: 0 };
-    const fill = quietMasteryFill(meta.color, stats.pct, '#f4ead2');
+    const fill = quietMasteryFill(meta.color, stats.pct, '#fffdf8');
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     group.setAttribute('class', 'world-realm');
     group.setAttribute('tabindex', '0');
@@ -190,7 +191,7 @@ function renderWorldMap(params, active, navigate) {
       dot.setAttribute('r', '5.5');
       dot.setAttribute('fill', meta.color);
       dot.setAttribute('fill-opacity', '0.55');
-      dot.setAttribute('stroke', '#fffaf0');
+      dot.setAttribute('stroke', '#fffdf8');
       dot.setAttribute('stroke-width', '1.2');
       dot.style.cursor = 'pointer';
       dot.setAttribute('aria-label', cluster.domain);
@@ -209,7 +210,7 @@ function renderWorldMap(params, active, navigate) {
     label.setAttribute('y', String(realm.cy - 8));
     label.setAttribute('text-anchor', 'middle');
     label.setAttribute('class', 'world-realm-label');
-    label.setAttribute('fill', '#1c1a17');
+    label.setAttribute('fill', '#2e2a24');
     label.style.pointerEvents = 'none';
     label.textContent = realm.subject;
     group.appendChild(label);
@@ -346,7 +347,8 @@ function skillLegend() {
   const row = el(`<div class="flex flex-wrap items-center gap-3 text-[11px] text-ink-soft mb-3"></div>`);
   for (const [id, label] of items) {
     const chrome = SKILL_STATE_CHROME[id];
-    row.appendChild(el(`<span class="inline-flex items-center gap-1.5"><span class="skill-legend-orb skill-orb-state-${id}" style="background:${chrome.fill};box-shadow:0 0 0 2px ${chrome.ring}"></span>${label}</span>`));
+    const stage = stageForSkillState(id);
+    row.appendChild(el(`<span class="inline-flex items-center gap-1.5">${growthIcon(stage, 22)}<span><span class="font-600" style="color:${GROWTH[stage].color}">${GROWTH[stage].label}</span> · ${label}</span></span>`));
   }
   row.appendChild(el(`<span class="inline-flex items-center gap-1.5 ml-1"><span class="w-6 border-t-2 border-ink/70"></span>Required</span>`));
   row.appendChild(el(`<span class="inline-flex items-center gap-1.5"><span class="w-6 border-t-2 border-dashed border-ink-faint"></span>Helpful</span>`));
@@ -373,7 +375,7 @@ function renderSkillDag(graph, { navigate, color, active, prereqsOf, selectedId,
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', edgePath(from, to));
     path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', edge.strength === 'hard' ? color : '#8a847a');
+    path.setAttribute('stroke', edge.strength === 'hard' ? color : '#6f665a');
     path.setAttribute('stroke-width', edge.strength === 'hard' ? '2.2' : '1.5');
     path.setAttribute('stroke-linecap', 'round');
     if (edge.strength !== 'hard') path.setAttribute('stroke-dasharray', '6 5');
@@ -399,10 +401,10 @@ function renderSkillDag(graph, { navigate, color, active, prereqsOf, selectedId,
       const chrome = SKILL_STATE_CHROME[state];
       const selected = topic.id === selectedId;
       const blocking = blockerSet.has(topic.id);
-      const icon = state === 'locked' ? 'lock' : state === 'mastered' ? 'check' : state === 'in-progress' ? 'circle-dot' : 'circle';
-      const btn = el(`<button type="button" class="skill-node absolute ${selected ? 'is-selected' : ''} ${blocking ? 'is-blocking' : ''}" style="left:${node.x}px;top:${node.y}px;width:${node.width}px;height:${node.height}px" title="${esc(topic.name)} · ${chrome.label}">
-        <span class="skill-orb skill-orb-state-${state}" style="background:${chrome.fill};box-shadow:0 0 0 ${selected ? 4 : 2}px ${chrome.ring}${state === 'ready' ? ', 0 0 16px rgba(63,125,94,0.55)' : state === 'mastered' ? ', 0 0 0 2px #f3d56a' : ''}">
-          <i data-lucide="${icon}" class="w-4 h-4 text-white"></i>
+      const stage = stageForSkillState(state);
+      const btn = el(`<button type="button" class="skill-node absolute ${selected ? 'is-selected' : ''} ${blocking ? 'is-blocking' : ''}" style="left:${node.x}px;top:${node.y}px;width:${node.width}px;height:${node.height}px" title="${esc(topic.name)} · ${GROWTH[stage].label} · ${chrome.label}">
+        <span class="skill-orb skill-orb-state-${state}" style="background:${chrome.fill};box-shadow:0 0 0 ${selected ? 4 : 2}px ${chrome.ring}${state === 'ready' ? ', 0 0 16px rgba(47,98,133,0.45)' : state === 'mastered' ? ', 0 0 0 2px #cfe0c6' : ''}">
+          <span class="w-10 h-10 rounded-full bg-paper-card flex items-center justify-center">${growthIcon(stage, 30)}</span>
         </span>
         <span class="skill-node-label">${esc(topic.name)}</span>
       </button>`);
@@ -460,7 +462,7 @@ function renderQuestLog(topic, { active, navigate, prereqsOf, unlocksOf, byId, s
         </div>
         <button type="button" class="quest-close text-ink-faint hover:text-ink p-1" aria-label="Close quest log"><i data-lucide="x" class="w-4 h-4"></i></button>
       </div>
-      <p class="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full text-white mb-3" style="background:${chrome.fill}">${chrome.label}</p>
+      <p class="mb-3">${growthChip(stageForSkillState(state), chrome.label)}</p>
       <p class="text-sm text-ink-soft leading-relaxed">${esc(topic.description || 'A demonstrable skill in this domain.')}</p>
     </div>`));
 
@@ -469,9 +471,9 @@ function renderQuestLog(topic, { active, navigate, prereqsOf, unlocksOf, byId, s
   const body = el(`<div class="px-4 sm:px-5 pb-5 space-y-4"></div>`);
 
   if (locked) {
-    body.appendChild(el(`<div class="rounded-xl border border-[#e6cbae] bg-[#fbf1e6] p-3.5">
-      <p class="font-600 text-sm text-[#8a4a20] flex items-center gap-1.5"><i data-lucide="lock" class="w-4 h-4"></i>Foundations needed</p>
-      <p class="text-sm text-[#8a5a2b] mt-1 leading-relaxed">${esc(why)}</p>
+    body.appendChild(el(`<div class="rounded-xl border border-[#f3b7a8] bg-[#fbe5de] p-3.5">
+      <p class="font-600 text-sm text-[#8e3a2f] flex items-center gap-1.5"><i data-lucide="lock" class="w-4 h-4"></i>Foundations needed</p>
+      <p class="text-sm text-[#8a6412] mt-1 leading-relaxed">${esc(why)}</p>
     </div>`));
   } else {
     body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed">${esc(why)}</p>`));
@@ -484,7 +486,7 @@ function renderQuestLog(topic, { active, navigate, prereqsOf, unlocksOf, byId, s
       const other = byId.get(edge.id);
       if (!other) continue;
       const blocked = blockers.includes(edge.id);
-      const chip = el(`<button type="button" class="px-2 py-1 rounded-full border text-xs ${blocked ? 'border-[#e6cbae] bg-[#fbf1e6] text-[#8a4a20]' : 'border-paper-line text-ink-soft'}">${esc(other.name)}</button>`);
+      const chip = el(`<button type="button" class="px-2 py-1 rounded-full border text-xs ${blocked ? 'border-[#f3b7a8] bg-[#fbe5de] text-[#8e3a2f]' : 'border-paper-line text-ink-soft'}">${esc(other.name)}</button>`);
       chip.onclick = () => onSelect(other.id);
       chips.appendChild(chip);
     }
@@ -687,6 +689,7 @@ function renderSection(params, active, navigate) {
   const list = el(`<div class="space-y-2.5"></div>`);
   for (const topic of node.topics) {
     const status = active ? store.statusOf(active.id, topic.id) : 'none';
+    const listStage = stageForStatus(status, active ? isUnlocked(active.id, topic.id) : false);
     const prereqs = (d.prereqsOf.get(topic.id) || []).map((edge) => {
       const other = d.byId.get(edge.id);
       return other ? { ...edge, topic: other } : null;
@@ -694,11 +697,11 @@ function renderSection(params, active, navigate) {
     const unlockCount = (d.unlocksOf.get(topic.id) || []).length;
     const row = el(`<button class="w-full text-left bg-paper-card border border-paper-line rounded-2xl p-4 hover:border-brand/40 transition-colors">
       <span class="flex items-start gap-3">
-        <span class="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0" style="background:${MASTERY[status].color}" title="${MASTERY[status].label}"></span>
+        <span class="mt-0.5" title="${GROWTH[listStage].label} · ${MASTERY[status].label}">${growthIcon(listStage, 26)}</span>
         <span class="min-w-0 flex-1">
           <span class="block font-600">${topic.name}</span>
           <span class="block text-sm text-ink-soft mt-1 leading-relaxed">${topic.description || ''}</span>
-          <span class="block text-xs text-ink-faint mt-2">${MASTERY[status].label} · ages ${topic.ageRangeStart}–${topic.ageRangeEnd}${unlockCount ? ` · unlocks ${unlockCount}` : ''}</span>
+          <span class="block text-xs text-ink-faint mt-2"><span class="font-600" style="color:${GROWTH[listStage].color}">${GROWTH[listStage].label}</span> · ${MASTERY[status].label} · ages ${topic.ageRangeStart}–${topic.ageRangeEnd}${unlockCount ? ` · unlocks ${unlockCount}` : ''}</span>
           ${prereqLine(prereqs)}
         </span>
         <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0 mt-1"></i>
@@ -714,7 +717,7 @@ function renderSection(params, active, navigate) {
 function prereqLine(prereqs) {
   if (!prereqs.length) return '';
   const chips = prereqs.slice(0, 4).map((edge) => {
-    const tone = edge.strength === 'hard' ? 'border-[#e6cbae] text-[#8a4a20]' : 'border-paper-line text-ink-soft';
+    const tone = edge.strength === 'hard' ? 'border-[#f3b7a8] text-[#8e3a2f]' : 'border-paper-line text-ink-soft';
     return `<span class="px-2 py-0.5 rounded-full border ${tone}">${edge.strength === 'hard' ? 'needs' : 'helped by'} ${esc(edge.topic.name)}</span>`;
   }).join('');
   const extra = prereqs.length > 4 ? `<span class="text-ink-faint">+${prereqs.length - 4} more</span>` : '';

@@ -99,12 +99,12 @@ function renderLesson(L, topic, onRegen) {
       <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style="background:${color}18"><i data-lucide="${icon}" class="w-4 h-4" style="color:${color}"></i></span>
       <div><p class="text-xs font-600" style="color:${color}">${label}</p><p class="text-sm text-ink-soft leading-relaxed mt-0.5">${esc(text)}</p></div>
     </div>` : '';
-    wrap.appendChild(el(`<div class="rounded-2xl border border-[#e6cbae] bg-[#fbf4ea] p-4">
+    wrap.appendChild(el(`<div class="rounded-2xl border border-[#f3b7a8] bg-[#fbecc4] p-4">
       <p class="text-xs font-600 uppercase tracking-wide text-[#a86a2e] mb-3 flex items-center gap-1.5"><i data-lucide="heart-handshake" class="w-3.5 h-3.5"></i>Notes for you (the parent)</p>
       <div class="space-y-3">
-        ${tipRow('crosshair', '#3f7d5e', 'What to focus on', tips.focus)}
-        ${tipRow('life-buoy', '#b0603a', 'Where they may struggle', tips.struggles)}
-        ${tipRow('message-circle-heart', '#7a5a9e', 'Advice', tips.advice)}
+        ${tipRow('crosshair', '#3f6b3b', 'What to focus on', tips.focus)}
+        ${tipRow('life-buoy', '#a4473a', 'Where they may struggle', tips.struggles)}
+        ${tipRow('message-circle-heart', '#5b4a86', 'Advice', tips.advice)}
       </div>
     </div>`));
   }
@@ -118,7 +118,7 @@ function renderLesson(L, topic, onRegen) {
       <div class="flex-1">
         ${s.title ? `<p class="font-600 text-sm">${esc(s.title)}</p>` : ''}
         ${s.say ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed"><span class="inline-flex items-center gap-1 text-xs font-medium text-brand-dark mr-1"><i data-lucide="quote" class="w-3 h-3"></i>Say:</span>${esc(s.say)}</p>` : ''}
-        ${s.do ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed"><span class="inline-flex items-center gap-1 text-xs font-medium text-[#c08a2e] mr-1"><i data-lucide="hand" class="w-3 h-3"></i>Do:</span>${esc(s.do)}</p>` : ''}
+        ${s.do ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed"><span class="inline-flex items-center gap-1 text-xs font-medium text-[#8a6412] mr-1"><i data-lucide="hand" class="w-3 h-3"></i>Do:</span>${esc(s.do)}</p>` : ''}
       </div>
     </div>`)));
     wrap.appendChild(block('presentation', 'Teach it step by step', steps));
@@ -208,7 +208,7 @@ export async function openActivityDetail(topic, activity, kind) {
     if (detail.setup) wrap.appendChild(block('settings-2', 'Set up', el(`<p class="text-sm text-ink-soft leading-relaxed">${esc(detail.setup)}</p>`)));
     if (detail.steps && detail.steps.length) wrap.appendChild(block('list-ordered', 'How to play', orderedList(detail.steps)));
     if (detail.example) wrap.appendChild(el(`<div class="rounded-xl bg-paper border border-paper-line p-3.5"><p class="text-xs font-600 text-ink-faint uppercase tracking-wide mb-1">Example</p><p class="text-sm text-ink-soft leading-relaxed">${esc(detail.example)}</p></div>`));
-    if (detail.tip) wrap.appendChild(el(`<div class="flex gap-2 text-sm text-ink-soft"><i data-lucide="lightbulb" class="w-4 h-4 text-[#c08a2e] shrink-0 mt-0.5"></i><span>${esc(detail.tip)}</span></div>`));
+    if (detail.tip) wrap.appendChild(el(`<div class="flex gap-2 text-sm text-ink-soft"><i data-lucide="lightbulb" class="w-4 h-4 text-[#8a6412] shrink-0 mt-0.5"></i><span>${esc(detail.tip)}</span></div>`));
     stage.appendChild(wrap);
     refreshIcons();
   } catch (e) {
@@ -261,12 +261,12 @@ function printLesson(topic, L) {
   const teach = (L.teach || []).map((s, i) => `<div class="step"><strong>${i + 1}. ${esc(s.title || '')}</strong>${s.say ? `<p><em>Say:</em> ${esc(s.say)}</p>` : ''}${s.do ? `<p><em>Do:</em> ${esc(s.do)}</p>` : ''}</div>`).join('');
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(topic.name)} — Lesson</title>
   <style>
-    body{font-family:Georgia,serif;max-width:720px;margin:32px auto;padding:0 20px;color:#1c1a17;line-height:1.55}
+    body{font-family:Georgia,serif;max-width:720px;margin:32px auto;padding:0 20px;color:#2e2a24;line-height:1.55}
     h1{font-size:26px;margin-bottom:4px}
-    .sub{color:#8a847a;font-size:13px;margin-bottom:20px}
-    h2{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:#3f7d5e;margin:22px 0 6px;border-bottom:1px solid #ece7dd;padding-bottom:4px}
-    .obj{background:#e7f0ea;padding:10px 14px;border-radius:8px;font-size:15px}
-    .tips{background:#fbf4ea;padding:10px 14px;border-radius:8px}
+    .sub{color:#6f665a;font-size:13px;margin-bottom:20px}
+    h2{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:#3f6b3b;margin:22px 0 6px;border-bottom:1px solid #ede3cf;padding-bottom:4px}
+    .obj{background:#e4eedf;padding:10px 14px;border-radius:8px;font-size:15px}
+    .tips{background:#fbecc4;padding:10px 14px;border-radius:8px}
     .tips p{margin:4px 0}
     .step{margin-bottom:10px}
     ul,ol{margin:6px 0 6px 20px}

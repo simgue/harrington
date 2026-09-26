@@ -129,7 +129,7 @@ function rgbToHex(r, g, b) {
   return `#${to(r)}${to(g)}${to(b)}`;
 }
 
-export function quietMasteryFill(hex, pct, paper = '#fbf9f4') {
+export function quietMasteryFill(hex, pct, paper = '#fbf6ec') {
   const amount = 0.1 + (Math.max(0, Math.min(100, Number(pct) || 0)) / 100) * 0.22;
   const color = hexToRgb(hex);
   const base = hexToRgb(paper);
@@ -286,10 +286,10 @@ export const SKILL_TREE_LAYOUT = {
 };
 
 export const SKILL_STATE_CHROME = {
-  locked: { label: 'Locked', fill: '#8d8980', ring: '#6f6b64' },
-  ready: { label: 'Ready', fill: '#3f7d5e', ring: '#8ed0ad' },
-  'in-progress': { label: 'In progress', fill: '#d99b45', ring: '#f0c57a' },
-  mastered: { label: 'Mastered', fill: '#c9a227', ring: '#f3d56a' },
+  locked: { label: 'Locked', fill: '#7a7263', ring: '#cdc3ad' },
+  ready: { label: 'Ready', fill: '#2f6285', ring: '#bfdcec' },
+  'in-progress': { label: 'In progress', fill: '#8a6412', ring: '#f2c14e' },
+  mastered: { label: 'Mastered', fill: '#3f6b3b', ring: '#a9c9a0' },
 };
 
 export function resolveSkillNodeState(topicId, progress = {}, prereqsOf = new Map()) {

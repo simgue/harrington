@@ -139,7 +139,7 @@ function open() {
       scrollDown(msgsEl);
     }).catch(() => {
       loading.remove();
-      renderBubble(msgsEl, 'assistant', `<p class="text-[#b0413a]">Sorry, I couldn't respond just now. Please try again.</p>`);
+      renderBubble(msgsEl, 'assistant', `<p class="text-[#a4473a]">Sorry, I couldn't respond just now. Please try again.</p>`);
     }).finally(() => { busy = false; });
   }
 }

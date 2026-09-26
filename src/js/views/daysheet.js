@@ -165,28 +165,28 @@ function openPrintWindow(gathered, dateLabel) {
   const kids = gathered.map((g) => esc(g.card.childDisplayName)).join(', ');
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Commune Day Sheet${dateLabel ? ' — ' + esc(dateLabel) : ''}</title>
   <style>
-    body{font-family:Georgia,serif;max-width:760px;margin:28px auto;padding:0 22px;color:#1c1a17;line-height:1.5}
-    .head{border-bottom:2px solid #1c1a17;padding-bottom:10px;margin-bottom:8px}
+    body{font-family:Georgia,serif;max-width:760px;margin:28px auto;padding:0 22px;color:#2e2a24;line-height:1.5}
+    .head{border-bottom:2px solid #2e2a24;padding-bottom:10px;margin-bottom:8px}
     .head h1{font-size:24px;margin:0}
-    .head .meta{color:#8a847a;font-size:13px;margin-top:2px}
+    .head .meta{color:#6f665a;font-size:13px;margin-top:2px}
     section.child{page-break-before:always;padding-top:14px}
     section.child:first-of-type{page-break-before:auto}
-    .childhead{display:flex;align-items:baseline;gap:10px;border-bottom:1px solid #ece7dd;padding-bottom:6px;margin-bottom:8px}
-    .childhead h2{font-size:20px;margin:0;color:#2f6049}
-    .childsub{font-size:12px;color:#8a847a}
-    .note{background:#fbf4ea;border:1px solid #e6cbae;border-radius:8px;padding:8px 12px;margin:8px 0 14px;font-size:14px}
+    .childhead{display:flex;align-items:baseline;gap:10px;border-bottom:1px solid #ede3cf;padding-bottom:6px;margin-bottom:8px}
+    .childhead h2{font-size:20px;margin:0;color:#2e4f2b}
+    .childsub{font-size:12px;color:#6f665a}
+    .note{background:#fbecc4;border:1px solid #f3b7a8;border-radius:8px;padding:8px 12px;margin:8px 0 14px;font-size:14px}
     .topic{margin:0 0 18px;padding:0 0 6px}
-    .topic h3{font-size:17px;margin:14px 0 2px;color:#1c1a17}
-    .tmeta{color:#8a847a;font-size:12px;margin-bottom:6px}
-    h4{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#3f7d5e;margin:12px 0 4px}
-    .obj{background:#e7f0ea;padding:8px 12px;border-radius:8px;font-size:14px;margin:6px 0}
-    .tips{background:#fbf4ea;padding:8px 12px;border-radius:8px;margin:6px 0}
+    .topic h3{font-size:17px;margin:14px 0 2px;color:#2e2a24}
+    .tmeta{color:#6f665a;font-size:12px;margin-bottom:6px}
+    h4{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#3f6b3b;margin:12px 0 4px}
+    .obj{background:#e4eedf;padding:8px 12px;border-radius:8px;font-size:14px;margin:6px 0}
+    .tips{background:#fbecc4;padding:8px 12px;border-radius:8px;margin:6px 0}
     .tips p{margin:3px 0}
     .step{margin-bottom:8px}
     ul,ol{margin:5px 0 5px 20px}
     li{margin-bottom:3px}
     p{margin:3px 0}
-    .links .url{color:#3d6b93;font-size:12px;word-break:break-all}
+    .links .url{color:#2f6285;font-size:12px;word-break:break-all}
     @media print{body{margin:0}}
   </style></head><body>
     <div class="head">

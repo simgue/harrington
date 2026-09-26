@@ -5,11 +5,11 @@ import { openRecorder, audioPlayer, fmtDur } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
 
 const TYPES = {
-  observation: { icon: 'eye', label: 'Observation', color: '#3d6b93', hint: 'What you noticed as they worked' },
-  question: { icon: 'help-circle', label: 'Question', color: '#c08a2e', hint: 'Something they asked or wondered' },
-  discussion: { icon: 'messages-square', label: 'Discussion', color: '#7a5a9e', hint: 'A conversation you had together' },
-  assessment: { icon: 'clipboard-check', label: 'Assessment', color: '#3f7d5e', hint: 'A check of what they can do' },
-  recording: { icon: 'mic', label: 'Recording', color: '#b0413a', hint: 'A recorded voice conversation' },
+  observation: { icon: 'eye', label: 'Observation', color: '#2f6285', hint: 'What you noticed as they worked' },
+  question: { icon: 'help-circle', label: 'Question', color: '#8a6412', hint: 'Something they asked or wondered' },
+  discussion: { icon: 'messages-square', label: 'Discussion', color: '#5b4a86', hint: 'A conversation you had together' },
+  assessment: { icon: 'clipboard-check', label: 'Assessment', color: '#3f6b3b', hint: 'A check of what they can do' },
+  recording: { icon: 'mic', label: 'Recording', color: '#a4473a', hint: 'A recorded voice conversation' },
 };
 
 let recFilter = 'all';
@@ -25,7 +25,7 @@ export function renderRecords(params, { navigate }) {
       <p class="text-ink-soft text-sm mt-1">Observations, questions and discussions for <span class="font-600 text-ink">${active?.name || 'your student'}</span>.</p>
     </div>
     <div class="shrink-0 flex gap-2">
-      <button id="rec" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#b0413a] hover:bg-[#963731] text-white text-sm font-medium transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
+      <button id="rec" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#a4473a] hover:bg-[#86372c] text-white text-sm font-medium transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
       <button id="new" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors"><i data-lucide="plus" class="w-4 h-4"></i>New record</button>
     </div>
   </div>`);
@@ -68,14 +68,14 @@ export function renderRecords(params, { navigate }) {
 }
 
 function recordCard(r, student, d, navigate) {
-  const tm = TYPES[r.type] || { icon: 'sticky-note', label: 'Note', color: '#8a847a' };
+  const tm = TYPES[r.type] || { icon: 'sticky-note', label: 'Note', color: '#6f665a' };
   const topic = r.topicId ? d.byId.get(r.topicId) : null;
   const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-4">
     <div class="flex items-center gap-2 text-xs mb-1.5">
       <span class="flex items-center gap-1 font-600 px-2 py-0.5 rounded-full" style="color:${tm.color};background:${tm.color}14"><i data-lucide="${tm.icon}" class="w-3.5 h-3.5"></i>${tm.label}</span>
-      ${r.rating ? `<span class="text-[#c08a2e]">${'\u2605'.repeat(r.rating)}${'\u2606'.repeat(5-r.rating)}</span>` : ''}
+      ${r.rating ? `<span class="text-[#8a6412]">${'\u2605'.repeat(r.rating)}${'\u2606'.repeat(5-r.rating)}</span>` : ''}
       <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
-      <button class="del text-ink-faint hover:text-[#b0413a] p-0.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+      <button class="del text-ink-faint hover:text-[#a4473a] p-0.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
     </div>
     ${r.title ? `<p class="font-600">${esc(r.title)}</p>` : ''}
     ${r.note ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
@@ -153,7 +153,7 @@ function openAnalysis(record, student, topic) {
     refreshIcons();
   }).catch(() => {
     stage.innerHTML = '';
-    stage.appendChild(el(`<p class="text-sm text-[#b0413a] py-4">Couldn't analyze this right now. Please try again.</p>`));
+    stage.appendChild(el(`<p class="text-sm text-[#a4473a] py-4">Couldn't analyze this right now. Please try again.</p>`));
   });
 }
 
@@ -211,7 +211,7 @@ export function openRecordForm(studentId, topic = null) {
   const renderStars = () => {
     starsWrap.innerHTML = '';
     for (let i = 1; i <= 5; i++) {
-      const b = el(`<button type="button" class="text-2xl leading-none ${i <= rating ? 'text-[#c08a2e]' : 'text-paper-line'}">${i <= rating ? '\u2605' : '\u2606'}</button>`);
+      const b = el(`<button type="button" class="text-2xl leading-none ${i <= rating ? 'text-[#8a6412]' : 'text-paper-line'}">${i <= rating ? '\u2605' : '\u2606'}</button>`);
       b.onclick = () => { rating = (rating === i) ? 0 : i; renderStars(); };
       starsWrap.appendChild(b);
     }
