@@ -1,7 +1,7 @@
-// Detects when the upstream Marble taxonomy repo has changed since the parent
-// last used Harrington, and raises notifications. The curriculum data itself is
-// ALWAYS the latest (it's fetched fresh from the repo's @main on every load);
-// this only surfaces *what* changed so the parent knows.
+// Compares the loaded Marble taxonomy with the snapshot saved last time and
+// raises a notification if topics were added or removed. The server downloads
+// the taxonomy once and serves that cached copy from then on, so in practice a
+// change is only seen if the cache under data/private/taxonomy/ is replaced.
 import { getData, SUBJECTS } from './data.js';
 import * as store from './store.js';
 
@@ -41,8 +41,8 @@ export function syncCurriculum() {
     if (store.notifications().length === 0) {
       store.addNotification({
         type: 'welcome',
-        title: 'Your curriculum stays up to date',
-        body: `Harrington is loaded with ${next.count.toLocaleString()} topics (${next.version}) and refreshes automatically from the open curriculum. When new material is added, you'll be notified right here.`,
+        title: 'Your curriculum is ready',
+        body: `Harrington has loaded ${next.count.toLocaleString()} topics (${next.version}) from the open Marble curriculum. This copy is kept on this computer and does not update on its own.`,
       });
     }
     return;
@@ -80,7 +80,7 @@ export function syncCurriculum() {
 
     let body;
     if (added.length) {
-      body = `The curriculum was updated to ${next.version}. New material was added${subjectLine ? ' in ' + subjectLine : ''}. It's already live in your timeline and calendar.`;
+      body = `The curriculum was updated to ${next.version}. New material was added${subjectLine ? ' in ' + subjectLine : ''}. It's now on the map and in the calendar.`;
     } else if (removed.length) {
       body = `The curriculum was updated to ${next.version}. ${removed.length} topic${removed.length > 1 ? 's were' : ' was'} revised or removed. Your progress on remaining topics is unchanged.`;
     } else {

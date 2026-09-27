@@ -557,7 +557,7 @@ function renderSubjects(active, navigate) {
       <span class="flex items-center gap-3 mb-3">
         <span class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="background:${meta.color}"><i data-lucide="${meta.icon}" class="w-5 h-5 text-white"></i></span>
         <span class="min-w-0">
-          <span class="block font-600">${node.subject}</span>
+          <span class="block font-600">${esc(node.subject)}</span>
           <span class="block text-xs text-ink-faint">${node.domains.length} domains · ${node.topics.length} topics</span>
         </span>
       </span>
@@ -585,7 +585,7 @@ function renderSubject(params, active, navigate) {
     <div class="mb-5">
       <div class="flex items-center gap-2 mb-2">
         <span class="w-9 h-9 rounded-xl flex items-center justify-center" style="background:${meta.color}"><i data-lucide="${meta.icon}" class="w-4.5 h-4.5 text-white"></i></span>
-        <h1 class="font-display text-2xl sm:text-3xl font-600">${node.subject}</h1>
+        <h1 class="font-display text-2xl sm:text-3xl font-600">${esc(node.subject)}</h1>
       </div>
       <p class="text-ink-soft text-sm">Domains in this subject. Open one to see its age-banded sections and the topics inside them.</p>
       <div class="mt-3">${parentMastery(stats)}</div>
@@ -597,7 +597,7 @@ function renderSubject(params, active, navigate) {
     const row = el(`<button class="w-full text-left bg-paper-card border border-paper-line rounded-2xl p-4 hover:border-brand/40 transition-colors">
       <span class="flex items-start justify-between gap-3">
         <span>
-          <span class="block font-600">${domain.domain}</span>
+          <span class="block font-600">${esc(domain.domain)}</span>
           <span class="block text-xs text-ink-faint mt-1">${domain.sections.length} age band${domain.sections.length === 1 ? '' : 's'} · ${domain.topics.length} topics</span>
         </span>
         <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0 mt-1"></i>
@@ -625,8 +625,8 @@ function renderDomain(params, active, navigate) {
   ]));
   wrap.appendChild(el(`
     <div class="mb-5">
-      <p class="text-xs font-medium mb-2"><span class="px-2.5 py-1 rounded-full text-white" style="background:${meta.color}">${node.subject}</span></p>
-      <h1 class="font-display text-2xl sm:text-3xl font-600">${node.domain}</h1>
+      <p class="text-xs font-medium mb-2"><span class="px-2.5 py-1 rounded-full text-white" style="background:${meta.color}">${esc(node.subject)}</span></p>
+      <h1 class="font-display text-2xl sm:text-3xl font-600">${esc(node.domain)}</h1>
       <p class="text-ink-soft text-sm mt-1">Each band is a teachable section: one domain at one age. Open a band to see its topics and how they connect.</p>
       <div class="mt-3">${parentMastery(stats)}</div>
     </div>`));
@@ -637,8 +637,8 @@ function renderDomain(params, active, navigate) {
     const row = el(`<button class="w-full text-left bg-paper-card border border-paper-line rounded-2xl p-4 hover:border-brand/40 transition-colors">
       <span class="flex items-start justify-between gap-3">
         <span>
-          <span class="block font-600">Age ${section.age}</span>
-          <span class="block text-sm text-ink-soft mt-1 leading-relaxed">${section.summary || `${section.topics.length} topics in this band.`}</span>
+          <span class="block font-600">Age ${esc(section.age)}</span>
+          <span class="block text-sm text-ink-soft mt-1 leading-relaxed">${esc(section.summary || `${section.topics.length} topics in this band.`)}</span>
         </span>
         <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0 mt-1"></i>
       </span>
@@ -670,12 +670,12 @@ function renderSection(params, active, navigate) {
   wrap.appendChild(el(`
     <div class="mb-5">
       <p class="text-xs font-medium mb-2 flex flex-wrap gap-1.5">
-        <span class="px-2.5 py-1 rounded-full text-white" style="background:${meta.color}">${node.subject}</span>
-        <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">${node.domain}</span>
-        <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">Age ${node.age}</span>
+        <span class="px-2.5 py-1 rounded-full text-white" style="background:${meta.color}">${esc(node.subject)}</span>
+        <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">${esc(node.domain)}</span>
+        <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">Age ${esc(node.age)}</span>
       </p>
-      <h1 class="font-display text-2xl sm:text-3xl font-600">${node.domain}</h1>
-      <p class="text-ink-soft text-sm mt-1 leading-relaxed">${node.summary || 'Topics in this section, with the prerequisite links that stay inside the band.'}</p>
+      <h1 class="font-display text-2xl sm:text-3xl font-600">${esc(node.domain)}</h1>
+      <p class="text-ink-soft text-sm mt-1 leading-relaxed">${esc(node.summary || 'Topics in this section, with the prerequisite links that stay inside the band.')}</p>
       <div class="mt-3">${parentMastery(stats)}</div>
     </div>`));
 
@@ -699,9 +699,9 @@ function renderSection(params, active, navigate) {
       <span class="flex items-start gap-3">
         <span class="mt-0.5" title="${GROWTH[listStage].label} · ${MASTERY[status].label}">${growthIcon(listStage, 26)}</span>
         <span class="min-w-0 flex-1">
-          <span class="block font-600">${topic.name}</span>
-          <span class="block text-sm text-ink-soft mt-1 leading-relaxed">${topic.description || ''}</span>
-          <span class="block text-xs text-ink-faint mt-2"><span class="font-600" style="color:${GROWTH[listStage].color}">${GROWTH[listStage].label}</span> · ${MASTERY[status].label} · ages ${topic.ageRangeStart}–${topic.ageRangeEnd}${unlockCount ? ` · unlocks ${unlockCount}` : ''}</span>
+          <span class="block font-600">${esc(topic.name)}</span>
+          <span class="block text-sm text-ink-soft mt-1 leading-relaxed">${esc(topic.description || '')}</span>
+          <span class="block text-xs text-ink-faint mt-2"><span class="font-600" style="color:${GROWTH[listStage].color}">${GROWTH[listStage].label}</span> · ${MASTERY[status].label} · ages ${esc(topic.ageRangeStart)}–${esc(topic.ageRangeEnd)}${unlockCount ? ` · unlocks ${unlockCount}` : ''}</span>
           ${prereqLine(prereqs)}
         </span>
         <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0 mt-1"></i>
@@ -740,11 +740,11 @@ function crumbs(items) {
   items.forEach((item, index) => {
     if (index) nav.appendChild(el(`<i data-lucide="chevron-right" class="w-3.5 h-3.5 text-ink-faint"></i>`));
     if (item.go) {
-      const btn = el(`<button class="hover:text-ink">${item.label}</button>`);
+      const btn = el(`<button class="hover:text-ink">${esc(item.label)}</button>`);
       btn.onclick = item.go;
       nav.appendChild(btn);
     } else {
-      nav.appendChild(el(`<span class="text-ink font-medium">${item.label}</span>`));
+      nav.appendChild(el(`<span class="text-ink font-medium">${esc(item.label)}</span>`));
     }
   });
   return nav;

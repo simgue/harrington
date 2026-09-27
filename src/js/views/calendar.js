@@ -1,6 +1,6 @@
 import { SUBJECTS, getData } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, toast, openModal } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { keyOf, parseKey, isWeekend, buildPlan, topicsOn, dailyExtras, planStartKey, invalidatePlan } from '../scheduler.js';
 import { openLesson } from './lesson.js';
 import { openPrintables } from './printables.js';
@@ -24,7 +24,7 @@ export function renderCalendar(params, { navigate }) {
 
   root.appendChild(el(`<div class="mb-4">
     <h1 class="font-display text-2xl sm:text-3xl font-600">Daily Calendar</h1>
-    <p class="text-ink-soft text-sm mt-1">A day-by-day learning track for <span class="font-600 text-ink">${active?.name || 'your student'}</span> — with refreshers and extras each day.</p>
+    <p class="text-ink-soft text-sm mt-1">A day-by-day learning track for <span class="font-600 text-ink">${esc(active?.name || 'your student')}</span> — with refreshers and extras each day.</p>
   </div>`));
 
   if (!active) { root.appendChild(el(`<p class="text-ink-soft">Add a student to see their calendar.</p>`)); return root; }
@@ -121,7 +121,7 @@ function monthPanel(active, today, navigate) {
     // subject dots + a small topic list (desktop)
     const subs = [...new Set(topics.map(t => t.subject))].slice(0, 4);
     const dots = subs.map(s => `<span class="w-1.5 h-1.5 rounded-full" style="background:${SUBJECTS[s].color}"></span>`).join('');
-    const topicList = topics.slice(0, 3).map(t => `<span class="hidden sm:flex items-center gap-1 text-[10px] leading-tight text-ink-soft truncate"><span class="w-1 h-1 rounded-full shrink-0" style="background:${SUBJECTS[t.subject].color}"></span><span class="truncate">${t.name}</span></span>`).join('');
+    const topicList = topics.slice(0, 3).map(t => `<span class="hidden sm:flex items-center gap-1 text-[10px] leading-tight text-ink-soft truncate"><span class="w-1 h-1 rounded-full shrink-0" style="background:${SUBJECTS[t.subject].color}"></span><span class="truncate">${esc(t.name)}</span></span>`).join('');
     const moreCount = topics.length - 3;
 
     const cell = el(`<button class="relative min-h-[64px] sm:min-h-[104px] rounded-xl border p-1.5 sm:p-2 flex flex-col text-left transition-colors ${isSel ? 'border-brand bg-brand-light/50' : 'border-paper-line hover:border-ink-faint/40'} ${dayDone ? 'bg-brand-light/40' : weekend ? 'bg-paper/60' : 'bg-paper-card'}">
@@ -217,8 +217,8 @@ function extraRow(x, active, navigate) {
   const row = el(`<div class="rounded-xl border border-paper-line bg-paper p-3 flex items-center gap-2.5">
     <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="${kindMeta.icon}" class="w-3.5 h-3.5" style="color:${meta.color}"></i></span>
     <div class="flex-1 min-w-0">
-      <p class="text-sm font-600 truncate">${x.title || x.topicName || kindMeta.label}</p>
-      <p class="text-xs text-ink-faint truncate">${kindMeta.label}${x.subject ? ' · ' + x.subject : ''}</p>
+      <p class="text-sm font-600 truncate">${esc(x.title || x.topicName || kindMeta.label)}</p>
+      <p class="text-xs text-ink-faint truncate">${kindMeta.label}${x.subject ? ' · ' + esc(x.subject) : ''}</p>
     </div>
     <button class="go text-xs font-medium text-brand-dark shrink-0">Open</button>
     <button class="del text-ink-faint hover:text-[#a4473a] p-1 shrink-0"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
@@ -281,7 +281,7 @@ function openAddExtra(active, dateKey, navigate) {
     results.innerHTML = '';
     if (q.length < 2) return;
     d.topics.filter(t => t.name.toLowerCase().includes(q)).slice(0, 6).forEach(t => {
-      const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${t.name}</span><span class="text-xs text-ink-faint">${t.subject}</span></button>`);
+      const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
       r.onclick = () => { selTopic = t; hidden.value = t.id; search.value = t.name; results.innerHTML = ''; };
       results.appendChild(r);
     });
@@ -311,8 +311,8 @@ function dayTopicRow(t, active, navigate) {
     <button class="open text-left w-full flex items-start gap-2.5">
       <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5" style="color:${meta.color}"></i></span>
       <span class="flex-1 min-w-0">
-        <span class="block text-sm font-600 leading-snug">${t.name}</span>
-        <span class="block text-xs text-ink-faint">${t.subject} · ${t.domain}</span>
+        <span class="block text-sm font-600 leading-snug">${esc(t.name)}</span>
+        <span class="block text-xs text-ink-faint">${esc(t.subject)} · ${esc(t.domain)}</span>
       </span>
       <span title="${MASTERY[status].label}">${growthIcon(stageForStatus(status, true), 22)}</span>
     </button>
@@ -333,7 +333,7 @@ function openMoveTopic(topic, active, navigate) {
   const currentKey = selectedKey;
   const nextDay = nextWeekdayKey(currentKey);
   const body = el(`<div class="p-5">
-    <h3 class="font-display text-lg font-600 mb-1">Move “${topic.name}”</h3>
+    <h3 class="font-display text-lg font-600 mb-1">Move “${esc(topic.name)}”</h3>
     <p class="text-xs text-ink-faint mb-4">Stuck on it, or want to get ahead? Move this topic to another day. Its section order still applies.</p>
     <div class="space-y-2 mb-4">
       <button id="tomorrow" class="w-full text-left px-4 py-3 rounded-xl border border-paper-line hover:border-brand/40 transition-colors flex items-center gap-2.5"><i data-lucide="calendar-arrow-down" class="w-4 h-4 text-brand-dark"></i><span class="text-sm font-medium">Push to next school day</span></button>
@@ -389,9 +389,9 @@ function extrasBlock(active, navigate) {
     const el1 = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
       <div class="flex items-center gap-2 mb-1">
         <span class="text-[10px] font-600 px-1.5 py-0.5 rounded-full" style="background:${meta.color}18;color:${meta.color}">REFRESHER QUIZ</span>
-        <span class="text-xs text-ink-faint truncate">${t.subject}</span>
+        <span class="text-xs text-ink-faint truncate">${esc(t.subject)}</span>
       </div>
-      <p class="text-sm font-600 leading-snug">${t.name}</p>
+      <p class="text-sm font-600 leading-snug">${esc(t.name)}</p>
       <p class="text-xs text-ink-soft mt-0.5">A quick check on something already learned — keeps it sharp.</p>
       <button class="go mt-2 w-full text-sm font-medium text-white rounded-lg py-2 flex items-center justify-center gap-1.5" style="background:${meta.color}"><i data-lucide="file-check-2" class="w-4 h-4"></i>Give refresher quiz</button>
     </div>`);
@@ -410,10 +410,10 @@ function extrasBlock(active, navigate) {
       const el2 = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
         <div class="flex items-center gap-2 mb-1">
           <span class="text-[10px] font-600 px-1.5 py-0.5 rounded-full bg-brand-light text-brand-dark">${isGame ? 'GAME' : 'ACTIVITY'}</span>
-          <span class="text-xs text-ink-faint truncate">${at.name}</span>
+          <span class="text-xs text-ink-faint truncate">${esc(at.name)}</span>
         </div>
-        <p class="text-sm font-600 leading-snug flex items-center gap-1.5"><i data-lucide="${idea.icon}" class="w-4 h-4 text-brand-dark"></i>${idea.title}</p>
-        <p class="text-xs text-ink-soft mt-0.5 clamp-2">${idea.body}</p>
+        <p class="text-sm font-600 leading-snug flex items-center gap-1.5"><i data-lucide="${idea.icon}" class="w-4 h-4 text-brand-dark"></i>${esc(idea.title)}</p>
+        <p class="text-xs text-ink-soft mt-0.5 clamp-2">${esc(idea.body)}</p>
         <button class="go mt-2 w-full text-sm font-medium rounded-lg py-2 flex items-center justify-center gap-1.5 border border-paper-line hover:border-brand/40 transition-colors"><i data-lucide="list-ordered" class="w-4 h-4"></i>Get instructions</button>
       </div>`);
       el2.querySelector('.go').onclick = () => openActivityDetail(at, idea, isGame ? 'game' : 'activity');
@@ -428,9 +428,9 @@ function extrasBlock(active, navigate) {
     const el3 = el(`<div class="rounded-xl border border-dashed border-paper-line bg-paper p-3">
       <div class="flex items-center gap-2 mb-1">
         <span class="text-[10px] font-600 px-1.5 py-0.5 rounded-full bg-[#8a6412]/15 text-[#8a6420]">STRETCH</span>
-        <span class="text-xs text-ink-faint truncate">${t.subject}</span>
+        <span class="text-xs text-ink-faint truncate">${esc(t.subject)}</span>
       </div>
-      <p class="text-sm font-600 leading-snug">${t.name}</p>
+      <p class="text-sm font-600 leading-snug">${esc(t.name)}</p>
       <p class="text-xs text-ink-soft mt-0.5">A challenge just beyond where they are — try it if there's time.</p>
       <button class="go mt-2 w-full text-sm font-medium rounded-lg py-2 flex items-center justify-center gap-1.5 border border-paper-line hover:border-brand/40 transition-colors"><i data-lucide="notebook-text" class="w-4 h-4"></i>Open lesson</button>
     </div>`);

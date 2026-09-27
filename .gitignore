@@ -24,7 +24,7 @@ node_modules/
 *.key
 
 # Do NOT commit a copy of the curriculum dataset.
-# Homestead loads the Marble Skill Taxonomy at runtime from its open repository.
+# Harrington downloads the Marble Skill Taxonomy at runtime and caches it under data/private/.
 data/topics.json
 data/dependencies.json
 data/clusters.json

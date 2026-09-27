@@ -146,11 +146,11 @@ function renderOnboard() {
             <i data-lucide="user-plus" class="w-6 h-6 text-brand-dark"></i>
           </div>
           <h1 class="font-display text-2xl font-600">Add your first student</h1>
-          <p class="text-ink-soft text-sm mt-1">Set up a sample learner so you can explore Harrington without creating an external account.</p>
+          <p class="text-ink-soft text-sm mt-1">Add a learner to get started. There is no account to create.</p>
         </div>
         <form id="f" class="bg-paper-card border border-paper-line rounded-2xl p-5 space-y-4">
           <div class="rounded-xl bg-[#fbecc4] border border-[#f2c14e] px-3.5 py-3 text-xs text-[#6b4d0e] leading-relaxed">
-            This preview saves to your local Harrington server. Use a sample name until encrypted backups and private remote access are ready.
+            Runs on this computer only. Nothing leaves your home unless you configure an AI provider.
           </div>
           <div>
             <label class="text-sm font-medium block mb-1.5">Student's name</label>
