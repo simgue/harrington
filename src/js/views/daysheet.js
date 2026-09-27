@@ -12,9 +12,7 @@ import { getData } from '../data.js';
 import * as store from '../store.js';
 import { aiLesson } from '../ai.js';
 import { activityIdeas, gameIdeas, referenceLinks, videoLinks } from '../resources.js';
-import { el, refreshIcons, toast, openModal } from '../ui.js';
-
-function esc(s) { return String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 
 // Rebuild one topic's teaching payload (lesson + activities + resources),
 // reusing the shared per-topic lesson cache.

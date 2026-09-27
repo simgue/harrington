@@ -1,6 +1,6 @@
 import * as store from '../store.js';
 import { getData, SUBJECTS } from '../data.js';
-import { el, refreshIcons, toast } from '../ui.js';
+import { el, esc, refreshIcons, toast } from '../ui.js';
 import { studentStats } from '../mastery.js';
 import { aiParentChat } from '../ai.js';
 
@@ -67,7 +67,7 @@ function open() {
       <span class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center"><i data-lucide="sparkles" class="w-4.5 h-4.5"></i></span>
       <div class="flex-1 min-w-0">
         <p class="font-600 text-sm leading-tight">Harrington Helper</p>
-        <p class="text-[11px] text-white/80 leading-tight">Teaching tips${s ? ' for ' + s.name : ''}</p>
+        <p class="text-[11px] text-white/80 leading-tight">Teaching tips${s ? ' for ' + esc(s.name) : ''}</p>
       </div>
       <button id="asst-close" class="w-8 h-8 rounded-lg hover:bg-white/15 flex items-center justify-center"><i data-lucide="x" class="w-4.5 h-4.5"></i></button>
     </div>
@@ -93,7 +93,7 @@ function open() {
   // Greeting on first open (kept across opens within the session).
   if (messages.length === 0) {
     renderBubble(msgsEl, 'assistant',
-      `<p>Hi! I'm your teaching helper.${s ? ` I can see ${s.name}'s progress.` : ''} Tell me what they're finding tricky — for example, <em>"my child is struggling with subtraction and telling time, any ideas?"</em> — and I'll give you concrete tips and activities.</p>`);
+      `<p>Hi! I'm your teaching helper.${s ? ` I can see ${esc(s.name)}'s progress.` : ''} Tell me what they're finding tricky — for example, <em>"my child is struggling with subtraction and telling time, any ideas?"</em> — and I'll give you concrete tips and activities.</p>`);
   } else {
     messages.forEach(m => renderBubble(msgsEl, m.role, m.role === 'assistant' ? m.html || esc(m.content) : esc(m.content)));
   }
@@ -157,4 +157,3 @@ function renderBubble(container, role, html) {
 }
 
 function scrollDown(c) { setTimeout(() => { c.scrollTop = c.scrollHeight; }, 30); }
-function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }

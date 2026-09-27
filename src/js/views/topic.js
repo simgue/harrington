@@ -2,7 +2,7 @@ import { SUBJECTS, getData } from '../data.js';
 import { graphParamsForTopic } from './graph.js';
 import * as store from '../store.js';
 import { growthChip, growthIcon, stageForStatus } from '../meadow.js';
-import { el, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { isUnlocked, blockingPrereqs, MASTERY, sectionForTopic, topicsMasteryStats, sectionTestReady } from '../mastery.js';
 import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';
@@ -36,14 +36,14 @@ export function renderTopic(params, { navigate }) {
   root.appendChild(el(`
     <div class="mb-5">
       <div class="flex items-center gap-2 mb-2.5 text-xs font-medium">
-        <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white" style="background:${meta.color}"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5"></i>${t.subject}</span>
-        <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">${t.domain}</span>
-        <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">Ages ${t.ageRangeStart}–${t.ageRangeEnd}</span>
-        <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-faint capitalize">${(t.type||'').toLowerCase()}</span>
+        <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white" style="background:${meta.color}"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5"></i>${esc(t.subject)}</span>
+        <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">${esc(t.domain)}</span>
+        <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">Ages ${esc(t.ageRangeStart)}–${esc(t.ageRangeEnd)}</span>
+        <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-faint capitalize">${esc((t.type||'').toLowerCase())}</span>
         ${active ? growthChip(stageForStatus(store.statusOf(active.id, t.id), unlocked), MASTERY[store.statusOf(active.id, t.id)].label) : ''}
       </div>
-      <h1 class="font-display text-2xl sm:text-3xl font-600 leading-tight">${t.name}</h1>
-      <p class="text-ink-soft mt-2 leading-relaxed">${t.description || ''}</p>
+      <h1 class="font-display text-2xl sm:text-3xl font-600 leading-tight">${esc(t.name)}</h1>
+      <p class="text-ink-soft mt-2 leading-relaxed">${esc(t.description || '')}</p>
     </div>`));
 
   // Locked banner
@@ -62,7 +62,7 @@ export function renderTopic(params, { navigate }) {
     <span class="w-11 h-11 rounded-xl bg-brand flex items-center justify-center shrink-0"><i data-lucide="notebook-text" class="w-5.5 h-5.5 text-white"></i></span>
     <div class="flex-1">
       <p class="font-600">Ready-to-teach lesson</p>
-      <p class="text-sm text-ink-soft leading-relaxed">A complete plan with what to say, do, practice and check — usable today with ${active?.name || 'your child'}.</p>
+      <p class="text-sm text-ink-soft leading-relaxed">A complete plan with what to say, do, practice and check — usable today with ${esc(active?.name || 'your child')}.</p>
     </div>
     <div class="shrink-0 flex flex-col sm:flex-row gap-2">
       <button id="openlesson" class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="book-open-text" class="w-4 h-4"></i>Open full lesson</button>
@@ -84,13 +84,13 @@ export function renderTopic(params, { navigate }) {
   // --- Evidence of mastery ---
   if (t.evidence && t.evidence.length) {
     mainCol.appendChild(section('clipboard-check', 'What mastery looks like', el(`
-      <ul class="space-y-2">${t.evidence.map(e => `<li class="flex gap-2.5 text-sm text-ink-soft"><i data-lucide="check" class="w-4 h-4 text-brand shrink-0 mt-0.5"></i><span>${e}</span></li>`).join('')}</ul>`)));
+      <ul class="space-y-2">${t.evidence.map(e => `<li class="flex gap-2.5 text-sm text-ink-soft"><i data-lucide="check" class="w-4 h-4 text-brand shrink-0 mt-0.5"></i><span>${esc(e)}</span></li>`).join('')}</ul>`)));
   }
 
   // --- Assessment prompt ---
   if (t.assessmentPrompt) {
     const prompt = t.assessmentPrompt.replace(/\{\{name\}\}/g, active?.name || 'your child');
-    mainCol.appendChild(section('help-circle', 'Quick check', el(`<p class="text-sm text-ink-soft leading-relaxed italic">"${prompt}"</p>`)));
+    mainCol.appendChild(section('help-circle', 'Quick check', el(`<p class="text-sm text-ink-soft leading-relaxed italic">"${esc(prompt)}"</p>`)));
   }
 
   // --- Active recall ---
@@ -201,7 +201,7 @@ function sectionCheckSection(t, student) {
   const passed = !!(last && last.passed);
   const ready = student ? sectionTestReady(student.id, sec) : false;
 
-  body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-1">Part of <span class="font-600 text-ink">${sec.domain} · Age ${sec.age}</span> (${sec.topics.length} topics).</p>`));
+  body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-1">Part of <span class="font-600 text-ink">${esc(sec.domain)} · Age ${esc(sec.age)}</span> (${sec.topics.length} topics).</p>`));
   body.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${passed
     ? `Section check passed with ${last.pct}%.`
     : ready
@@ -230,7 +230,7 @@ function sectionRecordingsSection(t, student) {
   if (!student) { body.appendChild(el(`<p class="text-sm text-ink-faint">Add a student to record.</p>`)); return section('mic', 'Section recordings', body); }
 
   const recs = store.recordingsFor(student.id, { sectionId: sec.id });
-  body.appendChild(el(`<p class="text-xs text-ink-soft mb-3">Voice recordings for <span class="font-600 text-ink">${sec.domain} · Age ${sec.age}</span> — stored together for the whole section.</p>`));
+  body.appendChild(el(`<p class="text-xs text-ink-soft mb-3">Voice recordings for <span class="font-600 text-ink">${esc(sec.domain)} · Age ${esc(sec.age)}</span> — stored together for the whole section.</p>`));
   if (recs.length === 0) {
     body.appendChild(el(`<p class="text-sm text-ink-faint mb-3">No recordings yet for this section.</p>`));
   } else {
@@ -250,8 +250,8 @@ function recordingItem(r) {
       <span class="flex items-center gap-1 font-600 text-[#a4473a]"><i data-lucide="mic" class="w-3.5 h-3.5"></i>Recording</span>
       <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
     </div>
-    ${r.title ? `<p class="font-600 text-sm">${r.title}</p>` : ''}
-    ${r.topicName ? `<p class="text-[11px] text-ink-faint mt-0.5">on ${r.topicName}</p>` : ''}
+    ${r.title ? `<p class="font-600 text-sm">${esc(r.title)}</p>` : ''}
+    ${r.topicName ? `<p class="text-[11px] text-ink-faint mt-0.5">on ${esc(r.topicName)}</p>` : ''}
   </div>`);
   if (r.audioPath) item.appendChild(audioPlayer(r.audioPath, r.duration));
   return item;
@@ -282,14 +282,14 @@ function connectionsSection(t, student, navigate) {
     const row = el(`<button class="w-full text-left flex items-center gap-2.5 p-2.5 rounded-lg border border-paper-line bg-paper hover:border-brand/40 hover:bg-brand-light/30 transition-colors group">
       ${growthIcon(stageForStatus(st, student ? isUnlocked(student.id, p.id) : false), 26)}
       <span class="flex-1 min-w-0">
-        <span class="block text-sm text-ink group-hover:text-brand-dark leading-snug truncate">${topic.name}</span>
+        <span class="block text-sm text-ink group-hover:text-brand-dark leading-snug truncate">${esc(topic.name)}</span>
         <span class="flex items-center gap-1.5 mt-0.5">
           ${p.strength === 'hard'
             ? '<span class="text-[10px] font-600 text-[#a4473a] uppercase tracking-wide">Required</span>'
             : '<span class="text-[10px] font-medium text-ink-faint uppercase tracking-wide">Helpful</span>'}
           <span class="text-[10px] text-ink-faint">· ${MASTERY[st].label}</span>
         </span>
-        ${p.reason ? `<span class="block text-[11px] text-ink-faint clamp-2 leading-snug mt-1">${p.reason}</span>` : ''}
+        ${p.reason ? `<span class="block text-[11px] text-ink-faint clamp-2 leading-snug mt-1">${esc(p.reason)}</span>` : ''}
       </span>
       <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0 group-hover:text-brand-dark"></i>
     </button>`);
@@ -311,7 +311,7 @@ function connectionsSection(t, student, navigate) {
   // 2) This topic (the anchor)
   flow.appendChild(el(`<div class="rounded-xl px-3 py-2.5 flex items-center gap-2.5 text-white" style="background:${meta.color}">
     <i data-lucide="${meta.icon}" class="w-4 h-4 shrink-0"></i>
-    <span class="flex-1 min-w-0"><span class="block text-[10px] uppercase tracking-wide opacity-80">You are here</span><span class="block text-sm font-600 leading-snug truncate">${t.name}</span></span>
+    <span class="flex-1 min-w-0"><span class="block text-[10px] uppercase tracking-wide opacity-80">You are here</span><span class="block text-sm font-600 leading-snug truncate">${esc(t.name)}</span></span>
   </div>`));
 
   // 3) Unlocks ("comes after")
@@ -336,15 +336,15 @@ function referenceSection(t) {
   videoLinks(t).forEach(l => body.appendChild(linkRow(l)));
 
   if (t.standards && t.standards.length) {
-    body.appendChild(el(`<div class="pt-2 border-t border-paper-line mt-2"><p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-1.5">Aligned standards</p><div class="flex flex-wrap gap-1.5">${t.standards.map(s => `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-paper border border-paper-line text-ink-faint">${s}</span>`).join('')}</div></div>`));
+    body.appendChild(el(`<div class="pt-2 border-t border-paper-line mt-2"><p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-1.5">Aligned standards</p><div class="flex flex-wrap gap-1.5">${t.standards.map(s => `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-paper border border-paper-line text-ink-faint">${esc(s)}</span>`).join('')}</div></div>`));
   }
   return section('book-open-check', 'Reference materials', body);
 }
 
 function linkRow(l) {
-  return el(`<a href="${l.url}" target="_blank" rel="noopener" class="flex items-center gap-2.5 p-2.5 rounded-lg border border-paper-line hover:border-brand/40 hover:bg-paper transition-colors group">
+  return el(`<a href="${esc(l.url)}" target="_blank" rel="noopener" class="flex items-center gap-2.5 p-2.5 rounded-lg border border-paper-line hover:border-brand/40 hover:bg-paper transition-colors group">
     <i data-lucide="${l.icon}" class="w-4 h-4 text-ink-soft group-hover:text-brand-dark"></i>
-    <span class="text-sm flex-1">${l.label}</span>
+    <span class="text-sm flex-1">${esc(l.label)}</span>
     <i data-lucide="external-link" class="w-3.5 h-3.5 text-ink-faint"></i>
   </a>`);
 }
@@ -356,8 +356,8 @@ function activitiesSection(t) {
     const g = wrap.querySelector('div.grid');
     items.forEach(a => {
       const card = el(`<button class="text-left rounded-xl border border-paper-line bg-paper p-3 card-hover group">
-        <div class="flex items-center gap-2 mb-1"><i data-lucide="${a.icon}" class="w-4 h-4 text-brand-dark"></i><p class="font-600 text-sm flex-1">${a.title}</p><i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-ink-faint group-hover:text-brand-dark"></i></div>
-        <p class="text-xs text-ink-soft leading-relaxed clamp-3">${a.body}</p>
+        <div class="flex items-center gap-2 mb-1"><i data-lucide="${a.icon}" class="w-4 h-4 text-brand-dark"></i><p class="font-600 text-sm flex-1">${esc(a.title)}</p><i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-ink-faint group-hover:text-brand-dark"></i></div>
+        <p class="text-xs text-ink-soft leading-relaxed clamp-3">${esc(a.body)}</p>
         <span class="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-brand-dark"><i data-lucide="list-ordered" class="w-3 h-3"></i>Get instructions</span>
       </button>`);
       card.onclick = () => openActivityDetail(t, a, kind);
@@ -435,8 +435,8 @@ function recordItem(r) {
       ${r.rating ? `<span class="flex items-center gap-0.5 text-ink-faint">${'\u2605'.repeat(r.rating)}${'\u2606'.repeat(5-r.rating)}</span>` : ''}
       <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
     </div>
-    ${r.title ? `<p class="font-600 text-sm">${r.title}</p>` : ''}
-    ${r.note ? `<p class="text-sm text-ink-soft mt-0.5 leading-relaxed whitespace-pre-wrap">${r.note}</p>` : ''}
+    ${r.title ? `<p class="font-600 text-sm">${esc(r.title)}</p>` : ''}
+    ${r.note ? `<p class="text-sm text-ink-soft mt-0.5 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
   </div>`);
   if (r.audioPath) item.appendChild(audioPlayer(r.audioPath, r.duration));
   return item;

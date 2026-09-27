@@ -1,6 +1,6 @@
 import { SUBJECTS, getData } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, toast, openModal, fmtDate } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal, fmtDate } from '../ui.js';
 import { aiMasteryTest } from '../ai.js';
 import { studentStats } from '../mastery.js';
 import { openChallenge } from './challenge.js';
@@ -38,7 +38,7 @@ export async function openMasteryTest(subject, section = null, topic = null) {
       <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="${icon}" class="w-5 h-5" style="color:${meta.color}"></i></span>
       <div class="flex-1 min-w-0">
         <p class="text-xs text-ink-faint">${label}</p>
-        <h3 class="font-display text-lg font-600 leading-tight">${title}</h3>
+        <h3 class="font-display text-lg font-600 leading-tight">${esc(title)}</h3>
       </div>
     </div>
     <div id="stage" class="px-5 py-5"></div>
@@ -76,13 +76,13 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
   stage.innerHTML = '';
   const wrap = el(`<div class="fade-up">
     <p class="text-sm text-ink-soft leading-relaxed mb-4">${isTopic
-      ? `A short check that ${student.name} has mastered <span class="font-600 text-ink">${topic.name}</span>. Passing marks this topic mastered. Needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`
+      ? `A short check that ${esc(student.name)} has mastered <span class="font-600 text-ink">${esc(topic.name)}</span>. Passing marks this topic mastered. Needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`
       : isSection
-      ? `A check that ${student.name} has mastered <span class="font-600 text-ink">${section.domain}</span> (age ${section.age}) before moving on. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`
-      : `A final check that ${student.name} has truly mastered <span class="font-600 text-ink">${subject}</span>. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`}</p>
+      ? `A check that ${esc(student.name)} has mastered <span class="font-600 text-ink">${esc(section.domain)}</span> (age ${esc(section.age)}) before moving on. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`
+      : `A final check that ${esc(student.name)} has truly mastered <span class="font-600 text-ink">${subject}</span>. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`}</p>
 
-    ${isTopic && topic.description ? `<div class="rounded-xl bg-brand-light/50 border border-brand/20 p-3 mb-4"><p class="text-xs text-ink-soft leading-relaxed">${topic.description}</p></div>` : ''}
-    ${isSection && section.summary ? `<div class="rounded-xl bg-brand-light/50 border border-brand/20 p-3 mb-4"><p class="text-xs text-ink-soft leading-relaxed">${section.summary}</p></div>` : ''}
+    ${isTopic && topic.description ? `<div class="rounded-xl bg-brand-light/50 border border-brand/20 p-3 mb-4"><p class="text-xs text-ink-soft leading-relaxed">${esc(topic.description)}</p></div>` : ''}
+    ${isSection && section.summary ? `<div class="rounded-xl bg-brand-light/50 border border-brand/20 p-3 mb-4"><p class="text-xs text-ink-soft leading-relaxed">${esc(section.summary)}</p></div>` : ''}
 
     ${last ? `<div class="rounded-xl border ${last.passed ? 'border-brand/30 bg-brand-light/50' : 'border-[#f3b7a8] bg-[#fbecc4]'} p-3 mb-4 flex items-center gap-2.5 text-sm">
       <i data-lucide="${last.passed ? 'badge-check' : 'history'}" class="w-4 h-4 ${last.passed ? 'text-brand-dark' : 'text-[#a4473a]'}"></i>
@@ -134,7 +134,7 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
   wrap.querySelector('#start').onclick = async () => {
     stage.innerHTML = '';
     stage.appendChild(loadingBlock(
-      isTopic ? `Building a check for ${topic.name}\u2026` : isSection ? `Building a ${section.domain} section check\u2026` : `Building a ${subject} mastery test\u2026`,
+      isTopic ? `Building a check for ${esc(topic.name)}\u2026` : isSection ? `Building a ${esc(section.domain)} section check\u2026` : `Building a ${subject} mastery test\u2026`,
       'Writing questions and double-checking every answer. This takes a few seconds.'));
     refreshIcons();
     try {
@@ -271,7 +271,7 @@ function renderPhysical(stage, subject, student, test, m) {
     <button id="print" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-ink hover:bg-ink-soft text-white font-medium transition-colors mb-5"><i data-lucide="printer" class="w-4 h-4"></i>Print the test &amp; answer key</button>
 
     <p class="text-sm font-600 mb-1">Grade it</p>
-    <p class="text-xs text-ink-faint mb-3">Tick every question ${student.name} answered correctly.</p>
+    <p class="text-xs text-ink-faint mb-3">Tick every question ${esc(student.name)} answered correctly.</p>
     <div id="grade" class="space-y-2"></div>
 
     <div class="mt-4 flex items-center justify-between px-1">
@@ -379,14 +379,14 @@ function renderResult(stage, subject, student, test, graded, m, digitalReview) {
     <p class="text-4xl font-700 font-display" style="color:${passed ? '#3f6b3b' : '#a4473a'}">${graded.pct}%</p>
     <p class="text-sm text-ink-soft mt-1">${graded.earned} of ${graded.total} points</p>
     <p class="mt-3 font-600 text-lg">${passed
-      ? (isTopic ? `${topic.name} mastered!` : isSection ? `${section.domain} mastered!` : `${subject} mastered!`)
+      ? (isTopic ? `${esc(topic.name)} mastered!` : isSection ? `${esc(section.domain)} mastered!` : `${subject} mastered!`)
       : 'Not quite mastered yet'}</p>
     <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">${passed
       ? (isTopic
           ? `This topic is now marked mastered. Keep going!`
           : isSection
-          ? `${student.name} is ready to move on from this section. Great work!`
-          : `${student.name} scored above the ${PASS}% mastery mark. Fantastic work!`)
+          ? `${esc(student.name)} is ready to move on from this section. Great work!`
+          : `${esc(student.name)} scored above the ${PASS}% mastery mark. Fantastic work!`)
       : (isTopic
           ? `Mastery needs ${PASS}%. Revisit this topic's lesson and try again when ready — this isn't a failure, just a signpost.`
           : `Mastery needs ${PASS}%. Revisit the trickier topics and try again when ready — this isn't a failure, just a signpost.`)}</p>
@@ -464,7 +464,6 @@ function renderReview(stage, subject, student, test, graded, m, review) {
 }
 
 // ---------- helpers ----------
-function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 function loadingBlock(title, sub) {
   return el(`<div class="text-center py-10">
     <div class="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>

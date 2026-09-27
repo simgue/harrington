@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { el, refreshIcons, openModal, fmtDateTime } from '../ui.js';
+import { el, esc, refreshIcons, openModal, fmtDateTime } from '../ui.js';
 import { SUBJECTS } from '../data.js';
 
 const TYPE_META = {
@@ -92,5 +92,3 @@ function notifRow(n, rerender) {
   }
   return row;
 }
-
-function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }

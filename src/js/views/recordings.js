@@ -1,6 +1,6 @@
 import * as store from '../store.js';
 import { getData, SUBJECTS } from '../data.js';
-import { el, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { audioPlayer, openRecorder } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
 
@@ -15,7 +15,7 @@ export function openRecordingsLibrary() {
       <span class="w-9 h-9 rounded-lg bg-[#a4473a]/10 flex items-center justify-center shrink-0"><i data-lucide="folder" class="w-5 h-5 text-[#a4473a]"></i></span>
       <div class="flex-1 min-w-0">
         <h3 class="font-display text-lg font-600 leading-tight">Recordings</h3>
-        <p class="text-xs text-ink-faint">Every voice recording for ${student.name}, grouped by section</p>
+        <p class="text-xs text-ink-faint">Every voice recording for ${esc(student.name)}, grouped by section</p>
       </div>
       <button id="new" class="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#a4473a] hover:bg-[#86372c] text-white text-sm font-medium transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
     </div>
@@ -129,5 +129,3 @@ export function runAnalysis(container, r, student, topic) {
     toast('Analysis saved to this recording', 'success');
   }).catch(() => { container.innerHTML = `<p class="text-sm text-[#a4473a]">Couldn't analyze right now.</p>`; });
 }
-
-function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
