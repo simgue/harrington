@@ -93,7 +93,7 @@ test('views escape learner, record and taxonomy strings with the shared esc()', 
   const views = [
     'topic', 'timeline', 'calendar', 'graph',
     'records', 'insights', 'recordings', 'assistant', 'masterytest', 'challenge', 'recall',
-    'notifications', 'coop', 'daysheet',
+    'notifications', 'coop', 'daysheet', 'shell',
   ];
   for (const name of views) {
     const code = await source(`src/js/views/${name}.js`);
