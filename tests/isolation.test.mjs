@@ -86,3 +86,27 @@ test('interface assets are served by Harrington instead of public CDNs', async (
   assert.match(index, /css\/tailwind\.css/);
   assert.match(index, /vendor\/lucide\.min\.js/);
 });
+
+test('views escape learner, record and taxonomy strings with the shared esc()', async () => {
+  const sharedImport = /import \{[^}]*\besc\b[^}]*\} from '\.\.\/ui\.js';/;
+  const localCopy = /function esc\(/;
+  const views = [
+    'topic', 'timeline', 'calendar', 'graph',
+    'records', 'insights', 'recordings', 'assistant', 'masterytest', 'challenge', 'recall',
+    'notifications', 'coop', 'daysheet',
+  ];
+  for (const name of views) {
+    const code = await source(`src/js/views/${name}.js`);
+    assert.match(code, sharedImport, `views/${name}.js does not import esc from ../ui.js`);
+    assert.doesNotMatch(code, localCopy, `views/${name}.js still defines a local esc copy`);
+  }
+});
+
+test('esc() neutralizes markup and attribute breakouts', async () => {
+  const { esc } = await importSource('src/js/ui.js');
+  assert.equal(esc('<img src=x onerror=alert(1)>'), '&lt;img src=x onerror=alert(1)&gt;');
+  assert.equal(esc(`"a" & 'b'`), '&quot;a&quot; &amp; &#39;b&#39;');
+  assert.equal(esc(null), '');
+  assert.equal(esc(undefined), '');
+  assert.equal(esc(7), '7');
+});
