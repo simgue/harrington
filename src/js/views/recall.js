@@ -30,7 +30,7 @@ export async function openRecall(topic) {
     const cards = await cardsForTopic(topic);
     if (!cards.length) { stage.innerHTML = ''; stage.appendChild(el(`<p class="text-sm text-ink-soft py-6 text-center">No recall cards for this topic.</p>`)); return; }
     cards.forEach(c => store.ensureRecallCard(student.id, c.id, topic.id));
-    runSession(stage, m, student, meta, cards, () => openRecall(topic));
+    runSession(stage, m, student, meta, cards.map(c => ({ ...c, topicId: topic.id })), () => openRecall(topic));
   } catch (e) {
     console.error(e);
     stage.innerHTML = '';
@@ -62,14 +62,15 @@ export async function openDueRecall() {
 
   // We need the actual card text; regenerate/pull from cache per involved topic.
   const byTopic = {};
-  due.forEach(c => { (byTopic[c.topicId] = byTopic[c.topicId] || []).push(c.id); });
+  // Card ids are `${topicId}::${n}`; fall back to that for records saved without a topicId.
+  due.forEach(c => { const t = c.topicId || String(c.id).split('::')[0]; (byTopic[t] = byTopic[t] || []).push(c.id); });
   const allCards = [];
   try {
     for (const [topicId, ids] of Object.entries(byTopic)) {
       const topic = d.byId.get(topicId);
       if (!topic) continue;
       const cards = await cardsForTopic(topic);
-      cards.filter(c => ids.includes(c.id)).forEach(c => allCards.push({ ...c, subject: topic.subject }));
+      cards.filter(c => ids.includes(c.id)).forEach(c => allCards.push({ ...c, subject: topic.subject, topicId: topic.id }));
     }
     // shuffle for interleaving
     for (let i = allCards.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [allCards[i], allCards[j]] = [allCards[j], allCards[i]]; }
@@ -126,7 +127,7 @@ function runSession(stage, m, student, meta, cards, restart, mixed = false) {
         const b = el(`<button class="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border border-paper-line hover:border-brand/40 transition-colors"><i data-lucide="${icon}" class="w-4 h-4" style="color:${color}"></i><span class="text-xs font-medium">${label}</span></button>`);
         b.onclick = () => {
           results[g]++;
-          store.gradeRecall(student.id, c.id, c.topicId || (cards[i].topicId), g);
+          store.gradeRecall(student.id, c.id, c.topicId, g);
           // Quiet XP per card (no popup mid-session); bonus if remembered.
           store.awardXp(student.id, XP.recallCard + (g !== 'again' ? XP.recallGood : 0));
           i++; render();
