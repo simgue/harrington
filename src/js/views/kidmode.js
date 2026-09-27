@@ -1,14 +1,15 @@
 import * as store from '../store.js';
 import { getData, SUBJECTS } from '../data.js';
 import { el, refreshIcons, toast } from '../ui.js';
-import { studentStats, recommendedNext, recentActivity } from '../mastery.js';
+import { studentStats, recommendedNext, recentActivity, todaysChoices } from '../mastery.js';
+import { keyOf } from '../scheduler.js';
 import { BADGES, confetti } from '../game.js';
 import { openMasteryTest } from './masterytest.js';
 import { openRecall, openDueRecall } from './recall.js';
 import { openChallenge } from './challenge.js';
 import { initials } from '../ui.js';
 import { openRecorder } from '../recorder.js';
-import { meadowScene, growthIcon, stageForArea, GROWTH } from '../meadow.js';
+import { meadowScene, growthIcon, stageForArea, stageForStatus, GROWTH } from '../meadow.js';
 
 let overlay = null;
 
@@ -61,6 +62,32 @@ function render(student) {
       : `Your <strong>${esc(recent.topic.name)}</strong> bud is growing a little every day.`
     : 'Every garden starts with a seed. Pick something below to plant yours!';
   main.appendChild(el(`<p class="meadow-card px-5 py-4 flex items-center gap-3 text-[15px] leading-snug">${growthIcon(recent && recent.status === 'mastered' ? 'bloom' : recent ? 'bud' : 'seed', 40)}<span>${cheer}</span></p>`));
+
+  // Today's pick-one choices: story time and number time.
+  const todayKey = keyOf(new Date());
+  const tones = { literacy: { bg: '#fbe5de', deep: '#a4473a' }, numeracy: { bg: '#e3eff6', deep: '#2f6285' } };
+  for (const [key, c] of Object.entries(todaysChoices(student.id, todayKey))) {
+    if (!c.options.length) continue;
+    const tone = tones[key];
+    const sec = el(`<section aria-label="${c.lane.kidLabel}: pick one">
+      <h2 class="font-display text-2xl font-600 mb-2">${c.lane.kidLabel} <span class="text-lg text-ink-soft">${c.pick ? '— great choice!' : '— pick one'}</span></h2>
+      <div class="grid grid-cols-2 gap-3"></div>
+    </section>`);
+    const grid = sec.querySelector('.grid');
+    c.options.forEach(t => {
+      const picked = c.pick === t.id;
+      const stage = stageForStatus(store.statusOf(student.id, t.id), true);
+      const b = el(`<button class="relative rounded-[1.75rem] p-4 text-left min-h-[9rem] flex flex-col transition ${picked ? 'shadow-[0_0_0_4px_#f2c14e]' : c.pick ? 'opacity-60' : ''}" style="background:${tone.bg}" aria-pressed="${picked}">
+        ${picked ? '<span class="absolute top-3 right-3 w-8 h-8 rounded-full bg-butter text-ink flex items-center justify-center"><i data-lucide="check" class="w-4.5 h-4.5"></i></span>' : ''}
+        ${growthIcon(stage, 52)}
+        <span class="block font-display font-600 text-lg leading-tight mt-2">${esc(t.name)}</span>
+        <span class="block text-sm mt-0.5" style="color:${tone.deep}">${GROWTH[stage].kid}</span>
+      </button>`);
+      b.onclick = () => { store.pickDaily(student.id, todayKey, key, picked ? null : t.id); render(student); };
+      grid.appendChild(b);
+    });
+    main.appendChild(sec);
+  }
 
   // Big, friendly actions.
   const actions = el(`<div class="grid grid-cols-2 gap-3"></div>`);
