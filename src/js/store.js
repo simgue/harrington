@@ -42,63 +42,219 @@ export async function connect() {
 }
 
 // ---- Persistence ----
+// The server stores one versioned document. Every save sends If-Match with the
+// last version we saw; a 412 means another tab or device saved first, so we
+// replace local state with the server's copy (no field-level merging).
+let stateVersion = 0;
+let dirty = false;
+let saving = false;
+let saveTimer = null;
+let saveQueue = Promise.resolve();
+const saveListeners = new Set();
+
+// Per-learner maps keyed by student id. removeStudent clears every one of them.
+const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
+  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily'];
+
+// Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'failed', error? }
+export function onSaveStatus(fn) { saveListeners.add(fn); return () => saveListeners.delete(fn); }
+function saveStatus(event) { saveListeners.forEach(fn => { try { fn(event); } catch (e) { console.warn(e); } }); }
+
+function objectOr(value, fallback) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
+}
+
+function applyDocument(data) {
+  const doc = objectOr(data, {});
+  state.students = Array.isArray(doc.students) ? doc.students : [];
+  state.activeStudentId = doc.activeStudentId || (state.students[0] && state.students[0].id) || null;
+  for (const key of LEARNER_KEYS) state[key] = objectOr(doc[key], {});
+  state.notifications = Array.isArray(doc.notifications) ? doc.notifications : [];
+  state.curriculumSnapshot = doc.curriculumSnapshot || null;
+  state.graphView = doc.graphView === 'list' ? 'list' : 'atlas';
+  stateVersion = Number.isSafeInteger(doc.version) ? doc.version : 0;
+}
+
 export async function loadAll() {
   try {
-    const data = await backend.loadState();
-    if (data && Object.keys(data).length) {
-      state.students = data.students || [];
-      state.activeStudentId = data.activeStudentId || (state.students[0] && state.students[0].id) || null;
-      state.progress = data.progress || {};
-      state.records = data.records || {};
-      state.tests = data.tests || {};
-      state.plan = data.plan || {};
-      state.challenges = data.challenges || {};
-      state.adaptations = data.adaptations || {};
-      state.suggestions = data.suggestions || {};
-      state.notifications = data.notifications || [];
-      state.curriculumSnapshot = data.curriculumSnapshot || null;
-      state.recall = data.recall || {};
-      state.practice = data.practice || {};
-      state.activity = data.activity || {};
-      state.game = data.game || {};
-      state.daily = data.daily || {};
-      state.graphView = data.graphView === 'list' ? 'list' : 'atlas';
-    }
+    applyDocument(await backend.loadState());
   } catch (e) {
     console.warn('load failed', e);
     throw e;
   }
 }
 
-let saveTimer = null;
-let saveQueue = Promise.resolve();
-export function persist() {
+function snapshotData() {
+  return {
+    students: state.students,
+    activeStudentId: state.activeStudentId,
+    progress: state.progress,
+    records: state.records,
+    tests: state.tests,
+    plan: state.plan,
+    challenges: state.challenges,
+    adaptations: state.adaptations,
+    suggestions: state.suggestions,
+    notifications: state.notifications,
+    curriculumSnapshot: state.curriculumSnapshot,
+    recall: state.recall,
+    practice: state.practice,
+    activity: state.activity,
+    game: state.game,
+    daily: state.daily,
+    graphView: state.graphView === 'list' ? 'list' : 'atlas',
+  };
+}
+
+function reloadFromServer(doc) {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    const snapshot = {
-        students: state.students,
-        activeStudentId: state.activeStudentId,
-        progress: state.progress,
-        records: state.records,
-        tests: state.tests,
-        plan: state.plan,
-        challenges: state.challenges,
-        adaptations: state.adaptations,
-        suggestions: state.suggestions,
-        notifications: state.notifications,
-        curriculumSnapshot: state.curriculumSnapshot,
-        recall: state.recall,
-        practice: state.practice,
-        activity: state.activity,
-        game: state.game,
-        daily: state.daily,
-        graphView: state.graphView === 'list' ? 'list' : 'atlas',
-    };
-    saveQueue = saveQueue
-      .catch(() => {})
-      .then(() => backend.saveState(snapshot))
-      .catch((e) => { console.warn('save failed', e); });
-  }, 400);
+  saveTimer = null;
+  dirty = false;
+  applyDocument(doc);
+  emit();
+  saveStatus({ type: 'conflict' });
+}
+
+// Sends one save through `send(data, version)`; the snapshot is taken now, so
+// edits made while it is in flight mark the store dirty again.
+async function saveWith(data, send) {
+  saving = true;
+  try {
+    const next = await send(data, stateVersion);
+    // A beacon may already have advanced the version optimistically.
+    stateVersion = Math.max(stateVersion, next);
+    saveStatus({ type: 'saved' });
+    return true;
+  } catch (e) {
+    if (e.status === 412 && e.body) { reloadFromServer(e.body); return false; }
+    dirty = true;
+    console.warn('save failed', e);
+    saveStatus({ type: e.status === 413 ? 'too-large' : 'failed', error: e });
+    return false;
+  } finally {
+    saving = false;
+  }
+}
+
+function saveNow() {
+  if (!dirty) return Promise.resolve(true);
+  dirty = false;
+  return saveWith(snapshotData(), backend.saveState);
+}
+
+// Saves any pending change right away. Resolves once every queued save is done.
+export function flushSaves() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  saveQueue = saveQueue.catch(() => {}).then(saveNow);
+  return saveQueue;
+}
+
+export function persist() {
+  dirty = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSaves, 400);
+}
+
+// The page is being hidden or closed: a debounced save would be lost, so send
+// it now as a beacon. Beacons cannot carry If-Match, so the version rides in
+// the body; we assume success and advance our version to match the server.
+function flushOnHide() {
+  if (!dirty) return;
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  const expected = saving ? stateVersion + 1 : stateVersion;
+  if (backend.beaconState(snapshotData(), expected)) {
+    dirty = false;
+    stateVersion = expected + 1;
+  } else {
+    flushSaves();
+  }
+}
+
+// Coming back to a tab: if another device saved meanwhile, load its copy now
+// rather than discovering the conflict on the next edit.
+async function checkForNewerState() {
+  if (dirty || saving) return;
+  try {
+    const { stateVersion: serverVersion } = await backend.health();
+    if (!Number.isSafeInteger(serverVersion) || serverVersion === stateVersion || dirty || saving) return;
+    reloadFromServer(await backend.loadState());
+  } catch {}
+}
+
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  window.addEventListener('pagehide', flushOnHide);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushOnHide();
+    else checkForNewerState();
+  });
+}
+
+// ---- Export / import ----
+function countOf(value) {
+  if (Array.isArray(value)) return value.length;
+  return value && typeof value === 'object' ? Object.keys(value).length : 0;
+}
+
+// The full stored document plus when it was exported and against which taxonomy.
+export async function exportDocument() {
+  await flushSaves();
+  const doc = await backend.loadState();
+  return {
+    ...doc,
+    exportedAt: new Date().toISOString(),
+    taxonomyVersion: state.curriculumSnapshot?.version || null,
+  };
+}
+
+// Checks an export (or a raw family-state.json) before import. Returns
+// { ok, error?, learners: [{ name, topics, records, tests }] } for the preview.
+export function inspectImport(doc) {
+  const fail = (error) => ({ ok: false, error, learners: [] });
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return fail('The file is not a Harrington family export.');
+  if (!Array.isArray(doc.students)) return fail('The file has no learner list.');
+  for (const s of doc.students) {
+    if (!s || typeof s !== 'object' || typeof s.id !== 'string' || !s.id || typeof s.name !== 'string') {
+      return fail('A learner in the file is missing an id or name.');
+    }
+  }
+  for (const key of LEARNER_KEYS) {
+    if (doc[key] !== undefined && (!doc[key] || typeof doc[key] !== 'object' || Array.isArray(doc[key]))) {
+      return fail(`The file's "${key}" section is not in the expected shape.`);
+    }
+  }
+  if (doc.notifications !== undefined && !Array.isArray(doc.notifications)) {
+    return fail('The file\'s notifications are not in the expected shape.');
+  }
+  const learners = doc.students.map(s => ({
+    name: s.name,
+    topics: countOf(doc.progress?.[s.id]),
+    records: countOf(doc.records?.[s.id]),
+    tests: countOf(doc.tests?.[s.id]),
+  }));
+  return { ok: true, learners };
+}
+
+// Replaces the family document on the server with `doc`, guarded by the
+// current version. Resolves false if another device saved first (state is
+// then reloaded from the server) or the save failed.
+export function importDocument(doc) {
+  const check = inspectImport(doc);
+  if (!check.ok) return Promise.reject(new Error(check.error));
+  const { version: _v, updatedAt: _u, exportedAt: _e, taxonomyVersion: _t, ...data } = doc;
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  dirty = false;
+  saveQueue = saveQueue.catch(() => {}).then(async () => {
+    const ok = await saveWith(data, backend.saveState);
+    if (ok) {
+      applyDocument({ ...data, version: stateVersion });
+      emit();
+    }
+    return ok;
+  });
+  return saveQueue;
 }
 
 // ---- Students ----
@@ -121,8 +277,11 @@ export function updateStudent(id, patch) {
   persist(); emit();
 }
 export function removeStudent(id) {
+  for (const rec of state.records[id] || []) {
+    if (rec && rec.audioPath) backend.deleteAudio(rec.audioPath).catch(() => {});
+  }
   state.students = state.students.filter(s => s.id !== id);
-  delete state.progress[id]; delete state.records[id];
+  for (const key of LEARNER_KEYS) delete state[key][id];
   if (state.activeStudentId === id) state.activeStudentId = state.students[0]?.id || null;
   persist(); emit();
 }
