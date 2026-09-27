@@ -229,7 +229,7 @@ const GUIDE_SECTIONS = [
   ]},
   { h: 'Privacy', items: [
     ['Where data lives', 'Learners, progress, records, recordings and settings are stored in the private data folder on this computer. The server listens only on this computer by default.'],
-    ['What leaves your home', `Nothing, unless you configure an AI provider. If you do, topic text is sent to it. ${SPEECH_NOTE}`],
+    ['What leaves your home', `Nothing, unless you configure an AI provider. If you do, lessons, tests and cards send it topic text and an age band; discussion analysis and progress reviews also send your notes, transcripts and your child’s name until that is fixed (HAR-19). ${SPEECH_NOTE}`],
     ['Not for the internet', 'There is no sign-in or encryption yet. Do not expose Harrington to the public internet.'],
   ]},
 ];
