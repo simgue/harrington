@@ -22,7 +22,7 @@ export function renderRecords(params, { navigate }) {
   const header = el(`<div class="flex items-start justify-between gap-3 mb-5">
     <div>
       <h1 class="font-display text-2xl sm:text-3xl font-600">Records</h1>
-      <p class="text-ink-soft text-sm mt-1">Observations, questions and discussions for <span class="font-600 text-ink">${active?.name || 'your student'}</span>.</p>
+      <p class="text-ink-soft text-sm mt-1">Observations, questions and discussions for <span class="font-600 text-ink">${esc(active?.name || 'your student')}</span>.</p>
     </div>
     <div class="shrink-0 flex gap-2">
       <button id="rec" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#a4473a] hover:bg-[#86372c] text-white text-sm font-medium transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
@@ -80,7 +80,7 @@ function recordCard(r, student, d, navigate) {
     ${r.title ? `<p class="font-600">${esc(r.title)}</p>` : ''}
     ${r.note ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
     ${r.transcript ? `<details class="mt-2 group"><summary class="text-xs text-ink-faint cursor-pointer select-none flex items-center gap-1 list-none"><i data-lucide="chevron-right" class="w-3.5 h-3.5 transition-transform group-open:rotate-90"></i>Transcript</summary><p class="text-sm text-ink-soft mt-1.5 leading-relaxed whitespace-pre-wrap bg-paper border border-paper-line rounded-lg p-2.5">${esc(r.transcript)}</p></details>` : ''}
-    ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${SUBJECTS[topic.subject].icon}" class="w-3.5 h-3.5"></i>${topic.name}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
+    ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${SUBJECTS[topic.subject].icon}" class="w-3.5 h-3.5"></i>${esc(topic.name)}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
   </div>`);
   if (r.audioPath) card.appendChild(audioPlayer(r.audioPath, r.duration));
 
@@ -105,7 +105,7 @@ function openAnalysis(record, student, topic) {
       <span class="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0"><i data-lucide="sparkles" class="w-5 h-5 text-brand-dark"></i></span>
       <div>
         <p class="text-xs text-ink-faint">Discussion analysis</p>
-        <h3 class="font-display text-lg font-600 leading-tight">${record.title || 'Recorded discussion'}</h3>
+        <h3 class="font-display text-lg font-600 leading-tight">${esc(record.title || 'Recorded discussion')}</h3>
       </div>
     </div>
     <div id="stage"></div>
@@ -123,7 +123,7 @@ function openAnalysis(record, student, topic) {
   stage.appendChild(el(`<div class="text-center py-8">
     <div class="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
     <p class="text-sm font-600">Analyzing the discussion\u2026</p>
-    <p class="text-xs text-ink-faint mt-1">Looking at what ${student.name} understands and where they're stuck.</p>
+    <p class="text-xs text-ink-faint mt-1">Looking at what ${esc(student.name)} understands and where they're stuck.</p>
   </div>`));
   refreshIcons();
 
@@ -161,7 +161,7 @@ export function openRecordForm(studentId, topic = null) {
   if (!studentId) { toast('Add a student first', 'error'); return; }
   const d = getData();
   const body = el(`<div class="p-5">
-    <h3 class="font-display text-lg font-600 mb-4">${topic ? 'Record for ' + topic.name : 'New record'}</h3>
+    <h3 class="font-display text-lg font-600 mb-4">${esc(topic ? 'Record for ' + topic.name : 'New record')}</h3>
     <form id="f" class="space-y-4">
       <div>
         <label class="text-sm font-medium block mb-1.5">Type</label>
@@ -172,7 +172,7 @@ export function openRecordForm(studentId, topic = null) {
         <input id="search" placeholder="Search topics\u2026" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" autocomplete="off" />
         <div id="results" class="mt-1 max-h-40 overflow-y-auto space-y-1"></div>
         <input type="hidden" name="topicId" />
-      </div>` : `<input type="hidden" name="topicId" value="${topic.id}" />`}
+      </div>` : `<input type="hidden" name="topicId" value="${esc(topic.id)}" />`}
       <div>
         <label class="text-sm font-medium block mb-1.5">Title <span class="text-ink-faint font-normal">(optional)</span></label>
         <input name="title" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
@@ -229,7 +229,7 @@ export function openRecordForm(studentId, topic = null) {
       if (q.length < 2) return;
       const matches = d.topics.filter(t => t.name.toLowerCase().includes(q)).slice(0, 6);
       matches.forEach(t => {
-        const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${t.name}</span><span class="text-xs text-ink-faint">${t.subject}</span></button>`);
+        const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
         r.onclick = () => { hidden.value = t.id; search.value = t.name; results.innerHTML = ''; };
         results.appendChild(r);
       });
