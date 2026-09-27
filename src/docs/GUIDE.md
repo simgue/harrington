@@ -1,189 +1,190 @@
-# Harrington — Complete Feature Guide
+# Harrington guide
 
-**Harrington** is a mastery-based homeschool platform. It turns an open, connected curriculum of ~1,590 micro-topics (the [Marble Skill Taxonomy](https://github.com/withmarbleapp/os-taxonomy)) into a clear learning path from **age 5 to 13**, where every idea must be genuinely mastered before the next one begins — and the whole experience adapts to your child.
+Harrington is a self-hosted family learning platform. It shows the open
+[Marble Skill Taxonomy](https://github.com/withmarbleapp/os-taxonomy) (about
+1,590 connected topics across 8 subjects) as a map for parents, offers small
+daily literacy and numeracy choices, and keeps a record of what your child
+actually did.
 
-This guide explains everything the platform does and how to use it.
+It runs on this computer only. Nothing leaves your home unless you configure an
+AI provider.
 
-> **Self-hosted preview:** No external account is required. Family state,
-> lesson caches, and recordings stay on your Harrington server. AI-generated
-> materials, AI analysis, and Commune are disabled until self-hosted adapters
-> are configured.
+The in-app **Guide** (sidebar on a computer, book icon at the top of the screen
+on a phone) covers the same ground in short form. This file is the longer
+written version.
+
+> **Needs a local AI provider; see the README.** This line marks every feature
+> that is written by an AI model. Without a provider those buttons show an
+> error and nothing else happens. See "What needs an AI provider" at the end.
 
 ---
 
 ## Getting started
 
-1. **Start Harrington.** Run `npm start` and open `http://127.0.0.1:4173`. No sign-in is required.
-2. **Add a sample learner.** Enter a synthetic name and birth year. Harrington uses the birth year to place them on the age 5–13 timeline and build their calendar.
-3. **Explore.** You land on the Dashboard. Use the left sidebar (or the bottom bar on mobile) to move between the five areas: **Dashboard, Calendar, Timeline, Records, Insights**.
+1. **Start Harrington.** Run `npm start` and open `http://127.0.0.1:4173`.
+   There is no account and no sign-in. The first start downloads the
+   curriculum, so it needs the internet once.
+2. **Add a learner.** Enter a name and birth year. Harrington uses the birth
+   year to suggest age-appropriate topics and to build the calendar.
+3. **Look around.** The sidebar (or the bottom bar on a phone) has
+   **Dashboard, Calendar, Map, Records** and **Insights**. **Guide** is in the
+   sidebar, or behind the book icon on a phone. The **child view** opens from
+   the dashboard.
 
-You can add more students anytime and switch between them from the student selector at the top of the sidebar.
-
----
-
-## The core idea: the mastery ladder
-
-Learning in Harrington is gated so nothing is skipped:
-
-- **Topic** — a single teachable idea (e.g. "One-to-one counting"). Pass its **topic mastery test** (90%+) and it's marked *mastered*.
-- **Section** — a group of related topics within an age band (e.g. "Counting & Cardinality · Age 5"). Once **every topic** in a section is mastered, its **section check** unlocks. Pass it to unlock the next section.
-- **Subject** — the eight subjects (Math, English, Science, History, etc.). Once **every section** is passed, the **final subject mastery test** unlocks. Passing it certifies the whole subject.
-
-Each level needs **90% or more** to pass. A section stays locked until the previous one is passed, so your child always builds on solid foundations.
+Add or switch learners from the selector at the top of the sidebar (the round
+button at the top right on a phone). Each learner keeps their own progress,
+calendar, records and recordings.
 
 ---
 
 ## Dashboard
 
-Your home base and daily snapshot.
+The parent's view of the day.
 
-- **Greeting + overall mastery ring** — the percentage of all topics mastered.
-- **Work on next** — the best topics to tackle now, chosen by the mastery ladder and your child's age.
-- **Adaptive suggestion nudge** — appears when your child is excelling and Harrington proposes making an area harder (you approve it in Insights).
-- **Today** — the topics scheduled for today from the calendar, plus a one-tap **refresher quiz**.
-- **Subjects grid** — mastery progress for each of the eight subjects.
-- **Recent progress** and **Latest records** — quick activity feeds.
-- **Quick actions** (top right): open the Timeline, **Record** a conversation, or add a **Note**.
+- **Today's path.** A short literacy choice and a short numeracy choice, two
+  options each, drawn from the focus domains in
+  [POC-SPINE.md](../../docs/POC-SPINE.md). Topics already in progress and
+  domains that have gone quiet come first. Your child picks one of each, here
+  or in the child view, and the day's options and picks are saved. Very young
+  learners may get a gentle review day instead.
+- **From the calendar.** Topics scheduled for today. Opening a lesson or a
+  refresher quiz from here needs a local AI provider.
+- **Stepping stones next.** Unlocked, age-appropriate topics to try next.
+- **Subjects, recent growth and recent evidence.** Per-subject progress, recent
+  status changes and the latest records. The parent view shows numbers by
+  design ("Only you can see this").
+- **Quick buttons.** **Record what happened** (voice), **Note**, **Open map**,
+  and a button with your child's name that opens the child view.
 
----
+## Child view
 
-## Timeline
+Opened from the button with your child's name on the dashboard. **Grown-ups**
+returns to the parent view.
 
-The connected, gated map of a subject from age 5 to 13.
+- **My garden.** One plant per subject, described in words, never numbers.
+- **Story time and number time.** Today's literacy and numeracy options for
+  your child to pick from.
+- **Tell about my day.** A voice note saved to the learner's records.
+- **Plant something new, Memory walk, Beat the clock.** These open a test,
+  recall cards or a challenge. Needs a local AI provider; see the README.
 
-- **Pick a subject** with the tabs at the top.
-- Topics are grouped into **sections** by age band. Expand a section to see its topics.
-- **How it works banner** explains the topic → section → subject ladder.
-- Each **topic card** shows its mastery status, prerequisites count, what it unlocks, and quick buttons: **Lesson**, **Take test**, **Details**.
-- Each **section** has a **section check** that unlocks once all its topics are mastered; a locked section shows how many topics are left.
-- At the bottom, the **final subject mastery test** (the capstone) unlocks once every section is passed. Passing it lets you print a **certificate**.
-- **Locked items** are dimmed with a lock icon so the path forward is always clear.
+The child view itself shows no levels, XP or percentages.
 
-### Topic page
-Open any topic for the full toolkit:
+## Map
 
-- **Topic mastery test** — the primary way to mark a topic mastered; also a manual status override if you prefer to assess offline.
-- **Challenge quiz** (after mastery) — an optional timed stretch (see *Challenges*).
-- **What mastery looks like** — the evidence criteria to aim for.
-- **Quick check** — a natural-language question to gauge understanding.
-- **AI teaching helper (disabled in this preview)** — once a provider is configured, this can offer "Explain simply" and "Make a mini-quiz".
-- **Activities & games** — hands-on ideas; click any for full step-by-step instructions.
-- **Records for this topic** — observations, notes, and recordings tied to this topic.
-- **Section check** — take the section's test from here too.
-- **Connections** — the prerequisites you must master first and what this topic unlocks.
-- **Reference materials** — curated links (Khan Academy, BBC Bitesize, Wikipedia), kid-safe video searches, and the curriculum standards each topic aligns to.
+The connected curriculum, in two modes.
 
----
+- **World map.** The eight subjects as realms, with their domains as dots sized
+  by topic count. Mastery shows as a quiet tint rather than a percentage.
+- **Skill tree.** Enter a domain to see its topics as a tree. Solid links are
+  **required** foundations; dashed links are **helpful** ones. Gateway domains
+  that feed this one are shown too.
+- **Quest log.** Select a topic to see the foundations it needs, what it
+  unlocks, and buttons to open the topic page, **record evidence**, or **mark
+  it as learning**. "Open full lesson" needs a local AI provider.
+- **List.** Prefer text? Switch to the list and drill from subject to domain
+  to age band to topic.
 
-## Lessons, printables & activities
+## Growth stages and mastery
 
-The lesson-generation screens are retained but disabled until a self-hosted AI
-provider is configured.
+Progress is shown as a plant:
 
-- **Open full lesson** — a complete plan generated for that topic: objective, materials, a **"Notes for you (the parent)"** panel (what to focus on, where kids struggle, and advice), a hook, a step-by-step **"say this / do this"** script, guided practice, an independent activity, discussion questions, common mistakes, a mastery check, and an extension. You can **print** it or **generate a different version**.
-- **Print & go materials** — the lowest-prep printables for the topic (worksheets with answer keys, cut-out flashcards, matching sheets, tracing pages, or sorting cards). Preview in-app, print one, or print all. Name/date lines are already on the page.
-- **Activities & games** — every idea expands into materials, setup, numbered steps, a worked example, and a tip.
+| Stage | Meaning |
+| --- | --- |
+| **Seed** | Foundations not yet in place |
+| **Sprout** | Ready to start |
+| **Bud** | Being learned |
+| **Bloom** | Mastered |
 
-Generated lessons and printables are **saved and reused**, so they load instantly next time.
+The same stages appear on the map, the dashboard and the child's garden.
 
----
+You decide a topic's status. Use **Mark as learning** in the quest log, or open
+**Set status manually instead** on the topic page to choose not started,
+learning, practicing or mastered. A topic unlocks once every required
+foundation is mastered.
 
-## Tests & mastery
+## Topic page
 
-- **Every topic, section, and subject has its own test.** Passing a topic test (90%+) is what marks the topic mastered.
-- **Two formats** — Harrington recommends the best one per subject, and you can switch:
-  - **On screen (digital)** — multiple-choice, auto-graded instantly, with an answer review.
-  - **On paper / hands-on (physical)** — print the test with an answer key, or observe hands-on tasks, then tick what was correct and Harrington scores it.
-- **Answers can be verified once AI is configured.** The intended flow writes questions with one model pass, independently re-solves them with another, and rejects ambiguity. Numeric answers are also checked by a built-in calculator.
-- **Results are saved** per student, and passing the subject capstone offers a **printable certificate**.
+Open a topic from the map, the dashboard or a record.
 
----
+**Works today:** description, **What mastery looks like**, a **Quick check**
+prompt, how the topic connects (comes before / leads to), records for the
+topic, activity and game ideas, reference links, and manual status.
 
-## Challenges (adaptive stretch)
+**Reference links** are searches on Khan Academy, BBC Bitesize, Wikipedia and
+YouTube. YouTube results are not filtered for children, so the link reads
+"YouTube search (supervise)".
 
-After a topic is mastered, a **"Try the challenge quiz"** option appears (on the result screen and the topic page).
+**Needs a local AI provider; see the README:** open full lesson, print & go
+materials, the topic mastery test, the challenge, recall cards, "Explain
+simply", "Make a mini-quiz", and step-by-step instructions for an activity.
 
-- It's a **beat-the-clock** round — answer as many as you can in 2 minutes.
-- It's pitched a little harder than the mastery test (bigger numbers, an extra step, or a taste of what's next) but stays fun and doable.
-- It tracks a **personal best**, and beating it adds a celebratory notification.
-- Strong challenge results feed the **adaptivity engine** (below).
+## Calendar
 
----
+A weekday plan from your start date.
 
-## Adaptivity — the platform adapts to your child
+- **Start date.** Change it and the plan reschedules.
+- **Month grid and day panel.** Each weekday lists its topics. Weekends are
+  days off.
+- **Bend the plan.** **Mark done**, **move** a topic to the next school day or
+  any date, and **add extras** to any day.
+- Opening a lesson, test, challenge or recall review from a day needs a local
+  AI provider; see the README.
 
-This is central to Harrington. When your child **excels** (e.g. aces a challenge quickly), Harrington creates an **adaptive suggestion** to pitch that area harder.
+## Records and recordings
 
-- You see suggestions on the **dashboard nudge** and under **Insights → Adaptive suggestions**.
-- **You are always in control** — approve or decline any suggestion. Nothing changes on its own.
-- Approving marks that domain **advanced**, so future mastery and section tests in it are automatically a notch harder. Active adaptations show as chips you can revert anytime with one tap.
+- **Records.** Log an observation, question, discussion or assessment,
+  optionally linked to a topic, with a title, notes and a confidence rating.
+  Filter by type and open the linked topic from any record.
+- **Voice recording.** Record a conversation from the dashboard, a topic page
+  or the child view. Audio is saved on this computer and plays back inline.
+- **Live transcript.** Live transcript uses your browser's speech service,
+  which may send audio to the browser vendor. There is no switch for it in
+  Harrington yet; if you prefer, write a note instead of recording. Firefox
+  does not offer a live transcript.
+- **Recordings folder.** From the dashboard: every recording, grouped by
+  section, with playback and transcript.
+- **Discussion analysis.** Advice based on a transcript or your notes. Needs a
+  local AI provider; see the README.
 
----
+## Insights
 
-## Calendar — your adaptive daily plan
+- **Subject summary.** How many topics are mastered, practicing, learning or
+  not started in each subject.
+- **Recommended next.** The best unlocked topics in that subject.
+- **Progress review, subject test and adaptive suggestions.** Needs a local AI
+  provider; see the README.
 
-A day-by-day learning track from your **start date** through age 13.
+## Notifications
 
-- **Track starts** — begins the day you sign up; click **Change** to pick any start date and the whole plan reschedules.
-- **Month grid** — each day lists its topics (with subject colors); weekends are days off (great for refreshers).
-- **Day panel** — for the selected day: the **New today** topics (with Lesson / Test / Move buttons), **Extra practice** you've added, and **Daily refreshers & extras**.
-- **Daily refreshers** — auto-rotating review drawn from earlier and already-mastered topics: a **refresher quiz**, an **activity or game**, and a **stretch** challenge. They change each day but stay consistent if you revisit a date.
+The bell shows a welcome note on first run. The curriculum is downloaded once
+and kept on this computer; it does not update on its own, so the bell does not
+report curriculum changes.
 
-### Making the calendar adaptive
-- **Mark a day done** — a checkmark shows on the calendar and the day is highlighted.
-- **Move / push a topic** — every scheduled topic has a **Move** button: push to the next school day (when you're stuck) or pick any date. Useful if you miss days or want to get ahead.
-- **Add extra practice** — schedule more for any topic onto any day: extra practice, a re-teach lesson, a re-test, or a challenge. Days show a "+N" badge for extras.
+## Privacy and data
 
----
+- Learners, progress, records, recordings and settings are stored in the
+  private data folder (`data/private/`) on this computer. The server listens
+  only on this computer by default.
+- Nothing leaves your home unless you configure an AI provider. If you do,
+  topic text is sent to it. The live transcript is the exception described
+  above.
+- There is no sign-in or encryption yet. Do not expose Harrington to the public
+  internet.
 
-## Records — track progress, questions & discussions
+## What needs an AI provider
 
-Keep a running log of your child's learning.
+Everything below stays off until `HARRINGTON_AI_BASE_URL` and
+`HARRINGTON_AI_MODEL` are set (see the README):
 
-- **New record** — log an **observation**, **question**, **discussion**, or **assessment**, optionally linked to a topic, with a title, notes, and a confidence rating.
-- **Record (voice)** — capture a lesson conversation. While recording, a **live transcript** appears on screen. Save it with a title, optional notes, and a linked topic; the audio is stored privately and plays back inline.
-- **Analyze & get advice** — on any recording or discussion, Harrington reads the transcript (or your notes) and gives the **parent** targeted coaching: what the child seems to understand, **where and why** they're misunderstanding, how to approach the topic next, and a warm phrase to try. You can save the advice back into records.
-- **Filter** records by type, and open the linked topic from any record.
-
----
-
-## Insights — feedback & next steps
-
-Per-subject guidance for you as the teacher.
-
-- **Adaptive suggestions** — approve/decline difficulty changes and see active adaptations.
-- **Progress summary** — mastered / practicing / learning / not-started counts for the subject.
-- **Final mastery test** — launch or retake the subject capstone (unlocks when all sections are passed).
-- **Progress review** — an AI-written, encouraging review of your child's work in that subject, drawing on their progress and your records: strengths, watch areas, and concrete next steps.
-- **Recommended next** — the best unlocked topics to work on in that subject.
-
----
-
-## Notifications — stay in the loop
-
-A **bell** in the sidebar (and mobile top bar) with an unread badge opens the notification center.
-
-- **Curriculum updates** — the curriculum auto-refreshes from the open repository on every load. When topics are **added or removed upstream**, you get a notification with a per-subject breakdown and examples — the new material is already live in your timeline and calendar.
-- **Adaptive suggestions** — a notification when a new "make it harder" suggestion is created.
-- **Challenge best scores** — a celebratory notification when your child beats their personal best.
-- Mark items read individually or all at once.
-
----
-
-## Multiple students
-
-Add a student anytime from the selector at the top of the sidebar, switch the active student in one tap, and each child keeps their own progress, calendar, records, challenges, and adaptations.
-
----
-
-## Privacy & data
-
-Students, progress, records, voice recordings, and settings are stored in the
-private data directory on your Harrington server. The server listens only on
-the local computer by default. The preview has no application authentication,
-so do not expose it to the public internet. AI is disabled and receives no
-family data.
+- Ready-to-teach lessons and print & go materials
+- Topic, section and subject mastery tests, and certificates
+- Timed challenges and adaptive (parent-approved) difficulty suggestions
+- Recall cards and memory review
+- Activity instructions, "Explain simply" and "Make a mini-quiz"
+- Discussion analysis and progress reviews
 
 ---
 
-*Curriculum: Marble Skill Taxonomy (v1) · © Generative Spark, Inc. · licensed under ODbL 1.0 (database) and CC BY-SA 4.0 (content).*
+*Curriculum: Marble Skill Taxonomy (v1) · © Generative Spark, Inc. · licensed
+under ODbL 1.0 (database) and CC BY-SA 4.0 (content).*

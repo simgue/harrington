@@ -28,6 +28,32 @@ authentication, encrypted backups, and private remote access are implemented.
 Never send a real child's name into a model prompt — generators use “your child”
 and an age band only.
 
+## What works without an AI provider
+
+Out of the box, with no AI provider configured, Harrington runs on this
+computer only and these work:
+
+- **Learners** — add and switch learners (name and birth year).
+- **Dashboard** — Today's path with the daily literacy and numeracy choices,
+  stepping stones to try next, subject progress, recent growth and evidence.
+- **Child view** — the garden, story time and number time picks, and "Tell
+  about my day", with no scores.
+- **Map** — the world map, per-domain skill trees with the quest log, and the
+  list drill-down, showing required and helpful foundations.
+- **Growth stages and manual mastery** — Seed, Sprout, Bud and Bloom; you set
+  a topic's status from the quest log or the topic page.
+- **Calendar** — the weekday plan: move topics, mark days done, add extras.
+- **Records and recordings** — notes, observations and voice recordings saved
+  on this computer. The live transcript uses your browser's speech service,
+  which may send audio to the browser vendor.
+- **Insights** — subject summaries and recommended next topics.
+
+Lessons, print & go sheets, mastery tests, challenges, recall cards, activity
+instructions, discussion analysis, progress reviews and adaptive suggestions
+need a local AI provider (see [Optional local model](#optional-local-model-ollama)).
+Without one, those buttons show an error. The curriculum is downloaded once on
+first start and does not update on its own.
+
 ## Highlights
 
 - **Mastery ladder** — Topics → Sections → Subjects, each gated at 90%+ so

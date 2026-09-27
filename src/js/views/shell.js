@@ -69,10 +69,12 @@ export function renderShell({ route, navigate, content }) {
         <span class="font-display text-lg font-600">Harrington</span>
       </div>
       <div class="flex items-center gap-2">
+        <button id="mob-guide" class="w-9 h-9 rounded-lg border border-paper-line bg-paper-card hover:border-brand/40 transition-colors flex items-center justify-center" title="Guide" aria-label="Open the guide"><i data-lucide="book-open" class="w-4.5 h-4.5 text-ink-soft"></i></button>
         <span id="mob-bell"></span>
         <div id="mob-student"></div>
       </div>
     </header>`);
+  top.querySelector('#mob-guide').onclick = () => openGuide();
   top.querySelector('#mob-bell').appendChild(notificationBell(true));
   top.querySelector('#mob-student').appendChild(studentSwitcher(navigate, true));
 
