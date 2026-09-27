@@ -80,7 +80,7 @@ function putState(value, ifMatch, url = baseUrl) {
   return fetch(`${url}/api/state`, { method: 'PUT', headers, body: JSON.stringify(value) });
 }
 
-function withoutMeta({ version: _version, updatedAt: _updatedAt, ...rest }) {
+function withoutMeta({ version: _version, updatedAt: _updatedAt, writeId: _writeId, ...rest }) {
   return rest;
 }
 
@@ -182,6 +182,64 @@ test('accepts an unload beacon with the version in the body', async () => {
   const loaded = await (await fetch(`${baseUrl}/api/state`)).json();
   assert.equal(loaded.version, version + 1);
   assert.deepEqual(withoutMeta(loaded), beacon);
+});
+
+test('rejects cross-site and non-JSON state writes without touching the file', async () => {
+  const before = await readFile(join(dataDir, 'family-state.json'), 'utf8');
+  const { version } = JSON.parse(before);
+
+  // An HTML form can POST text/plain cross-site without a preflight.
+  const form = await fetch(`${baseUrl}/api/state`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ students: [], version, x: '=' }),
+  });
+  assert.equal(form.status, 415);
+
+  for (const site of ['cross-site', 'same-site']) {
+    const beacon = await fetch(`${baseUrl}/api/state`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': site },
+      body: JSON.stringify({ students: [], version }),
+    });
+    assert.equal(beacon.status, 403);
+    const put = await fetch(`${baseUrl}/api/state`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'If-Match': `"v${version}"`, 'Sec-Fetch-Site': site },
+      body: JSON.stringify({ students: [] }),
+    });
+    assert.equal(put.status, 403);
+  }
+
+  assert.equal(await readFile(join(dataDir, 'family-state.json'), 'utf8'), before);
+});
+
+test('stores a client writeId and returns it on reads and conflicts', async () => {
+  const { version } = await (await fetch(`${baseUrl}/api/state`)).json();
+  const state = { students: [{ id: 'w', name: 'Write Id Learner', birthYear: 2019 }], activeStudentId: 'w' };
+
+  const sameOrigin = await fetch(`${baseUrl}/api/state`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'If-Match': `"v${version}"`, 'Sec-Fetch-Site': 'same-origin' },
+    body: JSON.stringify({ ...state, writeId: 'tab-a-1' }),
+  });
+  assert.equal(sameOrigin.status, 204);
+  const loaded = await (await fetch(`${baseUrl}/api/state`)).json();
+  assert.equal(loaded.writeId, 'tab-a-1');
+
+  const stale = await putState({ ...state, writeId: 'tab-b-1' }, `"v${version}"`);
+  assert.equal(stale.status, 412);
+  assert.equal((await stale.json()).writeId, 'tab-a-1');
+
+  // Echoing the stored id back (read, modify, write) does not claim it.
+  const echoed = await putState({ ...loaded, students: [] }, `"v${loaded.version}"`);
+  assert.equal(echoed.status, 204);
+  const afterEcho = await (await fetch(`${baseUrl}/api/state`)).json();
+  assert.equal(afterEcho.writeId, undefined);
+
+  // Ids that are not short strings are not stored.
+  assert.equal((await putState({ ...state, writeId: 'x'.repeat(65) }, `"v${afterEcho.version}"`)).status, 204);
+  assert.equal((await (await fetch(`${baseUrl}/api/state`)).json()).writeId, undefined);
 });
 
 test('round-trips an export through import', async () => {

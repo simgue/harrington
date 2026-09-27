@@ -150,14 +150,31 @@ function writeStateIfMatch(expected, data) {
   return enqueueWrite(stateFile, async () => {
     const current = await readStateDocument();
     if (current.version !== expected) return { ok: false, current };
-    const { version: _version, updatedAt: _updatedAt, ...rest } = data;
-    const next = { version: current.version + 1, updatedAt: Date.now(), ...rest };
+    const { version: _version, updatedAt: _updatedAt, writeId, ...rest } = data;
+    // An optional client-chosen id lets a tab recognise its own write later,
+    // such as an unload beacon whose response it never saw. A body that merely
+    // echoes the stored id (read, modify, write) is not that tab's write.
+    const fresh = typeof writeId === 'string' && writeId.length > 0 && writeId.length <= 64 && writeId !== current.writeId;
+    const ownId = fresh ? { writeId } : {};
+    const next = { version: current.version + 1, updatedAt: Date.now(), ...ownId, ...rest };
     await writeFileAtomic(stateFile, `${JSON.stringify(next, null, 2)}\n`);
     return { ok: true, current: next };
   });
 }
 
 async function handleStateWrite(req, res) {
+  // Browsers send Sec-Fetch-Site on every request; only this page may write.
+  const fetchSite = req.headers['sec-fetch-site'];
+  if (fetchSite !== undefined && fetchSite !== 'same-origin' && fetchSite !== 'none') {
+    sendJson(res, 403, { error: 'Family data can only be saved from Harrington itself' });
+    return;
+  }
+  // HTML forms can POST cross-site without a preflight but never as JSON; a
+  // real sendBeacon with a JSON Blob always sends application/json.
+  if (req.method === 'POST' && !String(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) {
+    sendJson(res, 415, { error: 'Family data must be sent as application/json' });
+    return;
+  }
   let expected = parseIfMatch(req.headers['if-match']);
   const value = await readJson(req);
   // navigator.sendBeacon cannot set headers, so the unload path (POST) carries
