@@ -5,6 +5,7 @@ import { aiMasteryTest } from '../ai.js';
 import { studentStats } from '../mastery.js';
 import { openChallenge } from './challenge.js';
 import { award } from '../game.js';
+import { isCorrect } from '../grading.js';
 
 const PASS = 90;
 
@@ -145,6 +146,13 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
         topic: isTopic ? topic : null,
         level,
       });
+      if (!Array.isArray(test.questions) || !test.questions.length) {
+        stage.innerHTML = '';
+        stage.appendChild(errorBlock(() => renderIntro(stage, subject, student, m, section, topic),
+          'No questions passed our answer checks this time, so nothing was recorded. Try building the test again.'));
+        refreshIcons();
+        return;
+      }
       test.mode = mode;
       test.subject = subject;
       test.section = section;
@@ -207,6 +215,7 @@ function renderDigital(stage, subject, student, test, m) {
     const unanswered = answers.some(a => a === null || a === '');
     if (unanswered) { wrap.querySelector('#warn').classList.remove('hidden'); return; }
     const graded = gradeDigital(questions, answers);
+    recordResult(subject, student, test, graded);
     renderResult(stage, subject, student, test, graded, m, { questions, answers });
   };
   stage.appendChild(wrap);
@@ -222,22 +231,6 @@ function markSelected(container, chosen) {
   chosen.classList.add('border-brand', 'bg-brand-light/50');
   const dot = chosen.querySelector('span');
   if (dot) { dot.classList.add('border-brand'); dot.style.background = '#3f6b3b'; }
-}
-
-function normalize(s) { return String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
-function numFrom(s) { const m = String(s ?? '').replace(/,/g, '').match(/-?\d+(?:\.\d+)?/); return m ? parseFloat(m[0]) : null; }
-
-// Single source of truth for whether a given answer is correct.
-export function isCorrect(q, given) {
-  if (q.type === 'multiple_choice') {
-    return Number.isInteger(given) && given === q.answer;
-  }
-  // short_answer / typed
-  const a = normalize(given); const key = normalize(q.answer);
-  if (!a) return false;
-  const an = numFrom(given), kn = numFrom(q.answer);
-  if (an !== null && kn !== null) return Math.abs(an - kn) < 1e-6;
-  return a === key || (key.length > 3 && (a.includes(key) || key.includes(a)));
 }
 
 function gradeDigital(questions, answers) {
@@ -305,6 +298,7 @@ function renderPhysical(stage, subject, student, test, m) {
       earned, total: totalPts, pct: totalPts ? Math.round((earned / totalPts) * 100) : 0,
       perQ: questions.map((q, i) => ({ correct: marks[i], points: pointsOf(q) })),
     };
+    recordResult(subject, student, test, graded);
     renderResult(stage, subject, student, test, graded, m, null);
   };
   stage.appendChild(wrap);
@@ -318,8 +312,12 @@ function formatAnswer(q) {
 }
 
 // ---------- RESULT ----------
-function renderResult(stage, subject, student, test, graded, m, digitalReview) {
-  const meta = SUBJECTS[subject];
+// Side effects of a finished attempt (test record, mastery, practice queue,
+// XP). Runs exactly once per attempt; renderResult below is view-only so the
+// Review <-> Result round trip never re-saves or re-awards.
+function recordResult(subject, student, test, graded) {
+  if (test.recorded || !graded.total) return;
+  test.recorded = true;
   const passed = graded.pct >= PASS;
   const topic = test.topic || null;
   const isTopic = !!topic;
@@ -365,6 +363,14 @@ function renderResult(stage, subject, student, test, graded, m, digitalReview) {
     const kind = isTopic ? 'topic' : isSection ? 'section' : 'subject';
     setTimeout(() => award(student.id, kind), 500);
   }
+}
+
+function renderResult(stage, subject, student, test, graded, m, digitalReview) {
+  const passed = graded.pct >= PASS;
+  const topic = test.topic || null;
+  const isTopic = !!topic;
+  const section = test.section || null;
+  const isSection = !isTopic && !!section;
 
   stage.innerHTML = '';
   const wrap = el(`<div class="fade-up text-center py-4">
@@ -402,7 +408,7 @@ function renderResult(stage, subject, student, test, graded, m, digitalReview) {
       const markAll = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="check-check" class="w-4 h-4"></i>Mark all ${subject} topics as mastered</button>`);
       markAll.onclick = () => {
         const d = getData();
-        (d.bySubject[subject] || []).forEach(t => store.setStatus(student.id, t.id, 'mastered'));
+        store.setStatusBulk(student.id, (d.bySubject[subject] || []).map(t => t.id), 'mastered');
         toast(`All ${subject} topics marked mastered`, 'success');
         markAll.disabled = true;
         markAll.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i>Done';
@@ -467,10 +473,10 @@ function loadingBlock(title, sub) {
     ${sub ? `<p class="text-xs text-ink-faint mt-1 max-w-xs mx-auto">${sub}</p>` : ''}
   </div>`);
 }
-function errorBlock(retry) {
+function errorBlock(retry, message = 'Couldn\u2019t build the test right now.') {
   const b = el(`<div class="text-center py-10">
     <i data-lucide="cloud-off" class="w-8 h-8 text-ink-faint mx-auto mb-3"></i>
-    <p class="text-sm text-ink-soft mb-3">Couldn\u2019t build the test right now.</p>
+    <p class="text-sm text-ink-soft mb-3 max-w-xs mx-auto">${esc(message)}</p>
     <button id="r" class="px-4 py-2 rounded-lg bg-brand text-white text-sm font-medium">Try again</button>
   </div>`);
   b.querySelector('#r').onclick = retry;
@@ -511,7 +517,7 @@ function printTest(subject, student, test) {
     @media print{body{padding:0.5in}}
   </style></head><body>
     <h1>${esc(test.title || subject + ' Mastery Test')}</h1>
-    <div class="meta">${esc(subject)} &middot; Pass mark: ${PASS}%${test.estimatedMinutes ? ' &middot; ~' + test.estimatedMinutes + ' min' : ''}</div>
+    <div class="meta">${esc(subject)} &middot; Pass mark: ${PASS}%${test.estimatedMinutes ? ' &middot; ~' + esc(test.estimatedMinutes) + ' min' : ''}</div>
     <div class="name-line"><div>Name: <span></span></div><div>Date: <span></span></div><div>Score: <span></span></div></div>
     <div class="instr">${esc(test.instructions || 'Answer every question as fully as you can.')}</div>
     ${qHtml}
