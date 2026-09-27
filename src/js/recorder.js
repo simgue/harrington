@@ -1,5 +1,5 @@
 // Voice recording: capture lesson conversations, store on the Harrington server, play back.
-import { el, refreshIcons, toast, openModal } from './ui.js';
+import { el, esc, refreshIcons, toast, openModal } from './ui.js';
 import * as store from './store.js';
 import * as backend from './backend.js';
 import { getData, SUBJECTS, topicAge } from './data.js';
@@ -232,7 +232,7 @@ export function openRecorder(studentId, topic = null, section = null) {
         </div>
         ${(transcript || speechSupported()) ? `<div>
           <label class="text-sm font-medium mb-1.5 flex items-center gap-1.5"><i data-lucide="captions" class="w-4 h-4 text-brand-dark"></i>Transcript <span class="text-ink-faint font-normal">(used for AI analysis — edit if needed)</span></label>
-          <textarea name="transcript" rows="4" placeholder="${transcript ? '' : 'No speech was captured. You can type or paste what was said here.'}" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none text-sm">${transcript || ''}</textarea>
+          <textarea name="transcript" rows="4" placeholder="${transcript ? '' : 'No speech was captured. You can type or paste what was said here.'}" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none text-sm">${esc(transcript || '')}</textarea>
         </div>` : ''}
         <div class="flex gap-2">
           <button type="button" id="redo" class="px-4 py-2.5 rounded-xl border border-paper-line text-sm font-medium hover:border-ink-faint/40 transition-colors">Re-record</button>
