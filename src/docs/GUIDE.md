@@ -43,7 +43,7 @@ The parent's view of the day.
 
 - **Today's path.** A short literacy choice and a short numeracy choice, two
   options each, drawn from the focus domains in
-  [POC-SPINE.md](../../docs/POC-SPINE.md). Topics already in progress and
+  [POC-SPINE.md](https://github.com/simgue/harrington/blob/main/docs/POC-SPINE.md). Topics already in progress and
   domains that have gone quiet come first. Your child picks one of each, here
   or in the child view, and the day's options and picks are saved. Very young
   learners may get a gentle review day instead.
@@ -167,7 +167,9 @@ report curriculum changes.
   private data folder (`data/private/`) on this computer. The server listens
   only on this computer by default.
 - Nothing leaves your home unless you configure an AI provider. If you do,
-  topic text is sent to it. The live transcript is the exception described
+  lessons, tests and cards send it topic text and an age band; discussion
+  analysis and progress reviews also send your notes, transcripts and your
+  child's name until that is fixed (HAR-19). The live transcript is the exception described
   above.
 - There is no sign-in or encryption yet. Do not expose Harrington to the public
   internet.
