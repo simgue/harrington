@@ -154,7 +154,7 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
       if (!Array.isArray(test.questions) || !test.questions.length) {
         stage.innerHTML = '';
         stage.appendChild(errorBlock(() => renderIntro(stage, subject, student, m, section, topic),
-          'No questions passed our answer checks this time, so nothing was recorded. Try building the test again.'));
+          'The test came back without any questions, so nothing was recorded. Try building the test again.'));
         refreshIcons();
         return;
       }

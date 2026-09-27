@@ -146,6 +146,7 @@ export function setStatus(studentId, topicId, status) {
   persist(); emit();
 }
 // Set many topics at once with a single persist + emit (one re-render).
+// Marks activity inline rather than via markActivity(), which would persist and emit a second time.
 export function setStatusBulk(studentId, topicIds, status) {
   if (!topicIds || !topicIds.length) return;
   const p = state.progress[studentId] = state.progress[studentId] || {};

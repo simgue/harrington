@@ -63,3 +63,31 @@ test('normalizeAnswer strips case, punctuation, accents and a leading article', 
   assert.equal(normalizeAnswer('Élan'), 'elan');
   assert.equal(normalizeAnswer(undefined), '');
 });
+
+test('a minus sign is never dropped, whatever dash character is used', () => {
+  assert.equal(isCorrect(typed('-5°C'), '5°C'), false);
+  assert.equal(isCorrect(typed('x = -3'), 'x = 3'), false);
+  assert.equal(isCorrect(typed('x = -3'), 'x=-3'), true);
+  assert.equal(isCorrect(typed('\u22127'), '7'), false);
+  assert.equal(isCorrect(typed('-3'), '\u22123'), true);
+});
+
+test('spacing and thousands separators do not cause false negatives', () => {
+  assert.equal(isCorrect(typed('12 cm'), '12cm'), true);
+  assert.equal(isCorrect(typed('1,000 km'), '1000 km'), true);
+  assert.equal(isCorrect(typed('New York'), 'new-york'), true);
+});
+
+test('mixed numbers parse as whole plus fraction', () => {
+  assert.equal(isCorrect(typed('1.5'), '1 1/2'), true);
+  assert.equal(isCorrect(typed('5.5'), '1 1/2'), false);
+  assert.equal(parseNumber('-2 1/4'), -2.25);
+});
+
+test('existing negatives still hold', () => {
+  assert.equal(isCorrect(typed('photosynthesis'), 'photo'), false);
+  assert.equal(isCorrect(typed('World War 2'), '2'), false);
+  assert.equal(isCorrect(typed('3.5'), '35'), false);
+  assert.equal(isCorrect(typed('4'), '4 apples'), false);
+  assert.equal(isCorrect(typed('4'), 'four'), false);
+});

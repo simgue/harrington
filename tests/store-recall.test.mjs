@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 // store.js persists through backend.js, which only touches fetch when a save
 // fires. Stub fetch so the debounced save succeeds quietly in Node.
-globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({}) });
+globalThis.fetch = async () => ({ ok: true, status: 200, headers: new Headers({ ETag: '"v1"' }), json: async () => ({}) });
 const store = await import('../src/js/store.js');
 
 test('grading a recall card keeps its topic when the caller passes none', () => {
