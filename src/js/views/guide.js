@@ -2,66 +2,73 @@ import { el, refreshIcons, openModal, toast } from '../ui.js';
 import * as store from '../store.js';
 
 // ---- Content shared by the welcome tour and the full guide ----
+// One line for every feature that calls the AI adapter, so the copy never
+// promises something an unconfigured server cannot do.
+const NEEDS_AI = 'Needs a local AI provider; see the README.';
+// The recorder has no in-app switch for live transcription yet, so say what
+// the parent can actually do instead.
+const SPEECH_NOTE = `Live transcript uses your browser's speech service, which may send audio to the browser vendor. There is no switch for it in Harrington yet; if you prefer, write a note instead of recording.`;
+
 const FEATURES = [
   {
     icon: 'compass', color: '#3f6b3b',
     title: 'Welcome to Harrington',
-    tagline: 'Begin with what matters to your child',
-    body: `Start with an interest, a question, or a project your child cares about. Harrington gives you meaningful ways to explore it together, while you choose what feels right for today. This quick tour shows you around.`,
-  },
-  {
-    icon: 'trending-up', color: '#2e4f2b',
-    title: 'A quiet map for parents',
-    tagline: 'See connections without prescribing the day',
-    body: `Behind the scenes, the curriculum graph helps you see helpful foundations, evidence, and possible next steps. It is a parent tool for making informed choices — not a script your child has to follow.`,
+    tagline: 'A quiet map for your family',
+    body: `Harrington helps you see where your child is in a connected curriculum and keep a record of what really happened each day. It runs on this computer only. This short tour shows what works today.`,
   },
   {
     icon: 'layout-dashboard', color: '#2f6285',
     title: 'Dashboard',
-    tagline: 'Your view of the learning journey',
-    body: `See recent activity, ideas to explore, and the connections you may want to keep in view. Quick buttons let you open the map, record a conversation, or add a note.`,
+    tagline: 'Your view of the day',
+    body: `<b>Today's path</b> offers a short literacy choice and a short numeracy choice, two options each, for your child to pick from. You also see stepping stones to try next, subject progress, and recent evidence. Quick buttons record what happened, add a note, or open the map.`,
+  },
+  {
+    icon: 'sprout', color: '#8a6412',
+    title: 'Child view',
+    tagline: 'Plants and words, no scores',
+    body: `Open it from the button with your child's name on the dashboard. It shows their garden, today's story time and number time picks, and <b>Tell about my day</b> for a voice note. The garden uses growth stages, never numbers. The activity buttons (Plant something new, Memory walk, Beat the clock): ${NEEDS_AI}`,
+  },
+  {
+    icon: 'map', color: '#3f6b3b',
+    title: 'Map',
+    tagline: 'The connected curriculum',
+    body: `The <b>world map</b> shows the eight subject realms. Enter a domain to see its <b>skill tree</b>: required and helpful foundations, what each topic unlocks, and a quest log for the selected topic. Prefer text? Switch to the <b>list</b> and drill from subject to domain to age band to topic.`,
+  },
+  {
+    icon: 'flower-2', color: '#a4473a',
+    title: 'Growth stages',
+    tagline: 'Seed, Sprout, Bud, Bloom',
+    body: `Progress is shown as a plant: <b>Seed</b> (foundations not yet in place), <b>Sprout</b> (ready to start), <b>Bud</b> (being learned) and <b>Bloom</b> (mastered). You set a topic's status yourself: "Mark as learning" in the quest log, or "Set status manually instead" on the topic page.`,
   },
   {
     icon: 'calendar-days', color: '#a4473a',
     title: 'Calendar',
-    tagline: 'An adaptive daily plan',
-    body: `A day-by-day track from your start date to age 13. Each day lists its topics plus auto-rotating <b>refreshers</b>. Miss a day, get ahead, or get stuck? <b>Move</b> topics to any day, <b>mark days done</b>, and <b>add extra practice</b> — the plan adapts to you.`,
+    tagline: 'A plan you can bend',
+    body: `A weekday plan from your start date. <b>Move</b> a topic to another day, <b>mark days done</b>, and <b>add extras</b>. The plan is yours to change. Opening a lesson, test, challenge or recall review from a day: ${NEEDS_AI}`,
   },
   {
-    icon: 'git-branch', color: '#3f6b3b',
-    title: 'Timeline',
-    tagline: 'The connected map',
-    body: `Explore how ideas relate across each subject. Every topic shows helpful prerequisites and what it may open up, alongside <b>lessons</b>, <b>print & go materials</b>, and activities. The existing mastery tools are there for parents to use and evaluate when useful.`,
+    icon: 'mic', color: '#5b4a86',
+    title: 'Records & recordings',
+    tagline: 'Keep the evidence',
+    body: `Log observations, questions, discussions and assessments, optionally linked to a topic, or <b>record a conversation</b>. Recordings are kept on this computer in a recordings folder. ${SPEECH_NOTE} AI discussion analysis: ${NEEDS_AI}`,
+  },
+  {
+    icon: 'sparkles', color: '#2f6285',
+    title: 'Insights',
+    tagline: 'Subject by subject',
+    body: `See how many topics are mastered, practicing, learning or not started in each subject, and the best unlocked topics to try next. Progress reviews and adaptive suggestions: ${NEEDS_AI}`,
   },
   {
     icon: 'notebook-text', color: '#5b4a86',
-    title: 'Lessons & printables',
-    tagline: 'Zero prep',
-    body: `Every topic has a ready-to-teach lesson with a "say this / do this" script and <b>parent notes</b> (what to focus on, likely struggles, advice). Print-and-go worksheets, flashcards, and more are one tap away — and saved for reuse.`,
+    title: 'Lessons, tests & more',
+    tagline: 'Optional, and off by default',
+    body: `Ready-to-teach lessons, print & go sheets, mastery tests, timed challenges, recall cards and "Explain simply" are all written by an AI model. ${NEEDS_AI} Without one, these buttons show an error and do nothing else.`,
   },
   {
-    icon: 'file-check-2', color: '#2f6285',
-    title: 'Tests you can trust',
-    tagline: 'A parent tool under evaluation',
-    body: `Topic, section, and subject checks are available digitally or as printable/hands-on activities. Questions are written by a strong AI, then <b>independently re-solved</b> to throw out anything wrong or ambiguous. Use these existing mastery tools when they serve your family.`,
-  },
-  {
-    icon: 'zap', color: '#8a6412',
-    title: 'Challenges & adaptivity',
-    tagline: 'The platform adapts to your child',
-    body: `After mastery, an optional <b>timed challenge</b> stretches your child for fun. Strong results prompt Harrington to suggest making that area harder — <b>you approve or decline</b>, always in control.`,
-  },
-  {
-    icon: 'mic', color: '#a4473a',
-    title: 'Records & voice analysis',
-    tagline: 'Keep the long view',
-    body: `Log observations, questions, projects, and discussions — or <b>record a conversation</b> with a live transcript. Over time, these records become evidence of learning and help you notice patterns, strengths, and useful next questions.`,
-  },
-  {
-    icon: 'sparkles', color: '#3f6b3b',
-    title: 'Insights & notifications',
-    tagline: 'Guidance for you',
-    body: `Insights gives per-subject progress reviews and next steps. The <b>bell</b> keeps you posted on curriculum updates (it auto-refreshes from the open repository), new adaptive suggestions, and challenge best scores.`,
+    icon: 'book-open', color: '#3f6b3b',
+    title: 'Guide',
+    tagline: 'Come back anytime',
+    body: `Reopen this tour or read the full guide from <b>Guide</b> in the sidebar, or the book icon at the top of the screen on a phone.`,
   },
 ];
 
@@ -116,20 +123,22 @@ export function openWelcomeTour() {
   render();
 }
 
-// The full, scrollable reference guide (opened from the sidebar "Guide" link).
+// The full, scrollable reference guide (opened from "Guide" in the desktop
+// sidebar or the book icon in the mobile header).
 export function openGuide() {
   const body = el(`<div class="p-0">
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-center gap-3 z-10">
       <span class="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0"><i data-lucide="book-open" class="w-5 h-5 text-brand-dark"></i></span>
       <div class="flex-1 min-w-0">
         <h3 class="font-display text-lg font-600 leading-tight">How Harrington works</h3>
-        <p class="text-xs text-ink-faint">A quick guide to every feature</p>
+        <p class="text-xs text-ink-faint">What works today, and what needs an AI provider</p>
       </div>
       <button id="tour" class="text-xs font-medium text-brand-dark shrink-0 flex items-center gap-1"><i data-lucide="play-circle" class="w-3.5 h-3.5"></i>Replay tour</button>
     </div>
     <div class="px-5 pt-4">
       <button id="download" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="download" class="w-4 h-4"></i>Download the full guide (PDF)</button>
       <p class="text-[11px] text-ink-faint text-center mt-1.5">Opens a printable version — choose "Save as PDF" to keep a copy.</p>
+      <a href="/docs/GUIDE.md" download="Harrington-GUIDE.md" class="mt-2 flex items-center justify-center gap-1.5 text-xs font-medium text-brand-dark hover:underline"><i data-lucide="file-text" class="w-3.5 h-3.5"></i>Download the written guide (GUIDE.md)</a>
     </div>
     <div id="list" class="px-5 py-4 space-y-3"></div>
   </div>`);
@@ -152,103 +161,76 @@ export function openGuide() {
 // ---- Full, detailed, printable/downloadable guide ----
 const GUIDE_SECTIONS = [
   { h: 'What Harrington is', items: [
-    ['Overview', 'A mastery-based homeschool platform for ages 5–13. It turns an open, connected curriculum of ~1,590 micro-topics into a clear learning path where every idea is genuinely mastered before the next begins — and the whole experience adapts to your child.'],
-    ['How learning is organized', 'Everything is built on three levels: Topics (single teachable ideas) → Sections (a group of related topics in one age band) → Subjects (the eight subject areas). You climb the ladder one verified step at a time.'],
-    ['Who it’s for', 'A homeschooling parent teaching one or more children. You are the teacher; Harrington supplies the curriculum, ready-to-teach lessons, tests, tracking, and adaptive guidance.'],
+    ['Overview', 'A self-hosted family learning platform. It shows a connected curriculum as a map, offers small daily choices, and keeps a record of what your child actually did. It runs on this computer only.'],
+    ['Who it’s for', 'A parent teaching one or more children at home. You are the teacher: Harrington helps you see foundations and next steps and keep evidence. It does not script the day.'],
+    ['What needs AI', `Lessons, print & go sheets, mastery tests, challenges, recall cards, activity instructions, “Explain simply”, discussion analysis, progress reviews and adaptive suggestions are written by an AI model. ${NEEDS_AI} Without one, those buttons show an error and nothing else happens.`],
   ]},
   { h: 'The curriculum (from the Marble Skill Taxonomy)', items: [
-    ['Source', 'The full curriculum comes from the open-source Marble Skill Taxonomy (github.com/withmarbleapp/os-taxonomy) — a structured, research-backed map of what children learn across the primary/elementary years.'],
-    ['Scale', 'About 1,590 micro-topics wired together by ~3,221 prerequisite dependencies, spanning 8 subjects: Mathematics, English, Science, History, Personal & Social Development, Life Skills, Computing, and Learning to Learn.'],
-    ['Each topic includes', 'A plain-language description, an approximate age range, “evidence of mastery” criteria, a natural-language quick-check prompt, a type (conceptual / procedural / etc.), and links to the curriculum standards it aligns to (Common Core, NGSS, UK National Curriculum, and more).'],
-    ['The prerequisite graph', 'Topics are connected by directed “depends on” links, each tagged hard (required) or soft (helpful) with a one-line reason. Harrington uses these exact links to show what comes before a topic and what it unlocks — and to gate the mastery ladder. Nothing here is invented; it mirrors the source data.'],
-    ['Domain summaries', 'Parent-friendly summaries for each subject/domain/age band explain, in a sentence, what your child is learning in that section.'],
-    ['Always up to date', 'Harrington fetches the latest curriculum directly from the repository every time it loads, so new or revised material flows in automatically — no updates to install. The Notifications bell tells you what changed.'],
+    ['Source', 'The curriculum comes from the open-source Marble Skill Taxonomy (github.com/withmarbleapp/os-taxonomy).'],
+    ['Scale', 'About 1,590 topics joined by about 3,221 prerequisite links, across 8 subjects: Mathematics, English, Science, History, Personal & Social Development, Life Skills, Computing, and Learning to Learn.'],
+    ['Each topic includes', 'A plain-language description, an approximate age range, “evidence of mastery” criteria, a quick-check prompt, and links to the curriculum standards it aligns to.'],
+    ['Prerequisites', 'Topics are linked by “depends on” connections, each tagged required or helpful. Harrington shows these exactly as the source data has them.'],
+    ['Downloaded once', 'The Harrington server downloads the curriculum the first time it starts (this needs the internet) and keeps it on this computer. It does not update on its own.'],
     ['Licensing', 'Marble Skill Taxonomy (v1) © Generative Spark, Inc., licensed under ODbL 1.0 (database) and CC BY-SA 4.0 (content).'],
   ]},
   { h: 'Getting started', items: [
-    ['Start Harrington', 'Run the family-owned Harrington server and open its local address. No external account or sign-in is required.'],
-    ['Add a sample learner', 'Enter a synthetic name and birth year. Harrington uses the birth year to place them on the age 5–13 timeline and build their calendar. Use sample data until backups and private remote access are ready.'],
-    ['Welcome tour & guide', 'A guided welcome tour runs the first time. You can reopen it or this full guide anytime from “Guide” in the sidebar, and download this document as a PDF.'],
-    ['Navigate', 'Use the left sidebar (or the bottom bar on mobile) to move between Dashboard, Calendar, Timeline, Records, and Insights. Switch or add students from the selector at the top of the sidebar.'],
-  ]},
-  { h: 'The mastery ladder', items: [
-    ['Topic', 'A single teachable idea. Pass its topic mastery test (90%+) and it’s marked mastered — passing the test is what marks it mastered.'],
-    ['Section', 'A group of related topics within an age band (e.g. “Counting & Cardinality · Age 5”). Once every topic in a section is mastered, its section check unlocks. Pass it to unlock the next section.'],
-    ['Subject', 'Once every section is passed, the final subject mastery test (the capstone) unlocks. Passing it certifies the whole subject and offers a printable certificate.'],
-    ['Why gating matters', 'Every level needs 90%+, and sections unlock in order, so learning always builds on solid foundations and nothing is skipped.'],
+    ['Start Harrington', 'Run the Harrington server and open its local address. There is no account and no sign-in.'],
+    ['Add a learner', 'Enter a name and birth year. Harrington uses the birth year to suggest age-appropriate topics and to build the calendar. Add more learners, or switch between them, from the selector at the top of the sidebar (or the round button at the top right on a phone).'],
+    ['Navigate', 'The sidebar (or the bottom bar on a phone) has Dashboard, Calendar, Map, Records and Insights. Guide is in the sidebar, or behind the book icon at the top of the screen on a phone. The child view opens from the dashboard.'],
   ]},
   { h: 'Dashboard', items: [
-    ['Overview', 'Overall mastery ring, “Work on next” recommendations, and per-subject progress.'],
-    ['Today', 'The topics scheduled for today from the calendar, plus a one-tap refresher quiz.'],
-    ['Active recall due', 'A card showing how many memory-review cards are due today, launching a mixed recall session.'],
-    ['Recordings folder', 'One tap into the general folder of all voice recordings, grouped by section.'],
-    ['Nudges & feeds', 'An adaptive-suggestion nudge when your child is excelling, plus recent progress and latest records.'],
-    ['Quick actions', 'Open the graph, record a conversation, or add a note.'],
+    ['Today’s path', 'A short literacy choice and a short numeracy choice, two options each, drawn from the literacy and numeracy focus domains. Your child picks one of each; the day’s options and picks are saved.'],
+    ['From the calendar', 'Topics scheduled for today. Opening a lesson or quiz from here needs AI.'],
+    ['Stepping stones', 'Unlocked, age-appropriate topics to try next.'],
+    ['Subjects and growth', 'Per-subject progress, recent growth, and recent evidence. Numbers are shown here because this is the parent view.'],
+    ['Quick buttons', 'Record what happened (voice), add a note, open the map, or open your child’s view.'],
   ]},
-  { h: 'Graph', items: [
-    ['Curriculum map', 'Start at a subject and drill into domains, age-banded sections, and topics. Mastery stays in the parent view.'],
-    ['Topic cards', 'Each topic still shows hard and soft prerequisites, what it unlocks, and opens the existing topic page.'],
-    ['Section checks', 'Unlock once all a section’s topics are mastered; locked sections show how many topics remain.'],
-    ['Topic page toolkit', 'Topic mastery test, challenge (after mastery), active recall, evidence of mastery, a quick check, activities & games, records, section recordings, section check, “How this connects,” and reference links. AI-generated tools remain disabled until a provider is configured.'],
-    ['Age-order timeline', 'The older section-by-section timeline remains at #timeline if you want the gated age path.'],
+  { h: 'Child view', items: [
+    ['Opening it', 'Press the button with your child’s name on the dashboard. “Grown-ups” returns to the parent view.'],
+    ['What your child sees', 'Their garden (one plant per subject, described in words), today’s story time and number time picks, and “Tell about my day” for a voice note. No levels, XP or percentages in the view itself.'],
+    ['Activity buttons', `Plant something new, Memory walk and Beat the clock open a test, recall cards or a challenge. ${NEEDS_AI}`],
   ]},
-  { h: 'How topics connect', items: [
-    ['Comes before', 'Each topic lists the prerequisites to master first, tagged Required or Helpful (straight from the taxonomy) with the reason each matters and its current mastery status.'],
-    ['You are here', 'The current topic sits in the middle of a clear top-to-bottom flow with directional arrows.'],
-    ['Leads to', 'Shows what mastering this topic unlocks next. Every item is tappable to jump straight to that topic.'],
+  { h: 'Map', items: [
+    ['World map', 'The eight subjects as realms, with their domains as dots sized by topic count. Mastery is shown as a quiet tint, not a percentage.'],
+    ['Skill tree', 'Enter a domain to see its topics as a tree with required and helpful links, and links to gateway domains.'],
+    ['Quest log', 'Select a topic to see the foundations it needs, what it unlocks, and buttons to open the topic page, record evidence, or mark it as learning. “Open full lesson” needs AI.'],
+    ['List', 'Prefer text? Switch to the list and drill from subject to domain to age band to topic.'],
   ]},
-  { h: 'Lessons, printables & activities', items: [
-    ['Full lesson', 'The retained generator can create a ready-to-teach plan once a family-controlled AI provider is configured. Generation is disabled in this preview.'],
-    ['Print & go materials', 'The lowest-prep printables for the topic — worksheets with answer keys, flashcards, matching sheets, tracing pages, sorting cards. Preview, print one, or print all.'],
-    ['Activities & games', 'Each idea expands into materials, setup, numbered steps, a worked example, and a tip. Everything generated is saved and reused.'],
+  { h: 'Growth stages and mastery', items: [
+    ['Growth stages', 'Seed (foundations not yet in place), Sprout (ready to start), Bud (being learned) and Bloom (mastered). The same stages appear on the map, the dashboard and the child garden.'],
+    ['Setting status', 'You decide. Use “Mark as learning” in the quest log, or open “Set status manually instead” on the topic page to choose not started, learning, practicing or mastered.'],
+    ['Unlocking', 'A topic is ready once every required foundation is mastered.'],
   ]},
-  { h: 'Tests & mastery', items: [
-    ['Every level tested', 'Each topic, section, and subject has its own test. Passing a topic test (90%+) marks the topic mastered.'],
-    ['Two formats', 'On-screen (multiple-choice, auto-graded with answer review) or on paper / hands-on (print with answer key, or observe, then tick what was correct — the score is calculated for you).'],
-    ['Verified answers', 'Once AI is configured, the intended flow writes questions with one pass, independently re-solves them with another, and rejects ambiguity; numeric answers are also checked by a built-in calculator.'],
-    ['Results & certificates', 'Results are saved per student, and passing the subject capstone offers a printable certificate.'],
+  { h: 'Topic page', items: [
+    ['Works today', 'Description, what mastery looks like, a quick-check prompt, how the topic connects, records for the topic, activity ideas, reference links and manual status.'],
+    ['Reference links', 'Khan Academy, BBC Bitesize and Wikipedia searches, plus YouTube searches. YouTube results are not filtered for children, so supervise.'],
+    ['Needs AI', `Full lesson, print & go, the topic mastery test, challenge, recall cards, “Explain simply”, “Make a mini-quiz”, and step-by-step activity instructions. ${NEEDS_AI}`],
   ]},
-  { h: 'Active recall (retrieval practice)', items: [
-    ['What it is', 'The most evidence-backed way to make learning stick: the child answers short questions from memory, then reviews on a spaced schedule.'],
-    ['Recall cards', 'Every topic generates 5–7 memory cards (question → concise answer, with an optional hint). Show the answer, then self-rate Missed it / Got it / Easy.'],
-    ['Spaced repetition', 'Cards you remember come back on an expanding schedule (1 → 2 → 4 → 8 → 16 → 32 days); missed cards return sooner, locking learning into long-term memory.'],
-    ['Where to find it', 'On every topic page (“Active recall”), and as a “Due today” review on the dashboard and in the calendar’s daily extras (mixed across topics for stronger recall).'],
+  { h: 'Calendar', items: [
+    ['Start date', 'The plan begins on your start date; change it and the plan reschedules.'],
+    ['Daily plan', 'Topics are spread across weekdays. Weekends are days off.'],
+    ['Bend the plan', 'Mark days done, move a topic to another day, and add extras to any day.'],
+    ['Needs AI', `Opening a lesson, test, challenge or recall review from a day. ${NEEDS_AI}`],
   ]},
-  { h: 'Challenges & adaptivity', items: [
-    ['Timed challenge', 'After a topic is mastered, an optional beat-the-clock round pitched a little harder — bigger numbers, an extra step, or a taste of what’s next — fun and doable. It tracks a personal best.'],
-    ['Adaptivity engine', 'When your child excels (e.g. aces a challenge quickly), Harrington creates a suggestion to pitch that area harder.'],
-    ['You’re in control', 'Approve or decline every suggestion from the dashboard nudge or Insights. Approving makes future tests in that area a notch harder; see active adaptations as chips and revert any anytime.'],
-  ]},
-  { h: 'Calendar — adaptive daily plan', items: [
-    ['Start date', 'The track begins the day you sign up; click “Change” to pick any start date and the whole plan reschedules.'],
-    ['Daily plan', 'Each day lists its specific topics; weekends are days off. Auto-rotating refreshers (a quiz, an activity/game, and a stretch) draw from earlier and mastered topics, and recall reviews appear when due.'],
-    ['Adapt as you go', 'Mark days done, move/push a topic to any day (great when stuck or getting ahead), and add extra practice, a re-teach lesson, a re-test, or a challenge onto any day. Days show a “+N” badge for extras and a check when done.'],
-  ]},
-  { h: 'Records, voice recording & analysis', items: [
-    ['Records', 'Log observations, questions, discussions, or assessments — optionally linked to a topic, with notes and a confidence rating.'],
-    ['Voice recording everywhere', 'Record a lesson conversation from the dashboard, any topic, or any section. A live on-screen transcript is captured while you record; audio is stored privately and plays back inline.'],
-    ['Recordings folder', 'A general folder (from the dashboard) holds every recording, grouped by section, each with playback, transcript, and analysis.'],
-    ['AI summary & advice', 'Harrington reads a recording’s transcript (or your notes) and tells you what the child understands, where and WHY they may be misunderstanding, concrete next steps, and a phrase to try. The summary is saved onto the recording so it stays with it.'],
+  { h: 'Records and recordings', items: [
+    ['Records', 'Log observations, questions, discussions or assessments, optionally linked to a topic, with notes and a confidence rating. Filter by type.'],
+    ['Voice recording', 'Record a conversation from the dashboard, a topic page, or the child view. Audio is saved on this computer and plays back inline.'],
+    ['Live transcript', SPEECH_NOTE],
+    ['Recordings folder', 'Every recording, grouped by section, with playback and transcript.'],
+    ['Discussion analysis', `Advice based on a transcript or your notes. ${NEEDS_AI}`],
   ]},
   { h: 'Insights', items: [
-    ['Adaptive suggestions', 'Approve/decline difficulty changes and see active adaptations per subject/domain.'],
-    ['Progress review', 'An encouraging, AI-written per-subject review drawing on progress and your records: strengths, watch areas, and concrete next steps.'],
-    ['Recommended next', 'The best unlocked topics to work on in that subject, plus launching the subject capstone test.'],
-  ]},
-  { h: 'Harrington Helper (AI chat)', items: [
-    ['Preview status', 'The AI helper is disabled in the self-hosted preview. It will return only through an explicit, family-controlled provider adapter.'],
-    ['Ask anything', 'Once configured, a teaching coach for the parent can answer questions such as “my child is struggling with subtraction and telling time — any ideas?”'],
-    ['Knows your student', 'It’s grounded in the active child’s real data — age, per-subject mastery, what they’re working on, and your recent notes — so advice is tailored, not generic.'],
-    ['Practical & connected', 'It gives concrete activities, ways to re-explain, and checks for understanding, and points you to the right Harrington feature (lesson, printables, recall, challenge, or recording analysis).'],
+    ['Subject summary', 'How many topics are mastered, practicing, learning or not started in each subject.'],
+    ['Recommended next', 'The best unlocked topics to work on in that subject.'],
+    ['Needs AI', `Progress reviews, subject tests and adaptive suggestions. ${NEEDS_AI}`],
   ]},
   { h: 'Notifications', items: [
-    ['Curriculum updates', 'The curriculum auto-refreshes from the open repository; when topics are added or removed upstream you’re notified with a per-subject breakdown and examples — the new material is already live in your timeline and calendar.'],
-    ['Adaptive suggestions', 'A notification when a new “make it harder” suggestion is created.'],
-    ['Challenge best scores', 'A celebratory notification when your child beats their personal best. Open the bell to read items and mark them read individually or all at once.'],
+    ['The bell', 'Shows a welcome note on first run. It does not report curriculum changes, because the curriculum does not update on its own.'],
   ]},
-  { h: 'Multiple students & privacy', items: [
-    ['Multiple students', 'Add students anytime and switch in one tap; each keeps their own progress, calendar, records, recordings, challenges, adaptations, and recall schedule.'],
-    ['Privacy', 'Family state, lesson caches, and recordings are stored in the private data directory on your Harrington server. It listens only on the local computer by default. Do not expose the preview publicly: application authentication and encrypted backups are not implemented yet. AI is disabled and receives no family data.'],
+  { h: 'Privacy', items: [
+    ['Where data lives', 'Learners, progress, records, recordings and settings are stored in the private data folder on this computer. The server listens only on this computer by default.'],
+    ['What leaves your home', `Nothing, unless you configure an AI provider. If you do, topic text is sent to it. ${SPEECH_NOTE}`],
+    ['Not for the internet', 'There is no sign-in or encryption yet. Do not expose Harrington to the public internet.'],
   ]},
 ];
 
@@ -281,8 +263,8 @@ function downloadGuide() {
   </style></head><body>
     <div class="brand"><span class="logo">H</span><span style="font-size:20px;font-weight:700">Harrington</span></div>
     <h1>Complete Feature Guide</h1>
-    <div class="sub">A mastery-based homeschool platform for ages 5–13 &middot; Generated ${date}</div>
-    <div class="intro">Harrington turns the open Marble Skill Taxonomy — ~1,590 connected micro-topics across 8 subjects, wired by ~3,221 prerequisites — into a clear learning path where every idea is truly mastered before the next begins, and the whole experience adapts to your child. This guide lists every feature and how to use it.</div>
+    <div class="sub">A self-hosted family learning platform &middot; Generated ${date}</div>
+    <div class="intro">Harrington shows the open Marble Skill Taxonomy (about 1,590 connected topics across 8 subjects) as a map for parents, offers small daily choices, and keeps a record of what your child actually did. Features marked “Needs a local AI provider” stay off until you configure one; see the README.</div>
     ${sections}
     <footer>Curriculum: Marble Skill Taxonomy (v1) &middot; © Generative Spark, Inc. &middot; licensed under ODbL 1.0 (database) and CC BY-SA 4.0 (content). Tip: in the print dialog, choose “Save as PDF” as the destination to download this guide.</footer>
     <script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script>
