@@ -1,6 +1,6 @@
 import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, toast, openModal } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiChallenge } from '../ai.js';
 import { isCorrect } from './masterytest.js';
 import { evaluateChallenge, nextConceptHint } from '../adapt.js';
@@ -17,8 +17,8 @@ export async function openChallenge(topic) {
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
       <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="zap" class="w-5 h-5" style="color:${meta.color}"></i></span>
       <div class="flex-1 min-w-0">
-        <p class="text-xs text-ink-faint">Challenge · ${topic.subject}</p>
-        <h3 class="font-display text-lg font-600 leading-tight">${topic.name}</h3>
+        <p class="text-xs text-ink-faint">Challenge · ${esc(topic.subject)}</p>
+        <h3 class="font-display text-lg font-600 leading-tight">${esc(topic.name)}</h3>
       </div>
     </div>
     <div id="stage" class="px-5 py-5"></div>
@@ -38,7 +38,7 @@ export async function openChallenge(topic) {
     const wrap = el(`<div class="fade-up text-center py-2">
       <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style="background:${meta.color}18"><i data-lucide="zap" class="w-8 h-8" style="color:${meta.color}"></i></div>
       <p class="font-600 text-lg">Beat the clock!</p>
-      <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">${student.name} has already mastered this — now a fun stretch. Answer as many as you can in <span class="font-600">${DURATION / 60} minutes</span>. Slightly bigger and trickier than usual, but doable!</p>
+      <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">${esc(student.name)} has already mastered this — now a fun stretch. Answer as many as you can in <span class="font-600">${DURATION / 60} minutes</span>. Slightly bigger and trickier than usual, but doable!</p>
       ${best ? `<p class="text-xs text-ink-faint mt-3">Best so far: ${best.correct}/${best.total} correct</p>` : ''}
       <button id="go" class="mt-5 inline-flex items-center gap-2 px-5 py-3 rounded-xl text-white font-medium transition-opacity hover:opacity-90" style="background:${meta.color}"><i data-lucide="play" class="w-4 h-4"></i>Start challenge</button>
     </div>`);
@@ -159,9 +159,9 @@ export async function openChallenge(topic) {
       <p class="text-sm text-ink-soft mt-1">correct in ${fmt(seconds)}</p>
       <p class="mt-3 font-600 text-lg">${great ? 'Awesome work!' : 'Nice effort!'}</p>
       <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">${great
-        ? `${student.name} smashed the stretch challenge. ${raised ? 'A suggestion to make this area harder is waiting for you to approve.' : ''}`
+        ? `${esc(student.name)} smashed the stretch challenge. ${raised ? 'A suggestion to make this area harder is waiting for you to approve.' : ''}`
         : `A tricky one — great for keeping skills sharp. Try again anytime to beat the score.`}</p>
-      ${raised ? `<div class="mt-4 rounded-xl border border-brand/30 bg-brand-light/50 p-3 text-left flex items-start gap-2.5"><i data-lucide="trending-up" class="w-4 h-4 text-brand-dark shrink-0 mt-0.5"></i><p class="text-xs text-ink-soft">We suggested pitching future <strong>${topic.domain}</strong> work harder. Review it under <strong>Insights → Adaptive suggestions</strong> — you can approve or decline.</p></div>` : ''}
+      ${raised ? `<div class="mt-4 rounded-xl border border-brand/30 bg-brand-light/50 p-3 text-left flex items-start gap-2.5"><i data-lucide="trending-up" class="w-4 h-4 text-brand-dark shrink-0 mt-0.5"></i><p class="text-xs text-ink-soft">We suggested pitching future <strong>${esc(topic.domain)}</strong> work harder. Review it under <strong>Insights → Adaptive suggestions</strong> — you can approve or decline.</p></div>` : ''}
       <div class="mt-6 space-y-2.5">
         <button id="again" class="w-full px-4 py-2.5 rounded-xl text-white font-medium transition-opacity hover:opacity-90" style="background:${meta.color}">Try again</button>
         <button id="close" class="w-full px-4 py-2.5 rounded-xl text-ink-soft font-medium hover:bg-paper transition-colors">Close</button>
@@ -175,4 +175,3 @@ export async function openChallenge(topic) {
 }
 
 function fmt(s) { s = Math.max(0, s); const m = Math.floor(s / 60), r = s % 60; return `${m}:${String(r).padStart(2, '0')}`; }
-function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
