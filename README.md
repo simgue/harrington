@@ -273,9 +273,13 @@ record counts, and after you confirm replaces the family data on this server.
 The JSON file does not contain recordings, so keep a `data/private/` backup too.
 
 Saves are versioned: if another tab or device saved first, Harrington reloads
-the latest data and says so instead of overwriting it. `/api/health` reports
+the latest data and says so instead of overwriting it. Changes still pending
+when a tab is hidden or closed are sent with `navigator.sendBeacon`; browsers
+cap beacons at about 64 KB, so a larger family document falls back to a normal
+save, which a closing tab may cut short. `/api/health` reports
 `stateVersion` and `stateBytes`; saves are limited to 5 MB and a banner
-appears if the family data grows past that.
+appears if the family data grows past that. Export then downloads this tab's
+copy, marked `unsavedChanges: true`.
 
 ## Deployment
 

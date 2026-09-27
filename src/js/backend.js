@@ -28,23 +28,24 @@ export async function loadState() {
   return request('/api/state').then((response) => response.json());
 }
 
-// Saves only if the server still holds `version`. Resolves to the new version.
+// Saves only if the server still holds `version`. `writeId` is stored on the
+// document so this tab can recognise its own write later. Resolves to the new version.
 // Rejects with `status: 412` and `body` set to the server's current document
 // when another tab or device saved first.
-export async function saveState(value, version) {
+export async function saveState(value, version, writeId) {
   const response = await request('/api/state', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'If-Match': `"v${version}"` },
-    body: JSON.stringify(value),
+    body: JSON.stringify({ ...value, writeId }),
   });
   return versionFromEtag(response) ?? version + 1;
 }
 
 // Unload path: beacons cannot set headers, so the precondition travels in the
 // body. Returns false when the browser refused to queue the beacon.
-export function beaconState(value, version) {
+export function beaconState(value, version, writeId) {
   if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') return false;
-  const blob = new Blob([JSON.stringify({ ...value, version })], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ ...value, version, writeId })], { type: 'application/json' });
   return navigator.sendBeacon('/api/state', blob);
 }
 

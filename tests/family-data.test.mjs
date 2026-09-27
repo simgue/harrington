@@ -15,6 +15,19 @@ let store;
 let syncCurriculum;
 const statusEvents = [];
 const realFetch = globalThis.fetch;
+const beacons = [];
+let beaconDelayMs = 0;
+const beaconStatuses = async () => { const all = await Promise.all(beacons); beacons.length = 0; return all; };
+const otherDevicePut = async (mutate) => {
+  const current = await serverState();
+  const res = await realFetch(`${baseUrl}/api/state`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'If-Match': `"v${current.version}"` },
+    body: JSON.stringify({ ...mutate(current), writeId: 'other-device' }),
+  });
+  assert.equal(res.status, 204);
+  return serverState();
+};
 
 const stateFile = () => join(dataDir, 'family-state.json');
 const serverState = async () => (await realFetch(`${baseUrl}/api/state`)).json();
@@ -48,6 +61,20 @@ before(async () => {
   });
 
   globalThis.fetch = (path, options) => realFetch(typeof path === 'string' && path.startsWith('/') ? `${baseUrl}${path}` : path, options);
+  // A beacon the test can observe: it really POSTs, but the store never sees
+  // the response, as in a browser.
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      sendBeacon(url, blob) {
+        const delay = beaconDelayMs;
+        beacons.push(blob.text().then((body) => new Promise((resolve) => setTimeout(resolve, delay)).then(() => body)).then((body) => realFetch(`${baseUrl}${url}`, {
+          method: 'POST', headers: { 'Content-Type': blob.type }, body,
+        })).then((response) => response.status));
+        return true;
+      },
+    },
+  });
   store = await import('../src/js/store.js');
   ({ syncCurriculum } = await import('../src/js/curriculum-sync.js'));
   const { loadTaxonomy } = await import('../src/js/data.js');
@@ -92,7 +119,7 @@ describe('family data safety in the store', { concurrency: false }, () => {
     const res = await realFetch(`${baseUrl}/api/state`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'If-Match': `"v${saved.version}"` },
-      body: JSON.stringify(other),
+      body: JSON.stringify({ ...other, writeId: 'other-device' }),
     });
     assert.equal(res.status, 204);
 
@@ -169,6 +196,169 @@ describe('family data safety in the store', { concurrency: false }, () => {
     assert.equal(status, 404);
   });
 
+  test('a rejected beacon never lets the next save overwrite another device', async () => {
+    await store.loadAll();
+    const id = store.get().students[0].id;
+    // Another device saves first and adds a learner.
+    await otherDevicePut((doc) => ({ ...doc, students: [...doc.students, { id: 'phone', name: 'Phone Kid', birthYear: 2020 }] }));
+
+    // This tab edits, then is hidden: the beacon carries the stale version.
+    store.setStatus(id, 'rhymes', 'learning');
+    store.handlePageHidden();
+    assert.deepEqual(await beaconStatuses(), [412]);
+    const afterBeacon = await serverState();
+
+    // The next local save must reload rather than overwrite.
+    statusEvents.length = 0;
+    store.setStatus(id, 'count-to-5', 'practicing');
+    await store.flushSaves();
+    const latest = await serverState();
+    assert.equal(latest.version, afterBeacon.version, 'nothing was written');
+    assert.ok(latest.students.some((s) => s.id === 'phone'));
+    assert.ok(store.get().students.some((s) => s.id === 'phone'));
+    assert.deepEqual(statusEvents, ['conflict']);
+  });
+
+  test('returning to a tab after a rejected beacon reloads the other device\'s save', async () => {
+    const id = store.get().students[0].id;
+    await otherDevicePut((doc) => ({ ...doc, students: [...doc.students, { id: 'tablet', name: 'Tablet Kid', birthYear: 2021 }] }));
+    store.setStatus(id, 'rhymes', 'mastered');
+    store.handlePageHidden();
+    assert.deepEqual(await beaconStatuses(), [412]);
+
+    statusEvents.length = 0;
+    await store.handlePageVisible();
+    assert.deepEqual(statusEvents, ['conflict']);
+    assert.ok(store.get().students.some((s) => s.id === 'tablet'));
+  });
+
+  test('an accepted beacon is recognised as our own write', async () => {
+    const id = store.get().students[0].id;
+    store.setStatus(id, 'rhymes', 'practicing');
+    store.handlePageHidden();
+    assert.deepEqual(await beaconStatuses(), [204]);
+
+    statusEvents.length = 0;
+    await store.handlePageVisible();
+    assert.deepEqual(statusEvents, [], 'no reload or conflict for our own beacon');
+    const before = await serverState();
+    store.setStatus(id, 'count-to-5', 'mastered');
+    await store.flushSaves();
+    assert.deepEqual(statusEvents, ['saved']);
+    const after = await serverState();
+    assert.equal(after.version, before.version + 1);
+    assert.equal(after.progress[id].rhymes.status, 'practicing');
+    assert.equal(after.progress[id]['count-to-5'].status, 'mastered');
+  });
+
+  for (const winner of ['save', 'beacon']) {
+    test(`a beacon racing an in-flight save keeps both edits (${winner} lands first)`, async () => {
+      const id = store.get().students[0].id;
+      const topic = winner === 'save' ? 'rhymes' : 'count-to-5';
+      // Hold back whichever request should arrive second.
+      const routed = globalThis.fetch;
+      if (winner === 'save') beaconDelayMs = 150;
+      if (winner === 'beacon') {
+        globalThis.fetch = async (path, options) => {
+          if (options?.method === 'PUT') await new Promise((resolve) => setTimeout(resolve, 150));
+          return routed(path, options);
+        };
+      }
+      try {
+        statusEvents.length = 0;
+        store.setStatus(id, topic, 'learning');
+        const inFlight = store.flushSaves();
+        await new Promise((resolve) => setImmediate(resolve)); // the PUT is now on the wire
+        store.setStatus(id, 'rhymes' === topic ? 'count-to-5' : 'rhymes', 'practicing');
+        store.handlePageHidden();
+        const [beacon] = await beaconStatuses();
+        await inFlight;
+        assert.equal(beacon, winner === 'beacon' ? 204 : 412);
+      } finally {
+        globalThis.fetch = routed;
+        beaconDelayMs = 0;
+      }
+      await store.handlePageVisible();
+      await store.flushSaves();
+
+      const latest = await serverState();
+      assert.equal(latest.progress[id][topic].status, 'learning');
+      assert.equal(latest.progress[id]['rhymes' === topic ? 'count-to-5' : 'rhymes'].status, 'practicing');
+      assert.ok(!statusEvents.includes('conflict'), `events: ${statusEvents}`);
+      assert.deepEqual(store.get().progress[id], latest.progress[id]);
+    });
+  }
+
+  test('a beacon racing an in-flight save cannot clobber another device', async () => {
+    const id = store.get().students[0].id;
+    // Another device writes; this tab still holds the older version.
+    const other = await otherDevicePut((doc) => ({ ...doc, students: [...doc.students, { id: 'laptop2', name: 'Second Laptop Kid', birthYear: 2018 }] }));
+    statusEvents.length = 0;
+    store.setStatus(id, 'rhymes', 'mastered');
+    const inFlight = store.flushSaves();
+    await new Promise((resolve) => setImmediate(resolve)); // the PUT is now on the wire
+    store.setStatus(id, 'count-to-5', 'mastered');
+    store.handlePageHidden();
+    assert.deepEqual(await beaconStatuses(), [412]);
+    await inFlight;
+    await store.handlePageVisible();
+    await store.flushSaves();
+
+    const latest = await serverState();
+    assert.equal(latest.version, other.version, 'neither the save nor the beacon was written');
+    assert.ok(latest.students.some((s) => s.id === 'laptop2'));
+    assert.ok(statusEvents.includes('conflict'));
+    assert.ok(store.get().students.some((s) => s.id === 'laptop2'));
+  });
+
+  test('a removal that loses a conflict keeps the learner\'s recordings', async () => {
+    const id = store.addStudent('Kept Learner', 2016);
+    const audioPath = `${id}/kept.webm`;
+    await realFetch(`${baseUrl}/api/audio/${encodeURIComponent(audioPath)}`, {
+      method: 'PUT', headers: { 'Content-Type': 'audio/webm' }, body: new Uint8Array([9]),
+    });
+    store.addRecord(id, { type: 'recording', title: 'Kept', audioPath });
+    await store.flushSaves();
+    await otherDevicePut((doc) => ({ ...doc, graphView: 'list' }));
+
+    statusEvents.length = 0;
+    store.removeStudent(id);
+    await store.flushSaves();
+    assert.deepEqual(statusEvents, ['conflict']);
+    assert.ok(store.get().students.some((s) => s.id === id), 'the learner is back after the reload');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal((await realFetch(`${baseUrl}/api/audio/${encodeURIComponent(audioPath)}`)).status, 200);
+  });
+
+  test('a 412 without a usable body falls back to reading the server copy', async () => {
+    await otherDevicePut((doc) => ({ ...doc, graphView: 'atlas', students: [...doc.students, { id: 'garbled', name: 'Garbled Kid', birthYear: 2017 }] }));
+    const routed = globalThis.fetch;
+    globalThis.fetch = async (path, options) => (options?.method === 'PUT'
+      ? new Response('not json', { status: 412 })
+      : routed(path, options));
+    try {
+      statusEvents.length = 0;
+      store.setGraphView(store.graphView() === 'list' ? 'atlas' : 'list');
+      await store.flushSaves();
+    } finally {
+      globalThis.fetch = routed;
+    }
+    assert.deepEqual(statusEvents, ['conflict']);
+    assert.ok(store.get().students.some((s) => s.id === 'garbled'));
+  });
+
+  test('export while a save is failing downloads this tab\'s copy', async () => {
+    const id = store.get().students[0].id;
+    store.addRecord(id, { type: 'note', title: 'Huge', note: 'x'.repeat(5 * 1024 * 1024) });
+    const exported = await store.exportDocument();
+    assert.equal(exported.unsavedChanges, true);
+    assert.equal(exported.records[id][0].title, 'Huge');
+    store.removeRecord(id, exported.records[id][0].id);
+    await store.flushSaves();
+    const clean = await store.exportDocument();
+    assert.equal(clean.unsavedChanges, undefined);
+  });
+
   test('export then import restores the family document', async () => {
     const exported = JSON.parse(JSON.stringify(await store.exportDocument()));
     assert.equal(typeof exported.exportedAt, 'string');
@@ -182,7 +372,7 @@ describe('family data safety in the store', { concurrency: false }, () => {
 
     assert.equal(await store.importDocument(exported), true);
     const restored = await serverState();
-    const strip = ({ version, updatedAt, exportedAt, taxonomyVersion, ...rest }) => rest;
+    const strip = ({ version, updatedAt, writeId, exportedAt, taxonomyVersion, ...rest }) => rest;
     assert.deepEqual(strip(restored), strip(exported));
     assert.deepEqual(store.get().students, exported.students);
 
