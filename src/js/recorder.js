@@ -114,15 +114,24 @@ export function openRecorder(studentId, topic = null, section = null) {
     <div id="stage"></div>
   </div>`);
   const stage = body.querySelector('#stage');
-  const m = openModal(body);
-
   let stream = null, recorder = null, chunks = [], mime = '', startTs = 0, timerId = null, blob = null, duration = 0;
-  let transcriber = null, transcript = '', liveTranscript = '';
+  let transcriber = null, transcript = '', liveTranscript = '', closed = false;
+
+  const m = openModal(body, {
+    beforeClose: () => !((recorder && recorder.state === 'recording') || blob)
+      || confirm('Discard this recording? It hasn\'t been saved.'),
+  });
 
   const cleanupStream = () => { if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; } };
   const originalClose = m.close;
-  m.close = () => { cleanupStream(); if (transcriber) transcriber.stop(); if (timerId) clearInterval(timerId); originalClose(); };
-  body.querySelector('#stage').addEventListener('modal-close', m.close);
+  m.close = () => {
+    closed = true;
+    if (recorder && recorder.state !== 'inactive') { recorder.onstop = null; try { recorder.stop(); } catch {} }
+    cleanupStream();
+    if (transcriber) transcriber.stop();
+    if (timerId) clearInterval(timerId);
+    originalClose();
+  };
 
   // Stage 1: idle
   function renderIdle() {
@@ -152,6 +161,8 @@ export function openRecorder(studentId, topic = null, section = null) {
       toast('Microphone access is needed to record', 'error');
       return;
     }
+    // The modal may have been dismissed while the permission prompt was open.
+    if (closed) { cleanupStream(); return; }
     mime = pickMime();
     try {
       recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);

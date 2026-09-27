@@ -24,10 +24,13 @@ export async function openChallenge(topic) {
     <div id="stage" class="px-5 py-5"></div>
   </div>`);
   const stage = body.querySelector('#stage');
-  const m = openModal(body, { wide: true });
-  let timerId = null;
+  let timerId = null, running = false, closed = false;
+  const m = openModal(body, {
+    wide: true,
+    beforeClose: () => !running || confirm('Stop the challenge? This attempt won\'t be saved.'),
+  });
   const origClose = m.close;
-  m.close = () => { if (timerId) clearInterval(timerId); origClose(); };
+  m.close = () => { closed = true; running = false; if (timerId) clearInterval(timerId); origClose(); };
 
   renderIntro();
 
@@ -57,6 +60,7 @@ export async function openChallenge(topic) {
         topic, nextHint: nextConceptHint(topic),
       });
       if (!test.questions || !test.questions.length) throw new Error('no questions');
+      if (closed) return;
       runQuiz(test);
     } catch (e) {
       console.error(e);
@@ -70,8 +74,9 @@ export async function openChallenge(topic) {
 
   function runQuiz(test) {
     const questions = test.questions;
-    let idx = 0, correct = 0, remaining = DURATION;
+    let idx = 0, correct = 0, remaining = DURATION, finished = false;
     const startTs = Date.now();
+    running = true;
     stage.innerHTML = '';
     const wrap = el(`<div class="fade-up">
       <div class="flex items-center justify-between mb-4">
@@ -90,7 +95,7 @@ export async function openChallenge(topic) {
       clock.innerHTML = `<i data-lucide="timer" class="w-4 h-4"></i>${fmt(remaining)}`;
       bar.style.width = (remaining / DURATION * 100) + '%';
       refreshIcons();
-      if (remaining <= 0) { clearInterval(timerId); finish(); }
+      if (remaining <= 0) finish();
     }, 1000);
 
     const showQ = () => {
@@ -109,7 +114,7 @@ export async function openChallenge(topic) {
           b.style.background = right ? '#e4eedf' : '#fbecc4';
           wrap.querySelector('#score').textContent = correct;
           opts.querySelectorAll('button').forEach(x => x.disabled = true);
-          setTimeout(() => { idx++; if (idx >= questions.length) { clearInterval(timerId); finish(); } else showQ(); }, 350);
+          setTimeout(() => { if (finished || closed) return; idx++; if (idx >= questions.length) finish(); else showQ(); }, 350);
         };
         opts.appendChild(b);
       });
@@ -118,7 +123,12 @@ export async function openChallenge(topic) {
     };
     showQ();
 
+    // Runs at most once per attempt, and never for a dismissed challenge.
     function finish() {
+      if (finished || closed) return;
+      finished = true;
+      running = false;
+      clearInterval(timerId);
       const seconds = Math.min(DURATION, Math.round((Date.now() - startTs) / 1000));
       // Previous best for this topic (by correct count) BEFORE saving this run.
       const prior = store.challengesFor(student.id, topic.id);

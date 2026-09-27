@@ -44,7 +44,12 @@ export async function openMasteryTest(subject, section = null, topic = null) {
     <div id="stage" class="px-5 py-5"></div>
   </div>`);
   const stage = body.querySelector('#stage');
-  const m = openModal(body, { wide: true });
+  // A test is in progress while its Submit (digital) or Record result (paper) button is showing.
+  const m = openModal(body, {
+    wide: true,
+    beforeClose: () => !stage.querySelector('#submit, #finish')
+      || confirm('Leave this test? Answers so far won\'t be saved.'),
+  });
 
   renderIntro(stage, subject, student, m, section, topic);
   refreshIcons();
