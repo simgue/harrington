@@ -145,6 +145,17 @@ export function setStatus(studentId, topicId, status) {
   markActivity(studentId);
   persist(); emit();
 }
+// Set many topics at once with a single persist + emit (one re-render).
+// Marks activity inline rather than via markActivity(), which would persist and emit a second time.
+export function setStatusBulk(studentId, topicIds, status) {
+  if (!topicIds || !topicIds.length) return;
+  const p = state.progress[studentId] = state.progress[studentId] || {};
+  const now = Date.now();
+  topicIds.forEach(id => { p[id] = { status, updatedAt: now }; });
+  const a = activityOf(studentId);
+  a[dateKeyLocal(now)] = true;
+  persist(); emit();
+}
 
 // ---- Records (notes / observations / questions) ----
 export function recordsFor(studentId, topicId = null) {
@@ -311,6 +322,8 @@ const DAY = 86400000;
 export function ensureRecallCard(studentId, cardId, topicId) {
   const r = recallOf(studentId);
   if (!r[cardId]) { r[cardId] = { topicId, box: 0, due: dayStart(Date.now()), reps: 0, lapses: 0, last: null }; persist(); }
+  // Repair records whose topicId was wiped by an earlier grading bug.
+  else if (!r[cardId].topicId && topicId) { r[cardId].topicId = topicId; persist(); }
   return r[cardId];
 }
 export function recallState(studentId, cardId) { return recallOf(studentId)[cardId] || null; }
@@ -319,7 +332,8 @@ export function recallState(studentId, cardId) { return recallOf(studentId)[card
 export function gradeRecall(studentId, cardId, topicId, grade) {
   const r = recallOf(studentId);
   const c = r[cardId] || { topicId, box: 0, reps: 0, lapses: 0 };
-  c.topicId = topicId;
+  // Never replace a known topic with a missing one.
+  if (topicId) c.topicId = topicId;
   if (grade === 'again') { c.box = 0; c.lapses = (c.lapses || 0) + 1; }
   else if (grade === 'good') { c.box = Math.min(RECALL_INTERVALS.length - 1, (c.box || 0) + 1); }
   else if (grade === 'easy') { c.box = Math.min(RECALL_INTERVALS.length - 1, (c.box || 0) + 2); }

@@ -2,7 +2,7 @@ import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, refreshIcons, toast, openModal } from '../ui.js';
 import { award, XP } from '../game.js';
-import { isCorrect } from './masterytest.js';
+import { isCorrect } from '../grading.js';
 
 // Spaced retry of mastery-test questions the student previously missed —
 // extends the same expanding-interval schedule used for recall cards to
@@ -35,6 +35,7 @@ function runSession(stage, m, student, items, restart) {
     if (i >= items.length) return renderDone();
     const item = items[i];
     const meta = SUBJECTS[item.subject] || SUBJECTS.Mathematics;
+    const isTask = item.type === 'task';
     let given = item.type === 'multiple_choice' ? null : '';
 
     stage.innerHTML = '';
@@ -45,6 +46,7 @@ function runSession(stage, m, student, items, restart) {
       </div>
       <div class="h-1.5 rounded-full bg-paper-line overflow-hidden mb-5"><div class="h-full rounded-full transition-all" style="width:${(i / items.length) * 100}%;background:${meta.color}"></div></div>
       <div class="rounded-2xl border border-paper-line bg-paper p-5">
+        ${isTask ? `<p class="text-xs font-medium text-ink-faint mb-1.5 flex items-center gap-1.5"><i data-lucide="hand" class="w-3.5 h-3.5"></i>Hands-on task · a parent checks this one</p>` : ''}
         <p class="text-base font-600 mb-4">${esc(item.q)}</p>
         <div id="opts" class="space-y-2"></div>
       </div>
@@ -55,6 +57,28 @@ function runSession(stage, m, student, items, restart) {
     const opts = wrap.querySelector('#opts');
     const controls = wrap.querySelector('#controls');
     const check = el(`<button class="w-full px-4 py-3 rounded-xl text-white font-medium transition-opacity hover:opacity-90 disabled:opacity-40" style="background:${meta.color}" disabled>Check answer</button>`);
+
+    const grade = (correct) => {
+      store.gradePracticeItem(student.id, item.id, correct);
+      store.awardXp(student.id, XP.practiceRetry + (correct ? XP.practiceCorrect : 0));
+      results[correct ? 'correct' : 'missed']++;
+      showFeedback(wrap, item, correct, () => { i++; render(); });
+    };
+
+    if (isTask) {
+      // Hands-on tasks carry a parent-facing success criterion, not a typed
+      // answer, so the parent observes and marks the attempt.
+      opts.appendChild(el(`<div class="rounded-lg border border-paper-line bg-paper-card p-3 text-sm"><span class="font-medium">Success looks like:</span> ${esc(item.answer || '')}</div>`));
+      const row = el(`<div class="grid grid-cols-2 gap-2"></div>`);
+      const done = el(`<button class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-white font-medium transition-opacity hover:opacity-90" style="background:${meta.color}"><i data-lucide="check" class="w-4 h-4"></i>Done</button>`);
+      const notYet = el(`<button class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-paper-line font-medium hover:border-brand/40 transition-colors"><i data-lucide="rotate-ccw" class="w-4 h-4"></i>Not yet</button>`);
+      done.onclick = () => grade(true);
+      notYet.onclick = () => grade(false);
+      row.append(done, notYet);
+      controls.appendChild(row);
+      refreshIcons();
+      return;
+    }
 
     if (item.type === 'multiple_choice') {
       (item.options || []).forEach((opt, oi) => {
@@ -74,13 +98,7 @@ function runSession(stage, m, student, items, restart) {
     }
     controls.appendChild(check);
 
-    check.onclick = () => {
-      const correct = isCorrect(item, given);
-      store.gradePracticeItem(student.id, item.id, correct);
-      store.awardXp(student.id, XP.practiceRetry + (correct ? XP.practiceCorrect : 0));
-      results[correct ? 'correct' : 'missed']++;
-      showFeedback(wrap, item, correct, () => { i++; render(); });
-    };
+    check.onclick = () => grade(isCorrect(item, given));
     refreshIcons();
   };
 
@@ -111,7 +129,7 @@ function showFeedback(wrap, item, correct, next) {
   controls.innerHTML = '';
   controls.appendChild(el(`<div class="rounded-xl border ${correct ? 'border-brand/30 bg-brand-light/30' : 'border-[#f3b7a8] bg-[#fbecc4]'} p-3.5 mb-3 flex items-start gap-2.5">
     <i data-lucide="${correct ? 'check-circle-2' : 'x-circle'}" class="w-4 h-4 shrink-0 mt-0.5" style="color:${correct ? '#3f6b3b' : '#a4473a'}"></i>
-    <p class="text-sm">${correct ? 'Correct!' : `Correct answer: <span class="font-600">${esc(formatAnswer(item))}</span>`}</p>
+    <p class="text-sm">${item.type === 'task' ? (correct ? 'Nice work!' : 'This one will come back soon for another try.') : correct ? 'Correct!' : `Correct answer: <span class="font-600">${esc(formatAnswer(item))}</span>`}</p>
   </div>`));
   const nextBtn = el(`<button class="w-full px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Continue</button>`);
   nextBtn.onclick = next;
