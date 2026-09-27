@@ -1,49 +1,62 @@
 # Changelog
 
-All notable changes to Homestead are documented here. This project loosely
-follows [Keep a Changelog](https://keepachangelog.com/) and semantic-ish
-versioning.
+All notable changes to Harrington are documented here. This project loosely
+follows [Keep a Changelog](https://keepachangelog.com/). Harrington has not
+tagged a release yet; everything below is on `main`.
 
-## [1.0.0] — Initial public release
+## [Unreleased]
 
-### Learning core
-- Mastery ladder: Topics → Sections → Subjects, each gated at 90%+.
-- Connected timeline built from the Marble Skill Taxonomy's prerequisite graph,
-  with a clear "How this connects" flow (comes before / leads to).
-- Age 5–13 path derived from the taxonomy, per student.
+### Changed
+- Welcome tour, in-app Guide, printable guide and `src/docs/GUIDE.md` describe
+  only what works today. AI-backed features carry one line: "Needs a local AI
+  provider; see the README." The curriculum auto-update claim is gone, and the
+  live transcript is labeled as using the browser's speech service (HAR-12).
+- Guide is reachable on phones from a book icon in the header (HAR-12).
+- Onboarding, the first-run notification and the YouTube reference link use
+  plain, accurate wording (HAR-12).
 
-### Teaching tools
-- AI-generated, ready-to-teach lessons with parent notes (focus / struggles /
-  advice), printable "print & go" materials, and expandable activities & games.
-- Reference links and aligned curriculum standards per topic.
+### Added
+- Platform audit of 27 September 2026 (`docs/audits/`).
+- Daily literacy and numeracy pick-one choices on Today's path and in the
+  child view, drawn from the POC focus domains (HAR-4, PR #7).
+- Growth stages (Seed, Sprout, Bud, Bloom) in place of scores, and a child
+  view opened from the dashboard with no levels, XP or percentages.
+- Storybook Meadow theme with self-hosted fonts.
+- Map: world map of subject realms, per-domain skill tree with quest log, and
+  a list drill-down (HAR-3, HAR-5, HAR-6).
+- Local OpenAI-compatible AI adapter, fail-closed until
+  `HARRINGTON_AI_BASE_URL` and `HARRINGTON_AI_MODEL` are set (HAR-7).
+- Dependency-free Node server storing family state, lesson caches, recordings
+  and the taxonomy cache under `data/private/`; Docker and Compose bound to
+  loopback; CI running `npm test` (HAR-2).
 
-### Assessment
-- Topic, section, and subject mastery tests — digital (auto-graded) or
-  printable/hands-on — with an independent verification pass and calculator
-  double-check so answers are trustworthy. Printable certificates on subject
-  completion.
+### Removed
+- Hosted sign-in, cloud storage and the hosted deploy workflow inherited from
+  Homestead (HAR-2).
 
-### Retention & adaptivity
-- Active recall cards per topic with spaced-repetition scheduling and a
-  "due today" review.
-- Timed challenge quizzes after mastery.
-- Adaptivity engine: strong results propose parent-approved difficulty increases.
+## Forked from Homestead (2026-08-11)
 
-### Planning & tracking
-- Adaptive day-by-day calendar (reschedule, mark done, add extra practice) with
-  a chosen start date and daily refreshers.
-- Records with voice recording, live transcripts, a recordings folder, and AI
-  discussion analysis saved onto each recording.
-- Insights: per-subject AI progress reviews and recommended next steps.
-- Streak tracker and per-subject completion rings.
+Harrington started as a fork of
+[Homestead](https://github.com/tbh-23/Homestead) under the MIT License.
 
-### Engagement (kids)
-- XP, levels, 12 collectible badges, confetti/sound celebrations, and a
-  full-screen Kid Mode.
+### Inherited from Homestead 1.0.0
 
-### Platform
-- Parent AI assistant ("Homestead Helper") grounded in the child's progress.
-- Notification center for curriculum updates, adaptive suggestions, and best
-  scores.
-- Curriculum auto-syncs from the upstream repository on every load.
-- Downloadable feature guide and in-app welcome tour.
+Most of these remain in the codebase. Features marked (AI) need a local AI
+provider in Harrington; Commune and the Helper chat are disabled.
+
+- Mastery ladder: topics, sections and subjects gated at 90%+.
+- Curriculum from the Marble Skill Taxonomy's prerequisite graph, with a
+  "How this connects" flow and an age-ordered timeline.
+- Lessons, print & go materials and activity instructions (AI).
+- Topic, section and subject mastery tests, digital or printable, with
+  certificates (AI).
+- Recall cards with spaced repetition (AI), and spaced practice for missed
+  test questions.
+- Timed challenges and parent-approved adaptivity (AI).
+- Day-by-day calendar with moves, done days and extras.
+- Records, voice recording with live transcript, recordings folder, and
+  discussion analysis (AI).
+- Insights with progress reviews (AI) and recommended next topics.
+- XP, levels, badges and celebrations; notification center; streak tracker;
+  downloadable guide and welcome tour.
+- Commune shared teaching and the Helper chat (disabled in Harrington).

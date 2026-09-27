@@ -1,6 +1,6 @@
 import { SUBJECTS, AGES, getData, topicAge } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons } from '../ui.js';
+import { el, esc, refreshIcons } from '../ui.js';
 import { subjectByAge, isUnlocked, blockingPrereqs, MASTERY, subjectSections, topicsMasteryStats, sectionTestReady, subjectTestReady } from '../mastery.js';
 import { openLesson } from './lesson.js';
 import { openMasteryTest } from './masterytest.js';
@@ -24,7 +24,7 @@ export function renderTimeline(params, { navigate }) {
   root.appendChild(el(`
     <div class="mb-5">
       <h1 class="font-display text-2xl sm:text-3xl font-600">Learning Timeline</h1>
-      <p class="text-ink-soft text-sm mt-1">A connected, age 5–13 path for <span class="font-600 text-ink">${active?.name || 'your student'}</span>. Pass each section's check to move on to the next.</p>
+      <p class="text-ink-soft text-sm mt-1">A connected, age 5–13 path for <span class="font-600 text-ink">${esc(active?.name || 'your student')}</span>. Pass each section's check to move on to the next.</p>
     </div>`));
 
   // Subject tabs
@@ -73,11 +73,11 @@ export function renderTimeline(params, { navigate }) {
       band.appendChild(el(`<div class="hidden sm:flex flex-col items-center shrink-0 w-14 pt-0.5">
         <div class="w-14 h-14 rounded-2xl flex flex-col items-center justify-center ${isCurrent ? 'text-white' : 'bg-paper-card border border-paper-line text-ink-soft'}" ${isCurrent ? `style="background:${meta.color}"` : ''}>
           <span class="text-[10px] uppercase tracking-wide opacity-70">Age</span>
-          <span class="text-lg font-700 leading-none">${sec.age}</span>
+          <span class="text-lg font-700 leading-none">${esc(sec.age)}</span>
         </div>
       </div>`));
       band.appendChild(el(`<div class="flex-1 flex items-center">
-        <span class="sm:hidden px-2.5 py-1 rounded-full text-xs font-600 ${isCurrent ? 'text-white' : 'bg-paper-card border border-paper-line text-ink-soft'}" ${isCurrent ? `style="background:${meta.color}"` : ''}>Age ${sec.age}</span>
+        <span class="sm:hidden px-2.5 py-1 rounded-full text-xs font-600 ${isCurrent ? 'text-white' : 'bg-paper-card border border-paper-line text-ink-soft'}" ${isCurrent ? `style="background:${meta.color}"` : ''}>Age ${esc(sec.age)}</span>
         ${isCurrent ? '<span class="text-xs text-brand-dark font-medium sm:ml-0 ml-2">Current age</span>' : ''}
       </div>`));
       rail.appendChild(band);
@@ -96,7 +96,7 @@ export function renderTimeline(params, { navigate }) {
     const banner = el(`<div class="mt-4 rounded-2xl border-2 border-dashed p-5 flex flex-col sm:flex-row sm:items-center gap-3 ${!ready && !passed ? 'node-lock' : ''}" style="border-color:${meta.color}55;background:${meta.color}0d">
       <span class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style="background:${meta.color}"><i data-lucide="${!ready && !passed ? 'lock' : 'award'}" class="w-6 h-6 text-white"></i></span>
       <div class="flex-1">
-        <p class="font-600 flex items-center gap-2">Final ${filterSubject} mastery test ${passed ? `<span class="text-[11px] font-medium px-1.5 py-0.5 rounded-full text-white" style="background:${meta.color}">Passed ${lastSubj.pct}%</span>` : ''}</p>
+        <p class="font-600 flex items-center gap-2">Final ${esc(filterSubject)} mastery test ${passed ? `<span class="text-[11px] font-medium px-1.5 py-0.5 rounded-full text-white" style="background:${meta.color}">Passed ${lastSubj.pct}%</span>` : ''}</p>
         <p class="text-sm text-ink-soft leading-relaxed">${passed
           ? 'Subject mastered! You can retake the capstone or print a certificate anytime.'
           : ready
@@ -137,11 +137,11 @@ function sectionBlock(sec, active, navigate, meta, gated) {
     </span>
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-2 flex-wrap">
-        <p class="font-600">${sec.domain}</p>
-        <span class="text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-paper border border-paper-line text-ink-faint">Age ${sec.age}</span>
+        <p class="font-600">${esc(sec.domain)}</p>
+        <span class="text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-paper border border-paper-line text-ink-faint">Age ${esc(sec.age)}</span>
         ${passed ? `<span class="text-[11px] font-medium px-1.5 py-0.5 rounded-full text-white" style="background:${meta.color}">Section passed</span>` : ''}
       </div>
-      <p class="text-xs text-ink-soft mt-1 leading-relaxed clamp-2">${sec.summary || sec.topics.length + ' topics to learn and master.'}</p>
+      <p class="text-xs text-ink-soft mt-1 leading-relaxed clamp-2">${esc(sec.summary || sec.topics.length + ' topics to learn and master.')}</p>
       <div class="flex items-center gap-2 mt-2">
         <div class="h-1.5 rounded-full bg-paper-line overflow-hidden flex-1 max-w-[160px]">
           <div class="mbar h-full rounded-full" style="width:${stats.pct}%;background:${meta.color}"></div>
@@ -217,10 +217,10 @@ function topicCard(t, student, navigate, meta) {
         <span class="mt-0.5 w-2.5 h-2.5 rounded-full shrink-0" style="background:${m.color}"></span>
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-1.5">
-            <p class="font-600 text-sm leading-snug clamp-2">${t.name}</p>
+            <p class="font-600 text-sm leading-snug clamp-2">${esc(t.name)}</p>
           </div>
-          <p class="text-xs text-ink-faint mt-0.5">${t.domain}</p>
-          <p class="text-xs text-ink-soft mt-1.5 clamp-2 leading-relaxed">${t.description || ''}</p>
+          <p class="text-xs text-ink-faint mt-0.5">${esc(t.domain)}</p>
+          <p class="text-xs text-ink-soft mt-1.5 clamp-2 leading-relaxed">${esc(t.description || '')}</p>
           <div class="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2.5 text-[11px] text-ink-faint">
             ${!unlocked ? `<span class="flex items-center gap-1 text-[#a4473a] font-medium"><i data-lucide="lock" class="w-3 h-3"></i>${blocking.length} to master first</span>` : `<span class="flex items-center gap-1 font-medium" style="color:${m.color}"><i data-lucide="${statusIcon(status)}" class="w-3 h-3"></i>${m.label}</span>`}
             ${prereqCount ? `<span class="flex items-center gap-1"><i data-lucide="corner-left-down" class="w-3 h-3"></i>${prereqCount} prereq${prereqCount>1?'s':''}</span>` : ''}

@@ -1,6 +1,6 @@
 import { SUBJECTS, getData } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, toast } from '../ui.js';
+import { el, esc, refreshIcons, toast } from '../ui.js';
 import { studentStats, recentActivity, recommendedNext, subjectTestReady } from '../mastery.js';
 import { aiFeedback } from '../ai.js';
 import { openMasteryTest } from './masterytest.js';
@@ -15,7 +15,7 @@ export function renderInsights(params, { navigate }) {
 
   root.appendChild(el(`<div class="mb-5">
     <h1 class="font-display text-2xl sm:text-3xl font-600">Teacher Insights</h1>
-    <p class="text-ink-soft text-sm mt-1">Feedback and next steps for <span class="font-600 text-ink">${active?.name || 'your student'}</span>, based on real progress and your records.</p>
+    <p class="text-ink-soft text-sm mt-1">Feedback and next steps for <span class="font-600 text-ink">${esc(active?.name || 'your student')}</span>, based on real progress and your records.</p>
   </div>`));
 
   if (!active) { root.appendChild(el(`<p class="text-ink-soft">Add a student to see insights.</p>`)); return root; }
@@ -26,7 +26,7 @@ export function renderInsights(params, { navigate }) {
   if (pending.length || adaptEntries.length) {
     const adCard = el(`<div class="bg-paper-card border border-brand/30 rounded-2xl p-5 mb-5">
       <h2 class="font-600 flex items-center gap-2 mb-1"><i data-lucide="trending-up" class="w-4.5 h-4.5 text-brand-dark"></i>Adaptive suggestions</h2>
-      <p class="text-xs text-ink-soft mb-3">Based on how ${active.name} is doing. You decide — nothing changes without your approval.</p>
+      <p class="text-xs text-ink-soft mb-3">Based on how ${esc(active.name)} is doing. You decide — nothing changes without your approval.</p>
       <div id="sugs" class="space-y-2"></div>
       <div id="active" class="mt-3"></div>
     </div>`);
@@ -34,8 +34,8 @@ export function renderInsights(params, { navigate }) {
     if (pending.length === 0) sugs.appendChild(el(`<p class="text-sm text-ink-faint">No new suggestions right now. Keep going — strong challenge results will surface ideas here.</p>`));
     pending.forEach(s => {
       const row = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
-        <p class="text-sm font-600 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-4 h-4 text-brand-dark"></i>Make ${s.domain} harder</p>
-        <p class="text-xs text-ink-soft mt-1 leading-relaxed">${s.reason}</p>
+        <p class="text-sm font-600 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-4 h-4 text-brand-dark"></i>Make ${esc(s.domain)} harder</p>
+        <p class="text-xs text-ink-soft mt-1 leading-relaxed">${esc(s.reason)}</p>
         <div class="flex gap-2 mt-2.5">
           <button class="approve flex-1 px-3 py-2 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors">Approve</button>
           <button class="decline flex-1 px-3 py-2 rounded-lg border border-paper-line text-sm font-medium hover:border-ink-faint/40 transition-colors">No thanks</button>
@@ -52,7 +52,7 @@ export function renderInsights(params, { navigate }) {
       adaptEntries.forEach(([key]) => {
         const [subject, domain] = key.split('|');
         const meta = SUBJECTS[subject] || { color: '#6f665a' };
-        const chip = el(`<span class="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border" style="border-color:${meta.color}55;color:${meta.color}"><i data-lucide="trending-up" class="w-3 h-3"></i>${domain}<button class="undo ml-0.5"><i data-lucide="x" class="w-3 h-3"></i></button></span>`);
+        const chip = el(`<span class="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border" style="border-color:${meta.color}55;color:${meta.color}"><i data-lucide="trending-up" class="w-3 h-3"></i>${esc(domain)}<button class="undo ml-0.5"><i data-lucide="x" class="w-3 h-3"></i></button></span>`);
         chip.querySelector('.undo').onclick = () => { store.setAdaptation(active.id, subject, domain, 'standard'); toast(`${domain} back to standard`); navigate('insights'); };
         chips.appendChild(chip);
       });
@@ -122,11 +122,11 @@ export function renderInsights(params, { navigate }) {
       <h2 class="font-600 flex items-center gap-2"><i data-lucide="sparkles" class="w-4.5 h-4.5 text-brand-dark"></i>Progress review</h2>
       <button id="gen" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors"><i data-lucide="wand-2" class="w-4 h-4"></i>Generate</button>
     </div>
-    <div id="out"><p class="text-sm text-ink-faint">Generate a personalized review of ${active.name}'s ${selSubject} progress, drawing on your records and their mastery so far.</p></div>
+    <div id="out"><p class="text-sm text-ink-faint">Generate a personalized review of ${esc(active.name)}'s ${selSubject} progress, drawing on your records and their mastery so far.</p></div>
   </div>`);
   const out = fbCard.querySelector('#out');
   fbCard.querySelector('#gen').onclick = async () => {
-    out.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-3"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Reviewing ${active.name}'s work\u2026</div>`;
+    out.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-3"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Reviewing ${esc(active.name)}'s work\u2026</div>`;
     try {
       const d = getData();
       const recentTopics = recentActivity(active.id, 10)
@@ -161,8 +161,8 @@ export function renderInsights(params, { navigate }) {
       const row = el(`<button class="w-full text-left flex items-center gap-3 p-3 rounded-xl border border-paper-line hover:border-brand/40 hover:bg-paper transition-colors">
         <span class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="arrow-right" class="w-4 h-4" style="color:${meta.color}"></i></span>
         <span class="flex-1 min-w-0">
-          <span class="block text-sm font-600 truncate">${n.topic.name}</span>
-          <span class="block text-xs text-ink-faint">${n.topic.domain} · ages ${n.topic.ageRangeStart}–${n.topic.ageRangeEnd}</span>
+          <span class="block text-sm font-600 truncate">${esc(n.topic.name)}</span>
+          <span class="block text-xs text-ink-faint">${esc(n.topic.domain)} · ages ${esc(n.topic.ageRangeStart)}–${esc(n.topic.ageRangeEnd)}</span>
         </span>
         <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint"></i>
       </button>`);

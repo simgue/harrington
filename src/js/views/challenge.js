@@ -1,6 +1,6 @@
 import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, toast, openModal } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiChallenge } from '../ai.js';
 import { isCorrect } from '../grading.js';
 import { evaluateChallenge, nextConceptHint } from '../adapt.js';
@@ -17,17 +17,20 @@ export async function openChallenge(topic) {
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
       <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="zap" class="w-5 h-5" style="color:${meta.color}"></i></span>
       <div class="flex-1 min-w-0">
-        <p class="text-xs text-ink-faint">Challenge · ${topic.subject}</p>
-        <h3 class="font-display text-lg font-600 leading-tight">${topic.name}</h3>
+        <p class="text-xs text-ink-faint">Challenge · ${esc(topic.subject)}</p>
+        <h3 class="font-display text-lg font-600 leading-tight">${esc(topic.name)}</h3>
       </div>
     </div>
     <div id="stage" class="px-5 py-5"></div>
   </div>`);
   const stage = body.querySelector('#stage');
-  const m = openModal(body, { wide: true });
-  let timerId = null;
+  let timerId = null, running = false, closed = false;
+  const m = openModal(body, {
+    wide: true,
+    beforeClose: () => !running || confirm('Stop the challenge? This attempt won\'t be saved.'),
+  });
   const origClose = m.close;
-  m.close = () => { if (timerId) clearInterval(timerId); origClose(); };
+  m.close = () => { closed = true; running = false; if (timerId) clearInterval(timerId); origClose(); };
 
   renderIntro();
 
@@ -38,7 +41,7 @@ export async function openChallenge(topic) {
     const wrap = el(`<div class="fade-up text-center py-2">
       <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style="background:${meta.color}18"><i data-lucide="zap" class="w-8 h-8" style="color:${meta.color}"></i></div>
       <p class="font-600 text-lg">Beat the clock!</p>
-      <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">${student.name} has already mastered this — now a fun stretch. Answer as many as you can in <span class="font-600">${DURATION / 60} minutes</span>. Slightly bigger and trickier than usual, but doable!</p>
+      <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">${esc(student.name)} has already mastered this — now a fun stretch. Answer as many as you can in <span class="font-600">${DURATION / 60} minutes</span>. Slightly bigger and trickier than usual, but doable!</p>
       ${best ? `<p class="text-xs text-ink-faint mt-3">Best so far: ${best.correct}/${best.total} correct</p>` : ''}
       <button id="go" class="mt-5 inline-flex items-center gap-2 px-5 py-3 rounded-xl text-white font-medium transition-opacity hover:opacity-90" style="background:${meta.color}"><i data-lucide="play" class="w-4 h-4"></i>Start challenge</button>
     </div>`);
@@ -57,6 +60,7 @@ export async function openChallenge(topic) {
         topic, nextHint: nextConceptHint(topic),
       });
       if (!test.questions || !test.questions.length) throw new Error('no questions');
+      if (closed) return;
       runQuiz(test);
     } catch (e) {
       console.error(e);
@@ -70,8 +74,9 @@ export async function openChallenge(topic) {
 
   function runQuiz(test) {
     const questions = test.questions;
-    let idx = 0, correct = 0, remaining = DURATION;
+    let idx = 0, correct = 0, remaining = DURATION, finished = false;
     const startTs = Date.now();
+    running = true;
     stage.innerHTML = '';
     const wrap = el(`<div class="fade-up">
       <div class="flex items-center justify-between mb-4">
@@ -90,7 +95,7 @@ export async function openChallenge(topic) {
       clock.innerHTML = `<i data-lucide="timer" class="w-4 h-4"></i>${fmt(remaining)}`;
       bar.style.width = (remaining / DURATION * 100) + '%';
       refreshIcons();
-      if (remaining <= 0) { clearInterval(timerId); finish(); }
+      if (remaining <= 0) finish();
     }, 1000);
 
     const showQ = () => {
@@ -109,7 +114,7 @@ export async function openChallenge(topic) {
           b.style.background = right ? '#e4eedf' : '#fbecc4';
           wrap.querySelector('#score').textContent = correct;
           opts.querySelectorAll('button').forEach(x => x.disabled = true);
-          setTimeout(() => { idx++; if (idx >= questions.length) { clearInterval(timerId); finish(); } else showQ(); }, 350);
+          setTimeout(() => { if (finished || closed) return; idx++; if (idx >= questions.length) finish(); else showQ(); }, 350);
         };
         opts.appendChild(b);
       });
@@ -118,7 +123,12 @@ export async function openChallenge(topic) {
     };
     showQ();
 
+    // Runs at most once per attempt, and never for a dismissed challenge.
     function finish() {
+      if (finished || closed) return;
+      finished = true;
+      running = false;
+      clearInterval(timerId);
       const seconds = Math.min(DURATION, Math.round((Date.now() - startTs) / 1000));
       // Previous best for this topic (by correct count) BEFORE saving this run.
       const prior = store.challengesFor(student.id, topic.id);
@@ -159,9 +169,9 @@ export async function openChallenge(topic) {
       <p class="text-sm text-ink-soft mt-1">correct in ${fmt(seconds)}</p>
       <p class="mt-3 font-600 text-lg">${great ? 'Awesome work!' : 'Nice effort!'}</p>
       <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">${great
-        ? `${student.name} smashed the stretch challenge. ${raised ? 'A suggestion to make this area harder is waiting for you to approve.' : ''}`
+        ? `${esc(student.name)} smashed the stretch challenge. ${raised ? 'A suggestion to make this area harder is waiting for you to approve.' : ''}`
         : `A tricky one — great for keeping skills sharp. Try again anytime to beat the score.`}</p>
-      ${raised ? `<div class="mt-4 rounded-xl border border-brand/30 bg-brand-light/50 p-3 text-left flex items-start gap-2.5"><i data-lucide="trending-up" class="w-4 h-4 text-brand-dark shrink-0 mt-0.5"></i><p class="text-xs text-ink-soft">We suggested pitching future <strong>${topic.domain}</strong> work harder. Review it under <strong>Insights → Adaptive suggestions</strong> — you can approve or decline.</p></div>` : ''}
+      ${raised ? `<div class="mt-4 rounded-xl border border-brand/30 bg-brand-light/50 p-3 text-left flex items-start gap-2.5"><i data-lucide="trending-up" class="w-4 h-4 text-brand-dark shrink-0 mt-0.5"></i><p class="text-xs text-ink-soft">We suggested pitching future <strong>${esc(topic.domain)}</strong> work harder. Review it under <strong>Insights → Adaptive suggestions</strong> — you can approve or decline.</p></div>` : ''}
       <div class="mt-6 space-y-2.5">
         <button id="again" class="w-full px-4 py-2.5 rounded-xl text-white font-medium transition-opacity hover:opacity-90" style="background:${meta.color}">Try again</button>
         <button id="close" class="w-full px-4 py-2.5 rounded-xl text-ink-soft font-medium hover:bg-paper transition-colors">Close</button>
@@ -175,4 +185,3 @@ export async function openChallenge(topic) {
 }
 
 function fmt(s) { s = Math.max(0, s); const m = Math.floor(s / 60), r = s % 60; return `${m}:${String(r).padStart(2, '0')}`; }
-function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }

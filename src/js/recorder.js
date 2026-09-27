@@ -1,5 +1,5 @@
 // Voice recording: capture lesson conversations, store on the Harrington server, play back.
-import { el, refreshIcons, toast, openModal } from './ui.js';
+import { el, esc, refreshIcons, toast, openModal } from './ui.js';
 import * as store from './store.js';
 import * as backend from './backend.js';
 import { getData, SUBJECTS, topicAge } from './data.js';
@@ -114,15 +114,24 @@ export function openRecorder(studentId, topic = null, section = null) {
     <div id="stage"></div>
   </div>`);
   const stage = body.querySelector('#stage');
-  const m = openModal(body);
-
   let stream = null, recorder = null, chunks = [], mime = '', startTs = 0, timerId = null, blob = null, duration = 0;
-  let transcriber = null, transcript = '', liveTranscript = '';
+  let transcriber = null, transcript = '', liveTranscript = '', closed = false;
+
+  const m = openModal(body, {
+    beforeClose: () => !((recorder && recorder.state === 'recording') || blob)
+      || confirm('Discard this recording? It hasn\'t been saved.'),
+  });
 
   const cleanupStream = () => { if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; } };
   const originalClose = m.close;
-  m.close = () => { cleanupStream(); if (transcriber) transcriber.stop(); if (timerId) clearInterval(timerId); originalClose(); };
-  body.querySelector('#stage').addEventListener('modal-close', m.close);
+  m.close = () => {
+    closed = true;
+    if (recorder && recorder.state !== 'inactive') { recorder.onstop = null; try { recorder.stop(); } catch {} }
+    cleanupStream();
+    if (transcriber) transcriber.stop();
+    if (timerId) clearInterval(timerId);
+    originalClose();
+  };
 
   // Stage 1: idle
   function renderIdle() {
@@ -152,6 +161,8 @@ export function openRecorder(studentId, topic = null, section = null) {
       toast('Microphone access is needed to record', 'error');
       return;
     }
+    // The modal may have been dismissed while the permission prompt was open.
+    if (closed) { cleanupStream(); return; }
     mime = pickMime();
     try {
       recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
@@ -232,7 +243,7 @@ export function openRecorder(studentId, topic = null, section = null) {
         </div>
         ${(transcript || speechSupported()) ? `<div>
           <label class="text-sm font-medium mb-1.5 flex items-center gap-1.5"><i data-lucide="captions" class="w-4 h-4 text-brand-dark"></i>Transcript <span class="text-ink-faint font-normal">(used for AI analysis — edit if needed)</span></label>
-          <textarea name="transcript" rows="4" placeholder="${transcript ? '' : 'No speech was captured. You can type or paste what was said here.'}" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none text-sm">${transcript || ''}</textarea>
+          <textarea name="transcript" rows="4" placeholder="${transcript ? '' : 'No speech was captured. You can type or paste what was said here.'}" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none text-sm">${esc(transcript || '')}</textarea>
         </div>` : ''}
         <div class="flex gap-2">
           <button type="button" id="redo" class="px-4 py-2.5 rounded-xl border border-paper-line text-sm font-medium hover:border-ink-faint/40 transition-colors">Re-record</button>

@@ -12,7 +12,7 @@
 
 import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, toast, openModal } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import * as coop from '../coop.js';
 import { openLesson } from './lesson.js';
 import { printDaySheet, printChildSheet } from './daysheet.js';
@@ -22,7 +22,6 @@ function friendlyToday() {
   catch { return todayKey(); }
 }
 
-function esc(s) { return String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 function todayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

@@ -14,7 +14,7 @@ export function referenceLinks(topic) {
 export function videoLinks(topic) {
   const base = topic.name + ' ' + topic.subject + ' for kids';
   return [
-    { label: 'Kid-safe video search', icon: 'youtube', url: `https://www.youtube.com/results?search_query=${encodeURIComponent(base + ' explained')}` },
+    { label: 'YouTube search (supervise)', icon: 'youtube', url: `https://www.youtube.com/results?search_query=${encodeURIComponent(base + ' explained')}` },
     { label: 'Lesson videos', icon: 'play-circle', url: `https://www.youtube.com/results?search_query=${encodeURIComponent(topic.name + ' lesson elementary')}` },
   ];
 }

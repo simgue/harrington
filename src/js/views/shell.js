@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { el, initials, openModal, toast } from '../ui.js';
+import { el, esc, initials, openModal, toast } from '../ui.js';
 import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
 
@@ -69,10 +69,12 @@ export function renderShell({ route, navigate, content }) {
         <span class="font-display text-lg font-600">Harrington</span>
       </div>
       <div class="flex items-center gap-2">
+        <button id="mob-guide" class="w-9 h-9 rounded-lg border border-paper-line bg-paper-card hover:border-brand/40 transition-colors flex items-center justify-center" title="Guide" aria-label="Open the guide"><i data-lucide="book-open" class="w-4.5 h-4.5 text-ink-soft"></i></button>
         <span id="mob-bell"></span>
         <div id="mob-student"></div>
       </div>
     </header>`);
+  top.querySelector('#mob-guide').onclick = () => openGuide();
   top.querySelector('#mob-bell').appendChild(notificationBell(true));
   top.querySelector('#mob-student').appendChild(studentSwitcher(navigate, true));
 
@@ -106,8 +108,8 @@ function studentSwitcher(navigate, compact = false) {
   const active = store.activeStudent();
   const btn = el(`
     <button class="w-full flex items-center gap-2.5 ${compact ? 'p-1 pr-2' : 'p-1.5 pr-3'} rounded-full bg-paper-card shadow-[0_0_0_2px_#f2c14e] hover:shadow-[0_0_0_3px_#f2c14e] transition-shadow" aria-label="Switch learner">
-      <span class="${compact ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'} rounded-full flex items-center justify-center text-white font-display font-600 shrink-0" style="background:${active?.color || '#6f665a'}">${active ? initials(active.name) : '?'}</span>
-      ${compact ? '' : `<span class="flex-1 text-left min-w-0"><span class="block text-sm font-600 truncate">${active ? active.name : 'No student'}</span><span class="block text-xs text-ink-faint">${active ? 'Age ' + store.studentAge(active) : 'Add a student'}</span></span>`}
+      <span class="${compact ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'} rounded-full flex items-center justify-center text-white font-display font-600 shrink-0" style="background:${active?.color || '#6f665a'}">${esc(active ? initials(active.name) : '?')}</span>
+      ${compact ? '' : `<span class="flex-1 text-left min-w-0"><span class="block text-sm font-600 truncate">${esc(active ? active.name : 'No student')}</span><span class="block text-xs text-ink-faint">${active ? 'Age ' + store.studentAge(active) : 'Add a student'}</span></span>`}
       <i data-lucide="chevrons-up-down" class="w-4 h-4 text-ink-faint shrink-0"></i>
     </button>`);
   btn.onclick = () => openStudentMenu(navigate);
@@ -128,9 +130,9 @@ function openStudentMenu(navigate) {
     const age = store.studentAge(s);
     const isActive = s.id === state.activeStudentId;
     const row = el(`<div class="flex items-center gap-3 p-2 pr-3 rounded-full ${isActive ? 'bg-brand-light shadow-[0_0_0_2px_#f2c14e]' : 'bg-paper'}">
-      <span class="w-10 h-10 rounded-full flex items-center justify-center text-white font-display text-base font-600" style="background:${s.color}">${initials(s.name)}</span>
+      <span class="w-10 h-10 rounded-full flex items-center justify-center text-white font-display text-base font-600" style="background:${s.color}">${esc(initials(s.name))}</span>
       <div class="flex-1 min-w-0">
-        <p class="font-600 text-sm truncate">${s.name}</p>
+        <p class="font-600 text-sm truncate">${esc(s.name)}</p>
         <p class="text-xs text-ink-faint">Age ${age} · born ${s.birthYear}</p>
       </div>
       ${isActive ? '<span class="text-xs font-medium text-brand-dark px-2 py-0.5 rounded-full bg-brand/10">Active</span>' : '<button class="select text-xs font-medium text-brand px-3 py-1.5 rounded-full bg-paper-card hover:bg-brand-light">Switch</button>'}
