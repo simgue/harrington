@@ -65,6 +65,8 @@ test('serves Harrington and reports self-hosted health', async () => {
     mode: 'self-hosted',
     aiConfigured: false,
     taxonomyCached: false,
+    stateVersion: 0,
+    stateBytes: 0,
   });
 
   const page = await fetch(baseUrl);
@@ -72,44 +74,158 @@ test('serves Harrington and reports self-hosted health', async () => {
   assert.match(await page.text(), /<title>Harrington/);
 });
 
-test('persists family state on the Harrington server', async () => {
+function putState(value, ifMatch, url = baseUrl) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (ifMatch !== undefined) headers['If-Match'] = ifMatch;
+  return fetch(`${url}/api/state`, { method: 'PUT', headers, body: JSON.stringify(value) });
+}
+
+function withoutMeta({ version: _version, updatedAt: _updatedAt, ...rest }) {
+  return rest;
+}
+
+test('persists versioned family state on the Harrington server', async () => {
+  const empty = await fetch(`${baseUrl}/api/state`);
+  assert.equal(empty.status, 200);
+  assert.equal(empty.headers.get('etag'), '"v0"');
+  assert.deepEqual(await empty.json(), { version: 0 });
+
   const state = {
     students: [{ id: 'student-1', name: 'Sample Learner', birthYear: 2018 }],
     activeStudentId: 'student-1',
     progress: { 'student-1': { counting: { status: 'learning' } } },
   };
 
-  const saved = await fetch(`${baseUrl}/api/state`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(state),
-  });
+  const saved = await putState(state, '"v0"');
   assert.equal(saved.status, 204);
+  assert.equal(saved.headers.get('etag'), '"v1"');
 
   const loaded = await fetch(`${baseUrl}/api/state`);
   assert.equal(loaded.status, 200);
-  assert.deepEqual(await loaded.json(), state);
-  assert.deepEqual(JSON.parse(await readFile(join(dataDir, 'family-state.json'), 'utf8')), state);
+  assert.equal(loaded.headers.get('etag'), '"v1"');
+  const body = await loaded.json();
+  assert.equal(body.version, 1);
+  assert.equal(typeof body.updatedAt, 'number');
+  assert.deepEqual(withoutMeta(body), state);
+  assert.deepEqual(JSON.parse(await readFile(join(dataDir, 'family-state.json'), 'utf8')), body);
+
+  const health = await (await fetch(`${baseUrl}/api/health`)).json();
+  assert.equal(health.stateVersion, 1);
+  assert.equal(health.stateBytes, (await readFile(join(dataDir, 'family-state.json'))).length);
 });
 
-test('keeps concurrent family-state writes as complete snapshots', async () => {
+test('rejects a stale or missing If-Match without writing', async () => {
+  const current = await (await fetch(`${baseUrl}/api/state`)).json();
+  const before = await readFile(join(dataDir, 'family-state.json'), 'utf8');
+
+  const stale = await putState({ students: [] }, `"v${current.version - 1}"`);
+  assert.equal(stale.status, 412);
+  assert.equal(stale.headers.get('etag'), `"v${current.version}"`);
+  assert.deepEqual(await stale.json(), current);
+
+  const missing = await putState({ students: [] });
+  assert.equal(missing.status, 428);
+
+  const malformed = await putState({ students: [] }, 'yesterday');
+  assert.equal(malformed.status, 400);
+
+  assert.equal(await readFile(join(dataDir, 'family-state.json'), 'utf8'), before);
+});
+
+test('lets only one of several concurrent writers with the same version succeed', async () => {
+  const { version } = await (await fetch(`${baseUrl}/api/state`)).json();
   const snapshots = Array.from({ length: 12 }, (_, index) => ({
     students: [{ id: `student-${index}`, name: `Learner ${index}`, birthYear: 2010 + index }],
     activeStudentId: `student-${index}`,
     progress: { [`student-${index}`]: { counting: { status: 'learning', sequence: index } } },
   }));
 
-  const responses = await Promise.all(snapshots.map((snapshot) => fetch(`${baseUrl}/api/state`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(snapshot),
-  })));
-  responses.forEach((response) => assert.equal(response.status, 204));
+  const responses = await Promise.all(snapshots.map((snapshot) => putState(snapshot, `"v${version}"`)));
+  const statuses = responses.map((response) => response.status);
+  assert.equal(statuses.filter((status) => status === 204).length, 1, `statuses: ${statuses}`);
+  assert.equal(statuses.filter((status) => status === 412).length, snapshots.length - 1);
 
   const loaded = await (await fetch(`${baseUrl}/api/state`)).json();
   const saved = JSON.parse(await readFile(join(dataDir, 'family-state.json'), 'utf8'));
-  assert.ok(snapshots.some((snapshot) => isDeepStrictEqual(loaded, snapshot)));
+  assert.equal(loaded.version, version + 1);
+  assert.ok(snapshots.some((snapshot) => isDeepStrictEqual(withoutMeta(loaded), snapshot)));
   assert.deepEqual(saved, loaded);
+  for (const response of responses.filter((r) => r.status === 412)) {
+    assert.equal((await response.json()).version >= version, true);
+  }
+});
+
+test('accepts an unload beacon with the version in the body', async () => {
+  const { version } = await (await fetch(`${baseUrl}/api/state`)).json();
+  const beacon = { students: [{ id: 'b', name: 'Beacon Learner', birthYear: 2019 }], activeStudentId: 'b' };
+
+  const stale = await fetch(`${baseUrl}/api/state`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...beacon, version: version + 5 }),
+  });
+  assert.equal(stale.status, 412);
+
+  const noVersion = await fetch(`${baseUrl}/api/state`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(beacon),
+  });
+  assert.equal(noVersion.status, 428);
+
+  const sent = await fetch(`${baseUrl}/api/state`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...beacon, version }),
+  });
+  assert.equal(sent.status, 204);
+  const loaded = await (await fetch(`${baseUrl}/api/state`)).json();
+  assert.equal(loaded.version, version + 1);
+  assert.deepEqual(withoutMeta(loaded), beacon);
+});
+
+test('round-trips an export through import', async () => {
+  const family = {
+    students: [{ id: 's1', name: 'Sample One', birthYear: 2017 }, { id: 's2', name: 'Sample Two', birthYear: 2020 }],
+    activeStudentId: 's1',
+    progress: { s1: { counting: { status: 'mastered', updatedAt: 1 } } },
+    records: { s1: [{ id: 'r1', topicId: 'counting', type: 'note', title: 'Counted shells' }], s2: [] },
+    tests: { s1: [{ id: 't1', subject: 'Mathematics', pct: 100, passed: true }] },
+    notifications: [],
+    graphView: 'list',
+  };
+  let { version } = await (await fetch(`${baseUrl}/api/state`)).json();
+  assert.equal((await putState(family, `"v${version}"`)).status, 204);
+
+  // Export: the full document plus exportedAt and taxonomyVersion (added by the client).
+  const exported = { ...(await (await fetch(`${baseUrl}/api/state`)).json()), exportedAt: new Date().toISOString(), taxonomyVersion: 'v1' };
+  const exportedText = JSON.stringify(exported, null, 2);
+
+  // Something else overwrites the family data.
+  version = exported.version;
+  assert.equal((await putState({ students: [] }, `"v${version}"`)).status, 204);
+
+  // Import: parse the file, drop export metadata, save with the current If-Match.
+  const { version: _v, updatedAt: _u, exportedAt: _e, taxonomyVersion: _t, ...data } = JSON.parse(exportedText);
+  const current = await fetch(`${baseUrl}/api/state`);
+  const imported = await putState(data, current.headers.get('etag'));
+  assert.equal(imported.status, 204);
+
+  const restored = await (await fetch(`${baseUrl}/api/state`)).json();
+  assert.equal(restored.version, version + 2);
+  assert.deepEqual(withoutMeta(restored), family);
+});
+
+test('migrates a legacy state document without a version as version 0', async () => {
+  const legacy = { students: [{ id: 'old', name: 'Legacy Learner', birthYear: 2016 }], activeStudentId: 'old' };
+  await writeFile(join(dataDir, 'family-state.json'), JSON.stringify(legacy));
+
+  const loaded = await fetch(`${baseUrl}/api/state`);
+  assert.equal(loaded.headers.get('etag'), '"v0"');
+  assert.deepEqual(await loaded.json(), { ...legacy, version: 0 });
+  assert.equal((await putState(legacy, '"v1"')).status, 412);
+  assert.equal((await putState(legacy, '"v0"')).status, 204);
+  assert.equal((await (await fetch(`${baseUrl}/api/state`)).json()).version, 1);
 });
 
 test('persists lesson cache entries and recordings', async () => {
@@ -149,10 +265,17 @@ test('persists lesson cache entries and recordings', async () => {
 test('rejects invalid writes and leaves AI disabled by default', async () => {
   const invalid = await fetch(`${baseUrl}/api/state`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'If-Match': '"v1"' },
     body: '[]',
   });
   assert.equal(invalid.status, 400);
+
+  const tooLarge = await fetch(`${baseUrl}/api/state`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'If-Match': '"v1"' },
+    body: JSON.stringify({ notes: 'x'.repeat(5 * 1024 * 1024) }),
+  });
+  assert.equal(tooLarge.status, 413);
 
   const ai = await fetch(`${baseUrl}/api/ai`, {
     method: 'POST',
