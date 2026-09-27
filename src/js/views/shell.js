@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { el, initials, openModal, toast } from '../ui.js';
+import { el, esc, initials, openModal, refreshIcons, toast } from '../ui.js';
 import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
 
@@ -172,14 +172,140 @@ function openAddStudent() {
 }
 
 function accountBox() {
-  const box = el(`<div class="flex items-center gap-2.5 rounded-3xl bg-paper-card p-3">
-    <div class="w-9 h-9 rounded-full bg-sage-light flex items-center justify-center">
-      <i data-lucide="house" class="w-4 h-4 text-brand"></i>
+  const box = el(`<div class="rounded-3xl bg-paper-card p-3">
+    <div class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-full bg-sage-light flex items-center justify-center">
+        <i data-lucide="house" class="w-4 h-4 text-brand"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-xs font-600 truncate">Private family space</p>
+        <p class="text-xs text-ink-faint">Saved by Harrington</p>
+      </div>
     </div>
-    <div class="flex-1 min-w-0">
-      <p class="text-xs font-600 truncate">Private family space</p>
-      <p class="text-xs text-ink-faint">Saved by Harrington</p>
+    <div class="mt-2.5 grid grid-cols-2 gap-1.5">
+      <button id="export" class="flex items-center justify-center gap-1.5 h-8 rounded-full bg-paper text-xs font-medium text-ink hover:bg-paper-deep transition-colors" title="Export family data">
+        <i data-lucide="download" class="w-3.5 h-3.5"></i>Export</button>
+      <button id="import" class="flex items-center justify-center gap-1.5 h-8 rounded-full bg-paper text-xs font-medium text-ink hover:bg-paper-deep transition-colors" title="Import family data">
+        <i data-lucide="upload" class="w-3.5 h-3.5"></i>Import</button>
     </div>
   </div>`);
+  box.querySelector('#export').onclick = exportFamilyData;
+  box.querySelector('#import').onclick = pickImportFile;
   return box;
 }
+
+// ---- Family data: export, import, and save problems ----
+function localDateKey(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+async function exportFamilyData() {
+  try {
+    const doc = await store.exportDocument();
+    const blob = new Blob([`${JSON.stringify(doc, null, 2)}\n`], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `harrington-family-${localDateKey()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('Family data exported', 'success');
+  } catch (e) {
+    console.warn('export failed', e);
+    toast('Could not export family data', 'error');
+  }
+}
+
+function pickImportFile() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json,.json';
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    let doc;
+    try {
+      doc = JSON.parse(await file.text());
+    } catch {
+      toast('That file is not valid JSON', 'error');
+      return;
+    }
+    const check = store.inspectImport(doc);
+    if (!check.ok) { toast(check.error, 'error'); return; }
+    openImportPreview(doc, check.learners);
+  };
+  input.click();
+}
+
+function openImportPreview(doc, learners) {
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const body = el(`<div class="p-5">
+    <h3 class="font-display text-lg font-600 mb-1">Import family data?</h3>
+    <p class="text-sm text-ink-faint mb-4">This replaces all family data on this server with the file${doc.exportedAt ? ` exported ${esc(new Date(doc.exportedAt).toLocaleString())}` : ''}. Recordings are not part of the file.</p>
+    <div id="learners" class="space-y-2 mb-5"></div>
+    <div class="flex gap-2 justify-end">
+      <button id="cancel" class="px-4 h-10 rounded-full bg-paper text-sm font-medium">Cancel</button>
+      <button id="confirm" class="px-4 h-10 rounded-full bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors">Replace family data</button>
+    </div>
+  </div>`);
+  const list = body.querySelector('#learners');
+  if (!learners.length) list.appendChild(el(`<p class="text-sm text-ink-faint">The file has no learners.</p>`));
+  learners.forEach(l => {
+    list.appendChild(el(`<div class="flex items-center justify-between gap-3 px-3 py-2 rounded-2xl bg-paper">
+      <span class="text-sm font-600 truncate">${esc(l.name)}</span>
+      <span class="text-xs text-ink-faint shrink-0">${plural(l.topics, 'topic')} · ${plural(l.records, 'record')} · ${plural(l.tests, 'test')}</span>
+    </div>`));
+  });
+  body.querySelector('#cancel').onclick = () => m.close();
+  body.querySelector('#confirm').onclick = async (e) => {
+    e.currentTarget.disabled = true;
+    const ok = await store.importDocument(doc).catch(() => false);
+    m.close();
+    if (ok) toast('Family data imported', 'success');
+    else toast('Import did not finish. Check the latest data and try again.', 'error');
+  };
+  const m = openModal(body);
+}
+
+let tooLargeBanner = null;
+let retryToast = null;
+
+function clearSaveProblems() {
+  tooLargeBanner?.remove(); tooLargeBanner = null;
+  retryToast?.remove(); retryToast = null;
+}
+
+function showTooLarge() {
+  if (tooLargeBanner) return;
+  tooLargeBanner = el(`<div role="alert" class="fixed top-0 inset-x-0 z-[98] bg-[#a4473a] text-white px-4 py-2.5 text-sm font-medium text-center flex items-center justify-center gap-2">
+    <i data-lucide="triangle-alert" class="w-4 h-4 shrink-0"></i>
+    <span>Family data is too large to save. Recent changes are not being saved; export a copy and remove old records.</span>
+  </div>`);
+  document.body.appendChild(tooLargeBanner);
+  refreshIcons();
+}
+
+function showRetry() {
+  if (retryToast) return;
+  const root = document.getElementById('toast-root');
+  if (!root) return;
+  retryToast = el(`<div role="alert" class="px-4 py-2.5 rounded-lg text-sm font-medium bg-[#a4473a] text-white shadow-lg flex items-center gap-3">
+    <span>Could not save changes to Harrington.</span>
+    <button class="underline font-600">Retry</button>
+  </div>`);
+  retryToast.querySelector('button').onclick = () => {
+    retryToast?.remove(); retryToast = null;
+    store.flushSaves();
+  };
+  root.appendChild(retryToast);
+}
+
+store.onSaveStatus(({ type }) => {
+  if (typeof document === 'undefined') return;
+  if (type === 'saved') clearSaveProblems();
+  else if (type === 'conflict') { clearSaveProblems(); toast('Another device saved changes. Reloaded the latest.'); }
+  else if (type === 'too-large') showTooLarge();
+  else if (type === 'failed') showRetry();
+});
