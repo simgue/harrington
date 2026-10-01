@@ -1,0 +1,71 @@
+name: E2E
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      # The Marble taxonomy is downloaded on the first run and cached (never
+      # committed). Bump the version in the key to force a fresh download.
+      - name: Cache the taxonomy download
+        uses: actions/cache@v4
+        with:
+          path: tests/e2e/.cache
+          key: marble-taxonomy-v1-${{ hashFiles('tests/e2e/support/taxonomy.mjs') }}
+
+      - name: Run the end-to-end suite
+        run: npm run e2e
+
+      - name: Upload the HTML report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: docs/e2e/screenshots/
+          retention-days: 14
+
+      - name: Upload videos
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-videos
+          path: |
+            test-results/**/*.webm
+            docs/e2e/recordings/
+          retention-days: 14
+          if-no-files-found: ignore
