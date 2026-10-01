@@ -20,6 +20,14 @@ function snapshot(d) {
   };
 }
 
+// True when two snapshots describe the same curriculum (ignoring savedAt), so an
+// unchanged boot does not rewrite the family's state file.
+function sameSnapshot(a, b) {
+  const { savedAt: _a, ...restA } = a || {};
+  const { savedAt: _b, ...restB } = b || {};
+  return JSON.stringify(restA) === JSON.stringify(restB);
+}
+
 // Called once after the taxonomy loads and the user is signed in.
 export function syncCurriculum() {
   const d = getData();
@@ -40,11 +48,12 @@ export function syncCurriculum() {
     return;
   }
 
-  // Nothing changed → keep the snapshot fresh (timestamps) and move on.
+  // Nothing changed → move on without saving. Only rewrite the snapshot when
+  // something other than its timestamp differs.
   const versionChanged = prev.version !== next.version || prev.generatedAt !== next.generatedAt;
   const countChanged = prev.count !== next.count || prev.depCount !== next.depCount;
   if (!versionChanged && !countChanged) {
-    store.setCurriculumSnapshot(next);
+    if (!sameSnapshot(prev, next)) store.setCurriculumSnapshot(next);
     return;
   }
 
