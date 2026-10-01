@@ -35,10 +35,19 @@ function emit() { listeners.forEach(fn => fn(state)); }
 export function get() { return state; }
 
 // ---- Server connection ----
+let aiConfigured = false; // from /api/health; kept out of the persisted state
 export async function connect() {
-  await backend.health();
+  const health = await backend.health();
+  aiConfigured = health?.aiConfigured === true;
   state.user = { username: 'Family' };
   return state.user;
+}
+export function aiAvailable() { return aiConfigured; }
+export async function refreshHealth() {
+  const before = aiConfigured;
+  try { aiConfigured = (await backend.health())?.aiConfigured === true; } catch {}
+  if (aiConfigured !== before) emit();
+  return aiConfigured;
 }
 
 // ---- Persistence ----
