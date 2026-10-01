@@ -37,15 +37,21 @@ export function openRecordingsLibrary() {
       return;
     }
 
-    // Group by section (fallback: "Unfiled").
+    // Group by section, then by topic for recordings without one; the rest share one unfiled group.
     const groups = new Map();
     recs.forEach(r => {
-      const key = r.sectionId || 'unfiled';
-      if (!groups.has(key)) groups.set(key, { label: r.sectionLabel || (r.topicName ? r.topicName : 'Unfiled'), subject: r.subject, items: [] });
+      const topic = r.topicId ? d.byId.get(r.topicId) : null;
+      const key = r.sectionId ? `section:${r.sectionId}` : r.topicId ? `topic:${r.topicId}` : 'unfiled';
+      if (!groups.has(key)) {
+        const label = r.sectionId ? (r.sectionLabel || 'Section')
+          : r.topicId ? (r.topicName || topic?.name || 'Topic')
+          : 'Not linked to a section';
+        groups.set(key, { label, subject: r.subject || topic?.subject, items: [] });
+      }
       groups.get(key).items.push(r);
     });
 
-    bodyWrap.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${recs.length} recording${recs.length > 1 ? 's' : ''} across ${groups.size} section${groups.size > 1 ? 's' : ''}.</p>`));
+    bodyWrap.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${recs.length} recording${recs.length > 1 ? 's' : ''} in ${groups.size} group${groups.size > 1 ? 's' : ''}.</p>`));
 
     for (const [, g] of groups) {
       const meta = SUBJECTS[g.subject] || { color: '#6f665a', icon: 'folder' };
@@ -98,11 +104,8 @@ export function renderAnalysis(container, r, student, topic) {
   const hasContent = (r.transcript && r.transcript.trim()) || (r.note && r.note.trim());
 
   if (r.analysis) {
-    container.appendChild(el(`<div class="rounded-xl bg-brand-light/40 border border-brand/20 p-3.5 mt-1">
-      <p class="text-[11px] font-600 uppercase tracking-wide text-brand-dark mb-1.5 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i>AI summary &amp; advice</p>
-      <div class="ai-prose text-sm text-ink-soft">${r.analysis}</div>
-    </div>`));
-    const redo = el(`<button class="mt-2 flex items-center gap-1.5 text-xs font-medium text-ink-faint hover:text-ink-soft"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>Regenerate</button>`);
+    container.appendChild(savedAnalysis(r.analysis));
+    const redo = regenerateButton();
     if (hasContent) redo.onclick = () => runAnalysis(container, r, student, topic);
     container.appendChild(redo);
   } else {
@@ -112,6 +115,17 @@ export function renderAnalysis(container, r, student, topic) {
     container.appendChild(analyze);
   }
   refreshIcons();
+}
+
+// The saved AI summary block, shared with the Records page so both cards render it alike.
+export function savedAnalysis(html) {
+  return el(`<div class="rounded-xl bg-brand-light/40 border border-brand/20 p-3.5 mt-1">
+    <p class="text-[11px] font-600 uppercase tracking-wide text-brand-dark mb-1.5 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i>AI summary &amp; advice</p>
+    <div class="ai-prose text-sm text-ink-soft">${html}</div>
+  </div>`);
+}
+export function regenerateButton() {
+  return el(`<button class="mt-2 flex items-center gap-1.5 text-xs font-medium text-ink-faint hover:text-ink-soft"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>Regenerate</button>`);
 }
 
 export function runAnalysis(container, r, student, topic) {
