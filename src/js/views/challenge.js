@@ -2,7 +2,7 @@ import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiChallenge } from '../ai.js';
-import { isCorrect } from './masterytest.js';
+import { isCorrect } from '../grading.js';
 import { evaluateChallenge, nextConceptHint } from '../adapt.js';
 import { award, XP } from '../game.js';
 

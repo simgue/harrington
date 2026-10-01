@@ -51,7 +51,7 @@ provider in Harrington; Commune and the Helper chat are disabled.
 - Topic, section and subject mastery tests, digital or printable, with
   certificates (AI).
 - Recall cards with spaced repetition (AI), and spaced practice for missed
-  test questions.
+  test questions (fed only by AI-generated tests).
 - Timed challenges and parent-approved adaptivity (AI).
 - Day-by-day calendar with moves, done days and extras.
 - Records, voice recording with live transcript, recordings folder, and
