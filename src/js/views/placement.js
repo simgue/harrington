@@ -101,9 +101,12 @@ export function openPlacement(student, { subject = null } = {}) {
 
   const m = openModal(body);
   body.querySelector('#pl-cancel').onclick = () => m.close();
+  let submitting = false;
   confirmBtn.onclick = () => {
     const ids = toMark();
-    if (!ids.length) return;
+    if (submitting || !ids.length) return;
+    submitting = true;
+    confirmBtn.disabled = true;
     const own = withPrereqs ? plan.count : ids.length;
     store.applyPlacement(student.id, {
       topicIds: ids,

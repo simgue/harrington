@@ -71,6 +71,32 @@ test('applyPlacement writes once with a placement source and undoPlacement resto
   assert.equal(store.undoPlacement(sid, rec.id), null, 'a placement undoes only once');
 });
 
+test('the placement record is complete when the single emit fires and in the saved snapshot', async () => {
+  const sid = 's-place-3';
+  let seen = null;
+  const off = store.subscribe((state) => {
+    const rec = state.records[sid][0];
+    seen = { at: rec.placement.at, stamps: rec.placement.topicIds.map(id => state.progress[sid][id].updatedAt) };
+  });
+  const rec = store.applyPlacement(sid, { topicIds: ['z1', 'z2', 'z3'], title: 'Placement: test', subject: 'Science', maxAge: 7 });
+  off();
+  assert.ok(seen && typeof seen.at === 'number', 'emit sees placement.at');
+  assert.deepEqual(seen.stamps, [seen.at, seen.at, seen.at]);
+  assert.equal(rec.placement.at, seen.at);
+
+  // The save that follows carries the same complete record.
+  const stub = globalThis.fetch;
+  let body = null;
+  globalThis.fetch = async (path, options = {}) => {
+    if (options.method === 'PUT') body = JSON.parse(options.body);
+    return stub(path, options);
+  };
+  try { await store.flushSaves(); } finally { globalThis.fetch = stub; }
+  const saved = body.records[sid].find(r => r.id === rec.id);
+  assert.equal(saved.placement.at, seen.at);
+  for (const id of ['z1', 'z2', 'z3']) assert.equal(body.progress[sid][id].updatedAt, seen.at);
+});
+
 test('undoPlacement leaves topics changed after the placement alone', () => {
   const sid = 's-place-2';
   const rec = store.applyPlacement(sid, { topicIds: ['q1', 'q2'], title: 'Placement: test', subject: 'English', maxAge: 6 });

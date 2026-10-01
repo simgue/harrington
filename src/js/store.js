@@ -400,11 +400,12 @@ export function setStatus(studentId, topicId, status) {
 }
 // Set many topics at once with a single persist + emit (one re-render).
 // Marks activity inline rather than via markActivity(), which would persist and emit a second time.
-// `meta` adds fields to each entry, e.g. { source: 'placement' }.
+// `meta` adds fields to each entry, e.g. { source: 'placement' }; a
+// `meta.updatedAt` sets the timestamp so callers can record it beforehand.
 export function setStatusBulk(studentId, topicIds, status, meta = {}) {
   if (!topicIds || !topicIds.length) return;
   const p = state.progress[studentId] = state.progress[studentId] || {};
-  const now = Date.now();
+  const now = meta.updatedAt || Date.now();
   topicIds.forEach(id => { p[id] = { ...meta, status, updatedAt: now }; });
   const a = activityOf(studentId);
   a[dateKeyLocal(now)] = true;
@@ -419,16 +420,16 @@ export function applyPlacement(studentId, { topicIds, title, subject, domain = n
   const p = state.progress[studentId] || {};
   const previous = {};
   topicIds.forEach(id => { previous[id] = p[id] ? { ...p[id] } : null; });
+  // The record is complete before the single persist + emit below.
+  const at = Date.now();
   const rec = {
-    id: 'r_' + Math.random().toString(36).slice(2, 9), createdAt: Date.now(),
+    id: 'r_' + Math.random().toString(36).slice(2, 9), createdAt: at,
     type: 'assessment', title, note: '',
-    placement: { subject, domain, maxAge, topicIds: [...topicIds], previous, undoneAt: null },
+    placement: { subject, domain, maxAge, topicIds: [...topicIds], previous, at, undoneAt: null },
   };
   state.records[studentId] = state.records[studentId] || [];
   state.records[studentId].unshift(rec);
-  setStatusBulk(studentId, topicIds, 'mastered', { source: 'placement' });
-  // persist() is debounced, so this lands in the same save.
-  rec.placement.at = state.progress[studentId][topicIds[0]].updatedAt;
+  setStatusBulk(studentId, topicIds, 'mastered', { source: 'placement', updatedAt: at });
   return rec;
 }
 // Revert exactly the ids a placement changed. Topics changed again since the
