@@ -147,14 +147,54 @@ export function setStatus(studentId, topicId, status) {
 }
 // Set many topics at once with a single persist + emit (one re-render).
 // Marks activity inline rather than via markActivity(), which would persist and emit a second time.
-export function setStatusBulk(studentId, topicIds, status) {
+// `meta` adds fields to each entry, e.g. { source: 'placement' }.
+export function setStatusBulk(studentId, topicIds, status, meta = {}) {
   if (!topicIds || !topicIds.length) return;
   const p = state.progress[studentId] = state.progress[studentId] || {};
   const now = Date.now();
-  topicIds.forEach(id => { p[id] = { status, updatedAt: now }; });
+  topicIds.forEach(id => { p[id] = { ...meta, status, updatedAt: now }; });
   const a = activityOf(studentId);
   a[dateKeyLocal(now)] = true;
   persist(); emit();
+}
+
+// ---- Placement (bulk-mark earlier topics mastered, with undo) ----
+// Writes one assessment record carrying the changed ids and their previous
+// entries, then marks them mastered with a single persist + emit.
+export function applyPlacement(studentId, { topicIds, title, subject, domain = null, maxAge }) {
+  if (!topicIds || !topicIds.length) return null;
+  const p = state.progress[studentId] || {};
+  const previous = {};
+  topicIds.forEach(id => { previous[id] = p[id] ? { ...p[id] } : null; });
+  const rec = {
+    id: 'r_' + Math.random().toString(36).slice(2, 9), createdAt: Date.now(),
+    type: 'assessment', title, note: '',
+    placement: { subject, domain, maxAge, topicIds: [...topicIds], previous, undoneAt: null },
+  };
+  state.records[studentId] = state.records[studentId] || [];
+  state.records[studentId].unshift(rec);
+  setStatusBulk(studentId, topicIds, 'mastered', { source: 'placement' });
+  // persist() is debounced, so this lands in the same save.
+  rec.placement.at = state.progress[studentId][topicIds[0]].updatedAt;
+  return rec;
+}
+// Revert exactly the ids a placement changed. Topics changed again since the
+// placement are left alone. Returns { reverted, kept } or null.
+export function undoPlacement(studentId, recordId) {
+  const rec = (state.records[studentId] || []).find(r => r.id === recordId);
+  if (!rec || !rec.placement || rec.placement.undoneAt) return null;
+  const p = state.progress[studentId] = state.progress[studentId] || {};
+  let reverted = 0, kept = 0;
+  for (const id of rec.placement.topicIds) {
+    const cur = p[id];
+    if (!cur || cur.source !== 'placement' || cur.updatedAt !== rec.placement.at) { kept++; continue; }
+    const prev = rec.placement.previous[id];
+    if (prev) p[id] = { ...prev }; else delete p[id];
+    reverted++;
+  }
+  rec.placement.undoneAt = Date.now();
+  persist(); emit();
+  return { reverted, kept };
 }
 
 // ---- Records (notes / observations / questions) ----

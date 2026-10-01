@@ -42,3 +42,40 @@ test('setStatusBulk writes every topic and emits once', () => {
   for (const id of ['t1', 't2', 't3']) assert.equal(store.statusOf(sid, id), 'mastered');
   assert.equal(store.activeToday(sid), true);
 });
+
+test('applyPlacement writes once with a placement source and undoPlacement restores previous statuses', () => {
+  const sid = 's-place';
+  store.setStatus(sid, 'p-learning', 'learning');
+  const before = store.progressFor(sid)['p-learning'];
+  let emits = 0;
+  const off = store.subscribe(() => { emits++; });
+  const rec = store.applyPlacement(sid, { topicIds: ['p-new', 'p-learning'], title: 'Placement: test', subject: 'Mathematics', maxAge: 8 });
+  off();
+  assert.equal(emits, 1);
+  assert.equal(store.statusOf(sid, 'p-new'), 'mastered');
+  assert.equal(store.progressFor(sid)['p-new'].source, 'placement');
+  assert.equal(store.statusOf(sid, 'p-learning'), 'mastered');
+
+  const saved = store.recordsFor(sid)[0];
+  assert.equal(saved.id, rec.id);
+  assert.equal(saved.type, 'assessment');
+  assert.deepEqual(saved.placement.topicIds, ['p-new', 'p-learning']);
+  assert.equal(saved.placement.previous['p-learning'].status, 'learning');
+  assert.equal(saved.placement.previous['p-new'], null);
+
+  assert.deepEqual(store.undoPlacement(sid, rec.id), { reverted: 2, kept: 0 });
+  assert.equal(store.statusOf(sid, 'p-new'), 'none');
+  assert.equal(store.progressFor(sid)['p-new'], undefined);
+  assert.deepEqual(store.progressFor(sid)['p-learning'], before);
+  assert.ok(saved.placement.undoneAt);
+  assert.equal(store.undoPlacement(sid, rec.id), null, 'a placement undoes only once');
+});
+
+test('undoPlacement leaves topics changed after the placement alone', () => {
+  const sid = 's-place-2';
+  const rec = store.applyPlacement(sid, { topicIds: ['q1', 'q2'], title: 'Placement: test', subject: 'English', maxAge: 6 });
+  store.setStatus(sid, 'q2', 'practicing');
+  assert.deepEqual(store.undoPlacement(sid, rec.id), { reverted: 1, kept: 1 });
+  assert.equal(store.statusOf(sid, 'q1'), 'none');
+  assert.equal(store.statusOf(sid, 'q2'), 'practicing');
+});
