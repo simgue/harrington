@@ -26,10 +26,16 @@ test('the child view never launches a mastery test', async () => {
   // The parent shell (sidebar, export/import) is inert behind the overlay.
   assert.match(kidmode, /setShellInert\(true\)/);
   assert.match(kidmode, /setShellInert\(false\)/);
+  assert.match(kidmode, /app\.inert = on/);
+  assert.match(kidmode, /overlay\.focus\(\)/);
+  assert.match(kidmode, /target\.focus\(\)/);
+  // Modals and toasts mount outside #app, so they stay usable while it is inert.
+  const html = await source('src/index.html');
+  assert.match(html, /<div id="app"[^>]*><\/div>\s*<div id="modal-root"><\/div>/);
 });
 
-test('tests and challenges have a score-free child result', async () => {
-  for (const path of ['src/js/views/masterytest.js', 'src/js/views/challenge.js']) {
+test('tests, challenges and recall have a score-free child result', async () => {
+  for (const path of ['src/js/views/masterytest.js', 'src/js/views/challenge.js', 'src/js/views/recall.js']) {
     const code = await source(path);
     assert.match(code, /store\.isChildViewOpen\(\)/, `${path} has no child-safe branch`);
     assert.match(code, /All done, well tried!/, `${path} has no child-safe result`);

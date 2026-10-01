@@ -12,25 +12,34 @@ import { openRecorder } from '../recorder.js';
 import { meadowScene, growthIcon, stageForArea, stageForStatus, GROWTH } from '../meadow.js';
 
 let overlay = null;
+let launcher = null; // element focused before the child view opened
 
 export function openKidMode() {
   const student = store.activeStudent();
   if (!student) { toast('Add a student first', 'error'); return; }
   if (overlay) overlay.remove();
+  else launcher = document.activeElement;
 
-  overlay = el(`<div class="fixed inset-0 z-[95] bg-paper overflow-y-auto"></div>`);
+  overlay = el(`<div class="fixed inset-0 z-[95] bg-paper overflow-y-auto" role="dialog" aria-modal="true" aria-label="Child view" tabindex="-1"></div>`);
   document.body.appendChild(overlay);
   store.setChildViewOpen(true);
   // The parent shell (learner switcher, export/import) stays underneath; make
   // it unreachable by keyboard and assistive tech while the child view is up.
+  // Modals mount in #modal-root, a sibling of #app, so they stay usable.
   setShellInert(true);
   render(student);
+  overlay.focus();
 }
 
 function close() {
   if (overlay) { overlay.remove(); overlay = null; }
   store.setChildViewOpen(false);
   setShellInert(false);
+  // The shell re-renders on every store change, so the launcher may have been
+  // replaced; find its successor by id.
+  const target = launcher && (launcher.isConnected ? launcher : launcher.id && document.getElementById(launcher.id));
+  if (target) target.focus();
+  launcher = null;
 }
 
 function setShellInert(on) {
