@@ -146,6 +146,22 @@ function runSession(stage, m, student, meta, cards, restart, mixed = false) {
     setTimeout(() => award(student.id, null, 0), 400);
     stage.innerHTML = '';
     const total = cards.length;
+    // Child view: no counts. Grades are already recorded for the parent.
+    if (store.isChildViewOpen()) {
+      stage.appendChild(el(`<div class="fade-up text-center py-4">
+        <div class="w-20 h-20 rounded-full bg-brand-light flex items-center justify-center mx-auto mb-4"><i data-lucide="sprout" class="w-9 h-9 text-brand-dark"></i></div>
+        <p class="font-display text-2xl font-600">All done, well tried!</p>
+        <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto">These cards will come back another day to help them stick.</p>
+        <div class="mt-6 space-y-2.5">
+          <button id="again" class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Walk again</button>
+          <button id="close" class="w-full px-4 py-2.5 rounded-xl text-ink-soft font-medium hover:bg-paper transition-colors">Done</button>
+        </div>
+      </div>`));
+      stage.querySelector('#again').onclick = () => { m.close(); restart(); };
+      stage.querySelector('#close').onclick = () => m.close();
+      refreshIcons();
+      return;
+    }
     stage.appendChild(el(`<div class="fade-up text-center py-4">
       <div class="w-20 h-20 rounded-full bg-brand-light flex items-center justify-center mx-auto mb-4"><i data-lucide="party-popper" class="w-9 h-9 text-brand-dark"></i></div>
       <p class="font-600 text-lg">Recall session complete!</p>
