@@ -114,8 +114,9 @@ export function renderDashboard(params, { navigate }) {
 
   // Memory: active recall + spaced practice side by side.
   const memory = el(`<div class="grid md:grid-cols-2 gap-5 mb-5"></div>`);
-  const dueRecall = store.recallDueCount(active.id);
   const ai = store.aiAvailable();
+  // Recall cards are written by the AI provider, so without one nothing is reviewable.
+  const dueRecall = ai ? store.recallDueCount(active.id) : 0;
   const recallEmpty = ai ? 'Practice recall on any topic; reviews show up here when they’re due.'
     : 'Recall cards need a local AI provider. Once one is set up, reviews show up here when they’re due.';
   const practiceEmpty = ai ? 'Missed test questions come back here on a spaced schedule until they stick.'
@@ -129,6 +130,7 @@ export function renderDashboard(params, { navigate }) {
     <span class="shrink-0 flex items-center gap-1 text-sm font-600 text-lavender-deep">${dueRecall ? 'Review' : ai ? 'Study' : ''}<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
   </button>`);
   recallCard.onclick = () => openDueRecall();
+  if (!ai) { recallCard.disabled = true; recallCard.classList.remove('card-hover'); }
   memory.appendChild(recallCard);
 
   // Spaced practice: missed mastery-test questions retried on an expanding schedule

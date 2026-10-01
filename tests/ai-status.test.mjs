@@ -98,3 +98,8 @@ test('the child view hides AI actions without provider wording', async () => {
   assert.match(code, /store\.aiAvailable\(\)/);
   assert.doesNotMatch(code, /ai-status|AI provider|aiUnavailableChip/);
 });
+
+test('the unlinked timeline view is no longer routed', async () => {
+  const app = await source('src/js/app.js');
+  assert.doesNotMatch(app, /renderTimeline/);
+});

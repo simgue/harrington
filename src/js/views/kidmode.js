@@ -117,6 +117,7 @@ function render(student) {
   if (ai) actions.appendChild(bigBtn('zap', 'Beat the clock', chTopic ? 'A speedy challenge!' : 'Grow a bloom first', { bg: '#fbecc4', deep: '#8a6412' },
     () => { if (chTopic) openChallenge(chTopic); else toast('Grow a bloom to unlock challenges!'); }));
   actions.appendChild(bigBtn('medal', 'My collection', earnedCount ? 'See your treasures' : 'Treasures to find', { bg: '#fbe5de', deep: '#a4473a' }, () => renderBadges(student)));
+  if (actions.children.length === 1) actions.classList.replace('grid-cols-2', 'grid-cols-1');
   main.appendChild(actions);
 
   const tell = el(`<button class="w-full h-16 rounded-full bg-brand hover:bg-brand-dark text-paper-card font-display text-xl font-600 flex items-center justify-center gap-3 shadow-soft">

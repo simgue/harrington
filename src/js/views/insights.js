@@ -116,7 +116,7 @@ export function renderInsights(params, { navigate }) {
   </div>`);
   if (canTake) testCard.querySelector('#test').onclick = () => openMasteryTest(selSubject);
   const testBtn = testCard.querySelector('#test');
-  testBtn.replaceWith(gateAi(testBtn));
+  if (canTake) testBtn.replaceWith(gateAi(testBtn));
   root.appendChild(testCard);
 
   // AI feedback card

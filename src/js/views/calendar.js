@@ -69,7 +69,7 @@ export function renderCalendar(params, { navigate }) {
   if (!viewMonth) viewMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   if (!selectedKey) selectedKey = keyOf(today);
 
-  const grid = el(`<div class="grid lg:grid-cols-3 gap-5"></div>`);
+  const grid = el(`<div class="grid grid-cols-1 lg:grid-cols-3 gap-5"></div>`);
   grid.appendChild(monthPanel(active, today, navigate));
   grid.appendChild(dayPanel(active, navigate));
   root.appendChild(grid);
@@ -79,7 +79,7 @@ export function renderCalendar(params, { navigate }) {
 }
 
 function monthPanel(active, today, navigate) {
-  const wrap = el(`<div class="lg:col-span-2"></div>`);
+  const wrap = el(`<div class="lg:col-span-2 min-w-0"></div>`);
   const plan = buildPlan(active);
 
   const header = el(`<div class="flex items-center justify-between mb-4">
@@ -151,7 +151,7 @@ function monthPanel(active, today, navigate) {
 }
 
 function dayPanel(active, navigate) {
-  const wrap = el(`<div class="lg:sticky lg:top-6 lg:self-start"></div>`);
+  const wrap = el(`<div class="min-w-0 lg:sticky lg:top-6 lg:self-start"></div>`);
   const date = parseKey(selectedKey);
   const plan = buildPlan(active);
   const topics = plan.byDate.get(selectedKey) || [];
@@ -233,8 +233,13 @@ function extraRow(x, active, navigate) {
     else navigate('topic', { id: topic.id });
   };
   row.querySelector('.del').onclick = () => { store.removeExtra(active.id, selectedKey, x.id); navigate('calendar'); };
-  const go = row.querySelector('.go');
-  go.replaceWith(gateAi(go));
+  if (!store.aiAvailable()) {
+    // Keep the title and kind readable; the chip goes on its own line under them.
+    row.querySelector('.go').remove();
+    const chip = aiUnavailableChip();
+    chip.classList.add('mt-1.5');
+    row.querySelector('.flex-1.min-w-0').appendChild(chip);
+  }
   return row;
 }
 
@@ -319,7 +324,7 @@ function dayTopicRow(t, active, navigate) {
       </span>
       <span title="${MASTERY[status].label}">${growthIcon(stageForStatus(status, true), 22)}</span>
     </button>
-    <div class="flex items-center gap-3 mt-2 pt-2 border-t border-paper-line">
+    <div class="flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-paper-line">
       <button class="lesson text-xs font-medium text-brand-dark flex items-center gap-1"><i data-lucide="notebook-text" class="w-3.5 h-3.5"></i>Lesson</button>
       <button class="test text-xs font-medium flex items-center gap-1" style="color:${meta.color}"><i data-lucide="file-check-2" class="w-3.5 h-3.5"></i>Test</button>
       <button class="push text-xs font-medium text-ink-soft flex items-center gap-1 ml-auto"><i data-lucide="calendar-arrow-down" class="w-3.5 h-3.5"></i>Move</button>
@@ -394,6 +399,7 @@ function extrasBlock(active, navigate) {
       <button class="go mt-2 w-full text-sm font-medium text-white rounded-lg py-2 flex items-center justify-center gap-1.5 bg-brand"><i data-lucide="brain" class="w-4 h-4"></i>Start recall review</button>
     </div>`);
     rc.querySelector('.go').onclick = () => openDueRecall();
+    gateCardButton(rc);
     list.appendChild(rc);
   }
 

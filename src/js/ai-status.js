@@ -35,7 +35,7 @@ export function aiNotConfiguredError() {
 
 // A quiet, disabled-looking chip that links to the setup instructions.
 export function aiUnavailableChip(href = AI_HELP_HREF) {
-  return el(`<a href="${esc(href)}" target="_blank" rel="noopener" title="Set up a local AI provider to use this" class="ai-unavailable inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-paper-line bg-paper text-xs font-medium text-ink-faint hover:text-ink-soft hover:border-ink-faint/40 transition-colors"><i data-lucide="plug-zap" class="w-3.5 h-3.5"></i>${AI_UNAVAILABLE_LABEL}</a>`);
+  return el(`<a href="${esc(href)}" target="_blank" rel="noopener" title="Set up a local AI provider to use this" class="ai-unavailable inline-flex max-w-full items-center gap-1.5 px-2.5 py-1 rounded-full border border-paper-line bg-paper text-xs font-medium text-ink-faint hover:text-ink-soft hover:border-ink-faint/40 transition-colors"><i data-lucide="plug-zap" class="w-3.5 h-3.5"></i>${AI_UNAVAILABLE_LABEL}</a>`);
 }
 
 // The control itself when the provider is set up, otherwise the chip.
@@ -46,9 +46,9 @@ export function gateAi(control, href = AI_HELP_HREF) {
 // Replaces every "Couldn't … right now" message. `retry` re-runs the action;
 // for "not configured" the button re-reads /api/health first.
 export function aiErrorBlock(err, retry = null, { compact = false } = {}) {
-  console.error(err);
   const { kind, message } = explainAiError(err);
   const unconfigured = kind === 'unconfigured';
+  if (!unconfigured) console.error(err); // a missing provider is expected, not an error
   const b = el(compact
     ? `<div class="py-2"><p class="text-sm ${unconfigured ? 'text-ink-soft' : 'text-[#a4473a]'} leading-relaxed">${esc(message)}</p><div class="actions flex flex-wrap items-center gap-3 mt-2"></div></div>`
     : `<div class="text-center py-10">
