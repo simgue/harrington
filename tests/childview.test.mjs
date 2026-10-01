@@ -23,6 +23,9 @@ test('the child view never launches a mastery test', async () => {
   assert.match(kidmode, /import \{ openChildTopic \} from '\.\/childtopic\.js'/);
   assert.match(kidmode, /store\.setChildViewOpen\(true\)/);
   assert.match(kidmode, /store\.setChildViewOpen\(false\)/);
+  // The parent shell (sidebar, export/import) is inert behind the overlay.
+  assert.match(kidmode, /setShellInert\(true\)/);
+  assert.match(kidmode, /setShellInert\(false\)/);
 });
 
 test('tests and challenges have a score-free child result', async () => {

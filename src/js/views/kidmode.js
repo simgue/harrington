@@ -21,12 +21,24 @@ export function openKidMode() {
   overlay = el(`<div class="fixed inset-0 z-[95] bg-paper overflow-y-auto"></div>`);
   document.body.appendChild(overlay);
   store.setChildViewOpen(true);
+  // The parent shell (learner switcher, export/import) stays underneath; make
+  // it unreachable by keyboard and assistive tech while the child view is up.
+  setShellInert(true);
   render(student);
 }
 
 function close() {
   if (overlay) { overlay.remove(); overlay = null; }
   store.setChildViewOpen(false);
+  setShellInert(false);
+}
+
+function setShellInert(on) {
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.inert = on;
+  if (on) app.setAttribute('aria-hidden', 'true');
+  else app.removeAttribute('aria-hidden');
 }
 
 // "Grown-ups" asks for the parent PIN, or sets one the first time. Forgot it?
