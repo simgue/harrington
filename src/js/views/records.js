@@ -103,9 +103,35 @@ function recordCard(r, student, d, navigate) {
     card.appendChild(analyzeWrap);
   }
 
-  card.querySelector('.del').onclick = () => { if (confirm('Delete this record?')) store.removeRecord(student.id, r.id); };
+  if (r.placement) card.appendChild(placementUndo(r, student));
+
+  const delMsg = r.placement && !r.placement.undoneAt
+    ? 'Delete this placement record? The placement stays, but it can no longer be undone.'
+    : 'Delete this record?';
+  card.querySelector('.del').onclick = () => { if (confirm(delMsg)) store.removeRecord(student.id, r.id); };
   card.querySelector('.topic')?.addEventListener('click', () => navigate('topic', { id: r.topicId }));
   return card;
+}
+
+// Undo for a placement record: reverts exactly the topics it changed.
+function placementUndo(r, student) {
+  const wrap = el(`<div class="mt-2.5 pt-2.5 border-t border-paper-line"></div>`);
+  if (r.placement.undoneAt) {
+    wrap.appendChild(el(`<p class="text-xs text-ink-faint flex items-center gap-1.5"><i data-lucide="undo-2" class="w-3.5 h-3.5"></i>Placement undone ${fmtDateTime(r.placement.undoneAt)}</p>`));
+    return wrap;
+  }
+  const n = r.placement.topicIds.length;
+  const btn = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="undo-2" class="w-4 h-4"></i>Undo placement</button>`);
+  btn.onclick = () => {
+    if (!confirm(`Return these ${n} topic${n === 1 ? '' : 's'} to their status before the placement?`)) return;
+    const res = store.undoPlacement(student.id, r.id);
+    if (!res) return;
+    toast(res.kept
+      ? `Reverted ${res.reverted}; ${res.kept} changed since and kept as they are`
+      : `Reverted ${res.reverted} topic${res.reverted === 1 ? '' : 's'}`, 'success');
+  };
+  wrap.appendChild(btn);
+  return wrap;
 }
 
 function openAnalysis(record, student, topic) {

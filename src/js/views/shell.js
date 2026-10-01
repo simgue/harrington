@@ -2,6 +2,7 @@ import * as store from '../store.js';
 import { el, esc, initials, openModal, refreshIcons, toast } from '../ui.js';
 import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
+import { openPlacement } from './placement.js';
 
 // Storybook Meadow mark: a sun rising over a hill.
 export function meadowLogo(size = 34) {
@@ -136,8 +137,10 @@ function openStudentMenu(navigate) {
         <p class="text-xs text-ink-faint">Age ${age} · born ${s.birthYear}</p>
       </div>
       ${isActive ? '<span class="text-xs font-medium text-brand-dark px-2 py-0.5 rounded-full bg-brand/10">Active</span>' : '<button class="select text-xs font-medium text-brand px-3 py-1.5 rounded-full bg-paper-card hover:bg-brand-light">Switch</button>'}
+      <button class="place text-ink-faint hover:text-brand-dark p-1" title="Placement: mark earlier topics mastered" aria-label="Placement for ${esc(s.name)}"><i data-lucide="list-checks" class="w-4 h-4"></i></button>
       <button class="del text-ink-faint hover:text-[#a4473a] p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
     </div>`);
+    row.querySelector('.place').addEventListener('click', () => { m.close(); openPlacement(s); });
     row.querySelector('.select')?.addEventListener('click', () => { store.setActiveStudent(s.id); m.close(); toast('Switched to ' + s.name); });
     row.querySelector('.del').addEventListener('click', () => {
       if (confirm(`Remove ${s.name}? This deletes their progress and records.`)) { store.removeStudent(s.id); m.close(); }

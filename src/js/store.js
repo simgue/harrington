@@ -403,14 +403,65 @@ export function setStatus(studentId, topicId, status) {
 }
 // Set many topics at once with a single persist + emit (one re-render).
 // Marks activity inline rather than via markActivity(), which would persist and emit a second time.
-export function setStatusBulk(studentId, topicIds, status) {
+// `meta` adds fields to each entry, e.g. { source: 'placement' }; a
+// `meta.updatedAt` sets the timestamp so callers can record it beforehand,
+// and `meta.activity: false` keeps an admin change from counting as a learning day.
+export function setStatusBulk(studentId, topicIds, status, meta = {}) {
   if (!topicIds || !topicIds.length) return;
+  const { activity = true, ...fields } = meta;
   const p = state.progress[studentId] = state.progress[studentId] || {};
-  const now = Date.now();
-  topicIds.forEach(id => { p[id] = { status, updatedAt: now }; });
-  const a = activityOf(studentId);
-  a[dateKeyLocal(now)] = true;
+  const now = fields.updatedAt || Date.now();
+  topicIds.forEach(id => { p[id] = { ...fields, status, updatedAt: now }; });
+  if (activity) activityOf(studentId)[dateKeyLocal(now)] = true;
   persist(); emit();
+}
+
+// ---- Placement (bulk-mark earlier topics mastered, with undo) ----
+// A placement is a parent admin action, not learning: it does not mark the
+// day active. It changes which topics are open, so today's daily choices
+// (offers and picks) are dropped and rebuilt on the next render.
+function forgetTodaysChoices(studentId) {
+  const days = state.daily[studentId];
+  if (days) delete days[dateKeyLocal(Date.now())];
+}
+// Writes one assessment record carrying the changed ids and their previous
+// entries, then marks them mastered with a single persist + emit.
+export function applyPlacement(studentId, { topicIds, title, subject, domain = null, maxAge }) {
+  if (!topicIds || !topicIds.length) return null;
+  const p = state.progress[studentId] || {};
+  const previous = {};
+  topicIds.forEach(id => { previous[id] = p[id] ? { ...p[id] } : null; });
+  // The record is complete before the single persist + emit below.
+  const at = Date.now();
+  const rec = {
+    id: 'r_' + Math.random().toString(36).slice(2, 9), createdAt: at,
+    type: 'assessment', title, note: '',
+    placement: { subject, domain, maxAge, topicIds: [...topicIds], previous, at, undoneAt: null },
+  };
+  state.records[studentId] = state.records[studentId] || [];
+  state.records[studentId].unshift(rec);
+  forgetTodaysChoices(studentId);
+  setStatusBulk(studentId, topicIds, 'mastered', { source: 'placement', updatedAt: at, activity: false });
+  return rec;
+}
+// Revert exactly the ids a placement changed. Topics changed again since the
+// placement are left alone. Returns { reverted, kept } or null.
+export function undoPlacement(studentId, recordId) {
+  const rec = (state.records[studentId] || []).find(r => r.id === recordId);
+  if (!rec || !rec.placement || rec.placement.undoneAt) return null;
+  const p = state.progress[studentId] = state.progress[studentId] || {};
+  let reverted = 0, kept = 0;
+  for (const id of rec.placement.topicIds) {
+    const cur = p[id];
+    if (!cur || cur.source !== 'placement' || cur.updatedAt !== rec.placement.at) { kept++; continue; }
+    const prev = rec.placement.previous[id];
+    if (prev) p[id] = { ...prev }; else delete p[id];
+    reverted++;
+  }
+  rec.placement.undoneAt = Date.now();
+  forgetTodaysChoices(studentId);
+  persist(); emit();
+  return { reverted, kept };
 }
 
 // ---- Records (notes / observations / questions) ----
