@@ -13,7 +13,7 @@ async function chooseImportFile(page, content) {
   await chooser.setFiles({ name: 'family.json', mimeType: 'application/json', buffer: Buffer.from(content) });
 }
 
-test('export downloads the whole family document as JSON', async ({ page, gotoApp, shot }) => {
+test('export downloads the whole family document as JSON, PIN included (finding F16)', async ({ page, gotoApp, shot }) => {
   await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'mastered' }, records: [{ type: 'observation', title: 'Counted to 12' }], extra: { settings: { parentPin: '2468' } } } });
   await shot('sidebar-export-import', { locator: page.locator('aside') });
   const [download] = await Promise.all([page.waitForEvent('download'), exportButton(page).click()]);

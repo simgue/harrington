@@ -154,7 +154,7 @@ test('List view drills subject → domain → age band → topic and the choice 
   await api.waitForState((s) => s.graphView === 'atlas');
 });
 
-test('selecting a skill scrolls the page back to the top (finding)', async ({ page, gotoApp }) => {
+test('selecting a skill scrolls the page back to the top (finding F11)', async ({ page, gotoApp }) => {
   await gotoApp({ seed: {}, hash: COUNTING_HASH });
   await page.evaluate(() => window.scrollTo(0, 400));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);

@@ -72,7 +72,7 @@ test('versioned state (HAR-10): 428 without If-Match, 412 when stale, 403 cross-
   await api.reset();
 });
 
-test('lessons: 404 until saved, then returned; arrays are refused (finding)', async ({ request }) => {
+test('lessons: 404 until saved, then returned; arrays are refused (finding F1)', async ({ request }) => {
   const key = encodeURIComponent(`topic:e2e-api-${Date.now()}`);
   expect((await request.get(`${URLS.appAi}/api/lessons/${key}`)).status()).toBe(404);
   const put = await request.put(`${URLS.appAi}/api/lessons/${key}`, { data: { objective: 'x' } });

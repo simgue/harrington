@@ -69,7 +69,7 @@ test('bottom navigation, the top-bar guide and the compact learner switcher', as
   await closeModal(page);
 });
 
-test('export and import are not reachable on a phone (finding)', async ({ page, gotoApp }) => {
+test('export and import are not reachable on a phone (finding F6)', async ({ page, gotoApp }) => {
   await gotoApp({ seed: {} });
   // HAR-10 put them in the desktop sidebar's family box only.
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toHaveCount(0);

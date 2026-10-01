@@ -68,7 +68,7 @@ test('clicking one unread notification marks just that one read', async ({ page,
   expect(state.notifications.find((n) => n.id === 'n_b').read).toBe(false);
 });
 
-test('the bell is named by its unread count, not "Notifications" (finding)', async ({ page, gotoApp }) => {
+test('the bell is named by its unread count, not "Notifications" (finding F13)', async ({ page, gotoApp }) => {
   await gotoApp({ seed: {} });
   await expect(bell(page)).toHaveAccessibleName('1');
   await expect(page.getByRole('button', { name: 'Notifications' })).toHaveCount(0);

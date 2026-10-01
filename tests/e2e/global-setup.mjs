@@ -2,7 +2,7 @@
 // cache happen in start-app.mjs, which the webServer runs first). Here we only
 // confirm the three servers are what the specs expect and clear the mock log.
 import { URLS } from './support/env.mjs';
-import { cacheIsComplete } from './support/taxonomy.mjs';
+import { CACHE_DIR, cacheIsComplete } from './support/taxonomy.mjs';
 
 async function health(url) {
   const res = await fetch(url);
@@ -19,6 +19,6 @@ export default async function globalSetup() {
   if (noAi.aiConfigured !== false) {
     throw new Error(`The app on ${URLS.appNoAi} should have no AI provider; is another server using that port?`);
   }
-  if (!(await cacheIsComplete())) throw new Error('Taxonomy cache is incomplete under tests/e2e/.cache/taxonomy');
+  if (!(await cacheIsComplete())) throw new Error(`Taxonomy cache is incomplete under ${CACHE_DIR}`);
   await fetch(`${URLS.mockAi}/__log`, { method: 'DELETE' });
 }

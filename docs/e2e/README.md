@@ -28,7 +28,7 @@ npm run e2e
 | `npm run e2e:mock-ai` | Starts only the mock AI provider on port 4311, handy for poking the app by hand. |
 
 The first run downloads the Marble taxonomy (about 2.4 MB) into
-`tests/e2e/.cache/taxonomy/`. Later runs are offline.
+`tests/e2e/.cache/taxonomy-<revision>/`. Later runs are offline.
 
 A full run takes about seven minutes: the tests share one server
 per project and reset the family state before each test, so they run one at a
@@ -52,11 +52,18 @@ before `globalSetup`, so the taxonomy download happens in the launcher;
 `tests/e2e/global-setup.mjs` then checks that each server is the one the
 projects expect and clears the mock's request log.
 
+**Taxonomy revision.** The specs assume one exact curriculum (1,590 topics,
+fixed topic ids), so the suite downloads the taxonomy at a pinned commit,
+`TAXONOMY_REVISION` in `tests/e2e/support/taxonomy.mjs`, never mutable `main`.
+The local cache directory and the CI cache key both follow the pin. To move to
+a newer taxonomy, change the pin, run `npm run e2e:ui-docs` and fix what the
+specs assumed.
+
 **Taxonomy upstream.** The server's default upstream, jsDelivr, is blocked on
-some networks. The launcher probes it and falls back to
-`https://raw.githubusercontent.com/withmarbleapp/os-taxonomy/main/data`, which
-serves the same files, and passes the choice to the server as
-`HARRINGTON_TAXONOMY_UPSTREAM`. Set that variable yourself to force one.
+some networks. The launcher probes it (at the pinned revision) and falls back
+to `raw.githubusercontent.com`, which serves the same files, and passes the
+choice to the server as `HARRINGTON_TAXONOMY_UPSTREAM`. Set that variable
+yourself to force one.
 
 ## Projects
 
@@ -84,10 +91,12 @@ recording's length, recall cards coming due tomorrow) moves the fixed time on.
 | `E2E_SCREENSHOTS` | on | Set to `0` to skip writing screenshots. |
 | `E2E_VIDEO` | unset | `all` records every test, not just the walkthroughs (`e2e:ui-docs` sets it). |
 | `HARRINGTON_TAXONOMY_UPSTREAM` | probed | Where the launcher downloads the taxonomy from on the first run. |
-| `CI` | unset | On CI: servers are never reused and `test.only` fails the run. |
+| `CI` | unset | On CI, `test.only` fails the run. |
 
-Locally, `webServer` reuses servers that are already listening on the ports,
-which keeps a `--ui` session fast. If you change `server.mjs`, stop them first.
+The suite never reuses a server that is already listening on its ports: every
+test overwrites `/api/state`, and that server could be a real family's. If a
+port is taken, Playwright stops with "is already used"; stop that server or
+move the suite with `E2E_PORT_BASE`.
 
 ### Browsers
 
@@ -201,6 +210,6 @@ the next n completions fail with HTTP 500.
    the gap in [FINDINGS.md](FINDINGS.md).
 5. Use the fake names in `support/family.mjs`. Never put a real child's name
    in a spec, a fixture or a screenshot.
-6. A test that pins a known defect asserts today's behavior, has `(finding)`
-   in its title and an entry in FINDINGS.md, so it fails loudly when the bug
-   is fixed and can be flipped then.
+6. A test that pins a known defect asserts today's behavior and has
+   `(finding F<n>)` in its title, matching its entry in FINDINGS.md, so it
+   fails loudly when the bug is fixed and can be flipped then.

@@ -5,8 +5,9 @@ suite was last run against `main` at `add6a04`, which includes HAR-10, HAR-14,
 HAR-15 and HAR-16. Nothing here is fixed in this pull request; each item names
 the spec that shows it.
 
-A test that pins a defect has **(finding)** in its title and asserts today's
-behavior, so it fails as soon as the defect is fixed; flip the assertion then.
+A test that pins a defect has **(finding F<n>)** in its title and asserts
+today's behavior, so it fails as soon as the defect is fixed; flip the
+assertion then. Search the specs for the number to find them all.
 
 Severity: **High** affects data, privacy or the child view's promise;
 **Medium** is a visible bug or a misleading screen; **Low** is polish or
@@ -63,7 +64,7 @@ Repro:
    `GET /api/lessons/recall%3A<topicId>` is 404.
 3. Open **Practice recall** again: the provider is called again.
 
-Shown by `api.spec.mjs` › "lessons: … arrays are refused (finding)" and by
+Shown by `api.spec.mjs` › "lessons: … arrays are refused (finding F1)" and by
 the server log during `topic.spec.mjs` › "practice recall…".
 Fix idea: wrap the cards (`{ cards }`) when caching and unwrap on read.
 
@@ -79,9 +80,9 @@ Lessons, tests, explain, quiz and activity prompts are clean (asserted in
 Repro: with a provider, Records › a discussion › **Analyze & get advice**;
 the provider receives "…between the parent and Rowan Example (age 6)…".
 
-Shown by `records.spec.mjs` › "analyze a discussion…" and
-`insights.spec.mjs` › "generate a progress review (learner name goes into
-the prompt: finding)", both reading the mock provider's request log.
+Shown by `records.spec.mjs` › "analyze a discussion… (finding F2)" and
+`insights.spec.mjs` › "generate a progress review; the learner name goes
+into the prompt (finding F2)", both reading the mock provider's request log.
 
 ## F3. A 3-year-old gets no daily choices and an "everything is mastered" message
 
@@ -96,7 +97,7 @@ learner with nothing mastered. The child view's "Plant something new" says
 Repro: add a learner born 2023, open the dashboard.
 
 Shown by `dashboard.spec.mjs` › "a 3-year-old gets no daily choices and no
-stepping stones (finding)". Screenshot: `screenshots/dashboard/05-dashboard-three-year-old.jpg`.
+stepping stones (finding F3)". Screenshot: `screenshots/dashboard/05-dashboard-three-year-old.jpg`.
 
 ## F4. The preview banner says AI is not connected even when it is
 
@@ -105,7 +106,7 @@ shared-family features are not connected yet", even when `/api/health`
 reports `aiConfigured: true` and lessons work.
 
 Shown by `dashboard.spec.mjs` › "the preview banner says AI is not connected
-even when it is (finding)".
+even when it is (finding F4)".
 
 ## F5. Day one offers a refresher quiz on a topic never taught
 
@@ -117,7 +118,8 @@ skill sharp", and the calendar shows a "REFRESHER QUIZ" card the same way.
 (Audit §4.4, still present.)
 
 Shown in `screenshots/dashboard/01-dashboard-six-year-old.jpg` and asserted
-present by `dashboard.spec.mjs` and `calendar.spec.mjs`.
+present by the `dashboard.spec.mjs` and `calendar.spec.mjs` tests marked
+(finding F5).
 
 ## F6. Export and Import are not reachable on a phone
 
@@ -127,7 +129,7 @@ breakpoint the sidebar is hidden and the phone top bar has no equivalent, so
 a family using Harrington on a tablet or phone cannot back up or restore.
 
 Shown by `mobile.spec.mjs` › "export and import are not reachable on a phone
-(finding)".
+(finding F6)".
 
 ## F7. A failed "Generate a different version" leaves a spinner forever
 
@@ -140,14 +142,15 @@ Repro: open a lesson, make the provider fail (the mock's `POST /__fail`),
 press **Generate a different version**.
 
 Shown by `topic.spec.mjs` › "\"Generate a different version\" failing leaves
-a spinner (finding)". HAR-13 (#18) says it fixes this.
+a spinner (finding F7)". HAR-13 (#18) says it fixes this.
 
 ## F8. "Extra practice" on the calendar opens a lesson
 
 **Medium.** An extra added as "Extra practice" opens the full lesson, the same
 as "Re-teach lesson" (`calendar.js:229`). There is no practice flow behind it.
 
-Shown by `calendar.spec.mjs` › "add an extra of each kind, open one, remove one".
+Shown by `calendar.spec.mjs` › "add an extra of each kind, open one, remove
+one; Extra practice opens a lesson (finding F8)".
 
 ## F9. "Refreshers change each day automatically" is a button that does nothing
 
@@ -155,7 +158,7 @@ Shown by `calendar.spec.mjs` › "add an extra of each kind, open one, remove on
 (`calendar.js:442`) with no handler. Clicking it changes nothing.
 
 Shown by `calendar.spec.mjs` › "refresher, activity and stretch cards open
-their tools; the footer button does nothing (finding)".
+their tools; the footer button does nothing (finding F9)".
 
 ## F10. Activity instructions failure says "Couldn't create the lesson"
 
@@ -165,7 +168,7 @@ block with `unconfigured = false` (`lesson.js:217, 246`). The lesson itself
 says "AI is not configured."; the other AI buttons each have their own
 generic "try again" wording.
 
-Shown by `no-ai.spec.mjs`. HAR-13 (#18) replaces all of these messages.
+Shown by `no-ai.spec.mjs` › "topic page: every AI button… (finding F10)". HAR-13 (#18) replaces all of these messages.
 
 ## F11. Selecting a skill scrolls the page to the top
 
@@ -174,7 +177,7 @@ Shown by `no-ai.spec.mjs`. HAR-13 (#18) replaces all of these messages.
 is restored, but the page jumps up. (Audit §4.3.)
 
 Shown by `map.spec.mjs` › "selecting a skill scrolls the page back to the top
-(finding)".
+(finding F11)".
 
 ## F12. Recent growth lists topics set back to "Not started"
 
@@ -182,7 +185,7 @@ Shown by `map.spec.mjs` › "selecting a skill scrolls the page back to the top
 progress entry, including one a parent marked "Not started" again, so the
 dashboard's Recent growth shows "One-to-one counting · Sprout · Not started".
 
-Shown by `topic.spec.mjs` › "manual status: every transition…".
+Shown by `topic.spec.mjs` › "manual status: every transition… (finding F12)".
 
 ## F13. Notification bell has no accessible name
 
@@ -191,7 +194,7 @@ badge its accessible name is the count ("1") instead of "Notifications", so
 a screen reader announces "1, button".
 
 Shown by `notifications.spec.mjs` › "the bell is named by its unread count,
-not \"Notifications\" (finding)".
+not \"Notifications\" (finding F13)".
 
 ## F14. Icon-only delete and remove buttons have no accessible name
 
@@ -200,8 +203,8 @@ not \"Notifications\" (finding)".
 (`calendar.js:224`) contain only an icon. The specs have to reach them by
 position or class.
 
-Shown by `learners.spec.mjs` › "the learner menu buttons are reachable by role
-(delete is icon-only)".
+Shown by `learners.spec.mjs` › "the learner delete button is icon-only with no
+accessible name (finding F14)".
 
 ## F15. Dashboard says "1590 topics" where the map says "1,590"
 
@@ -220,7 +223,7 @@ authentication, and reloading the page leaves the child view anyway, so this
 is a note for when authentication arrives rather than a defect today.
 
 Shown by `data-safety.spec.mjs` › "export downloads the whole family document
-as JSON".
+as JSON, PIN included (finding F16)".
 
 ---
 

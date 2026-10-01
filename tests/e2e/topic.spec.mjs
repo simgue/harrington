@@ -65,7 +65,7 @@ test.describe('without AI', () => {
     expect(errors).toEqual([]);
   });
 
-  test('manual status: every transition updates the page, the dashboard ring and recent growth', async ({ page, api, gotoApp, shot }) => {
+  test('manual status: every transition updates the page, the dashboard ring and recent growth (finding F12)', async ({ page, api, gotoApp, shot }) => {
     await gotoApp({ seed: {}, hash: topicHash(ONE.id) });
     // HAR-14: the four statuses sit beside the growth chip in the header.
     const group = page.getByRole('group', { name: 'Set status' });
@@ -179,7 +179,7 @@ test.describe('with the mock AI provider', () => {
     expect(await mockAi.kinds()).toEqual(['lesson', 'printables']);
   });
 
-  test('"Generate a different version" failing leaves a spinner (finding)', async ({ page, gotoApp, mockAi }) => {
+  test('"Generate a different version" failing leaves a spinner (finding F7)', async ({ page, gotoApp, mockAi }) => {
     await gotoApp({ seed: {}, hash: topicHash(TOPICS.howMany.id) });
     await page.getByRole('button', { name: 'Open full lesson' }).click();
     await expect(modal(page)).toContainText(MARKERS.lessonHook);

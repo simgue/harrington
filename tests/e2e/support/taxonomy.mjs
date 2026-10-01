@@ -9,9 +9,15 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
 export const TAXONOMY_FILES = ['topics.json', 'dependencies.json', 'clusters.json', 'manifest.json'];
-export const JSDELIVR_UPSTREAM = 'https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@main/data';
-export const GITHUB_RAW_UPSTREAM = 'https://raw.githubusercontent.com/withmarbleapp/os-taxonomy/main/data';
-export const CACHE_DIR = fileURLToPath(new URL('../.cache/taxonomy/', import.meta.url));
+// The specs assume one exact curriculum (1,590 topics, fixed topic ids), so the
+// suite downloads a pinned commit of the taxonomy rather than mutable `main`.
+// To move to a newer taxonomy: update this, run `npm run e2e:ui-docs`, and fix
+// whatever the specs assumed. The cache directory and the CI cache key both
+// follow the revision.
+export const TAXONOMY_REVISION = '96a7933754af672e1bfdbf7ecb05c325860c6e0d';
+export const JSDELIVR_UPSTREAM = `https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@${TAXONOMY_REVISION}/data`;
+export const GITHUB_RAW_UPSTREAM = `https://raw.githubusercontent.com/withmarbleapp/os-taxonomy/${TAXONOMY_REVISION}/data`;
+export const CACHE_DIR = fileURLToPath(new URL(`../.cache/taxonomy-${TAXONOMY_REVISION.slice(0, 12)}/`, import.meta.url));
 
 async function reachable(upstream) {
   try {

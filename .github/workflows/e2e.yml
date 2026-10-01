@@ -32,13 +32,14 @@ jobs:
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
 
-      # The Marble taxonomy is downloaded on the first run and cached (never
-      # committed). Bump the version in the key to force a fresh download.
+      # The Marble taxonomy is downloaded at the commit pinned in
+      # tests/e2e/support/taxonomy.mjs (TAXONOMY_REVISION) and cached, never
+      # committed. Changing the pin changes the file hash, so the key follows it.
       - name: Cache the taxonomy download
         uses: actions/cache@v4
         with:
           path: tests/e2e/.cache
-          key: marble-taxonomy-v1-${{ hashFiles('tests/e2e/support/taxonomy.mjs') }}
+          key: marble-taxonomy-${{ hashFiles('tests/e2e/support/taxonomy.mjs') }}
 
       - name: Run the end-to-end suite
         run: npm run e2e

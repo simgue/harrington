@@ -65,7 +65,7 @@ test('subject chips, stats, recommended next and a locked final test', async ({ 
 });
 
 test.describe('with the mock AI provider', () => {
-  test('generate a progress review (learner name goes into the prompt: finding)', async ({ page, gotoApp, mockAi, shot }) => {
+  test('generate a progress review; the learner name goes into the prompt (finding F2)', async ({ page, gotoApp, mockAi, shot }) => {
     await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'learning' }, records: [{ type: 'observation', title: 'Counted to 12', note: 'Skipped 8.', topicId: TOPICS.oneToOne.id }] } });
     await nav(page, 'Insights').click();
     await mockAi.clear();

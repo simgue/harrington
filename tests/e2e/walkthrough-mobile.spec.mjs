@@ -29,9 +29,7 @@ test('mobile walkthrough', async ({ page, gotoApp }) => {
   await page.getByRole('button', { name: 'Open the guide' }).click();
   await beat(page, 1500);
   await closeModal(page);
-  // The topic page overflows sideways on a phone (FINDINGS F7) and the fixed
-  // bottom nav never settles, so skip Playwright's stability wait here.
-  await bottom.getByRole('button', { name: 'Dashboard' }).click({ force: true });
+  await bottom.getByRole('button', { name: 'Dashboard' }).click();
   await page.getByRole('button', { name: "Rowan Example's view" }).click();
   await beat(page, 1500);
   for (let i = 0; i < 3; i += 1) { await page.evaluate((y) => window.scrollBy({ top: y, behavior: 'smooth' }), 500); await beat(page, 500); }

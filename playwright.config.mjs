@@ -9,6 +9,8 @@
 //   app without AI    -> 4313   node server.mjs, no provider (fail-closed)
 // Each app gets a fresh temporary HARRINGTON_DATA_DIR. Tests share one server
 // per project and reset the family state before each test, so they run serially.
+// Servers are never reused: a Harrington already listening on these ports could
+// be a real family's, and every test overwrites /api/state.
 import { defineConfig, devices } from '@playwright/test';
 import { PORTS, URLS } from './tests/e2e/support/env.mjs';
 
@@ -67,19 +69,19 @@ export default defineConfig({
     {
       command: `node tests/e2e/mock-ai-server.mjs --port ${PORTS.mockAi}`,
       url: `${URLS.mockAi}/health`,
-      reuseExistingServer: !CI,
+      reuseExistingServer: false,
       timeout: 30_000,
     },
     {
       command: `node tests/e2e/start-app.mjs --port ${PORTS.appAi} --ai`,
       url: `${URLS.appAi}/api/health`,
-      reuseExistingServer: !CI,
+      reuseExistingServer: false,
       timeout: 180_000,
     },
     {
       command: `node tests/e2e/start-app.mjs --port ${PORTS.appNoAi}`,
       url: `${URLS.appNoAi}/api/health`,
-      reuseExistingServer: !CI,
+      reuseExistingServer: false,
       timeout: 180_000,
     },
   ],

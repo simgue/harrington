@@ -6,7 +6,7 @@ import { TODAY_KEY } from './support/env.mjs';
 
 const ROWAN = LEARNERS.rowan.id;
 
-test('hero greeting and every dashboard section for a 6-year-old', async ({ page, gotoApp, shot, errors }) => {
+test('hero greeting and every dashboard section for a 6-year-old, refresher included (finding F5)', async ({ page, gotoApp, shot, errors }) => {
   await gotoApp({
     seed: {
       progress: { [TOPICS.oneToOne.id]: 'learning' },
@@ -161,7 +161,7 @@ test('stepping stones, memory cards, subjects, recordings folder', async ({ page
   await closeModal(page);
 });
 
-test('a 3-year-old gets no daily choices and no stepping stones (finding)', async ({ page, gotoApp, shot }) => {
+test('a 3-year-old gets no daily choices and no stepping stones (finding F3)', async ({ page, gotoApp, shot }) => {
   await gotoApp({ seed: { active: 'wren' } });
   await expect(page.getByRole('heading', { name: "Wren Example's Wednesday" })).toBeVisible();
   await expect(page.getByText(/age 3/)).toBeVisible();
@@ -180,7 +180,7 @@ test('a 9-year-old sees older material and the same layout', async ({ page, goto
   await shot('dashboard-nine-year-old', { full: false });
 });
 
-test('the preview banner says AI is not connected even when it is (finding)', async ({ page, request, gotoApp }) => {
+test('the preview banner says AI is not connected even when it is (finding F4)', async ({ page, request, gotoApp }) => {
   await gotoApp({ seed: {} });
   expect((await (await request.get('/api/health')).json()).aiConfigured).toBe(true);
   await expect(page.getByText('Self-hosted preview · family data stays on this server · AI and shared-family features are not connected yet')).toBeVisible();

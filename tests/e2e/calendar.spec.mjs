@@ -13,7 +13,7 @@ async function openCalendar(page, gotoApp, seed = {}) {
 const dayCell = (page, day) => page.locator('div.grid-cols-7 > button').filter({ has: page.locator('span > span', { hasText: new RegExp(`^${day}$`) }) }).first();
 const dayPanel = (page) => page.locator('div.space-y-5', { has: page.getByRole('button', { name: /^(Mark done|Done)$/ }) });
 
-test('month grid, navigation, start date and the day panel', async ({ page, gotoApp, shot, errors }) => {
+test('month grid, navigation, start date and the day panel, refresher included (finding F5)', async ({ page, gotoApp, shot, errors }) => {
   await openCalendar(page, gotoApp);
   await expect(page.getByText('A day-by-day learning track for')).toContainText('Rowan Example');
   await expect(page.getByText('Track starts')).toBeVisible();
@@ -71,7 +71,7 @@ test('mark a day done and reopen it', async ({ page, api, gotoApp }) => {
   await expect(dayPanel(page).getByRole('button', { name: 'Mark done' })).toBeVisible();
 });
 
-test('add an extra of each kind, open one, remove one', async ({ page, api, gotoApp, shot }) => {
+test('add an extra of each kind, open one, remove one; Extra practice opens a lesson (finding F8)', async ({ page, api, gotoApp, shot }) => {
   await openCalendar(page, gotoApp);
   const kinds = [['Extra practice', 'Practice'], ['Re-teach lesson', 'Extra lesson'], ['Re-test', 'Re-test'], ['Challenge', 'Challenge']];
   for (const [kind] of kinds) {
@@ -142,7 +142,7 @@ test('move a topic to the next school day and to a chosen date', async ({ page, 
   expect(Object.keys(state.plan[ROWAN].moves)).toHaveLength(1);
 });
 
-test('refresher, activity and stretch cards open their tools; the footer button does nothing (finding)', async ({ page, gotoApp, mockAi }) => {
+test('refresher, activity and stretch cards open their tools; the footer button does nothing (finding F9)', async ({ page, gotoApp, mockAi }) => {
   await openCalendar(page, gotoApp);
   const panel = dayPanel(page);
   await mockAi.clear();

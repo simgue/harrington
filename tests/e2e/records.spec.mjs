@@ -182,7 +182,7 @@ test('recordings folder: grouping, play, delete', async ({ page, api, gotoApp, s
 });
 
 test.describe('with the mock AI provider', () => {
-  test('analyze a discussion and save the advice; analysis on a recording persists', async ({ page, api, gotoApp, mockAi, shot }) => {
+  test('analyze a discussion and save the advice; analysis on a recording persists (finding F2)', async ({ page, api, gotoApp, mockAi, shot }) => {
     await gotoApp({
       seed: {
         records: [

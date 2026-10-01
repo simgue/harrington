@@ -72,7 +72,7 @@ test('remove a learner asks first; cancel keeps them, OK removes them', async ({
   expect(state.students.map((s) => s.name)).toEqual(['Rowan Example', 'Sage Example']);
 });
 
-test('the learner menu buttons are reachable by role (delete is icon-only)', async ({ page, gotoApp }) => {
+test('the learner delete button is icon-only with no accessible name (finding F14)', async ({ page, gotoApp }) => {
   await gotoApp({ seed: {} });
   await openSwitcher(page);
   const del = studentRow(page, 'Wren Example').locator('button').last();

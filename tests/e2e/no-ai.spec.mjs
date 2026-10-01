@@ -13,7 +13,7 @@ test('health says AI is off and /api/ai answers 503', async ({ request }) => {
   expect(res.status()).toBe(503);
 });
 
-test('topic page: every AI button shows its not-configured or failure message', async ({ page, api, gotoApp, shot }) => {
+test('topic page: every AI button shows its not-configured or failure message (finding F10)', async ({ page, api, gotoApp, shot }) => {
   await gotoApp({ seed: { progress: { [ONE.id]: 'mastered' } }, hash: `topic/${ONE.id}` });
 
   await page.getByRole('button', { name: 'Open full lesson' }).click();
