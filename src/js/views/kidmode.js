@@ -3,7 +3,7 @@ import { getData, SUBJECTS } from '../data.js';
 import { el, refreshIcons, toast } from '../ui.js';
 import { studentStats, recommendedNext, recentActivity, todaysChoices } from '../mastery.js';
 import { keyOf } from '../scheduler.js';
-import { BADGES, confetti } from '../game.js';
+import { BADGES } from '../game.js';
 import { openChildTopic } from './childtopic.js';
 import { openRecall, openDueRecall } from './recall.js';
 import { openChallenge } from './challenge.js';
@@ -262,7 +262,6 @@ function renderBadges(student) {
   wrap.appendChild(main);
   overlay.appendChild(wrap);
   refreshIcons();
-  if (earnedCount) setTimeout(() => confetti(60), 200);
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }

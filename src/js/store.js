@@ -836,7 +836,11 @@ export function setChildViewOpen(open) { childViewOpen = !!open; }
 
 // A four-digit PIN that keeps the child view from closing with one tap. A
 // family-device convenience, not authentication.
-export function parentPin() { return state.settings?.parentPin || null; }
+export function parentPin() {
+  // String() so a hand-edited numeric value in the data file still matches.
+  const pin = state.settings?.parentPin;
+  return pin == null || pin === '' ? null : String(pin);
+}
 export function setParentPin(pin) {
   if (!/^\d{4}$/.test(String(pin))) return false;
   state.settings = { ...state.settings, parentPin: String(pin) };

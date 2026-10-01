@@ -23,6 +23,8 @@ test('the child view never launches a mastery test', async () => {
   assert.match(kidmode, /import \{ openChildTopic \} from '\.\/childtopic\.js'/);
   assert.match(kidmode, /store\.setChildViewOpen\(true\)/);
   assert.match(kidmode, /store\.setChildViewOpen\(false\)/);
+  // No celebrations in the child view, including the badge collection.
+  assert.doesNotMatch(kidmode, /confetti/);
   // The parent shell (sidebar, export/import) is inert behind the overlay.
   assert.match(kidmode, /setShellInert\(true\)/);
   assert.match(kidmode, /setShellInert\(false\)/);
@@ -81,6 +83,9 @@ test('the parent PIN is four digits and persisted with the family settings', asy
   assert.equal(store.parentPin(), '0420');
   await store.flushSaves();
   assert.equal(saved.at(-1)?.settings?.parentPin, '0420');
+  // A hand-edited numeric PIN in the data file still compares as a string.
+  store.get().settings.parentPin = 1234;
+  assert.equal(store.parentPin(), '1234');
 });
 
 test('taxonomy evidence reads as "Can you…?" prompts', () => {
@@ -90,6 +95,16 @@ test('taxonomy evidence reads as "Can you…?" prompts', () => {
   assert.equal(canYouPrompt('Uses a ruler to measure'), 'Can you use a ruler to measure?');
   assert.equal(canYouPrompt('Distinguishes living and non-living things'), 'Can you distinguish living and non-living things?');
   assert.equal(canYouPrompt('Organizes data in a table'), 'Can you organize data in a table?');
-  assert.equal(canYouPrompt('Given a shape, name it'), 'Given a shape, name it: can you?');
+  assert.equal(canYouPrompt('Given a shape, name it'), 'Given a shape, can you name it?');
+  assert.equal(canYouPrompt('After counting a set, answer how many'), 'After counting a set, can you answer how many?');
+  assert.equal(canYouPrompt('A rope is 2.5 m long; how much is left after cutting 0.75 m?'), 'A rope is 2.5 m long; how much is left after cutting 0.75 m?');
+  assert.equal(canYouPrompt('Heft two objects and say which is heavier'), 'Can you show: Heft two objects and say which is heavier?');
+  assert.equal(canYouPrompt('Correctly adds two-digit numbers'), 'Can you correctly add two-digit numbers?');
+  assert.equal(canYouPrompt('Solve: 3 + 4'), 'Can you solve: 3 + 4?');
+  // Citations in the taxonomy are not prompts for a child.
+  assert.equal(canYouPrompt('comprehension monitoring research'), '');
+  assert.equal(canYouPrompt('Metacognitive Monitoring in Reading Comprehension (MDPI 2024)'), '');
+  assert.equal(canYouPrompt('Wineburg sourcing heuristic'), '');
+  assert.equal(canYouPrompt('Historical Thinking in the Elementary Years (ERIC)'), '');
   assert.equal(canYouPrompt('  '), '');
 });

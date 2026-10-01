@@ -104,11 +104,11 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
         : `${stats.mastered} of ${stats.total} topics marked mastered (${stats.pct}%).`}</p>
     </div>` : ''}
 
-    <p class="text-sm font-600 mb-2">How would you like to give the test?</p>
+    ${childSafe ? '' : `<p class="text-sm font-600 mb-2">How would you like to give the test?</p>
     <div id="modes" class="grid sm:grid-cols-2 gap-2.5 mb-2"></div>
-    <p class="text-xs text-ink-faint mb-5" id="modehint"></p>
+    <p class="text-xs text-ink-faint mb-5" id="modehint"></p>`}
 
-    <button id="start" class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="file-check-2" class="w-4 h-4"></i>Create the test</button>
+    <button id="start" class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="${childSafe ? 'sprout' : 'file-check-2'}" class="w-4 h-4"></i>${childSafe ? 'Let\u2019s begin' : 'Create the test'}</button>
   </div>`);
   stage.appendChild(wrap);
 
@@ -118,7 +118,9 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
     digital: { icon: 'monitor', label: 'On screen', desc: 'Auto-graded instantly', hint: 'Answered here in the app; results are calculated for you.' },
     physical: { icon: 'printer', label: 'On paper / hands-on', desc: 'Print or observe, then grade', hint: 'Print the test (or observe hands-on tasks), then tick what they got right and we\u2019ll score it.' },
   };
+  // Child view: no mode chooser (its copy is about grading); use the recommended mode.
   const renderModes = () => {
+    if (childSafe) return;
     modesWrap.innerHTML = '';
     ['digital', 'physical'].forEach(k => {
       const info = MODE_INFO[k];
@@ -138,7 +140,7 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
     refreshIcons();
   };
   renderModes();
-  hint.textContent = MODE_INFO[mode].hint;
+  if (hint) hint.textContent = MODE_INFO[mode].hint;
 
   wrap.querySelector('#start').onclick = async () => {
     stage.innerHTML = '';
@@ -269,12 +271,12 @@ function renderPhysical(stage, subject, student, test, m) {
   const wrap = el(`<div class="fade-up">
     <div class="rounded-xl bg-paper border border-paper-line p-3.5 mb-4 flex items-start gap-2.5">
       <i data-lucide="info" class="w-4 h-4 text-brand-dark shrink-0 mt-0.5"></i>
-      <p class="text-xs text-ink-soft leading-relaxed">${childSafe ? 'Try each one with a grown-up nearby, then tick the ones you did.' : esc(test.instructions || 'Print the test for your child, or read the tasks aloud and observe. Then come back and tick each question they got right — we\u2019ll calculate the score.')}</p>
+      <p class="text-xs text-ink-soft leading-relaxed">${childSafe ? 'Try each one with a grown-up nearby, then check the ones you did.' : esc(test.instructions || 'Print the test for your child, or read the tasks aloud and observe. Then come back and tick each question they got right — we\u2019ll calculate the score.')}</p>
     </div>
     ${childSafe ? '' : `<button id="print" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-ink hover:bg-ink-soft text-white font-medium transition-colors mb-5"><i data-lucide="printer" class="w-4 h-4"></i>Print the test &amp; answer key</button>`}
 
-    <p class="text-sm font-600 mb-1">Grade it</p>
-    <p class="text-xs text-ink-faint mb-3">Tick every question ${esc(student.name)} answered correctly.</p>
+    <p class="text-sm font-600 mb-1">${childSafe ? 'What you tried' : 'Grade it'}</p>
+    <p class="text-xs text-ink-faint mb-3">${childSafe ? 'Check each one you did.' : `Tick every question ${esc(student.name)} answered correctly.`}</p>
     <div id="grade" class="space-y-2"></div>
 
     <div class="mt-4 flex items-center justify-between px-1 ${childSafe ? 'hidden' : ''}">
