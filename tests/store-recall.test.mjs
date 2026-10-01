@@ -105,3 +105,16 @@ test('undoPlacement leaves topics changed after the placement alone', () => {
   assert.equal(store.statusOf(sid, 'q1'), 'none');
   assert.equal(store.statusOf(sid, 'q2'), 'practicing');
 });
+
+test('addRecord marks the day active and emits once', () => {
+  const sid = 's-record';
+  assert.equal(store.activeToday(sid), false);
+  let emits = 0;
+  const off = store.subscribe(() => { emits++; });
+  const rec = store.addRecord(sid, { type: 'observation', note: 'Counted to twenty' });
+  off();
+  assert.equal(emits, 1);
+  assert.equal(store.recordsFor(sid)[0].id, rec.id);
+  assert.equal(store.activeToday(sid), true);
+  assert.equal(store.activityStreak(sid), 1);
+});

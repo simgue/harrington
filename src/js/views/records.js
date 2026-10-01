@@ -3,6 +3,7 @@ import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { openRecorder, audioPlayer, fmtDur } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
+import { savedAnalysis, regenerateButton } from './recordings.js';
 
 const TYPES = {
   observation: { icon: 'eye', label: 'Observation', color: '#2f6285', hint: 'What you noticed as they worked' },
@@ -13,6 +14,7 @@ const TYPES = {
 };
 
 let recFilter = 'all';
+let recFilterFor = null; // learner the filter belongs to; reset on switch
 
 export function renderRecords(params, { navigate }) {
   const d = getData();
@@ -35,6 +37,7 @@ export function renderRecords(params, { navigate }) {
 
   if (!active) { root.appendChild(el(`<p class="text-ink-soft">Add a student to start recording.</p>`)); return root; }
 
+  if (recFilterFor !== active.id) { recFilter = 'all'; recFilterFor = active.id; }
   const all = store.recordsFor(active.id);
 
   // filter chips
@@ -84,11 +87,17 @@ function recordCard(r, student, d, navigate) {
   </div>`);
   if (r.audioPath) card.appendChild(audioPlayer(r.audioPath, r.duration));
 
-  // Analyze button for discussions / recordings
+  // Saved analysis (shared with the Recordings folder), plus analyze/regenerate for discussions / recordings
   const analyzable = r.type === 'recording' || r.type === 'discussion';
-  if (analyzable) {
+  if (analyzable || r.analysis) {
     const analyzeWrap = el(`<div class="mt-2.5 pt-2.5 border-t border-paper-line"></div>`);
-    const btn = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyze &amp; get advice</button>`);
+    let btn;
+    if (r.analysis) {
+      analyzeWrap.appendChild(savedAnalysis(r.analysis));
+      btn = regenerateButton();
+    } else {
+      btn = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyze &amp; get advice</button>`);
+    }
     btn.onclick = () => openAnalysis(r, student, topic);
     analyzeWrap.appendChild(btn);
     card.appendChild(analyzeWrap);
@@ -157,6 +166,8 @@ function openAnalysis(record, student, topic) {
     transcript: record.transcript || '',
     note: record.note || '',
   }).then(html => {
+    // Persist onto the record, as the Recordings folder does, so the card shows it.
+    store.updateRecord(student.id, record.id, { analysis: html, analyzedAt: Date.now() });
     stage.innerHTML = '';
     stage.appendChild(el(`<div class="ai-prose text-sm text-ink-soft">${html}</div>`));
     const save = el(`<button class="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="save" class="w-4 h-4"></i>Save advice to records</button>`);
@@ -217,7 +228,8 @@ export function openRecordForm(studentId, topic = null) {
   const typesWrap = body.querySelector('#types');
   const renderTypes = () => {
     typesWrap.innerHTML = '';
-    Object.entries(TYPES).forEach(([k, v]) => {
+    // Recordings come only from the recorder, never from this form.
+    Object.entries(TYPES).filter(([k]) => k !== 'recording').forEach(([k, v]) => {
       const on = selType === k;
       const b = el(`<button type="button" class="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${on ? 'border-transparent text-white' : 'bg-paper text-ink-soft border-paper-line'}" ${on ? `style="background:${v.color}"` : ''}>
         <i data-lucide="${v.icon}" class="w-4 h-4"></i>${v.label}</button>`);
