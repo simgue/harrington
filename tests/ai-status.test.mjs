@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 // store.js reaches the server through backend.js; stub fetch so /api/health
@@ -49,11 +49,42 @@ test('the store reads aiConfigured at connect and on refreshHealth', async () =>
   assert.equal('aiConfigured' in store.get(), false, 'the health flag is not persisted with family state');
 });
 
-test('every AI-backed view uses the shared ai-status helper', async () => {
-  const views = [
-    'topic', 'graph', 'calendar', 'insights', 'records', 'recordings',
-    'lesson', 'printables', 'recall', 'challenge', 'masterytest',
-  ];
+test('refreshHealth rejects on an outage and keeps the last known flag', async () => {
+  const realFetch = globalThis.fetch;
+  aiConfigured = false;
+  await store.refreshHealth();
+  globalThis.fetch = async () => { throw new TypeError('Failed to fetch'); };
+  try {
+    await assert.rejects(store.refreshHealth(), (err) => explainAiError(err).kind === 'offline');
+    assert.equal(store.aiAvailable(), false);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  globalThis.fetch = async () => ({ ok: false, status: 500, json: async () => ({ error: 'Internal server error' }) });
+  try {
+    await assert.rejects(store.refreshHealth(), (err) => explainAiError(err).kind !== 'unconfigured');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+// Views that call ai.js but are unreachable today, so they are not gated here.
+// Their fate is tracked separately from HAR-13.
+const UNGATED_UNREACHABLE = new Set([
+  'daysheet',  // only imported by coop.js (Commune), which is disabled by design and not routed
+  'assistant', // Harrington Helper chat, never mounted
+]);
+
+test('every reachable AI-backed view uses the shared ai-status helper', async () => {
+  const dir = new URL('src/js/views/', repoRoot);
+  const callers = [];
+  for (const file of await readdir(dir)) {
+    if (/from '\.\.\/ai\.js'/.test(await readFile(new URL(file, dir), 'utf8'))) callers.push(file.replace(/\.js$/, ''));
+  }
+  for (const name of UNGATED_UNREACHABLE) assert.ok(callers.includes(name), `${name}.js no longer calls ai.js; drop it from the exclusions`);
+  // Views that launch AI modals without calling ai.js themselves.
+  const launchers = ['graph', 'calendar'];
+  const views = [...callers.filter(name => !UNGATED_UNREACHABLE.has(name)), ...launchers];
   for (const name of views) {
     const code = await source(`src/js/views/${name}.js`);
     assert.match(code, /from '\.\.\/ai-status\.js'/, `${name}.js does not import ../ai-status.js`);

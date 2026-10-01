@@ -43,9 +43,10 @@ export async function connect() {
   return state.user;
 }
 export function aiAvailable() { return aiConfigured; }
+// Rejects when /api/health itself fails, so callers can tell an outage from a missing provider.
 export async function refreshHealth() {
   const before = aiConfigured;
-  try { aiConfigured = (await backend.health())?.aiConfigured === true; } catch {}
+  aiConfigured = (await backend.health())?.aiConfigured === true;
   if (aiConfigured !== before) emit();
   return aiConfigured;
 }

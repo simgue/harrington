@@ -65,7 +65,13 @@ export function aiErrorBlock(err, retry = null, { compact = false } = {}) {
     btn.onclick = async () => {
       if (unconfigured) {
         btn.disabled = true;
-        const available = await store.refreshHealth();
+        let available;
+        try { available = await store.refreshHealth(); }
+        catch (healthErr) {
+          // The server or network is down; say so instead of "no provider".
+          b.replaceWith(aiErrorBlock(healthErr, retry, { compact }));
+          return;
+        }
         btn.disabled = false;
         if (!available) { toast('Still no AI provider on this server'); return; }
       }
