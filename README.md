@@ -250,6 +250,38 @@ Docker is also supported:
 docker compose up --build
 ```
 
+## Backup and restore
+
+Everything the family has created lives in `data/private/` (or
+`HARRINGTON_DATA_DIR`): `family-state.json` holds learners, progress, records,
+plans and settings; `audio/` holds recordings; `lessons/` and `taxonomy/` are
+caches. **That directory is the complete backup set.** Copy it somewhere safe,
+or run:
+
+```bash
+npm run backup
+```
+
+which writes `backups/harrington-<timestamp>.tar.gz` (Git ignores `backups/`).
+To restore, stop Harrington, replace `data/private/` with the archive's
+contents (`tar -xzf backups/harrington-<timestamp>.tar.gz -C data`), and start
+it again. With Docker, back up the `harrington-data` volume instead.
+
+In the app, **Export** in the sidebar's family box downloads
+`harrington-family-<date>.json`: the full family document plus `exportedAt`
+and `taxonomyVersion`. **Import** checks a file, previews its learners and
+record counts, and after you confirm replaces the family data on this server.
+The JSON file does not contain recordings, so keep a `data/private/` backup too.
+
+Saves are versioned: if another tab or device saved first, Harrington reloads
+the latest data and says so instead of overwriting it. Changes still pending
+when a tab is hidden or closed are sent with `navigator.sendBeacon`; browsers
+cap beacons at about 64 KB, so a larger family document falls back to a normal
+save, which a closing tab may cut short. `/api/health` reports
+`stateVersion` and `stateBytes`; saves are limited to 5 MB and a banner
+appears if the family data grows past that. Export then downloads this tab's
+copy, marked `unsavedChanges: true`.
+
 ## Deployment
 
 The included container stores private data in the `harrington-data` volume and

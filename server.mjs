@@ -95,20 +95,116 @@ async function readJsonFile(path, fallback = null) {
   }
 }
 
-function atomicWrite(path, data) {
+// Runs `task` after every earlier queued operation on `path`, so a read-check-write
+// sequence on one file can never interleave with another write to it.
+function enqueueWrite(path, task) {
   const previous = writeQueues.get(path) || Promise.resolve();
-  const operation = previous.catch(() => {}).then(async () => {
-    await mkdir(dataDir, { recursive: true });
-    const tempPath = `${path}.${process.pid}.tmp`;
-    await writeFile(tempPath, data);
-    await rename(tempPath, path);
-  });
+  const operation = previous.catch(() => {}).then(task);
   writeQueues.set(path, operation);
   const cleanup = () => {
     if (writeQueues.get(path) === operation) writeQueues.delete(path);
   };
   operation.then(cleanup, cleanup);
   return operation;
+}
+
+async function writeFileAtomic(path, data) {
+  await mkdir(dataDir, { recursive: true });
+  const tempPath = `${path}.${process.pid}.tmp`;
+  await writeFile(tempPath, data);
+  await rename(tempPath, path);
+}
+
+function atomicWrite(path, data) {
+  return enqueueWrite(path, () => writeFileAtomic(path, data));
+}
+
+// ---- Versioned family state ----
+// The stored document is the family data plus a top-level integer `version`
+// and `updatedAt`. A legacy document without a version is treated as version 0.
+function stateVersionOf(doc) {
+  return Number.isSafeInteger(doc?.version) && doc.version >= 0 ? doc.version : 0;
+}
+
+async function readStateDocument() {
+  const doc = await readJsonFile(stateFile, {});
+  const value = doc && typeof doc === 'object' && !Array.isArray(doc) ? doc : {};
+  return { ...value, version: stateVersionOf(value) };
+}
+
+function stateEtag(version) {
+  return `"v${version}"`;
+}
+
+// Accepts `"v42"`, `W/"v42"`, `v42` or `42`. Returns null when absent.
+function parseIfMatch(header) {
+  if (header === undefined) return null;
+  const match = String(header).trim().match(/^(?:W\/)?"?v?(\d+)"?$/);
+  if (!match) throw Object.assign(new Error('If-Match must be a state version such as "v3"'), { statusCode: 400 });
+  return Number.parseInt(match[1], 10);
+}
+
+// Compare-and-swap inside the state file's write queue: two writers holding the
+// same version cannot both succeed.
+function writeStateIfMatch(expected, data) {
+  return enqueueWrite(stateFile, async () => {
+    const current = await readStateDocument();
+    if (current.version !== expected) return { ok: false, current };
+    const { version: _version, updatedAt: _updatedAt, writeId, ...rest } = data;
+    // An optional client-chosen id lets a tab recognise its own write later,
+    // such as an unload beacon whose response it never saw. A body that merely
+    // echoes the stored id (read, modify, write) is not that tab's write.
+    const fresh = typeof writeId === 'string' && writeId.length > 0 && writeId.length <= 64 && writeId !== current.writeId;
+    const ownId = fresh ? { writeId } : {};
+    const next = { version: current.version + 1, updatedAt: Date.now(), ...ownId, ...rest };
+    await writeFileAtomic(stateFile, `${JSON.stringify(next, null, 2)}\n`);
+    return { ok: true, current: next };
+  });
+}
+
+async function handleStateWrite(req, res) {
+  // Browsers send Sec-Fetch-Site on every request; only this page may write.
+  const fetchSite = req.headers['sec-fetch-site'];
+  if (fetchSite !== undefined && fetchSite !== 'same-origin' && fetchSite !== 'none') {
+    sendJson(res, 403, { error: 'Family data can only be saved from Harrington itself' });
+    return;
+  }
+  // HTML forms can POST cross-site without a preflight but never as JSON; a
+  // real sendBeacon with a JSON Blob always sends application/json.
+  if (req.method === 'POST' && !String(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) {
+    sendJson(res, 415, { error: 'Family data must be sent as application/json' });
+    return;
+  }
+  let expected = parseIfMatch(req.headers['if-match']);
+  const value = await readJson(req);
+  // navigator.sendBeacon cannot set headers, so the unload path (POST) carries
+  // the precondition as a `version` field in the body instead.
+  if (expected === null && req.method === 'POST' && Number.isSafeInteger(value.version) && value.version >= 0) {
+    expected = value.version;
+  }
+  if (expected === null) {
+    sendJson(res, 428, { error: 'Saving family data requires If-Match with the current state version' });
+    return;
+  }
+  const result = await writeStateIfMatch(expected, value);
+  if (!result.ok) {
+    send(res, 412, JSON.stringify(result.current), {
+      'Content-Type': 'application/json; charset=utf-8',
+      ETag: stateEtag(result.current.version),
+    });
+    return;
+  }
+  send(res, 204, '', { ETag: stateEtag(result.current.version) });
+}
+
+async function stateHealth() {
+  try {
+    const [details, doc] = await Promise.all([stat(stateFile), readStateDocument()]);
+    return { stateVersion: doc.version, stateBytes: details.size };
+  } catch (error) {
+    if (error.code === 'ENOENT') return { stateVersion: 0, stateBytes: 0 };
+    throw error;
+  }
 }
 
 function keyPath(directory, key, extension) {
@@ -257,6 +353,7 @@ async function handleApi(req, res, url) {
       mode: 'self-hosted',
       aiConfigured: aiSettings().configured,
       taxonomyCached: await taxonomyCached(),
+      ...(await stateHealth()),
     });
     return true;
   }
@@ -273,13 +370,15 @@ async function handleApi(req, res, url) {
 
   if (url.pathname === '/api/state') {
     if (req.method === 'GET') {
-      sendJson(res, 200, await readJsonFile(stateFile, {}));
+      const doc = await readStateDocument();
+      send(res, 200, JSON.stringify(doc), {
+        'Content-Type': 'application/json; charset=utf-8',
+        ETag: stateEtag(doc.version),
+      });
       return true;
     }
-    if (req.method === 'PUT') {
-      const value = await readJson(req);
-      await atomicWrite(stateFile, `${JSON.stringify(value, null, 2)}\n`);
-      send(res, 204);
+    if (req.method === 'PUT' || req.method === 'POST') {
+      await handleStateWrite(req, res);
       return true;
     }
   }
