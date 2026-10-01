@@ -97,6 +97,26 @@ test('the placement record is complete when the single emit fires and in the sav
   for (const id of ['z1', 'z2', 'z3']) assert.equal(body.progress[sid][id].updatedAt, seen.at);
 });
 
+test('a placement is not a learning day and resets today\'s daily choices', () => {
+  const sid = 's-place-4';
+  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  store.saveDailyOffers(sid, today, { literacy: [], numeracy: ['n1', 'n2'] });
+  store.pickDaily(sid, today, 'numeracy', 'n1');
+  store.get().activity[sid] = {};
+  let emits = 0;
+  const off = store.subscribe(() => { emits++; });
+  const rec = store.applyPlacement(sid, { topicIds: ['n1', 'n2'], title: 'Placement: test', subject: 'Mathematics', maxAge: 8 });
+  off();
+  assert.equal(emits, 1);
+  assert.equal(store.activeToday(sid), false, 'placement does not mark the day active');
+  assert.equal(store.dailyFor(sid, today), null, 'offers built before the placement are dropped');
+
+  store.saveDailyOffers(sid, today, { literacy: [], numeracy: ['n3'] });
+  store.undoPlacement(sid, rec.id);
+  assert.equal(store.dailyFor(sid, today), null, 'undo drops them too');
+  assert.equal(store.activeToday(sid), false);
+});
+
 test('undoPlacement leaves topics changed after the placement alone', () => {
   const sid = 's-place-2';
   const rec = store.applyPlacement(sid, { topicIds: ['q1', 'q2'], title: 'Placement: test', subject: 'English', maxAge: 6 });

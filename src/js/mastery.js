@@ -116,7 +116,7 @@ export function recentActivity(studentId, limit = 8) {
   const d = getData();
   const prog = store.progressFor(studentId);
   return Object.entries(prog)
-    .filter(([id]) => d.byId.has(id))
+    .filter(([id, v]) => d.byId.has(id) && v.source !== 'placement')
     .map(([id, v]) => ({ topic: d.byId.get(id), status: v.status, updatedAt: v.updatedAt }))
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
     .slice(0, limit);

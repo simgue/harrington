@@ -105,7 +105,10 @@ function recordCard(r, student, d, navigate) {
 
   if (r.placement) card.appendChild(placementUndo(r, student));
 
-  card.querySelector('.del').onclick = () => { if (confirm('Delete this record?')) store.removeRecord(student.id, r.id); };
+  const delMsg = r.placement && !r.placement.undoneAt
+    ? 'Delete this placement record? The placement stays, but it can no longer be undone.'
+    : 'Delete this record?';
+  card.querySelector('.del').onclick = () => { if (confirm(delMsg)) store.removeRecord(student.id, r.id); };
   card.querySelector('.topic')?.addEventListener('click', () => navigate('topic', { id: r.topicId }));
   return card;
 }

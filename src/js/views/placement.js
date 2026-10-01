@@ -81,6 +81,12 @@ export function openPlacement(student, { subject = null } = {}) {
         </label>`);
         opt.querySelector('input').onchange = (e) => { withPrereqs = e.target.checked; update(); };
         box.appendChild(opt);
+        const shown = plan.prereqIds.slice(0, 10).map(id => d.byId.get(id)).filter(Boolean);
+        const more = plan.prereqCount - shown.length;
+        box.appendChild(el(`<details class="mt-1.5 ml-6 text-xs text-ink-soft">
+          <summary class="cursor-pointer text-ink-faint">Which prerequisites?</summary>
+          <ul class="mt-1.5 space-y-0.5">${shown.map(t => `<li>${esc(t.name)} · ${esc(t.subject)} · age ${topicAge(t)}</li>`).join('')}${more > 0 ? `<li class="text-ink-faint">and ${more} more</li>` : ''}</ul>
+        </details>`));
         if (!withPrereqs) {
           const skipped = plan.count - plan.safeIds.length;
           box.appendChild(el(`<p class="text-xs text-[#8a6412] mt-2">${skipped} topic${skipped === 1 ? '' : 's'} will stay as they are, because a required foundation would still be unmastered.</p>`));
@@ -113,8 +119,11 @@ export function openPlacement(student, { subject = null } = {}) {
       title: placementTitle({ count: own, subject: sub, domain: domain || null, maxAge, prereqCount: ids.length - own }),
       subject: sub, domain: domain || null, maxAge,
     });
-    toast(`Marked ${ids.length} topics mastered. Undo it from Records.`, 'success');
     m.close();
+    // Confirm once the save lands; a failed or conflicting save shows its own status.
+    store.flushSaves().then(ok => {
+      if (ok) toast(`Marked ${ids.length} topic${ids.length === 1 ? '' : 's'} mastered. Undo it from Records.`, 'success');
+    });
   };
 
   fillDomains();
