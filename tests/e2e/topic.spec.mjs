@@ -1,6 +1,6 @@
 // The topic page: header, manual status, evidence, connections, references,
 // records and recordings; then every AI-backed tool against the mock provider.
-import { test, expect, modal, closeModal, nav, expectToast, dismissCelebration } from './fixtures.mjs';
+import { test, expect, modal, closeModal, nav, expectToast, dismissCelebration, setTopicStatus } from './fixtures.mjs';
 import { COUNTING_SECTION_OTHERS, LEARNERS, TOPICS } from './support/family.mjs';
 import { CHALLENGE_QUESTIONS, MARKERS, MASTERY_QUESTIONS, RECALL_CARDS } from './mock-ai-server.mjs';
 import { FIXED_NOW } from './support/env.mjs';
@@ -67,25 +67,22 @@ test.describe('without AI', () => {
 
   test('manual status: every transition updates the page, the dashboard ring and recent growth', async ({ page, api, gotoApp, shot }) => {
     await gotoApp({ seed: {}, hash: topicHash(ONE.id) });
-    const mastery = section(page, 'Topic mastery test');
-    await mastery.getByText('Set status manually instead').click();
-    const buttons = mastery.locator('details div button');
-    await expect(buttons).toHaveText(['Not started', 'Learning', 'Practicing', 'Mastered']);
-    await shot('manual-status-open', { locator: mastery });
+    // HAR-14: the four statuses sit beside the growth chip in the header.
+    const group = page.getByRole('group', { name: 'Set status' });
+    await expect(group.getByRole('button')).toHaveText(['Not started', 'Learning', 'Practicing', 'Mastered']);
+    await shot('manual-status-control', { locator: group.locator('xpath=..') });
 
-    const expectChip = (text) => expect(page.locator('h1').locator('xpath=..').getByText(text).first()).toBeVisible();
+    const expectChip = (text) => expect(group.locator('xpath=..').getByText(text).first()).toBeVisible();
 
-    await buttons.filter({ hasText: 'Learning' }).click();
+    await setTopicStatus(page, 'Learning');
     await expectToast(page, 'Marked as learning');
     await expectChip(/Bud\s*· Learning/);
 
-    await section(page, 'Topic mastery test').getByText('Set status manually instead').click();
-    await section(page, 'Topic mastery test').locator('details div button', { hasText: 'Practicing' }).click();
+    await setTopicStatus(page, 'Practicing');
     await expectToast(page, 'Marked as practicing');
     await expectChip(/Bud\s*· Practicing/);
 
-    await section(page, 'Topic mastery test').getByText('Set status manually instead').click();
-    await section(page, 'Topic mastery test').locator('details div button', { hasText: 'Mastered' }).click();
+    await setTopicStatus(page, 'Mastered');
     await expectToast(page, 'Marked as mastered');
     await expectChip(/Bloom\s*· Mastered/);
     await expect(section(page, 'Topic mastery test')).toContainText('Mastered. This topic is marked mastered.');
@@ -104,8 +101,7 @@ test.describe('without AI', () => {
 
     // And back to not started.
     await growth.getByRole('button', { name: /One-to-one counting/ }).click();
-    await section(page, 'Topic mastery test').getByText('Set status manually instead').click();
-    await section(page, 'Topic mastery test').locator('details div button', { hasText: 'Not started' }).click();
+    await setTopicStatus(page, 'Not started');
     await expectToast(page, 'Marked as not started');
     await expectChip(/Sprout\s*· Not started/);
     await nav(page, 'Dashboard').click();
@@ -365,8 +361,7 @@ test.describe('with the mock AI provider', () => {
     await expect(section(page, 'Section check').getByRole('button', { name: 'Locked until topics mastered' })).toBeDisabled();
 
     // Master the last topic by hand.
-    await section(page, 'Topic mastery test').getByText('Set status manually instead').click();
-    await section(page, 'Topic mastery test').locator('details div button', { hasText: 'Mastered' }).click();
+    await setTopicStatus(page, 'Mastered');
     const check = section(page, 'Section check');
     await expect(check).toContainText('9/9 topics');
     await expect(check).toContainText('All topics mastered — take the section check');

@@ -41,9 +41,12 @@ test('create one record of each type, filter, rate, link, delete', async ({ page
   await newRecord(page, { type: 'Question', title: 'Where does the sun go at night?' });
   await newRecord(page, { type: 'Discussion', title: 'Talked about sharing', note: 'We split 6 grapes between 2 bowls and counted each.' });
   await newRecord(page, { type: 'Assessment', title: 'Counted 10 blocks correctly', stars: 5 });
-  await newRecord(page, { type: 'Recording', title: 'Manual recording entry', note: 'No audio attached.' });
+  // HAR-16: recordings only come from the recorder; the form no longer offers the type.
+  await page.getByRole('button', { name: 'New record' }).click();
+  await expect(modal(page).locator('#types').getByRole('button')).toHaveText(['Observation', 'Question', 'Discussion', 'Assessment']);
+  await closeModal(page);
 
-  await expect(page.getByRole('button', { name: 'All (5)' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'All (4)' })).toBeVisible();
   await expect(card(page, 'Lined up toy cars by size')).toContainText('★★★★☆');
   await expect(card(page, 'Counted 10 blocks correctly')).toContainText('★★★★★');
   await shot('records-list');
@@ -54,8 +57,8 @@ test('create one record of each type, filter, rate, link, delete', async ({ page
   await expect(page.getByText('Where does the sun go at night?')).toBeVisible();
   await page.getByRole('button', { name: 'Assessment', exact: true }).click();
   await expect(page.locator('div.space-y-3 > div')).toHaveCount(1);
-  await page.getByRole('button', { name: 'All (5)' }).click();
-  await expect(page.locator('div.space-y-3 > div')).toHaveCount(5);
+  await page.getByRole('button', { name: 'All (4)' }).click();
+  await expect(page.locator('div.space-y-3 > div')).toHaveCount(4);
 
   // Discussion and recording records offer analysis; others do not.
   await expect(card(page, 'Talked about sharing').getByRole('button', { name: 'Analyze & get advice' })).toBeVisible();
@@ -70,9 +73,13 @@ test('create one record of each type, filter, rate, link, delete', async ({ page
   page.once('dialog', (d) => { expect(d.message()).toBe('Delete this record?'); d.accept(); });
   await card(page, 'Where does the sun go at night?').locator('button.del').click();
   await expect(page.getByText('Where does the sun go at night?')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'All (4)' })).toBeVisible();
-  const state = await api.waitForState((s) => s.records?.[ROWAN]?.length === 4);
-  expect(state.records[ROWAN].map((r) => r.type).sort()).toEqual(['assessment', 'discussion', 'observation', 'recording']);
+  await expect(page.getByRole('button', { name: 'All (3)' })).toBeVisible();
+  const state = await api.waitForState((s) => s.records?.[ROWAN]?.length === 3);
+  expect(state.records[ROWAN].map((r) => r.type).sort()).toEqual(['assessment', 'discussion', 'observation']);
+  // HAR-16: saving a record counts as activity for the day.
+  expect(state.activity[ROWAN]['2026-10-07']).toBeTruthy();
+  await nav(page, 'Dashboard').click();
+  await expect(page.getByText('Active today')).toBeVisible();
   expect(state.records[ROWAN].find((r) => r.type === 'observation')).toMatchObject({ rating: 4, topicId: TOPICS.oneToOne.id });
   expect(errors).toEqual([]);
 });
@@ -156,11 +163,11 @@ test('recordings folder: grouping, play, delete', async ({ page, api, gotoApp, s
   await page.getByRole('button', { name: /Recordings folder/ }).click();
   const m = modal(page);
   await expect(m.getByRole('heading', { name: 'Recordings' })).toBeVisible();
-  await expect(m).toContainText('3 recordings across 2 sections.');
+  // HAR-16: grouped by section, then by topic, then "Not linked to a section".
+  await expect(m).toContainText('3 recordings in 3 groups.');
   await expect(m.getByText('Counting & Cardinality · Age 5', { exact: true })).toBeVisible();
-  // Finding: the unfiled group takes the first unfiled record's topic as its label.
   await expect(m.getByText(TOPICS.oneToOne.name, { exact: true })).toBeVisible();
-  await expect(m.getByText('Unfiled', { exact: true })).toHaveCount(0);
+  await expect(m.getByText('Not linked to a section', { exact: true })).toBeVisible();
   await shot('recordings-folder', { full: false });
 
   const played = page.waitForResponse((r) => r.url().endsWith('/api/audio/e2e-a.webm'));
@@ -169,7 +176,7 @@ test('recordings folder: grouping, play, delete', async ({ page, api, gotoApp, s
 
   page.once('dialog', (d) => { expect(d.message()).toBe('Delete this recording?'); d.accept(); });
   await m.locator('div.rounded-xl', { hasText: 'Unlinked chat' }).locator('button.del').click();
-  await expect(m).toContainText('2 recordings across 2 sections.');
+  await expect(m).toContainText('2 recordings in 2 groups.');
   await api.waitForState((s) => s.records?.[ROWAN]?.length === 2);
   await expect.poll(async () => (await page.request.get('/api/audio/e2e-b.webm')).status()).toBe(404);
 });
@@ -196,6 +203,11 @@ test.describe('with the mock AI provider', () => {
     await expect(m.getByRole('button', { name: 'Saved' })).toBeDisabled();
     await closeModal(page);
     await expect(page.getByText('Advice · Talked about sharing')).toBeVisible();
+    // HAR-16: the analysis is also saved onto the discussion itself.
+    const discussion = card(page, 'Talked about sharing');
+    await expect(discussion.getByText('AI summary & advice')).toBeVisible();
+    await expect(discussion.getByRole('button', { name: 'Regenerate' })).toBeVisible();
+    await api.waitForState((s) => s.records?.[ROWAN]?.find((r) => r.title === 'Talked about sharing')?.analysis);
 
     // Finding: the learner's real name goes into the analysis prompt.
     const [entry] = await mockAi.log();

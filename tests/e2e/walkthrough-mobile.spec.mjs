@@ -1,6 +1,6 @@
 // Phone-sized walkthrough recorded on video (project "walkthrough-mobile").
 //   docs/e2e/recordings/walkthrough-mobile.webm
-import { test, expect, closeModal } from './fixtures.mjs';
+import { test, expect, closeModal, leaveChildView } from './fixtures.mjs';
 import { TOPICS } from './support/family.mjs';
 
 const ONE = TOPICS.oneToOne;
@@ -35,6 +35,6 @@ test('mobile walkthrough', async ({ page, gotoApp }) => {
   await page.getByRole('button', { name: "Rowan Example's view" }).click();
   await beat(page, 1500);
   for (let i = 0; i < 3; i += 1) { await page.evaluate((y) => window.scrollBy({ top: y, behavior: 'smooth' }), 500); await beat(page, 500); }
-  await page.getByRole('button', { name: 'Back to the grown-up view' }).click();
+  await leaveChildView(page);
   await beat(page);
 });

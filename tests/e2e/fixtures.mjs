@@ -169,3 +169,32 @@ export async function dismissCelebration(page) {
   try { await popup.click({ timeout: 2500 }); } catch {}
   await expect(page.getByText(/^(Badge unlocked!|Level up!)$/)).toHaveCount(0, { timeout: 6000 });
 }
+
+// Topic page manual status (HAR-14): the "Set status" group beside the growth chip.
+export async function setTopicStatus(page, label) {
+  await page.getByRole('group', { name: 'Set status' }).getByRole('button', { name: label, exact: true }).click();
+}
+
+// The child view overlay (HAR-15 gives it role=dialog).
+export function childView(page) {
+  return page.getByRole('dialog', { name: 'Child view' });
+}
+
+export const TEST_PIN = '2468';
+
+// "Grown-ups" asks for the parent PIN, or sets one (typed twice) the first time.
+export async function leaveChildView(page, pin = TEST_PIN) {
+  const view = childView(page);
+  await view.getByRole('button', { name: 'Back to the grown-up view' }).click();
+  const input = view.getByLabel('Grown-up PIN');
+  if (await view.getByRole('heading', { name: 'Set a grown-up PIN' }).isVisible()) {
+    await input.fill(pin);
+    await view.getByRole('button', { name: 'Continue' }).click();
+    await expect(view.getByRole('heading', { name: 'Type it again' })).toBeVisible();
+  } else {
+    await expect(view.getByRole('heading', { name: 'Grown-ups only' })).toBeVisible();
+  }
+  await input.fill(pin);
+  await view.getByRole('button', { name: 'Continue' }).click();
+  await expect(view).toHaveCount(0);
+}

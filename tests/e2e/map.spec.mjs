@@ -173,3 +173,16 @@ test('the old timeline route still renders though it is not in the navigation', 
   await shot('timeline-unlinked', { full: false });
   expect(errors).toEqual([]);
 });
+
+test('quest log "Mark as mastered" (HAR-14) blooms the node and unlocks the next skill', async ({ page, api, gotoApp }) => {
+  await gotoApp({ seed: {}, hash: COUNTING_HASH });
+  await node(page, TOPICS.oneToOne.name).click();
+  await questLog(page).getByRole('button', { name: 'Mark as mastered' }).click();
+  await expectToast(page, 'Marked as mastered');
+  await expect(node(page, TOPICS.oneToOne.name)).toHaveAttribute('data-skill-state', 'mastered');
+  await expect(node(page, TOPICS.howMany.name)).toHaveAttribute('data-skill-state', 'ready');
+  // Mastered skills offer neither marking button.
+  await expect(questLog(page).getByRole('button', { name: /Mark as/ })).toHaveCount(0);
+  await expect(questLog(page)).toContainText('Mastery comes from the 90% topic test or your own judgment');
+  await api.waitForState((s) => s.progress?.[LEARNERS.rowan.id]?.[TOPICS.oneToOne.id]?.status === 'mastered');
+});

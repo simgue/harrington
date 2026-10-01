@@ -1,6 +1,6 @@
 // 390×844 phone viewport: every route renders without sideways scrolling, and
 // the phone-only chrome (top bar, bottom nav) works.
-import { test, expect, modal, closeModal, noHorizontalOverflow } from './fixtures.mjs';
+import { test, expect, modal, closeModal, noHorizontalOverflow, childView, leaveChildView } from './fixtures.mjs';
 import { TOPICS } from './support/family.mjs';
 
 const ROUTES = [
@@ -15,9 +15,6 @@ const ROUTES = [
 
 for (const [name, hash] of ROUTES) {
   test(`no horizontal overflow: ${name}`, async ({ page, gotoApp, shot, errors }) => {
-    // Known defect: the topic header's chip row does not wrap (FINDINGS.md).
-    // Expected to fail until fixed; Playwright reports it if it starts passing.
-    test.fail(name === 'topic', 'Topic header chips overflow a 390px screen');
     await gotoApp({
       seed: { progress: { [TOPICS.oneToOne.id]: 'learning' }, records: [{ type: 'observation', title: 'Counted the stairs out loud', note: 'Got to 12.', rating: 4, topicId: TOPICS.oneToOne.id }] },
       hash,
@@ -39,10 +36,10 @@ test('no horizontal overflow: list view drill-down', async ({ page, api, gotoApp
 test('no horizontal overflow: child view and the quest log', async ({ page, gotoApp, shot }) => {
   await gotoApp({ seed: {} });
   await page.getByRole('button', { name: "Rowan Example's view" }).click();
-  await expect(page.getByRole('button', { name: 'Back to the grown-up view' })).toBeVisible();
+  await expect(childView(page)).toBeVisible();
   await noHorizontalOverflow(page);
   await shot('child-view', { full: false });
-  await page.getByRole('button', { name: 'Back to the grown-up view' }).click();
+  await leaveChildView(page);
 
   await page.goto(`/#graph/Mathematics/${encodeURIComponent('Counting & Cardinality')}`);
   await page.locator('button.skill-node', { hasText: TOPICS.oneToOne.name }).first().click();

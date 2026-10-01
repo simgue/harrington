@@ -4,7 +4,7 @@
 //   docs/e2e/recordings/walkthrough-parent.webm
 //   docs/e2e/recordings/walkthrough-child-view.webm
 // (copied from test-results/ by tests/e2e/collect-recordings.mjs).
-import { test, expect, modal, closeModal, nav, expectToast, dismissCelebration } from './fixtures.mjs';
+import { test, expect, modal, closeModal, nav, expectToast, dismissCelebration, leaveChildView } from './fixtures.mjs';
 import { FIXED_YEAR } from './support/env.mjs';
 import { TOPICS } from './support/family.mjs';
 import { CHALLENGE_QUESTIONS, MASTERY_QUESTIONS } from './mock-ai-server.mjs';
@@ -207,9 +207,14 @@ test('child view walkthrough', async ({ page, gotoApp }) => {
   await page.getByRole('button', { name: "Rowan Example's view" }).click();
   await expect(page.getByRole('heading', { name: 'Morning, Rowan Example!' })).toBeVisible();
   await beat(page, 1500);
+  // A pick opens the child-safe topic card (HAR-15).
   await page.getByRole('region', { name: 'Story time: pick one' }).locator('button[aria-pressed]').first().click();
-  await beat(page);
+  await expect(modal(page).getByRole('button', { name: 'Tell about it' })).toBeVisible();
+  await beat(page, 2000);
+  await closeModal(page);
   await page.getByRole('region', { name: 'Number time: pick one' }).locator('button[aria-pressed]').last().click();
+  await beat(page, 1500);
+  await closeModal(page);
   await beat(page);
   for (let i = 0; i < 3; i += 1) { await page.mouse.wheel(0, 400); await beat(page, 600); }
   await page.getByRole('button', { name: /My collection/ }).click();
@@ -235,7 +240,8 @@ test('child view walkthrough', async ({ page, gotoApp }) => {
   page.once('dialog', (d) => d.accept());
   await page.keyboard.press('Escape');
   await beat(page);
-  await page.getByRole('button', { name: 'Back to the grown-up view' }).click();
+  // Grown-ups: set the PIN (typed twice) on the way out.
+  await leaveChildView(page);
   await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
   await beat(page, 1200);
 });

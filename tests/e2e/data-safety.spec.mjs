@@ -1,6 +1,6 @@
 // Family data safety (HAR-10): versioned saves, export, import, and what a
 // second tab sees when the first one saved first.
-import { test, expect, modal, expectToast, nav } from './fixtures.mjs';
+import { test, expect, modal, expectToast, nav, setTopicStatus } from './fixtures.mjs';
 import { FIXED_NOW } from './support/env.mjs';
 import { LEARNERS, TOPICS, familyState } from './support/family.mjs';
 
@@ -14,7 +14,7 @@ async function chooseImportFile(page, content) {
 }
 
 test('export downloads the whole family document as JSON', async ({ page, gotoApp, shot }) => {
-  await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'mastered' }, records: [{ type: 'observation', title: 'Counted to 12' }] } });
+  await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'mastered' }, records: [{ type: 'observation', title: 'Counted to 12' }], extra: { settings: { parentPin: '2468' } } } });
   await shot('sidebar-export-import', { locator: page.locator('aside') });
   const [download] = await Promise.all([page.waitForEvent('download'), exportButton(page).click()]);
   await expectToast(page, 'Family data exported');
@@ -26,6 +26,8 @@ test('export downloads the whole family document as JSON', async ({ page, gotoAp
   expect(doc.exportedAt).toBe(FIXED_NOW.toISOString());
   expect(doc.taxonomyVersion).toBe('v1');
   expect(Number.isInteger(doc.version)).toBe(true);
+  // Finding: the child-view PIN (HAR-15) is stored and exported in plain text.
+  expect(doc.settings.parentPin).toBe('2468');
 });
 
 test('import previews the file, cancel keeps the data, confirm replaces it', async ({ page, api, gotoApp, shot }) => {
@@ -82,14 +84,11 @@ test('two tabs: the second save loses and reloads the first one\'s data with a t
   await expect(other.getByRole('heading', { level: 1, name: TOPICS.howMany.name })).toBeVisible();
 
   // Tab A saves first.
-  const statusButtons = (p) => p.locator('details div button');
-  await page.getByText('Set status manually instead').click();
-  await statusButtons(page).filter({ hasText: 'Learning' }).click();
+  await setTopicStatus(page, 'Learning');
   await api.waitForState((s) => s.progress?.[ROWAN]?.[TOPICS.oneToOne.id]?.status === 'learning');
 
   // Tab B, still on the old version, saves and is told to reload.
-  await other.getByText('Set status manually instead').click();
-  await statusButtons(other).filter({ hasText: 'Practicing' }).click();
+  await setTopicStatus(other, 'Practicing');
   await expectToast(other, 'Another device saved changes. Reloaded the latest.');
   await shot('conflict-toast', { target: other, full: false });
 
