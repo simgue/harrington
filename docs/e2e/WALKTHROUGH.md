@@ -1,0 +1,570 @@
+# Harrington, screen by screen
+
+A tour of the whole application as the end-to-end suite sees it: what each
+screen is for, how to get there, what the parent (or child) sees, what the
+tests assert and anything that surprised us. Every image below is produced by
+the suite (`npm run e2e:ui-docs`), with the synthetic family from
+`tests/e2e/support/family.mjs`: **Wren Example** (3), **Rowan Example** (6)
+and **Sage Example** (9). Unless a section says otherwise the active learner
+is Rowan.
+
+The clock is pinned to **Wednesday 7 October 2026, 10:30 UTC**, so the
+greetings, dates and the day's plan are the same in every run. AI-backed
+screens were captured against the deterministic mock provider described in
+[README.md](README.md#the-mock-ai-provider); the text in them is canned.
+
+Videos of the same flows (not in Git; produced in `docs/e2e/recordings/` and
+uploaded by CI): `walkthrough-parent.webm` (first run to insights, about 80
+seconds), `walkthrough-child-view.webm` and `walkthrough-mobile.webm` (about
+25 seconds each).
+
+Defects are numbered as in [FINDINGS.md](FINDINGS.md); coverage of every
+audit feature is in [COVERAGE.md](COVERAGE.md).
+
+**Contents:**
+[First run](#1-first-run) ·
+[Learners and placement](#2-learners-and-placement) ·
+[Dashboard](#3-dashboard) ·
+[Child view](#4-child-view) ·
+[Map](#5-map) ·
+[Topic page](#6-topic-page) ·
+[Lessons, tests and recall](#7-lessons-tests-and-recall) ·
+[Calendar](#8-calendar) ·
+[Records and recordings](#9-records-and-recordings) ·
+[Insights](#10-insights) ·
+[Notifications and guide](#11-notifications-and-guide) ·
+[Data safety](#12-data-safety) ·
+[Without an AI provider](#13-without-an-ai-provider) ·
+[Mobile](#14-mobile)
+
+---
+
+## 1. First run
+
+**Purpose.** Create the first learner. There is no account.
+**How to reach it.** Open Harrington on a server with no family data.
+
+The form asks for a name and a birth year (2005 to 2024) and says the app
+runs on this computer only.
+
+![First-run form](screenshots/onboarding/01-first-run-form.jpg)
+
+After "Set up their learning space" a toast confirms the learner and the
+dashboard opens. About half a second later the **welcome tour** appears: ten
+slides (Welcome, Dashboard, Child view, Map, Growth stages, Calendar, Records
+& recordings, Insights, Lessons tests & more, Guide). Every slide about an
+AI-backed feature says "Needs a local AI provider; see the README."
+
+| Tour, first slide | The AI slide |
+| --- | --- |
+| ![Welcome tour](screenshots/onboarding/03-welcome-tour-first-slide.jpg) | ![AI slide](screenshots/onboarding/04-welcome-tour-ai-slide.jpg) |
+
+**What the tests assert** (`onboarding.spec.mjs`): the copy; the form is
+required; the learner reaches the server with today's start date; the tour
+opens once, Next walks all slides, Back works, the last button is "Start
+learning", Skip also closes it, and after a reload it does not come back
+(`localStorage` `harrington:welcomeSeen`). No console errors.
+
+---
+
+## 2. Learners and placement
+
+**Purpose.** Several children in one family, and a quick way to mark what an
+older child already knows.
+**How to reach it.** The learner button at the top of the sidebar (the round
+initials button on a phone).
+
+The **Students** menu lists each learner with age and birth year, the active
+one marked, a Switch button for the others, a placement button and a delete
+button. **Add** opens a short name and birth-year form; a new learner becomes
+the active one.
+
+![Learner switcher](screenshots/learners/01-student-switcher-three-learners.jpg)
+
+**Placement** (HAR-14) opens from the list-check button on a learner row or on
+a dashboard subject card. It picks a subject, an area (whole subject or one
+domain) and "Up to age" (defaulting to the learner's age minus one), shows how
+many topics would be marked mastered, and offers to include the hard
+prerequisites they depend on (recommended). Confirming saves one record that
+can be undone from Records.
+
+| Placement for a 9-year-old | Dashboard after placement |
+| --- | --- |
+| ![Placement modal](screenshots/placement/01-placement-modal.jpg) | ![After placement](screenshots/placement/02-dashboard-after-placement.jpg) |
+
+**What the tests assert** (`learners.spec.mjs`, `placement.spec.mjs`): add two
+learners; switch; the active learner survives a reload; remove asks first
+(Cancel keeps, OK removes) and HAR-10 now clears all of that learner's data
+(`data-safety.spec.mjs`). Placement from a subject card and from the learner
+menu, area and age filters, prerequisites on and off (fewer topics, with a
+warning), the toast count matches the saved progress, every entry is tagged
+`source: 'placement'`, and **Undo placement** returns Mathematics to 0/503.
+
+**Caveats.** The delete button is an unlabeled icon (F14). There is no way to
+edit a name or birth year.
+
+---
+
+## 3. Dashboard
+
+**Purpose.** The parent's view of the day.
+**How to reach it.** Dashboard in the navigation; the default route.
+
+![Dashboard for a 6-year-old](screenshots/dashboard/01-dashboard-six-year-old.jpg)
+
+From top to bottom:
+
+- **Hero**: greeting by time of day, "Rowan Example's Wednesday", the date,
+  age and topics mastered, and four actions: Record what happened, Note, Open
+  map, and the child view button.
+- **Today's path**: a literacy and a numeracy choice with two options each
+  (the child picks one; the arrow opens the topic), today's topics **from the
+  calendar**, a **refresher quiz**, and **Record what happened** (Voice or
+  Note).
+- **Week** flowers and the **overall mastery** ring ("Only you can see this").
+- **Stepping stones next**: four unlocked topics near the learner's age.
+- **Active recall** and **Spaced practice** cards, which show a due count when
+  something is due.
+- **Subjects**: one card per subject with a petal ring, "n/total mastered",
+  percent, growth stage, and a placement button.
+- **Level** card with XP and the twelve badges, and the **Recordings folder**.
+- **Recent growth** (topics whose status changed) and **Recent evidence**
+  (latest records).
+- The Marble Skill Taxonomy attribution.
+
+| A pick made | 9-year-old | 3-year-old |
+| --- | --- | --- |
+| ![Literacy picked](screenshots/dashboard/02-today-path-literacy-picked.jpg) | ![Age 9](screenshots/dashboard/06-dashboard-nine-year-old.jpg) | ![Age 3](screenshots/dashboard/05-dashboard-three-year-old.jpg) |
+
+**What the tests assert** (`dashboard.spec.mjs`): every section above for ages
+6 and 9; pick, unpick and re-pick a choice, the day's offers and picks saved
+on the server, the pick survives a reload and shows in the child view;
+calendar stop, pick arrow, stepping stone and subject card all navigate; Voice
+and Note open the recorder and the record form; empty recall and practice
+states; the recordings folder; no console errors.
+
+**Caveats.**
+- A 3-year-old gets no daily choices and no stepping stones, and the card
+  says "Everything available is mastered" (F3).
+- The yellow banner says AI is "not connected yet" even when it is (F4).
+- On day one the refresher quiz is about a topic never taught (F5): above,
+  "Coping with Life Changes" for a learner with nothing mastered.
+- "0 of 1590 topics" is not formatted like the map's "1,590" (F15).
+
+---
+
+## 4. Child view
+
+**Purpose.** A score-free screen for the child: their garden, today's picks,
+a few activities and a voice note.
+**How to reach it.** The button with the child's name in the dashboard hero.
+It covers the whole screen; the parent app underneath is inert.
+
+![Child view](screenshots/child-view/01-child-view.jpg)
+
+The child sees a greeting, one line of encouragement from real progress,
+**Story time** and **Number time** picks, four big buttons (**Plant something
+new**, **Memory walk**, **Beat the clock**, **My collection**), **Tell about
+my day**, and **My garden**: one plant per subject described in words
+(Planted, Sprouting, Budding, In bloom), never numbers.
+
+Tapping a pick, or Plant something new, opens the **child topic card**
+(HAR-15): the topic's mastery evidence rewritten as "Can you…?" questions,
+activities to try with a grown-up, and **Tell about it** (a recording linked
+to the topic).
+
+| Child topic card | My collection | Challenge result |
+| --- | --- | --- |
+| ![Topic card](screenshots/child-view/04-child-topic-card.jpg) | ![Collection](screenshots/child-view/05-child-view-collection.jpg) | ![All done](screenshots/child-view/07-child-challenge-result.jpg) |
+
+**Grown-ups** leads back to the parent view through a 4-digit PIN. The first
+time, the parent sets it (typed twice); after that it is required. A wrong PIN
+keeps the child view open; reloading the page is the documented way out if it
+is forgotten.
+
+| Set a PIN | Wrong PIN |
+| --- | --- |
+| ![Set PIN](screenshots/child-view/02-set-pin.jpg) | ![Wrong PIN](screenshots/child-view/03-wrong-pin.jpg) |
+
+**What the tests assert** (`child-view.spec.mjs`): no `%`, `XP`, `Level` or
+"n/m" anywhere in the overlay, the topic card, a whole challenge or a recall
+session; no badge, level-up or XP popups; results (8/8, XP) are still saved
+for the parent. `#app` is `inert` and `aria-hidden` while it is open. Picks
+show on the dashboard. PIN: too short, mismatch, wrong PIN, Back, and the PIN
+saved to `settings.parentPin`. Beat the clock without a bloom shows "Grow a
+bloom to unlock challenges!".
+
+**Caveats.** The PIN is stored and exported in plain text (F16). A
+3-year-old's Plant something new says "Ask a grown-up to choose" (F3).
+
+---
+
+## 5. Map
+
+**Purpose.** The connected curriculum as a map (Visual) or as lists (List).
+**How to reach it.** Map in the navigation, or "Open map" on the dashboard.
+
+The **world map** shows eight subject realms sized by topic count, with dots
+for their domains and a quiet tint for mastery. Clicking (or pressing Enter
+on) a realm or a dot opens that domain's **skill tree**.
+
+![World map](screenshots/map/01-world-map.jpg)
+
+The skill tree draws topics as plants (Seed locked, Sprout ready, Bud in
+progress, Bloom mastered), solid lines for required foundations and dashed
+for helpful ones, with neighboring domains as gateways. Selecting a topic
+opens the **quest log**: its stage, why it is or is not ready, required
+foundations and what it unlocks (both clickable), and Open full lesson, Open
+topic page, Record evidence, Mark as learning and Mark as mastered.
+
+| Ready topic | Locked topic |
+| --- | --- |
+| ![Quest log ready](screenshots/map/03-quest-log-ready.jpg) | ![Quest log locked](screenshots/map/04-quest-log-locked.jpg) |
+
+**List** drills from subject to domain to age band to topic, each level with a
+parent-only "n of m mastered" bar, and topics showing their stage and
+prerequisites. The Visual/List choice is saved with the family.
+
+| Subjects | Age bands | Topics in a band |
+| --- | --- | --- |
+| ![List subjects](screenshots/map/05-list-subjects.jpg) | ![Age bands](screenshots/map/06-list-domain-age-bands.jpg) | ![Section topics](screenshots/map/07-list-section-topics.jpg) |
+
+**What the tests assert** (`map.spec.mjs`): eight realms with domain counts,
+mouse and keyboard; legend; node states; a locked node explains its
+foundations, highlights the blocker and cannot be marked; Record evidence
+saves a linked record; Mark as learning turns the node into a bud and shows on
+the dashboard; Mark as mastered blooms it and unlocks the next skill; list
+drill-down and breadcrumbs; the view choice survives a reload. The old
+`#timeline` route still renders but is not in the navigation.
+
+**Caveats.** Every selection scrolls the page back to the top (F11).
+
+---
+
+## 6. Topic page
+
+**Purpose.** Everything about one topic for the parent.
+**How to reach it.** From the quest log, a stepping stone, a calendar day,
+a record's topic link, Insights, or any connection.
+
+![Topic page](screenshots/topic/01-topic-page.jpg)
+
+- **Header**: subject, domain, ages and type, then the growth stage beside
+  **Set status** (Not started, Learning, Practicing, Mastered), which the
+  parent sets directly (HAR-14).
+- **Ready-to-teach lesson** with Open full lesson and Print & go.
+- **Topic mastery test**, **What mastery looks like** (the taxonomy's
+  evidence), **Quick check**, **Active recall**, **AI teaching helper**
+  (Explain simply, Make a mini-quiz), **Activities & games** (static ideas,
+  each with "Get instructions"), **Records for this topic** (Record, Add).
+- Side column: **Section check** (locked until every topic in the section is
+  mastered), **Section recordings**, **How this connects** (what comes before
+  and what it unlocks) and **Reference materials** (Khan Academy, BBC
+  Bitesize, Wikipedia and two YouTube searches).
+
+| A locked topic | Mastered by hand |
+| --- | --- |
+| ![Locked](screenshots/topic/02-topic-page-locked.jpg) | ![Mastered](screenshots/topic/04-topic-mastered-manually.jpg) |
+
+**What the tests assert** (`topic.spec.mjs`): header, evidence, quick check;
+three unlocks that navigate, and the prerequisite seen from the other side
+with a locked banner; five reference links open in a new tab with
+`rel="noopener"`; each status change updates the chip, the toast, the section
+count, the dashboard's hero count, Mathematics card and Recent growth; a
+record added here appears here and on the server with its rating; Record and
+Record for this section open the recorder linked to the topic or section.
+
+**Caveats.** A topic set back to "Not started" stays in Recent growth (F12).
+
+---
+
+## 7. Lessons, tests and recall
+
+These need an AI provider. With the mock provider:
+
+**Full lesson.** Objective and duration, materials, notes for the parent
+(focus, struggles, advice), a hook, teaching steps with what to say and do,
+practice together, an independent activity, questions, mistakes to watch,
+a mastery check, an extension and a Print & go shortcut. It is generated once
+and cached on the server: after a reload the lesson comes from
+`/api/lessons/topic:<id>` and the provider is not called again.
+
+| Lesson | Print & go preview | Explain simply |
+| --- | --- | --- |
+| ![Lesson](screenshots/topic/06-lesson-plan.jpg) | ![Print & go](screenshots/topic/07-print-and-go-preview.jpg) | ![Explain](screenshots/topic/08-explain-simply.jpg) |
+
+**Topic mastery test.** Choose On screen (recommended for math) or On paper /
+hands-on, then "Create the test". The app asks the provider for a test, then
+asks again to re-solve every question independently and keeps only questions
+both agree on. On screen, a 100% pass marks the topic mastered, offers the
+challenge and records exactly one result even after Review answers → Back. On
+paper, the parent ticks what the child got right; the live score turns into
+the result, and missed questions join **spaced practice**.
+
+| Test intro | Answered | Passed |
+| --- | --- | --- |
+| ![Intro](screenshots/topic/10-mastery-test-intro.jpg) | ![Answered](screenshots/topic/11-mastery-test-answered.jpg) | ![Passed](screenshots/topic/12-mastery-test-passed.jpg) |
+
+| Paper grading | Spaced practice retry | Section check ready |
+| --- | --- | --- |
+| ![Paper](screenshots/topic/17-paper-test-grading.jpg) | ![Practice](screenshots/topic/18-spaced-practice-correct.jpg) | ![Section](screenshots/topic/19-section-check-ready.jpg) |
+
+**Challenge.** A two-minute, eight-question stretch for a mastered topic; the
+best score shows on the topic page.
+
+**Active recall.** Cards answered from memory, with a hint, graded Missed it,
+Got it or Easy. Ungraded cards stay due today; graded ones come back on a
+Leitner schedule (the dashboard shows "2 due" the next day).
+
+| Challenge | Recall card | Due on the dashboard |
+| --- | --- | --- |
+| ![Challenge](screenshots/topic/14-challenge-result.jpg) | ![Recall](screenshots/topic/15-recall-card-answer.jpg) | ![Due](screenshots/topic/16-dashboard-recall-due.jpg) |
+
+**What the tests assert** (`topic.spec.mjs`, `insights.spec.mjs`): the
+sequence of provider calls for each tool (from the mock's log), that the
+server always sends the configured model, that none of these prompts contains
+the learner's name, every section of the lesson, caching, test results saved
+with scope, mode and percent, a section check that unlocks after the last of
+nine topics is mastered and passes, and a final subject test that unlocks
+when every section is passed.
+
+**Caveats.** Recall cards are never cached because the server refuses arrays
+(F1). A failed "Generate a different version" leaves a spinner (F7).
+
+---
+
+## 8. Calendar
+
+**Purpose.** A weekday plan from the learner's start date, which the parent
+can bend.
+**How to reach it.** Calendar in the navigation, or "Open calendar" on the
+dashboard.
+
+![Calendar](screenshots/calendar/01-calendar-month.jpg)
+
+A Monday-first month grid shows each day's topics (dots on a phone), extras
+("+n") and done days. The day panel lists **New today** (each with Lesson,
+Test and Move), **Extra practice** added by the parent, and **Daily
+refreshers & extras**: a refresher quiz, an activity or game, and a stretch
+topic.
+
+| Add an extra | Extras on a day | Move a topic |
+| --- | --- | --- |
+| ![Add extra](screenshots/calendar/02-calendar-add-extra.jpg) | ![Extras](screenshots/calendar/03-calendar-extras.jpg) | ![Move](screenshots/calendar/04-calendar-move-topic.jpg) |
+
+**What the tests assert** (`calendar.spec.mjs`): the start date and month;
+previous, next and Today; weekend and outside-track days; changing the start
+date reschedules; Mark done and reopen; each of the four extra kinds (and the
+"pick a topic first" guard), the day's "+4", removing one; moving a topic to
+the next school day and to a chosen date; every card's button opens its tool.
+
+**Caveats.** "Extra practice" opens a lesson (F8). The "Refreshers change
+each day automatically" line is a button that does nothing (F9). Day one's
+refresher is untaught material (F5).
+
+---
+
+## 9. Records and recordings
+
+**Purpose.** Evidence of what happened: notes, observations and recordings.
+**How to reach it.** Records in the navigation; Note, Voice and Record
+buttons on the dashboard, topic page and quest log; the Recordings folder on
+the dashboard.
+
+Records are an Observation, Question, Discussion or Assessment, with an
+optional linked topic, title, notes and a 1–5 confidence rating. The list
+filters by type. Discussions and recordings offer **Analyze & get advice**
+(AI); the analysis is saved on the record and can also be saved as an advice
+record.
+
+| New record | Records |
+| --- | --- |
+| ![Record form](screenshots/records/01-record-form.jpg) | ![Records list](screenshots/records/02-records-list.jpg) |
+
+The **recorder** records from the microphone with a timer and (in browsers
+that support it) a live transcript, then offers a preview, a topic link, a
+title, notes and an editable transcript before saving the audio on the
+server.
+
+| Ready | Recording | Review |
+| --- | --- | --- |
+| ![Idle](screenshots/records/03-recorder-idle.jpg) | ![Recording](screenshots/records/04-recorder-recording.jpg) | ![Review](screenshots/records/05-recorder-review.jpg) |
+
+The **Recordings folder** groups recordings by section, then by topic, then
+"Not linked to a section" (HAR-16), with playback, transcript, analysis and
+delete.
+
+| Recordings folder | Discussion analysis |
+| --- | --- |
+| ![Folder](screenshots/records/06-recordings-folder.jpg) | ![Analysis](screenshots/records/07-discussion-analysis.jpg) |
+
+**What the tests assert** (`records.spec.mjs`): the form offers exactly the
+four types; a title or note is required; each type saves with its rating and
+topic; filters; topic link; delete with confirm; a saved record marks the day
+active. With Chromium's fake microphone: start, a four-second take, stop,
+preview, link, transcript, save, the audio stored on the server with an audio
+content type and played back. Escape mid-take asks before discarding. Folder
+grouping, playback and delete (which removes the audio file). Analysis from
+both places is saved and survives a reload.
+
+**Caveats.** The analysis prompt includes the learner's name (F2). Delete
+buttons are unlabeled icons (F14). Live transcription uses the browser's
+speech service and is not exercised by the suite.
+
+---
+
+## 10. Insights
+
+**Purpose.** Subject by subject: how far along, what next, and (with AI) a
+written review.
+**How to reach it.** Insights in the navigation.
+
+![Insights](screenshots/insights/01-insights-mathematics.jpg)
+
+Subject chips switch the page. Each subject shows its percent mastered and
+counts of Mastered, Practicing, Learning and Not started; the **final mastery
+test** (locked until every section check is passed); a **Progress review**
+(AI); and **Recommended next** topics. Approved **adaptive suggestions** to
+pitch a domain harder appear at the top, with a banner on the dashboard.
+
+| Progress review | Final test passed | Adaptive suggestion |
+| --- | --- | --- |
+| ![Review](screenshots/insights/02-insights-progress-review.jpg) | ![Final](screenshots/insights/03-final-test-passed.jpg) | ![Suggestion](screenshots/insights/04-adaptive-suggestion.jpg) |
+
+**What the tests assert** (`insights.spec.mjs`): the eight chips; counts that
+match seeded progress; a recommendation opens its topic; the final test is
+locked, then unlocks when every Mathematics section is passed, passes, and
+offers "Mark all Mathematics topics as mastered" (100% afterwards) and a
+certificate; a suggestion is approved (adaptation saved) and undone.
+
+**Caveats.** The review prompt includes the learner's name and the parent's
+notes (F2).
+
+---
+
+## 11. Notifications and guide
+
+**Notifications** (the bell beside the logo, or in the phone's top bar) list
+family-wide news. On first run there is one: "Your curriculum is ready". A
+curriculum that changed since the last visit adds "Curriculum updated — n new
+topics".
+
+| Unread | Curriculum update |
+| --- | --- |
+| ![Notifications](screenshots/notifications/01-notifications-unread.jpg) | ![Updated](screenshots/notifications/02-curriculum-updated.jpg) |
+
+The **Guide** (sidebar, or the book icon on a phone) summarizes what works
+today and what needs AI, replays the tour, prints the full guide and
+downloads `GUIDE.md`.
+
+| Guide | Printable guide |
+| --- | --- |
+| ![Guide](screenshots/notifications/03-guide-full.jpg) | ![Printable guide](screenshots/onboarding/06-printable-guide.jpg) |
+
+**What the tests assert** (`notifications.spec.mjs`, `onboarding.spec.mjs`):
+one welcome item and a "1" badge; Mark all read clears it; a second boot adds
+nothing; clicking one marks only that one; the empty state; an older saved
+curriculum snapshot raises the update item; the guide has ten entries and
+replays the tour; the printable guide opens in a new window; `GUIDE.md` is
+served.
+
+**Caveats.** The bell's accessible name is its unread count (F13).
+
+---
+
+## 12. Data safety
+
+**Purpose.** Keep family data safe across tabs, devices and restores (HAR-10).
+**How to reach it.** **Export** and **Import** in the family box at the bottom
+of the desktop sidebar.
+
+| Export and Import | Import preview |
+| --- | --- |
+| ![Sidebar](screenshots/data-safety/01-sidebar-export-import.jpg) | ![Import preview](screenshots/data-safety/02-import-preview.jpg) |
+
+Export downloads `harrington-family-<date>.json`: the whole family document
+with `exportedAt` and `taxonomyVersion` (no recordings). Import checks the
+file, previews each learner's topics, records and tests, and replaces the
+family data only after "Replace family data". Every save carries the version
+it started from; if another tab or device saved first, the losing tab reloads
+the latest data and says so.
+
+![Conflict toast](screenshots/data-safety/03-conflict-toast.jpg)
+
+**What the tests assert** (`data-safety.spec.mjs`, `api.spec.mjs`): the export
+file name and contents; import cancel, confirm, reload, and refusal of
+non-JSON, non-export and malformed learner files; two tabs: the second save
+loses, shows the toast, shows the first tab's change and does not merge its
+own; removing a learner clears every per-learner key. Over HTTP: 428 without
+`If-Match`, a new `ETag` on success, 412 with the current document when
+stale, 403 for a cross-site write, and `stateVersion`/`stateBytes` in health.
+
+**Caveats.** Export and Import are not reachable on a phone (F6). The PIN
+travels in the export (F16).
+
+---
+
+## 13. Without an AI provider
+
+Run against a server with no provider (`no-ai` project), every AI-backed
+button fails closed: nothing is generated, nothing is recorded as a result,
+and `/api/ai` answers 503.
+
+| Lesson | Print & go | AI helper |
+| --- | --- | --- |
+| ![Lesson](screenshots/no-ai/01-lesson-not-configured.jpg) | ![Print](screenshots/no-ai/02-print-and-go-failed.jpg) | ![Helper](screenshots/no-ai/03-ai-helper-failed.jpg) |
+
+| Mastery test | Progress review | Child view Memory walk |
+| --- | --- | --- |
+| ![Test](screenshots/no-ai/04-mastery-test-failed.jpg) | ![Review](screenshots/no-ai/05-insights-review-failed.jpg) | ![Memory walk](screenshots/no-ai/06-child-view-memory-walk-failed.jpg) |
+
+**What the tests assert** (`no-ai.spec.mjs`): the exact message for the
+lesson ("AI is not configured."), print & go, explain, mini-quiz, activity
+instructions, recall, topic test, challenge, both analysis buttons, the
+progress review, the calendar's lesson and instructions, the quest log's
+lesson and the child view's Memory walk; no test or challenge is saved; the
+guide labels AI features.
+
+**Caveats.** Only the lesson says AI is not configured; the rest say "try
+again" (F10). HAR-13 (#18) replaces these buttons with "Needs a local AI
+provider" chips.
+
+---
+
+## 14. Mobile
+
+At 390×844 the sidebar becomes a top bar (logo, guide, bell, learner) and a
+bottom navigation with five tabs. Every route fits the screen without
+scrolling sideways.
+
+| Dashboard | Calendar | World map | Skill tree |
+| --- | --- | --- | --- |
+| ![Dashboard](screenshots/mobile/01-dashboard.jpg) | ![Calendar](screenshots/mobile/02-calendar.jpg) | ![World map](screenshots/mobile/03-world-map.jpg) | ![Skill tree](screenshots/mobile/04-skill-tree.jpg) |
+
+| Topic | Records | Insights | List |
+| --- | --- | --- | --- |
+| ![Topic](screenshots/mobile/05-topic.jpg) | ![Records](screenshots/mobile/06-records.jpg) | ![Insights](screenshots/mobile/07-insights.jpg) | ![List](screenshots/mobile/08-list-section.jpg) |
+
+| Child view | Quest log | Guide | Learners |
+| --- | --- | --- | --- |
+| ![Child view](screenshots/mobile/09-child-view.jpg) | ![Quest log](screenshots/mobile/10-quest-log.jpg) | ![Guide](screenshots/mobile/11-guide.jpg) | ![Learners](screenshots/mobile/12-learner-switcher.jpg) |
+
+**What the tests assert** (`mobile.spec.mjs`): no horizontal overflow on the
+dashboard, calendar, world map, skill tree, topic page, records, insights,
+list view, child view and quest log, with no console errors; the bottom tabs
+navigate and mark the current page; the top-bar guide and learner switcher
+open.
+
+**Caveats.** No Export or Import on a phone (F6).
+
+---
+
+## After a day
+
+The parent walkthrough ends on the dashboard after a learner was added, a
+choice picked, a topic marked as learning and then mastered by test, a
+challenge and a recall session done, the calendar day marked and an extra
+added, a discussion recorded and analyzed, a voice note saved and a review
+generated:
+
+![Dashboard after a day](screenshots/walkthrough/01-dashboard-after-a-day.jpg)
