@@ -1,0 +1,73 @@
+// 390×844 phone viewport: every route renders without sideways scrolling, and
+// the phone-only chrome (top bar, bottom nav) works.
+import { test, expect, modal, closeModal, noHorizontalOverflow } from './fixtures.mjs';
+import { TOPICS } from './support/family.mjs';
+
+const ROUTES = [
+  ['dashboard', ''],
+  ['calendar', 'calendar'],
+  ['world-map', 'graph'],
+  ['skill-tree', `graph/Mathematics/${encodeURIComponent('Counting & Cardinality')}`],
+  ['topic', `topic/${TOPICS.oneToOne.id}`],
+  ['records', 'records'],
+  ['insights', 'insights'],
+];
+
+for (const [name, hash] of ROUTES) {
+  test(`no horizontal overflow: ${name}`, async ({ page, gotoApp, shot, errors }) => {
+    // Known defect: the topic header's chip row does not wrap (FINDINGS.md).
+    // Expected to fail until fixed; Playwright reports it if it starts passing.
+    test.fail(name === 'topic', 'Topic header chips overflow a 390px screen');
+    await gotoApp({
+      seed: { progress: { [TOPICS.oneToOne.id]: 'learning' }, records: [{ type: 'observation', title: 'Counted the stairs out loud', note: 'Got to 12.', rating: 4, topicId: TOPICS.oneToOne.id }] },
+      hash,
+    });
+    await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+    await noHorizontalOverflow(page);
+    await shot(name, { full: name !== 'dashboard' && name !== 'topic' });
+    expect(errors).toEqual([]);
+  });
+}
+
+test('no horizontal overflow: list view drill-down', async ({ page, api, gotoApp, shot }) => {
+  await gotoApp({ seed: { extra: { graphView: 'list' } }, hash: `graph/Mathematics/${encodeURIComponent('Counting & Cardinality')}/5` });
+  await expect(page.getByRole('heading', { level: 1, name: 'Counting & Cardinality' })).toBeVisible();
+  await noHorizontalOverflow(page);
+  await shot('list-section', { full: false });
+});
+
+test('no horizontal overflow: child view and the quest log', async ({ page, gotoApp, shot }) => {
+  await gotoApp({ seed: {} });
+  await page.getByRole('button', { name: "Rowan Example's view" }).click();
+  await expect(page.getByRole('button', { name: 'Back to the grown-up view' })).toBeVisible();
+  await noHorizontalOverflow(page);
+  await shot('child-view', { full: false });
+  await page.getByRole('button', { name: 'Back to the grown-up view' }).click();
+
+  await page.goto(`/#graph/Mathematics/${encodeURIComponent('Counting & Cardinality')}`);
+  await page.locator('button.skill-node', { hasText: TOPICS.oneToOne.name }).first().click();
+  await expect(page.getByRole('complementary', { name: 'Quest log' })).toBeVisible();
+  await noHorizontalOverflow(page);
+  await shot('quest-log', { full: false });
+});
+
+test('bottom navigation, the top-bar guide and the compact learner switcher', async ({ page, gotoApp, shot }) => {
+  await gotoApp({ seed: {} });
+  const bottom = page.getByRole('navigation', { name: 'Main' });
+  await expect(bottom.getByRole('button')).toHaveCount(5);
+  for (const [label, heading] of [['Calendar', 'Daily Calendar'], ['Map', 'Curriculum realms'], ['Records', 'Records'], ['Insights', 'Teacher Insights'], ['Dashboard', "Rowan Example's Wednesday"]]) {
+    await bottom.getByRole('button', { name: label }).click();
+    await expect(page.getByRole('heading', { name: heading, exact: true }).first()).toBeVisible();
+    await expect(bottom.getByRole('button', { name: label })).toHaveAttribute('aria-current', 'page');
+  }
+  await page.getByRole('button', { name: 'Open the guide' }).click();
+  await expect(modal(page).getByRole('heading', { name: 'How Harrington works' })).toBeVisible();
+  await noHorizontalOverflow(page);
+  await shot('guide', { full: false });
+  await closeModal(page);
+
+  await page.getByRole('button', { name: 'Switch learner' }).click();
+  await expect(modal(page).getByRole('heading', { name: 'Students' })).toBeVisible();
+  await shot('learner-switcher', { full: false });
+  await closeModal(page);
+});
