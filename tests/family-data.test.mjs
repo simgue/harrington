@@ -311,6 +311,39 @@ describe('family data safety in the store', { concurrency: false }, () => {
     assert.ok(store.get().students.some((s) => s.id === 'laptop2'));
   });
 
+  test('a save whose response was lost is not mistaken for the next one', async () => {
+    const id = store.get().students[0].id;
+    // The PUT reaches the server and commits, but the response never arrives.
+    const routed = globalThis.fetch;
+    globalThis.fetch = async (path, options) => {
+      if (options?.method !== 'PUT') return routed(path, options);
+      globalThis.fetch = routed;
+      await routed(path, options);
+      throw new TypeError('Failed to fetch');
+    };
+    try {
+      statusEvents.length = 0;
+      store.setStatus(id, 'rhymes', 'mastered');
+      await store.flushSaves();
+    } finally {
+      globalThis.fetch = routed;
+    }
+    assert.deepEqual(statusEvents, ['failed']);
+    assert.equal((await serverState()).progress[id].rhymes.status, 'mastered', 'the first save committed');
+
+    // A second edit: its PUT gets a 412 carrying our own writeId.
+    store.setStatus(id, 'count-to-5', 'none');
+    await store.flushSaves();
+    assert.equal(statusEvents.at(-1), 'saved');
+    const latest = await serverState();
+    assert.equal(latest.progress[id]['count-to-5'].status, 'none');
+    assert.deepEqual(latest.progress[id], store.get().progress[id]);
+
+    // Nothing is left pending, so hiding the tab sends no beacon.
+    store.handlePageHidden();
+    assert.equal(beacons.length, 0);
+  });
+
   test('a removal that loses a conflict keeps the learner\'s recordings', async () => {
     const id = store.addStudent('Kept Learner', 2016);
     const audioPath = `${id}/kept.webm`;

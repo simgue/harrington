@@ -153,10 +153,12 @@ function reconcile(doc) {
   const version = versionOf(doc);
   if (beaconId && doc.writeId === beaconId) {
     stateVersion = version;
+    deleteRemovedAudio();
     return true;
   }
   if (version === stateVersion || ownWrites.includes(doc.writeId)) {
     stateVersion = Math.max(stateVersion, version);
+    if (ownWrites.includes(doc.writeId)) deleteRemovedAudio();
     // Our beacon did not land; send its changes again.
     if (beaconId) persist();
     return true;
@@ -178,10 +180,13 @@ async function conflictDocument(error) {
 // beacon, adopts that version and tries again; any other 412 reloads.
 async function saveWith(makeData) {
   saving = true;
+  // Kept across attempts: after a 412 caused by our own earlier write, the
+  // body is sent again even if makeData() has nothing new.
+  let data = null;
   try {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       if (unconfirmedBeacon && !reconcile(await backend.loadState())) return false;
-      const data = makeData();
+      data = makeData() ?? data;
       if (data === null) return true;
       try {
         const next = await backend.saveState(data, stateVersion, newWriteId());
@@ -195,6 +200,7 @@ async function saveWith(makeData) {
         if (!ownWrites.includes(doc.writeId)) { reloadFromServer(doc); return false; }
         if (doc.writeId === unconfirmedBeacon) unconfirmedBeacon = null;
         stateVersion = versionOf(doc);
+        deleteRemovedAudio();
       }
     }
     throw new Error('Family data kept changing while saving');
