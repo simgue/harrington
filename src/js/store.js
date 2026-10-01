@@ -43,65 +43,311 @@ export async function connect() {
 }
 
 // ---- Persistence ----
+// The server stores one versioned document. Every save sends If-Match with the
+// last version we saw; a 412 means another tab or device saved first, so we
+// replace local state with the server's copy (no field-level merging).
+let stateVersion = 0;
+let dirty = false;
+let saving = false;
+let saveTimer = null;
+let saveQueue = Promise.resolve();
+const saveListeners = new Set();
+// Ids of our recent writes, so we can recognise our own save on the server.
+const ownWrites = [];
+// writeId of an unload beacon whose outcome we have not seen yet.
+let unconfirmedBeacon = null;
+// Recordings of removed learners, deleted once the removal is saved.
+let pendingAudioDeletes = [];
+
+// Per-learner maps keyed by student id. removeStudent clears every one of them.
+const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
+  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily'];
+
+// Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'failed', error? }
+export function onSaveStatus(fn) { saveListeners.add(fn); return () => saveListeners.delete(fn); }
+function saveStatus(event) { saveListeners.forEach(fn => { try { fn(event); } catch (e) { console.warn(e); } }); }
+
+function objectOr(value, fallback) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
+}
+
+function applyDocument(data) {
+  const doc = objectOr(data, {});
+  state.students = Array.isArray(doc.students) ? doc.students : [];
+  state.activeStudentId = doc.activeStudentId || (state.students[0] && state.students[0].id) || null;
+  for (const key of LEARNER_KEYS) state[key] = objectOr(doc[key], {});
+  state.notifications = Array.isArray(doc.notifications) ? doc.notifications : [];
+  state.curriculumSnapshot = doc.curriculumSnapshot || null;
+  state.graphView = doc.graphView === 'list' ? 'list' : 'atlas';
+  state.settings = objectOr(doc.settings, {});
+  stateVersion = Number.isSafeInteger(doc.version) ? doc.version : 0;
+}
+
 export async function loadAll() {
   try {
-    const data = await backend.loadState();
-    if (data && Object.keys(data).length) {
-      state.students = data.students || [];
-      state.activeStudentId = data.activeStudentId || (state.students[0] && state.students[0].id) || null;
-      state.progress = data.progress || {};
-      state.records = data.records || {};
-      state.tests = data.tests || {};
-      state.plan = data.plan || {};
-      state.challenges = data.challenges || {};
-      state.adaptations = data.adaptations || {};
-      state.suggestions = data.suggestions || {};
-      state.notifications = data.notifications || [];
-      state.curriculumSnapshot = data.curriculumSnapshot || null;
-      state.recall = data.recall || {};
-      state.practice = data.practice || {};
-      state.activity = data.activity || {};
-      state.game = data.game || {};
-      state.daily = data.daily || {};
-      state.graphView = data.graphView === 'list' ? 'list' : 'atlas';
-      state.settings = data.settings || {};
-    }
+    applyDocument(await backend.loadState());
   } catch (e) {
     console.warn('load failed', e);
     throw e;
   }
 }
 
-let saveTimer = null;
-let saveQueue = Promise.resolve();
-export function persist() {
+function snapshotData() {
+  return {
+    students: state.students,
+    activeStudentId: state.activeStudentId,
+    progress: state.progress,
+    records: state.records,
+    tests: state.tests,
+    plan: state.plan,
+    challenges: state.challenges,
+    adaptations: state.adaptations,
+    suggestions: state.suggestions,
+    notifications: state.notifications,
+    curriculumSnapshot: state.curriculumSnapshot,
+    recall: state.recall,
+    practice: state.practice,
+    activity: state.activity,
+    game: state.game,
+    daily: state.daily,
+    graphView: state.graphView === 'list' ? 'list' : 'atlas',
+    settings: state.settings,
+  };
+}
+
+function newWriteId() {
+  const id = `w_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  ownWrites.push(id);
+  if (ownWrites.length > 16) ownWrites.shift();
+  return id;
+}
+
+function versionOf(doc) {
+  return Number.isSafeInteger(doc?.version) ? doc.version : 0;
+}
+
+function reloadFromServer(doc) {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    const snapshot = {
-        students: state.students,
-        activeStudentId: state.activeStudentId,
-        progress: state.progress,
-        records: state.records,
-        tests: state.tests,
-        plan: state.plan,
-        challenges: state.challenges,
-        adaptations: state.adaptations,
-        suggestions: state.suggestions,
-        notifications: state.notifications,
-        curriculumSnapshot: state.curriculumSnapshot,
-        recall: state.recall,
-        practice: state.practice,
-        activity: state.activity,
-        game: state.game,
-        daily: state.daily,
-        graphView: state.graphView === 'list' ? 'list' : 'atlas',
-        settings: state.settings,
-    };
-    saveQueue = saveQueue
-      .catch(() => {})
-      .then(() => backend.saveState(snapshot))
-      .catch((e) => { console.warn('save failed', e); });
-  }, 400);
+  saveTimer = null;
+  dirty = false;
+  // A pending beacon carried the version we are discarding, so it cannot land.
+  unconfirmedBeacon = null;
+  applyDocument(doc);
+  const present = new Set(state.students.map(s => s.id));
+  pendingAudioDeletes = pendingAudioDeletes.filter(item => !present.has(item.studentId));
+  emit();
+  saveStatus({ type: 'conflict' });
+}
+
+// Deletes recordings of learners whose removal the server has accepted.
+function deleteRemovedAudio() {
+  const present = new Set(state.students.map(s => s.id));
+  const ready = pendingAudioDeletes.filter(item => !present.has(item.studentId));
+  pendingAudioDeletes = pendingAudioDeletes.filter(item => present.has(item.studentId));
+  for (const item of ready) backend.deleteAudio(item.path).catch(() => {});
+}
+
+// Compares the server document with what we know. Returns true when local
+// state stays (the server holds our own write or nothing new), false after
+// reloading because another tab or device saved.
+function reconcile(doc) {
+  const beaconId = unconfirmedBeacon;
+  unconfirmedBeacon = null;
+  const version = versionOf(doc);
+  if (beaconId && doc.writeId === beaconId) {
+    stateVersion = version;
+    deleteRemovedAudio();
+    return true;
+  }
+  if (version === stateVersion || ownWrites.includes(doc.writeId)) {
+    stateVersion = Math.max(stateVersion, version);
+    if (ownWrites.includes(doc.writeId)) deleteRemovedAudio();
+    // Our beacon did not land; send its changes again.
+    if (beaconId) persist();
+    return true;
+  }
+  reloadFromServer(doc);
+  return false;
+}
+
+// The document to act on after a 412: the body, or a fresh read if the body
+// was not a usable document.
+async function conflictDocument(error) {
+  const body = error.body;
+  if (body && typeof body === 'object' && Number.isSafeInteger(body.version)) return body;
+  return backend.loadState();
+}
+
+// Runs one save. `makeData()` builds the body just before sending (null means
+// nothing to send). A 412 caused by our own earlier write, such as an unload
+// beacon, adopts that version and tries again; any other 412 reloads.
+async function saveWith(makeData) {
+  saving = true;
+  // Kept across attempts: after a 412 caused by our own earlier write, the
+  // body is sent again even if makeData() has nothing new.
+  let data = null;
+  try {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (unconfirmedBeacon && !reconcile(await backend.loadState())) return false;
+      data = makeData() ?? data;
+      if (data === null) return true;
+      try {
+        const next = await backend.saveState(data, stateVersion, newWriteId());
+        stateVersion = Math.max(stateVersion, next);
+        deleteRemovedAudio();
+        saveStatus({ type: 'saved' });
+        return true;
+      } catch (e) {
+        if (e.status !== 412) throw e;
+        const doc = await conflictDocument(e);
+        if (!ownWrites.includes(doc.writeId)) { reloadFromServer(doc); return false; }
+        if (doc.writeId === unconfirmedBeacon) unconfirmedBeacon = null;
+        stateVersion = versionOf(doc);
+        deleteRemovedAudio();
+      }
+    }
+    throw new Error('Family data kept changing while saving');
+  } catch (e) {
+    dirty = true;
+    console.warn('save failed', e);
+    saveStatus({ type: e.status === 413 ? 'too-large' : 'failed', error: e });
+    return false;
+  } finally {
+    saving = false;
+  }
+}
+
+function saveNow() {
+  if (!dirty) return Promise.resolve(true);
+  return saveWith(() => {
+    if (!dirty) return null;
+    dirty = false;
+    return snapshotData();
+  });
+}
+
+// Saves any pending change right away. Resolves once every queued save is done.
+export function flushSaves() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  saveQueue = saveQueue.catch(() => {}).then(saveNow);
+  return saveQueue;
+}
+
+export function persist() {
+  dirty = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSaves, 400);
+}
+
+// The page is being hidden or closed: a debounced save would be lost, so send
+// it now as a beacon. Beacons cannot carry If-Match, so the version rides in
+// the body. We cannot see the result, so the version is not advanced; the
+// beacon's writeId is checked against the server when the tab returns or
+// before the next save. A save still in flight uses the same version, so
+// exactly one of the two wins and the other recognises it.
+export function handlePageHidden() {
+  if (!dirty) return;
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  const writeId = newWriteId();
+  if (backend.beaconState(snapshotData(), stateVersion, writeId)) {
+    dirty = false;
+    unconfirmedBeacon = writeId;
+  } else {
+    console.warn('The browser refused to send family data on unload (beacons are limited to about 64 KB); saving normally instead.');
+    flushSaves();
+  }
+}
+
+// Coming back to a tab: confirm an unload beacon, or load a newer copy another
+// device saved rather than discovering the conflict on the next edit.
+async function syncOnVisible() {
+  if (saving) return;
+  if (!unconfirmedBeacon) {
+    if (dirty) return;
+    const { stateVersion: serverVersion } = await backend.health();
+    if (!Number.isSafeInteger(serverVersion) || serverVersion <= stateVersion || dirty) return;
+  }
+  reconcile(await backend.loadState());
+}
+
+export function handlePageVisible() {
+  saveQueue = saveQueue.catch(() => {}).then(() => syncOnVisible().catch(() => {}));
+  return saveQueue;
+}
+
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  window.addEventListener('pagehide', handlePageHidden);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') handlePageHidden();
+    else handlePageVisible();
+  });
+}
+
+// ---- Export / import ----
+function countOf(value) {
+  if (Array.isArray(value)) return value.length;
+  return value && typeof value === 'object' ? Object.keys(value).length : 0;
+}
+
+// The full stored document plus when it was exported and against which
+// taxonomy. If changes could not be saved (for example the data is too large),
+// the export is this tab's copy, flagged with unsavedChanges.
+export async function exportDocument() {
+  await flushSaves();
+  const meta = { exportedAt: new Date().toISOString(), taxonomyVersion: state.curriculumSnapshot?.version || null };
+  if (dirty) return { ...snapshotData(), version: stateVersion, ...meta, unsavedChanges: true };
+  return { ...(await backend.loadState()), ...meta };
+}
+
+// Checks an export (or a raw family-state.json) before import. Returns
+// { ok, error?, learners: [{ name, topics, records, tests }] } for the preview.
+export function inspectImport(doc) {
+  const fail = (error) => ({ ok: false, error, learners: [] });
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return fail('The file is not a Harrington family export.');
+  if (!Array.isArray(doc.students)) return fail('The file has no learner list.');
+  for (const s of doc.students) {
+    if (!s || typeof s !== 'object' || typeof s.id !== 'string' || !s.id || typeof s.name !== 'string') {
+      return fail('A learner in the file is missing an id or name.');
+    }
+  }
+  for (const key of LEARNER_KEYS) {
+    if (doc[key] !== undefined && (!doc[key] || typeof doc[key] !== 'object' || Array.isArray(doc[key]))) {
+      return fail(`The file's "${key}" section is not in the expected shape.`);
+    }
+  }
+  if (doc.notifications !== undefined && !Array.isArray(doc.notifications)) {
+    return fail('The file\'s notifications are not in the expected shape.');
+  }
+  const learners = doc.students.map(s => ({
+    name: s.name,
+    topics: countOf(doc.progress?.[s.id]),
+    records: countOf(doc.records?.[s.id]),
+    tests: countOf(doc.tests?.[s.id]),
+  }));
+  return { ok: true, learners };
+}
+
+// Replaces the family document on the server with `doc`, guarded by the
+// current version. Resolves false if another device saved first (state is
+// then reloaded from the server) or the save failed.
+export function importDocument(doc) {
+  const check = inspectImport(doc);
+  if (!check.ok) return Promise.reject(new Error(check.error));
+  const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = doc;
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  dirty = false;
+  saveQueue = saveQueue.catch(() => {}).then(async () => {
+    const ok = await saveWith(() => data);
+    if (ok) {
+      applyDocument({ ...data, version: stateVersion });
+      emit();
+    }
+    return ok;
+  });
+  return saveQueue;
 }
 
 // ---- Students ----
@@ -124,10 +370,17 @@ export function updateStudent(id, patch) {
   persist(); emit();
 }
 export function removeStudent(id) {
+  // Recordings are deleted only once the server accepts the removal, so a
+  // conflict that brings the learner back does not lose their audio.
+  for (const rec of state.records[id] || []) {
+    if (rec && rec.audioPath) pendingAudioDeletes.push({ studentId: id, path: rec.audioPath });
+  }
   state.students = state.students.filter(s => s.id !== id);
-  delete state.progress[id]; delete state.records[id];
+  for (const key of LEARNER_KEYS) delete state[key][id];
   if (state.activeStudentId === id) state.activeStudentId = state.students[0]?.id || null;
-  persist(); emit();
+  emit();
+  persist();
+  flushSaves();
 }
 export function setActiveStudent(id) { state.activeStudentId = id; persist(); emit(); }
 export function activeStudent() { return state.students.find(s => s.id === state.activeStudentId) || null; }

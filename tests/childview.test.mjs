@@ -9,7 +9,7 @@ const source = (path) => readFile(new URL(path, repoRoot), 'utf8');
 const saved = [];
 globalThis.fetch = async (path, options = {}) => {
   if (options.body) saved.push(JSON.parse(options.body));
-  return { ok: true, status: 200, json: async () => ({}) };
+  return { ok: true, status: 200, headers: new Headers({ ETag: `"v${saved.length}"` }), json: async () => ({}) };
 };
 
 const store = await import('../src/js/store.js');
@@ -70,8 +70,7 @@ test('the parent PIN is four digits and persisted with the family settings', asy
   assert.equal(store.parentPin(), null);
   assert.equal(store.setParentPin('0420'), true);
   assert.equal(store.parentPin(), '0420');
-  await store.flushSaves?.();
-  await new Promise(resolve => setTimeout(resolve, 450));
+  await store.flushSaves();
   assert.equal(saved.at(-1)?.settings?.parentPin, '0420');
 });
 
