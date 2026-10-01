@@ -28,6 +28,7 @@ let state = {
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
   daily: {},          // studentId -> { 'yyyy-mm-dd': { offers: {literacy:[topicId], numeracy:[topicId]}, picks: {literacy, numeracy} } }
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
+  settings: {},       // family-wide: { parentPin }
 };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -78,6 +79,7 @@ function applyDocument(data) {
   state.notifications = Array.isArray(doc.notifications) ? doc.notifications : [];
   state.curriculumSnapshot = doc.curriculumSnapshot || null;
   state.graphView = doc.graphView === 'list' ? 'list' : 'atlas';
+  state.settings = objectOr(doc.settings, {});
   stateVersion = Number.isSafeInteger(doc.version) ? doc.version : 0;
 }
 
@@ -109,6 +111,7 @@ function snapshotData() {
     game: state.game,
     daily: state.daily,
     graphView: state.graphView === 'list' ? 'list' : 'atlas',
+    settings: state.settings,
   };
 }
 
@@ -874,6 +877,28 @@ export function setGraphView(mode) {
   state.graphView = next;
   persist();
   emit();
+}
+
+// ---- Child view ----
+// While the child view is open, celebrations stay silent and tests and
+// challenges render without scores. Not persisted: a reload always returns to
+// the grown-up view, which is also the "forgot the PIN" path.
+let childViewOpen = false;
+export function isChildViewOpen() { return childViewOpen; }
+export function setChildViewOpen(open) { childViewOpen = !!open; }
+
+// A four-digit PIN that keeps the child view from closing with one tap. A
+// family-device convenience, not authentication.
+export function parentPin() {
+  // String() so a hand-edited numeric value in the data file still matches.
+  const pin = state.settings?.parentPin;
+  return pin == null || pin === '' ? null : String(pin);
+}
+export function setParentPin(pin) {
+  if (!/^\d{4}$/.test(String(pin))) return false;
+  state.settings = { ...state.settings, parentPin: String(pin) };
+  persist();
+  return true;
 }
 
 // ---- Lesson cache (shared by this family) ----
