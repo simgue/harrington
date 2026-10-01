@@ -425,6 +425,8 @@ export function addRecord(studentId, rec) {
   state.records[studentId] = state.records[studentId] || [];
   const full = { id: 'r_' + Math.random().toString(36).slice(2, 9), createdAt: Date.now(), ...rec };
   state.records[studentId].unshift(full);
+  // Saved evidence counts as activity; written inline so this persists and emits once.
+  activityOf(studentId)[dateKeyLocal(full.createdAt)] = true;
   persist(); emit();
   return full;
 }

@@ -42,3 +42,16 @@ test('setStatusBulk writes every topic and emits once', () => {
   for (const id of ['t1', 't2', 't3']) assert.equal(store.statusOf(sid, id), 'mastered');
   assert.equal(store.activeToday(sid), true);
 });
+
+test('addRecord marks the day active and emits once', () => {
+  const sid = 's-record';
+  assert.equal(store.activeToday(sid), false);
+  let emits = 0;
+  const off = store.subscribe(() => { emits++; });
+  const rec = store.addRecord(sid, { type: 'observation', note: 'Counted to twenty' });
+  off();
+  assert.equal(emits, 1);
+  assert.equal(store.recordsFor(sid)[0].id, rec.id);
+  assert.equal(store.activeToday(sid), true);
+  assert.equal(store.activityStreak(sid), 1);
+});
