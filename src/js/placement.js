@@ -80,8 +80,10 @@ export function selectPlacement(topics, { subject, domain = null, maxAge, progre
   };
 }
 
-// The record title for a placement.
-export function placementTitle({ count, subject, domain = null, maxAge }) {
+// The record title for a placement. `prereqCount` counts the hard
+// prerequisites marked along with the selection (they may sit elsewhere).
+export function placementTitle({ count, subject, domain = null, maxAge, prereqCount = 0 }) {
   const where = domain ? `${subject} · ${domain}` : subject;
-  return `Placement: marked ${count} topic${count === 1 ? '' : 's'} in ${where} mastered up to age ${maxAge}`;
+  const extra = prereqCount ? `, plus ${prereqCount} prerequisite${prereqCount === 1 ? '' : 's'}` : '';
+  return `Placement: marked ${count} topic${count === 1 ? '' : 's'} in ${where} mastered up to age ${maxAge}${extra}`;
 }

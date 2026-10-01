@@ -81,4 +81,5 @@ test('helpers: default age, domains, title', () => {
   assert.deepEqual(subjectDomains(topics, 'Mathematics'), ['Counting', 'Addition', 'Multiplication', 'Geometry']);
   assert.equal(placementTitle({ count: 12, subject: 'Mathematics', maxAge: 8 }), 'Placement: marked 12 topics in Mathematics mastered up to age 8');
   assert.equal(placementTitle({ count: 1, subject: 'English', domain: 'Phonics', maxAge: 6 }), 'Placement: marked 1 topic in English · Phonics mastered up to age 6');
+  assert.equal(placementTitle({ count: 270, subject: 'Mathematics', maxAge: 8, prereqCount: 6 }), 'Placement: marked 270 topics in Mathematics mastered up to age 8, plus 6 prerequisites');
 });
