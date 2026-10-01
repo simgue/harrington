@@ -4,7 +4,7 @@ import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { audioPlayer, openRecorder } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
 
-// The general recordings folder — all voice recordings, grouped by section.
+// The general recordings folder — all voice recordings, grouped by section or topic.
 export function openRecordingsLibrary() {
   const student = store.activeStudent();
   if (!student) { toast('Add a student first', 'error'); return; }
@@ -15,7 +15,7 @@ export function openRecordingsLibrary() {
       <span class="w-9 h-9 rounded-lg bg-[#a4473a]/10 flex items-center justify-center shrink-0"><i data-lucide="folder" class="w-5 h-5 text-[#a4473a]"></i></span>
       <div class="flex-1 min-w-0">
         <h3 class="font-display text-lg font-600 leading-tight">Recordings</h3>
-        <p class="text-xs text-ink-faint">Every voice recording for ${esc(student.name)}, grouped by section</p>
+        <p class="text-xs text-ink-faint">Every voice recording for ${esc(student.name)}, grouped by section or topic</p>
       </div>
       <button id="new" class="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#a4473a] hover:bg-[#86372c] text-white text-sm font-medium transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
     </div>
@@ -37,17 +37,10 @@ export function openRecordingsLibrary() {
       return;
     }
 
-    // Group by section (fallback: "Unfiled").
-    const groups = new Map();
-    recs.forEach(r => {
-      const key = r.sectionId || 'unfiled';
-      if (!groups.has(key)) groups.set(key, { label: r.sectionLabel || (r.topicName ? r.topicName : 'Unfiled'), subject: r.subject, items: [] });
-      groups.get(key).items.push(r);
-    });
+    const groups = groupRecordings(recs, d.byId);
+    bodyWrap.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${recs.length} recording${recs.length > 1 ? 's' : ''} in ${groups.length} group${groups.length > 1 ? 's' : ''}.</p>`));
 
-    bodyWrap.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${recs.length} recording${recs.length > 1 ? 's' : ''} across ${groups.size} section${groups.size > 1 ? 's' : ''}.</p>`));
-
-    for (const [, g] of groups) {
+    for (const g of groups) {
       const meta = SUBJECTS[g.subject] || { color: '#6f665a', icon: 'folder' };
       const groupEl = el(`<div class="mb-4">
         <div class="flex items-center gap-2 mb-2">
@@ -64,6 +57,35 @@ export function openRecordingsLibrary() {
     refreshIcons();
   };
   render();
+}
+
+// Groups recordings by section, then by topic for those without one; the rest
+// share one "Not linked to a section" group. Labels never come from an
+// unrelated record: a section group uses the first stored sectionLabel, else
+// one derived from its id (subject|domain|age).
+export function groupRecordings(recs, byId = new Map()) {
+  const groups = new Map();
+  recs.forEach(r => {
+    const key = r.sectionId ? `section:${r.sectionId}` : r.topicId ? `topic:${r.topicId}` : 'unfiled';
+    if (!groups.has(key)) groups.set(key, { key, label: '', subject: null, items: [] });
+    const g = groups.get(key);
+    g.items.push(r);
+    if (!g.label) {
+      if (r.sectionId) g.label = r.sectionLabel || '';
+      else if (r.topicId) g.label = r.topicName || byId.get(r.topicId)?.name || '';
+    }
+    g.subject = g.subject || r.subject || (r.topicId ? byId.get(r.topicId)?.subject : null) || null;
+  });
+  for (const g of groups.values()) {
+    if (g.label) continue;
+    if (g.key.startsWith('section:')) {
+      const parts = g.key.slice('section:'.length).split('|');
+      g.subject = g.subject || parts[0] || null;
+      g.label = parts.length >= 3 ? `${parts.slice(1, -1).join('|')} · Age ${parts[parts.length - 1]}` : parts.join(' · ');
+    } else if (g.key.startsWith('topic:')) g.label = 'Linked topic';
+    else g.label = 'Not linked to a section';
+  }
+  return [...groups.values()];
 }
 
 function recordingCard(r, student, rerender) {
@@ -98,11 +120,8 @@ export function renderAnalysis(container, r, student, topic) {
   const hasContent = (r.transcript && r.transcript.trim()) || (r.note && r.note.trim());
 
   if (r.analysis) {
-    container.appendChild(el(`<div class="rounded-xl bg-brand-light/40 border border-brand/20 p-3.5 mt-1">
-      <p class="text-[11px] font-600 uppercase tracking-wide text-brand-dark mb-1.5 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i>AI summary &amp; advice</p>
-      <div class="ai-prose text-sm text-ink-soft">${r.analysis}</div>
-    </div>`));
-    const redo = el(`<button class="mt-2 flex items-center gap-1.5 text-xs font-medium text-ink-faint hover:text-ink-soft"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>Regenerate</button>`);
+    container.appendChild(savedAnalysis(r.analysis));
+    const redo = regenerateButton();
     if (hasContent) redo.onclick = () => runAnalysis(container, r, student, topic);
     container.appendChild(redo);
   } else {
@@ -112,6 +131,20 @@ export function renderAnalysis(container, r, student, topic) {
     container.appendChild(analyze);
   }
   refreshIcons();
+}
+
+// The saved AI summary block, shared with the Records page so both cards render it alike.
+// Trust boundary: `html` is inserted raw. It is safe only because ai.js toHtml() escapes
+// model output before it is stored; an imported or hand-edited state file bypasses that,
+// so sanitize here if analysis can arrive from anywhere else.
+export function savedAnalysis(html) {
+  return el(`<div class="rounded-xl bg-brand-light/40 border border-brand/20 p-3.5 mt-1">
+    <p class="text-[11px] font-600 uppercase tracking-wide text-brand-dark mb-1.5 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i>AI summary &amp; advice</p>
+    <div class="ai-prose text-sm text-ink-soft">${html}</div>
+  </div>`);
+}
+export function regenerateButton() {
+  return el(`<button class="mt-2 flex items-center gap-1.5 text-xs font-medium text-ink-faint hover:text-ink-soft"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>Regenerate</button>`);
 }
 
 export function runAnalysis(container, r, student, topic) {

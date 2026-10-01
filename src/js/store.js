@@ -28,6 +28,7 @@ let state = {
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
   daily: {},          // studentId -> { 'yyyy-mm-dd': { offers: {literacy:[topicId], numeracy:[topicId]}, picks: {literacy, numeracy} } }
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
+  settings: {},       // family-wide: { parentPin }
 };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -78,6 +79,7 @@ function applyDocument(data) {
   state.notifications = Array.isArray(doc.notifications) ? doc.notifications : [];
   state.curriculumSnapshot = doc.curriculumSnapshot || null;
   state.graphView = doc.graphView === 'list' ? 'list' : 'atlas';
+  state.settings = objectOr(doc.settings, {});
   stateVersion = Number.isSafeInteger(doc.version) ? doc.version : 0;
 }
 
@@ -109,6 +111,7 @@ function snapshotData() {
     game: state.game,
     daily: state.daily,
     graphView: state.graphView === 'list' ? 'list' : 'atlas',
+    settings: state.settings,
   };
 }
 
@@ -400,14 +403,65 @@ export function setStatus(studentId, topicId, status) {
 }
 // Set many topics at once with a single persist + emit (one re-render).
 // Marks activity inline rather than via markActivity(), which would persist and emit a second time.
-export function setStatusBulk(studentId, topicIds, status) {
+// `meta` adds fields to each entry, e.g. { source: 'placement' }; a
+// `meta.updatedAt` sets the timestamp so callers can record it beforehand,
+// and `meta.activity: false` keeps an admin change from counting as a learning day.
+export function setStatusBulk(studentId, topicIds, status, meta = {}) {
   if (!topicIds || !topicIds.length) return;
+  const { activity = true, ...fields } = meta;
   const p = state.progress[studentId] = state.progress[studentId] || {};
-  const now = Date.now();
-  topicIds.forEach(id => { p[id] = { status, updatedAt: now }; });
-  const a = activityOf(studentId);
-  a[dateKeyLocal(now)] = true;
+  const now = fields.updatedAt || Date.now();
+  topicIds.forEach(id => { p[id] = { ...fields, status, updatedAt: now }; });
+  if (activity) activityOf(studentId)[dateKeyLocal(now)] = true;
   persist(); emit();
+}
+
+// ---- Placement (bulk-mark earlier topics mastered, with undo) ----
+// A placement is a parent admin action, not learning: it does not mark the
+// day active. It changes which topics are open, so today's daily choices
+// (offers and picks) are dropped and rebuilt on the next render.
+function forgetTodaysChoices(studentId) {
+  const days = state.daily[studentId];
+  if (days) delete days[dateKeyLocal(Date.now())];
+}
+// Writes one assessment record carrying the changed ids and their previous
+// entries, then marks them mastered with a single persist + emit.
+export function applyPlacement(studentId, { topicIds, title, subject, domain = null, maxAge }) {
+  if (!topicIds || !topicIds.length) return null;
+  const p = state.progress[studentId] || {};
+  const previous = {};
+  topicIds.forEach(id => { previous[id] = p[id] ? { ...p[id] } : null; });
+  // The record is complete before the single persist + emit below.
+  const at = Date.now();
+  const rec = {
+    id: 'r_' + Math.random().toString(36).slice(2, 9), createdAt: at,
+    type: 'assessment', title, note: '',
+    placement: { subject, domain, maxAge, topicIds: [...topicIds], previous, at, undoneAt: null },
+  };
+  state.records[studentId] = state.records[studentId] || [];
+  state.records[studentId].unshift(rec);
+  forgetTodaysChoices(studentId);
+  setStatusBulk(studentId, topicIds, 'mastered', { source: 'placement', updatedAt: at, activity: false });
+  return rec;
+}
+// Revert exactly the ids a placement changed. Topics changed again since the
+// placement are left alone. Returns { reverted, kept } or null.
+export function undoPlacement(studentId, recordId) {
+  const rec = (state.records[studentId] || []).find(r => r.id === recordId);
+  if (!rec || !rec.placement || rec.placement.undoneAt) return null;
+  const p = state.progress[studentId] = state.progress[studentId] || {};
+  let reverted = 0, kept = 0;
+  for (const id of rec.placement.topicIds) {
+    const cur = p[id];
+    if (!cur || cur.source !== 'placement' || cur.updatedAt !== rec.placement.at) { kept++; continue; }
+    const prev = rec.placement.previous[id];
+    if (prev) p[id] = { ...prev }; else delete p[id];
+    reverted++;
+  }
+  rec.placement.undoneAt = Date.now();
+  forgetTodaysChoices(studentId);
+  persist(); emit();
+  return { reverted, kept };
 }
 
 // ---- Records (notes / observations / questions) ----
@@ -425,6 +479,8 @@ export function addRecord(studentId, rec) {
   state.records[studentId] = state.records[studentId] || [];
   const full = { id: 'r_' + Math.random().toString(36).slice(2, 9), createdAt: Date.now(), ...rec };
   state.records[studentId].unshift(full);
+  // Saved evidence counts as activity; written inline so this persists and emits once.
+  activityOf(studentId)[dateKeyLocal(full.createdAt)] = true;
   persist(); emit();
   return full;
 }
@@ -821,6 +877,28 @@ export function setGraphView(mode) {
   state.graphView = next;
   persist();
   emit();
+}
+
+// ---- Child view ----
+// While the child view is open, celebrations stay silent and tests and
+// challenges render without scores. Not persisted: a reload always returns to
+// the grown-up view, which is also the "forgot the PIN" path.
+let childViewOpen = false;
+export function isChildViewOpen() { return childViewOpen; }
+export function setChildViewOpen(open) { childViewOpen = !!open; }
+
+// A four-digit PIN that keeps the child view from closing with one tap. A
+// family-device convenience, not authentication.
+export function parentPin() {
+  // String() so a hand-edited numeric value in the data file still matches.
+  const pin = state.settings?.parentPin;
+  return pin == null || pin === '' ? null : String(pin);
+}
+export function setParentPin(pin) {
+  if (!/^\d{4}$/.test(String(pin))) return false;
+  state.settings = { ...state.settings, parentPin: String(pin) };
+  persist();
+  return true;
 }
 
 // ---- Lesson cache (shared by this family) ----

@@ -12,6 +12,8 @@ export async function openChallenge(topic) {
   const student = store.activeStudent();
   if (!student) { toast('Add a student first', 'error'); return; }
   const meta = SUBJECTS[topic.subject];
+  // In the child view: no best score, no running tally, no result numbers.
+  const childSafe = store.isChildViewOpen();
 
   const body = el(`<div class="p-0">
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
@@ -41,8 +43,10 @@ export async function openChallenge(topic) {
     const wrap = el(`<div class="fade-up text-center py-2">
       <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style="background:${meta.color}18"><i data-lucide="zap" class="w-8 h-8" style="color:${meta.color}"></i></div>
       <p class="font-600 text-lg">Beat the clock!</p>
-      <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">${esc(student.name)} has already mastered this — now a fun stretch. Answer as many as you can in <span class="font-600">${DURATION / 60} minutes</span>. Slightly bigger and trickier than usual, but doable!</p>
-      ${best ? `<p class="text-xs text-ink-faint mt-3">Best so far: ${best.correct}/${best.total} correct</p>` : ''}
+      <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">${childSafe
+        ? `You already know this one, so here is a fun stretch. Answer as many as you can before the timer runs out. Some are a little tricky!`
+        : `${esc(student.name)} has already mastered this — now a fun stretch. Answer as many as you can in <span class="font-600">${DURATION / 60} minutes</span>. Slightly bigger and trickier than usual, but doable!`}</p>
+      ${best && !childSafe ? `<p class="text-xs text-ink-faint mt-3">Best so far: ${best.correct}/${best.total} correct</p>` : ''}
       <button id="go" class="mt-5 inline-flex items-center gap-2 px-5 py-3 rounded-xl text-white font-medium transition-opacity hover:opacity-90" style="background:${meta.color}"><i data-lucide="play" class="w-4 h-4"></i>Start challenge</button>
     </div>`);
     wrap.querySelector('#go').onclick = build;
@@ -80,7 +84,7 @@ export async function openChallenge(topic) {
     stage.innerHTML = '';
     const wrap = el(`<div class="fade-up">
       <div class="flex items-center justify-between mb-4">
-        <span class="text-sm text-ink-soft">Question <span id="qn">1</span> · <span id="score">0</span> right</span>
+        <span class="text-sm text-ink-soft">Question <span id="qn">1</span>${childSafe ? '' : ' · <span id="score">0</span> right'}</span>
         <span id="clock" class="flex items-center gap-1.5 text-lg font-700 tabular-nums" style="color:${meta.color}"><i data-lucide="timer" class="w-4 h-4"></i>${fmt(remaining)}</span>
       </div>
       <div class="h-1.5 rounded-full bg-paper-line overflow-hidden mb-5"><div id="bar" class="h-full rounded-full transition-all" style="width:100%;background:${meta.color}"></div></div>
@@ -112,7 +116,8 @@ export async function openChallenge(topic) {
           if (right) correct++;
           b.classList.add(right ? 'border-brand' : 'border-[#a4473a]');
           b.style.background = right ? '#e4eedf' : '#fbecc4';
-          wrap.querySelector('#score').textContent = correct;
+          const score = wrap.querySelector('#score');
+          if (score) score.textContent = correct;
           opts.querySelectorAll('button').forEach(x => x.disabled = true);
           setTimeout(() => { if (finished || closed) return; idx++; if (idx >= questions.length) finish(); else showQ(); }, 350);
         };
@@ -160,6 +165,7 @@ export async function openChallenge(topic) {
 
   function renderResult(correct, total, answered, seconds, raised, beatBest) {
     stage.innerHTML = '';
+    if (childSafe) return renderChildResult();
     const pct = Math.round((correct / total) * 100);
     const great = pct >= 80;
     const wrap = el(`<div class="fade-up text-center py-4">
@@ -174,6 +180,23 @@ export async function openChallenge(topic) {
       ${raised ? `<div class="mt-4 rounded-xl border border-brand/30 bg-brand-light/50 p-3 text-left flex items-start gap-2.5"><i data-lucide="trending-up" class="w-4 h-4 text-brand-dark shrink-0 mt-0.5"></i><p class="text-xs text-ink-soft">We suggested pitching future <strong>${esc(topic.domain)}</strong> work harder. Review it under <strong>Insights → Adaptive suggestions</strong> — you can approve or decline.</p></div>` : ''}
       <div class="mt-6 space-y-2.5">
         <button id="again" class="w-full px-4 py-2.5 rounded-xl text-white font-medium transition-opacity hover:opacity-90" style="background:${meta.color}">Try again</button>
+        <button id="close" class="w-full px-4 py-2.5 rounded-xl text-ink-soft font-medium hover:bg-paper transition-colors">Close</button>
+      </div>
+    </div>`);
+    wrap.querySelector('#again').onclick = renderIntro;
+    wrap.querySelector('#close').onclick = () => m.close();
+    stage.appendChild(wrap);
+    refreshIcons();
+  }
+
+  // The parent sees the numbers later on the topic page.
+  function renderChildResult() {
+    const wrap = el(`<div class="fade-up text-center py-4">
+      <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4" style="background:${meta.color}18"><i data-lucide="sparkles" class="w-9 h-9" style="color:${meta.color}"></i></div>
+      <p class="font-display text-2xl font-600">All done, well tried!</p>
+      <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">Stretching like that keeps what you know strong.</p>
+      <div class="mt-6 space-y-2.5">
+        <button id="again" class="w-full px-4 py-2.5 rounded-xl text-white font-medium transition-opacity hover:opacity-90" style="background:${meta.color}">Play again</button>
         <button id="close" class="w-full px-4 py-2.5 rounded-xl text-ink-soft font-medium hover:bg-paper transition-colors">Close</button>
       </div>
     </div>`);
