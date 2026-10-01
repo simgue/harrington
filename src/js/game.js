@@ -107,7 +107,12 @@ export function confetti(count = 90) {
   setTimeout(() => layer.remove(), 3200);
 }
 
-function celebrate({ xp, leveledUp, level, badges }) {
+// The child view never shows XP, levels or popups; the XP is still recorded
+// and the parent sees it on the dashboard.
+export function celebrationsAllowed() { return !store.isChildViewOpen(); }
+
+export function celebrate({ xp, leveledUp, level, badges }) {
+  if (!celebrationsAllowed()) return;
   if (badges && badges.length) { confetti(120); beep([660, 880, 1100], 0.12); showBadgePopup(badges[0], badges.length); }
   else if (leveledUp) { confetti(120); beep([523, 659, 784, 1046], 0.11); showLevelPopup(level); }
   else if (xp) { flashXp(xp); beep([740, 988], 0.09); }

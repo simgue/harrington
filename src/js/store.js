@@ -28,6 +28,7 @@ let state = {
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
   daily: {},          // studentId -> { 'yyyy-mm-dd': { offers: {literacy:[topicId], numeracy:[topicId]}, picks: {literacy, numeracy} } }
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
+  settings: {},       // family-wide: { parentPin }
 };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -63,6 +64,7 @@ export async function loadAll() {
       state.game = data.game || {};
       state.daily = data.daily || {};
       state.graphView = data.graphView === 'list' ? 'list' : 'atlas';
+      state.settings = data.settings || {};
     }
   } catch (e) {
     console.warn('load failed', e);
@@ -93,6 +95,7 @@ export function persist() {
         game: state.game,
         daily: state.daily,
         graphView: state.graphView === 'list' ? 'list' : 'atlas',
+        settings: state.settings,
     };
     saveQueue = saveQueue
       .catch(() => {})
@@ -568,6 +571,24 @@ export function setGraphView(mode) {
   state.graphView = next;
   persist();
   emit();
+}
+
+// ---- Child view ----
+// While the child view is open, celebrations stay silent and tests and
+// challenges render without scores. Not persisted: a reload always returns to
+// the grown-up view, which is also the "forgot the PIN" path.
+let childViewOpen = false;
+export function isChildViewOpen() { return childViewOpen; }
+export function setChildViewOpen(open) { childViewOpen = !!open; }
+
+// A four-digit PIN that keeps the child view from closing with one tap. A
+// family-device convenience, not authentication.
+export function parentPin() { return state.settings?.parentPin || null; }
+export function setParentPin(pin) {
+  if (!/^\d{4}$/.test(String(pin))) return false;
+  state.settings = { ...state.settings, parentPin: String(pin) };
+  persist();
+  return true;
 }
 
 // ---- Lesson cache (shared by this family) ----
