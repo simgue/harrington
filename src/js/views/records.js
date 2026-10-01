@@ -3,6 +3,7 @@ import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { openRecorder, audioPlayer, fmtDur } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
+import { aiErrorBlock, gateAi } from '../ai-status.js';
 
 const TYPES = {
   observation: { icon: 'eye', label: 'Observation', color: '#2f6285', hint: 'What you noticed as they worked' },
@@ -90,7 +91,7 @@ function recordCard(r, student, d, navigate) {
     const analyzeWrap = el(`<div class="mt-2.5 pt-2.5 border-t border-paper-line"></div>`);
     const btn = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyze &amp; get advice</button>`);
     btn.onclick = () => openAnalysis(r, student, topic);
-    analyzeWrap.appendChild(btn);
+    analyzeWrap.appendChild(gateAi(btn));
     card.appendChild(analyzeWrap);
   }
 
@@ -151,9 +152,9 @@ function openAnalysis(record, student, topic) {
     };
     stage.appendChild(save);
     refreshIcons();
-  }).catch(() => {
+  }).catch((e) => {
     stage.innerHTML = '';
-    stage.appendChild(el(`<p class="text-sm text-[#a4473a] py-4">Couldn't analyze this right now. Please try again.</p>`));
+    stage.appendChild(aiErrorBlock(e, () => { m.close(); openAnalysis(record, student, topic); }));
   });
 }
 

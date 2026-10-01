@@ -104,15 +104,17 @@ function render(student) {
 
   const nexts = recommendedNext(student.id, 1);
   const nextTopic = nexts[0] ? nexts[0].topic : null;
-  actions.appendChild(bigBtn('sprout', 'Plant something new', nextTopic ? esc(nextTopic.name) : 'Ask a grown-up to choose', { bg: '#e4eedf', deep: '#3f6b3b' },
+  // These three are AI-backed and are left out when no provider is set up.
+  const ai = store.aiAvailable();
+  if (ai) actions.appendChild(bigBtn('sprout', 'Plant something new', nextTopic ? esc(nextTopic.name) : 'Ask a grown-up to choose', { bg: '#e4eedf', deep: '#3f6b3b' },
     () => { if (nextTopic) openMasteryTest(nextTopic.subject, null, nextTopic); else toast('Ask a grown-up to pick something new'); }));
-  actions.appendChild(bigBtn('brain', 'Memory walk', dueRecall ? 'Some are ready for you' : 'Keep it growing', { bg: '#eee8f6', deep: '#5b4a86' },
+  if (ai) actions.appendChild(bigBtn('brain', 'Memory walk', dueRecall ? 'Some are ready for you' : 'Keep it growing', { bg: '#eee8f6', deep: '#5b4a86' },
     () => { if (dueRecall) openDueRecall(); else if (nextTopic) openRecall(nextTopic); else toast('Learn something first, then come back!'); }, dueRecall || 0));
 
   const d = getData();
   const mastered = Object.entries(store.progressFor(student.id)).filter(([id, v]) => v.status === 'mastered' && d.byId.has(id)).map(([id]) => d.byId.get(id));
   const chTopic = mastered.length ? mastered[Math.floor(Math.random() * mastered.length)] : null;
-  actions.appendChild(bigBtn('zap', 'Beat the clock', chTopic ? 'A speedy challenge!' : 'Grow a bloom first', { bg: '#fbecc4', deep: '#8a6412' },
+  if (ai) actions.appendChild(bigBtn('zap', 'Beat the clock', chTopic ? 'A speedy challenge!' : 'Grow a bloom first', { bg: '#fbecc4', deep: '#8a6412' },
     () => { if (chTopic) openChallenge(chTopic); else toast('Grow a bloom to unlock challenges!'); }));
   actions.appendChild(bigBtn('medal', 'My collection', earnedCount ? 'See your treasures' : 'Treasures to find', { bg: '#fbe5de', deep: '#a4473a' }, () => renderBadges(student)));
   main.appendChild(actions);

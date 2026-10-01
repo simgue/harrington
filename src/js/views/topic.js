@@ -13,6 +13,7 @@ import { aiExplain, aiQuiz } from '../ai.js';
 import { openLesson, openActivityDetail } from './lesson.js';
 import { openPrintables } from './printables.js';
 import { recallSectionCard } from './recall.js';
+import { aiErrorBlock, aiUnavailableChip, gateAi } from '../ai-status.js';
 
 export function renderTopic(params, { navigate }) {
   const d = getData();
@@ -71,6 +72,7 @@ export function renderTopic(params, { navigate }) {
   </div>`);
   lessonCta.querySelector('#openlesson').onclick = () => openLesson(t);
   lessonCta.querySelector('#openprint').onclick = () => openPrintables(t);
+  if (!store.aiAvailable()) lessonCta.querySelector('#openlesson').parentElement.replaceWith(aiUnavailableChip());
   root.appendChild(lessonCta);
 
   // Two column layout
@@ -157,8 +159,11 @@ function masterySection(t, student) {
     const chBest = store.challengesFor(student.id, t.id).sort((a,b)=>(b.correct/b.total)-(a.correct/a.total))[0];
     const ch = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white font-medium text-sm transition-colors mb-2" style="background:${meta.color}"><i data-lucide="zap" class="w-4 h-4"></i>Try the challenge quiz</button>`);
     ch.onclick = () => openChallenge(t);
-    body.appendChild(ch);
-    body.appendChild(el(`<p class="text-xs text-ink-faint mb-1">A timed, slightly harder stretch to keep them challenged.${chBest ? ` Best: ${chBest.correct}/${chBest.total}.` : ''}</p>`));
+    // Hidden without a provider; the retake button below already shows the chip.
+    if (store.aiAvailable()) {
+      body.appendChild(ch);
+      body.appendChild(el(`<p class="text-xs text-ink-faint mb-1">A timed, slightly harder stretch to keep them challenged.${chBest ? ` Best: ${chBest.correct}/${chBest.total}.` : ''}</p>`));
+    }
   } else {
     body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-3">Passing this topic's mastery test (${90}%+) marks it <span class="font-600">mastered</span> and counts toward the section check. ${last ? `<span class="text-[#a4473a] font-medium">Last attempt: ${last.pct}%.</span>` : ''}</p>`));
     if (!unlocked) {
@@ -169,7 +174,7 @@ function masterySection(t, student) {
   const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${passed ? 'bg-paper border border-paper-line text-ink-soft hover:border-brand/40' : 'text-white'} font-medium text-sm transition-colors" ${passed ? '' : `style="background:${meta.color}"`}>
     <i data-lucide="file-check-2" class="w-4 h-4"></i>${passed ? 'Retake topic test' : 'Take topic mastery test'}</button>`);
   btn.onclick = () => openMasteryTest(t.subject, null, t);
-  body.appendChild(btn);
+  body.appendChild(gateAi(btn));
 
   // Secondary: manual status (kept for flexibility / offline assessment)
   const details = el(`<details class="mt-3 group">
@@ -219,7 +224,7 @@ function sectionCheckSection(t, student) {
   const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${!canTake ? 'bg-paper border border-paper-line text-ink-faint cursor-not-allowed' : passed ? 'bg-paper border border-paper-line text-ink-soft hover:border-brand/40' : 'text-white'} font-medium text-sm transition-colors" ${canTake && !passed ? `style="background:${meta.color}"` : ''} ${!canTake ? 'disabled' : ''}>
     <i data-lucide="${!canTake ? 'lock' : 'clipboard-check'}" class="w-4 h-4"></i>${passed ? 'Retake section check' : !canTake ? 'Locked until topics mastered' : 'Take section check'}</button>`);
   if (canTake) btn.onclick = () => { if (!student) { toast('Add a student first', 'error'); return; } openMasteryTest(sec.subject, sec); };
-  body.appendChild(btn);
+  body.appendChild(gateAi(btn));
   return section('clipboard-check', 'Section check', body);
 }
 
@@ -351,10 +356,21 @@ function linkRow(l) {
 
 function activitiesSection(t) {
   const body = el(`<div class="space-y-4"></div>`);
+  const ai = store.aiAvailable();
   const mk = (title, icon, items, kind) => {
     const wrap = el(`<div><p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-2 flex items-center gap-1.5"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i>${title}</p><div class="grid sm:grid-cols-2 gap-2.5"></div></div>`);
     const g = wrap.querySelector('div.grid');
     items.forEach(a => {
+      if (!ai) {
+        // Without a provider the idea itself still helps; only the instructions need AI.
+        const idea = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
+          <div class="flex items-center gap-2 mb-1"><i data-lucide="${a.icon}" class="w-4 h-4 text-brand-dark"></i><p class="font-600 text-sm flex-1">${esc(a.title)}</p></div>
+          <p class="text-xs text-ink-soft leading-relaxed mb-2">${esc(a.body)}</p>
+        </div>`);
+        idea.appendChild(aiUnavailableChip());
+        g.appendChild(idea);
+        return;
+      }
       const card = el(`<button class="text-left rounded-xl border border-paper-line bg-paper p-3 card-hover group">
         <div class="flex items-center gap-2 mb-1"><i data-lucide="${a.icon}" class="w-4 h-4 text-brand-dark"></i><p class="font-600 text-sm flex-1">${esc(a.title)}</p><i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-ink-faint group-hover:text-brand-dark"></i></div>
         <p class="text-xs text-ink-soft leading-relaxed clamp-3">${esc(a.body)}</p>
@@ -377,7 +393,7 @@ function aiSection(t) {
     <button id="quiz" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-paper border border-paper-line text-sm font-medium hover:border-brand/40 transition-colors"><i data-lucide="list-checks" class="w-4 h-4"></i>Make a mini-quiz</button>
   </div>`);
   const out = el(`<div class="mt-3"></div>`);
-  body.appendChild(btns);
+  body.appendChild(gateAi(btns));
   body.appendChild(out);
 
   const run = async (fn, label) => {
@@ -388,7 +404,8 @@ function aiSection(t) {
       const text = await fn(t);
       out.innerHTML = `<div class="ai-prose text-sm text-ink-soft bg-paper border border-paper-line rounded-xl p-4">${text}</div>`;
     } catch (e) {
-      out.innerHTML = `<p class="text-sm text-[#a4473a]">Couldn't generate that right now. Please try again.</p>`;
+      out.innerHTML = '';
+      out.appendChild(aiErrorBlock(e, () => run(fn, label), { compact: true }));
     }
     refreshIcons();
   };

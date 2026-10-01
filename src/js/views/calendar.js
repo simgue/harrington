@@ -8,6 +8,7 @@ import { openActivityDetail } from './lesson.js';
 import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';
 import { openDueRecall } from './recall.js';
+import { gateAi, aiUnavailableChip } from '../ai-status.js';
 import { activityIdeas, gameIdeas } from '../resources.js';
 import { MASTERY } from '../mastery.js';
 import { growthIcon, stageForStatus } from '../meadow.js';
@@ -232,6 +233,8 @@ function extraRow(x, active, navigate) {
     else navigate('topic', { id: topic.id });
   };
   row.querySelector('.del').onclick = () => { store.removeExtra(active.id, selectedKey, x.id); navigate('calendar'); };
+  const go = row.querySelector('.go');
+  go.replaceWith(gateAi(go));
   return row;
 }
 
@@ -326,6 +329,10 @@ function dayTopicRow(t, active, navigate) {
   row.querySelector('.lesson').onclick = () => openLesson(t);
   row.querySelector('.test').onclick = () => openMasteryTest(t.subject, null, t);
   row.querySelector('.push').onclick = () => openMoveTopic(t, active, navigate);
+  if (!store.aiAvailable()) {
+    row.querySelector('.test').remove();
+    row.querySelector('.lesson').replaceWith(aiUnavailableChip());
+  }
   return row;
 }
 
@@ -363,6 +370,14 @@ function nextWeekdayKey(dateKey) {
   return keyOf(d);
 }
 
+// Swap a refresher card's launch button for the chip when there is no AI provider.
+function gateCardButton(card) {
+  if (store.aiAvailable()) return;
+  const chip = aiUnavailableChip();
+  chip.classList.add('mt-2');
+  card.querySelector('.go').replaceWith(chip);
+}
+
 function extrasBlock(active, navigate) {
   const d = getData();
   const extras = dailyExtras(active, selectedKey);
@@ -396,6 +411,7 @@ function extrasBlock(active, navigate) {
       <button class="go mt-2 w-full text-sm font-medium text-white rounded-lg py-2 flex items-center justify-center gap-1.5" style="background:${meta.color}"><i data-lucide="file-check-2" class="w-4 h-4"></i>Give refresher quiz</button>
     </div>`);
     el1.querySelector('.go').onclick = () => openMasteryTest(t.subject, null, t);
+    gateCardButton(el1);
     list.appendChild(el1);
   }
 
@@ -417,6 +433,7 @@ function extrasBlock(active, navigate) {
         <button class="go mt-2 w-full text-sm font-medium rounded-lg py-2 flex items-center justify-center gap-1.5 border border-paper-line hover:border-brand/40 transition-colors"><i data-lucide="list-ordered" class="w-4 h-4"></i>Get instructions</button>
       </div>`);
       el2.querySelector('.go').onclick = () => openActivityDetail(at, idea, isGame ? 'game' : 'activity');
+      gateCardButton(el2);
       list.appendChild(el2);
     }
   }
@@ -435,6 +452,7 @@ function extrasBlock(active, navigate) {
       <button class="go mt-2 w-full text-sm font-medium rounded-lg py-2 flex items-center justify-center gap-1.5 border border-paper-line hover:border-brand/40 transition-colors"><i data-lucide="notebook-text" class="w-4 h-4"></i>Open lesson</button>
     </div>`);
     el3.querySelector('.go').onclick = () => openLesson(t);
+    gateCardButton(el3);
     list.appendChild(el3);
   }
 

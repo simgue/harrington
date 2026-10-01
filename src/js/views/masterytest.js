@@ -2,6 +2,7 @@ import { SUBJECTS, getData } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal, fmtDate } from '../ui.js';
 import { aiMasteryTest } from '../ai.js';
+import { aiErrorBlock } from '../ai-status.js';
 import { studentStats } from '../mastery.js';
 import { openChallenge } from './challenge.js';
 import { award } from '../game.js';
@@ -166,11 +167,8 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
       else renderPhysical(stage, subject, student, test, m);
       refreshIcons();
     } catch (e) {
-      console.error(e);
       stage.innerHTML = '';
-      const err = errorBlock(() => renderIntro(stage, subject, student, m, section, topic));
-      stage.appendChild(err);
-      refreshIcons();
+      stage.appendChild(aiErrorBlock(e, () => renderIntro(stage, subject, student, m, section, topic)));
     }
   };
   refreshIcons();
