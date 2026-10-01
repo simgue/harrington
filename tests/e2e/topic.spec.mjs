@@ -218,6 +218,8 @@ test.describe('with the mock AI provider', () => {
     expect(await mockAi.kinds()).toEqual(['explain', 'quiz', 'activity']);
     // Prompts never carry the learner's name.
     for (const entry of await mockAi.log()) expect(entry.prompt).not.toContain('Rowan');
+    // The client asks for aliases ('small', 'gpt-4o'); the server always sends HARRINGTON_AI_MODEL.
+    for (const entry of await mockAi.log()) expect(entry.model).toBe('mock');
   });
 
   test('topic mastery test on screen: pass → mastered → challenge', async ({ page, api, gotoApp, mockAi, shot }) => {
@@ -314,6 +316,46 @@ test.describe('with the mock AI provider', () => {
     await page.reload();
     await expect(page.getByRole('button', { name: /Active recall · 2 due/ })).toBeVisible();
     await shot('dashboard-recall-due', { locator: page.getByRole('button', { name: /Active recall · 2 due/ }) });
+  });
+
+  test('paper test: tick 3 of 4 → not mastered → the miss comes back as spaced practice', async ({ page, api, gotoApp, shot }) => {
+    await gotoApp({ seed: {}, hash: topicHash(ONE.id) });
+    await section(page, 'Topic mastery test').getByRole('button', { name: 'Take topic mastery test' }).click();
+    const m = modal(page);
+    await m.getByRole('button', { name: /On paper \/ hands-on/ }).click();
+    await expect(m).toContainText('Print the test (or observe hands-on tasks)');
+    await m.getByRole('button', { name: 'Create the test' }).click();
+    await expect(m.getByRole('button', { name: 'Print the test & answer key' })).toBeVisible();
+    // The answer key is on screen for the parent.
+    await expect(m.getByText('Correct: 5')).toBeVisible();
+    const boxes = m.locator('#grade input[type="checkbox"]');
+    await expect(boxes).toHaveCount(4);
+    for (const i of [0, 1, 2]) await boxes.nth(i).check();
+    await expect(m.locator('#live')).toHaveText('75%');
+    await shot('paper-test-grading', { full: false });
+    await m.getByRole('button', { name: 'Record result' }).click();
+    await expect(m.getByText('Not quite mastered yet')).toBeVisible();
+    await expect(m.getByText('75%', { exact: true })).toBeVisible();
+    await m.getByRole('button', { name: 'Close' }).click();
+    await expect(section(page, 'Topic mastery test')).toContainText('Last attempt: 75%.');
+    const state = await api.waitForState((s) => Object.keys(s.practice?.[ROWAN] || {}).length === 1);
+    expect(state.tests[ROWAN][0]).toMatchObject({ scope: 'topic', mode: 'physical', pct: 75, passed: false });
+    expect(Object.values(state.practice[ROWAN])[0]).toMatchObject({ q: MASTERY_QUESTIONS[3].q, topicId: ONE.id });
+
+    await nav(page, 'Dashboard').click();
+    await page.getByRole('button', { name: /Spaced practice · 1 due/ }).click();
+    const practice = modal(page);
+    await expect(practice.getByRole('heading', { name: 'Missed questions, retried' })).toBeVisible();
+    await expect(practice.getByText('Retry 1 of 1')).toBeVisible();
+    await expect(practice.getByText(MASTERY_QUESTIONS[3].q)).toBeVisible();
+    await practice.getByRole('button', { name: MASTERY_QUESTIONS[3].answerText, exact: true }).click();
+    await practice.getByRole('button', { name: 'Check answer' }).click();
+    await expect(practice.getByText('Correct!')).toBeVisible();
+    await shot('spaced-practice-correct', { full: false });
+    await practice.getByRole('button', { name: 'Continue' }).click();
+    await expect(practice.getByText('Practice session complete!')).toBeVisible();
+    await practice.getByRole('button', { name: 'Done' }).click();
+    await expect(page.getByRole('button', { name: /^Spaced practice Missed test questions/ })).toBeVisible();
   });
 
   test('section check unlocks once every topic in the section is mastered', async ({ page, api, gotoApp, mockAi, shot }) => {

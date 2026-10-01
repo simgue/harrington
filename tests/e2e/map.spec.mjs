@@ -163,3 +163,13 @@ test('selecting a skill scrolls the page back to the top (finding)', async ({ pa
   // Each selection re-navigates (app.js navigate → scrollTo top).
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });
+
+test('the old timeline route still renders though it is not in the navigation', async ({ page, gotoApp, errors, shot }) => {
+  await gotoApp({ seed: {}, hash: 'timeline' });
+  await expect(page.getByRole('heading', { name: 'Learning Timeline' })).toBeVisible();
+  for (const label of ['Dashboard', 'Calendar', 'Map', 'Records', 'Insights']) {
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: label, exact: true })).not.toHaveAttribute('aria-current', 'page');
+  }
+  await shot('timeline-unlinked', { full: false });
+  expect(errors).toEqual([]);
+});

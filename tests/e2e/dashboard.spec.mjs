@@ -179,3 +179,9 @@ test('a 9-year-old sees older material and the same layout', async ({ page, goto
   await expect(page.locator('#next > button')).toHaveCount(4);
   await shot('dashboard-nine-year-old', { full: false });
 });
+
+test('the preview banner says AI is not connected even when it is (finding)', async ({ page, request, gotoApp }) => {
+  await gotoApp({ seed: {} });
+  expect((await (await request.get('/api/health')).json()).aiConfigured).toBe(true);
+  await expect(page.getByText('Self-hosted preview · family data stays on this server · AI and shared-family features are not connected yet')).toBeVisible();
+});

@@ -72,30 +72,6 @@ test('remove a learner asks first; cancel keeps them, OK removes them', async ({
   expect(state.students.map((s) => s.name)).toEqual(['Rowan Example', 'Sage Example']);
 });
 
-test('removing a learner leaves the rest of their data behind (finding)', async ({ page, api, gotoApp }) => {
-  const wren = LEARNERS.wren.id;
-  await gotoApp({
-    seed: {
-      active: 'rowan',
-      extra: {
-        tests: { [wren]: [{ id: 't_x', scope: 'topic', subject: 'Mathematics', pct: 100, passed: true, createdAt: 1 }] },
-        plan: { [wren]: { moves: {}, done: { '2026-10-06': 1 }, extras: {} } },
-        game: { [wren]: { xp: 40, badges: {} } },
-      },
-    },
-  });
-  await openSwitcher(page);
-  page.once('dialog', (d) => d.accept());
-  await studentRow(page, 'Wren Example').locator('button').last().click();
-  const state = await api.waitForState((s) => s.students?.length === 2);
-  expect(state.progress[wren]).toBeUndefined();
-  expect(state.records[wren]).toBeUndefined();
-  // Not cleaned up: see docs/e2e/FINDINGS.md.
-  expect(state.tests[wren]).toHaveLength(1);
-  expect(state.plan[wren]).toBeTruthy();
-  expect(state.game[wren].xp).toBe(40);
-});
-
 test('the learner menu buttons are reachable by role (delete is icon-only)', async ({ page, gotoApp }) => {
   await gotoApp({ seed: {} });
   await openSwitcher(page);

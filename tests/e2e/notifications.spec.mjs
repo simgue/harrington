@@ -1,5 +1,25 @@
 // The notification bell and the guide.
+import { readFileSync } from 'node:fs';
 import { test, expect, modal, closeModal } from './fixtures.mjs';
+import { CACHE_DIR } from './support/taxonomy.mjs';
+
+// The snapshot curriculum-sync.js would save for the cached taxonomy, minus
+// `drop` topics (to simulate an older copy of the curriculum).
+function snapshot(drop = 0) {
+  const read = (f) => JSON.parse(readFileSync(`${CACHE_DIR}/${f}`, 'utf8'));
+  const topics = read('topics.json').topics;
+  const deps = read('dependencies.json').dependencies;
+  const manifest = read('manifest.json');
+  const kept = topics.slice(drop);
+  return {
+    version: manifest.taxonomyVersion || 'v1',
+    generatedAt: manifest.generatedAt || null,
+    count: kept.length,
+    depCount: deps.length,
+    topicIds: kept.map((t) => t.id),
+    savedAt: 1,
+  };
+}
 
 // The bell has only a title; its accessible name is the unread count (finding),
 // so it cannot be found by role and name.
@@ -55,9 +75,21 @@ test('the bell is named by its unread count, not "Notifications" (finding)', asy
 });
 
 test('empty notification center', async ({ page, gotoApp }) => {
-  await gotoApp({ seed: { extra: { notifications: [], curriculumSnapshot: { version: 'v1', generatedAt: null, count: 1590, depCount: 0, topicIds: [] } } } });
+  await gotoApp({ seed: { extra: { notifications: [], curriculumSnapshot: snapshot() } } });
+  await expect(bell(page)).toHaveText('');
   await bell(page).click();
   await expect(modal(page)).toContainText('No notifications yet.');
+});
+
+test('a curriculum with new topics since the last visit raises a notification', async ({ page, gotoApp, shot }) => {
+  // The taxonomy cache never revalidates, so this only happens if the cached
+  // files are replaced; simulate it with an older saved snapshot.
+  await gotoApp({ seed: { extra: { notifications: [], curriculumSnapshot: snapshot(5) } } });
+  await expect(bell(page)).toContainText('1');
+  await bell(page).click();
+  await expect(modal(page).getByText('Curriculum updated — 5 new topics')).toBeVisible();
+  await expect(modal(page)).toContainText('New material was added in');
+  await shot('curriculum-updated', { full: false });
 });
 
 test('guide modal from the sidebar and tour replay', async ({ page, gotoApp, shot }) => {

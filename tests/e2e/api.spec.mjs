@@ -10,9 +10,11 @@ const test = base.extend({
 
 test('health reports self-hosted mode, AI and taxonomy cache', async ({ request }) => {
   const ai = await (await request.get(`${URLS.appAi}/api/health`)).json();
-  expect(ai).toEqual({ ok: true, mode: 'self-hosted', aiConfigured: true, taxonomyCached: true });
+  expect(ai).toMatchObject({ ok: true, mode: 'self-hosted', aiConfigured: true, taxonomyCached: true });
+  expect(Number.isInteger(ai.stateVersion)).toBe(true);
+  expect(Number.isInteger(ai.stateBytes)).toBe(true);
   const noAi = await (await request.get(`${URLS.appNoAi}/api/health`)).json();
-  expect(noAi).toEqual({ ok: true, mode: 'self-hosted', aiConfigured: false, taxonomyCached: true });
+  expect(noAi).toMatchObject({ ok: true, mode: 'self-hosted', aiConfigured: false, taxonomyCached: true });
 });
 
 test('taxonomy files are served from the cache; unknown names are 404', async ({ request }) => {
@@ -28,19 +30,45 @@ test('taxonomy files are served from the cache; unknown names are 404', async ({
   expect(await unknown.json()).toEqual({ error: 'Unknown taxonomy file' });
 });
 
+const withoutVersion = ({ version, updatedAt, writeId, ...rest }) => rest;
+
 test('family state round-trips and rejects bad bodies', async ({ api, request }) => {
   const state = familyState();
   await api.putState(state);
-  const { state: back } = await api.getState();
-  expect(back).toEqual(state);
+  const { state: back, etag } = await api.getState();
+  expect(withoutVersion(back)).toEqual(state);
+  expect(etag).toBe(`"v${back.version}"`);
 
-  const bad = await request.put(`${URLS.appAi}/api/state`, { headers: { 'Content-Type': 'application/json' }, data: 'not json' });
+  const json = { 'Content-Type': 'application/json', 'If-Match': etag };
+  const bad = await request.put(`${URLS.appAi}/api/state`, { headers: json, data: 'not json' });
   expect(bad.status()).toBe(400);
-  const arr = await request.put(`${URLS.appAi}/api/state`, { headers: { 'Content-Type': 'application/json' }, data: '[1,2]' });
+  const arr = await request.put(`${URLS.appAi}/api/state`, { headers: json, data: '[1,2]' });
   expect(arr.status()).toBe(400);
   expect(await arr.json()).toEqual({ error: 'Request body must be a JSON object' });
   // Still intact.
-  expect((await api.getState()).state).toEqual(state);
+  expect(withoutVersion((await api.getState()).state)).toEqual(state);
+  await api.reset();
+});
+
+test('versioned state (HAR-10): 428 without If-Match, 412 when stale, 403 cross-site', async ({ api, request }) => {
+  await api.putState(familyState());
+  const { state, etag } = await api.getState();
+  const url = `${URLS.appAi}/api/state`;
+  const missing = await request.put(url, { headers: { 'Content-Type': 'application/json' }, data: state });
+  expect(missing.status()).toBe(428);
+
+  const ok = await request.put(url, { headers: { 'Content-Type': 'application/json', 'If-Match': etag }, data: { ...state, graphView: 'list' } });
+  expect(ok.status()).toBe(204);
+  expect(ok.headers().etag).toBe(`"v${state.version + 1}"`);
+
+  const stale = await request.put(url, { headers: { 'Content-Type': 'application/json', 'If-Match': etag }, data: state });
+  expect(stale.status()).toBe(412);
+  const current = await stale.json();
+  expect(current.version).toBe(state.version + 1);
+  expect(current.graphView).toBe('list');
+
+  const crossSite = await request.put(url, { headers: { 'Content-Type': 'application/json', 'If-Match': `"v${current.version}"`, 'Sec-Fetch-Site': 'cross-site' }, data: state });
+  expect(crossSite.status()).toBe(403);
   await api.reset();
 });
 
