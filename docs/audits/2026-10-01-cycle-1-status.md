@@ -11,7 +11,8 @@ items; this document is the narrative snapshot.
 independent reviewer against the ticket's acceptance criteria, and merged only when CI
 was green and the review verdict was MERGE. Review findings were sent back to the
 implementing session as change lists and fixed before merge. Status as of main at
-`68a94c9` (2 October 2026, 13:45 UTC), the end of wave 3.
+`6edd7f3` (2 October 2026, 18:15 UTC): wave 3, its follow-ups, the end-to-end harness and
+the dead-code prune are all merged.
 
 ---
 
@@ -29,18 +30,26 @@ implementing session as change lists and fixed before merge. Status as of main a
   on-ramp (HAR-18) and the skill-tree scroll and selection fix (HAR-21) are on main.
   Every one went through an independent review, a change list and a re-verification
   before merge. The unit suite is at 215 tests.
-- **Two pull requests remain open from the cycle.** The end-to-end Playwright harness
-  (PR #20, 100 browser tests, screenshots and recorded walkthroughs) is being re-synced to
-  the final main and lands last, and PR #27 is a tiny HAR-18 follow-up (bulk "mark
-  mastered" must keep the placement source). The dead-code prune (HAR-23) started from the
-  final main at 13:42 UTC and has no pull request yet.
+- **The cycle is closed on main.** After wave 3 came four small follow-ups (PR #27 bulk
+  "mark mastered" keeps the placement source; PR #29 a calendar hotfix; PR #30 a learner-
+  switch edge in the skill tree; PR #31 one privacy story across README, SECURITY and both
+  guides), then the end-to-end Playwright harness (PR #20: 103 browser tests, 95
+  screenshots, recorded walkthroughs, an `e2e` job on every push to main) and the HAR-23
+  dead-code prune (PR #28: four unreachable views and 48 dead exports removed, a checker in
+  CI). Main is `6edd7f3` with 217 unit tests and 103 browser tests.
+- **One regression reached main and was caught the same afternoon.** HAR-18 removed a
+  calendar import that HAR-20, merged just before it, had started using; both merges were
+  textually clean and the unit suite never renders the calendar, so the Calendar page was
+  blank without a provider for about ninety minutes until the launch-video scout found it.
+  The hotfix added a source-level test for that class of bug, and the browser suite now runs
+  on main, which is the real guard.
 - **Three decisions and one command are owed by the family** (section 5): the AI
   provider, the device topology, the placement workbook questions, and deleting the
   upstream telemetry shim from `src/index.html`.
 
 | Audit question | 27 September | 2 October |
 | --- | --- | --- |
-| Tests | 40 | 215 unit tests on main, plus 100 end-to-end browser tests in PR #20 |
+| Tests | 40 | 217 unit tests and 103 end-to-end browser tests on main |
 | Microphone left on after Escape or backdrop | Broken | Fixed (HAR-8) |
 | Challenge timer runs on after dismissal, phantom result | Broken | Fixed (HAR-8) |
 | "Review answers → Back" re-saves and re-awards | Broken | Fixed (HAR-9) |
@@ -104,7 +113,7 @@ self-hosting work merged on 5 September).
 | HAR-15 Child view containment | [#16](https://github.com/simgue/harrington/pull/16) | **Merged** (838b958) | MERGE. Containment survived Tab, Shift+Tab, programmatic focus, hit-tests, keys, hash changes and history navigation; the parent shell is inert while the child view is open; recall, challenge and test end score-free. |
 | HAR-14 Placement and manual status | [#17](https://github.com/simgue/harrington/pull/17) | **Merged** (add6a04) | FIX-FIRST on stale daily choices after a placement, fixed and re-verified, then MERGE. The prerequisite closure matched an independent implementation across a 72-case subject and age sweep; placement no longer counts as a learning day. |
 | HAR-13 Honest no-AI mode | [#18](https://github.com/simgue/harrington/pull/18) | **Merged** (c23d6fb) | FIX-FIRST on a calendar layout defect (extra-practice rows lost their title when the chip replaced the button), fixed; two ungated recall paths and the stray `#timeline` route closed; re-verified on the merged head with the child-view and Regenerate resolutions, then MERGE. |
-| End-to-end harness and walkthrough | [#20](https://github.com/simgue/harrington/pull/20) | Open; re-syncing to the final main | FIX-FIRST twice (a child-view screenshot that showed parent scores; the beacon path counted as covered but untested), both fixed and re-verified: 100 tests pass on its own head after the HAR-17 and HAR-22 re-sync. It then drifted as wave 3 landed under it (birth-year bounds, new dashboard cards, calendar breaks), so it merges last after one more pass. Playwright 1.56 against the real server with a deterministic mock AI provider; api, desktop, no-ai, mobile and walkthrough projects; JPEG screenshots committed; videos as CI artifacts; `docs/e2e/` README, WALKTHROUGH, COVERAGE and FINDINGS (18 findings; F1, F5 and F11 are now fixed on main). |
+| End-to-end harness and walkthrough | [#20](https://github.com/simgue/harrington/pull/20) | **Merged** (9ca03a8) | FIX-FIRST twice (a child-view screenshot that showed parent scores; the beacon path counted as covered but untested), both fixed; then re-synced three times as wave 3 landed under it and merged after a final diff review with no loosened assertion. Playwright 1.56 against the real server with a deterministic mock AI provider; api, desktop, no-ai, ai-unreachable, mobile and walkthrough projects; 103 tests; 95 JPEG screenshots committed; videos as CI artifacts; `docs/e2e/` README, WALKTHROUGH, COVERAGE and FINDINGS (19 findings logged during the work, 9 of them fixed on main by the wave-3 tickets and the hotfix). |
 
 Merge order was HAR-16, HAR-15, HAR-14, then HAR-13, because HAR-13 overlaps the
 other three in the child view and the Records card. Each merge was preceded by a
@@ -123,7 +132,8 @@ and green CI.
 | HAR-20 Cache hygiene, recall persistence, open cached | [#26](https://github.com/simgue/harrington/pull/26) | **Merged** (8311b03) | FIX-FIRST on two regressions (a regenerate result that could not render blanked the modal and overwrote the good cache; regenerating recall cards left orphaned due state). Both fixed: the previous content stays with one Try again, recall state resets, orphans are dropped. Recall cards now persist. |
 | HAR-21 Skill-tree scroll and selection | [#23](https://github.com/simgue/harrington/pull/23) | **Merged** (68a94c9) | MERGE, with a nit round (scoped scroll restore, same-frame restore, quest-log reveal only when off screen, keyboard focus, behavioral navigate tests) verified live at 1440 and 390. Open product call: on phones most taps scroll the page to reveal the quest log. |
 | HAR-22 Learner editing | [#21](https://github.com/simgue/harrington/pull/21) | **Merged** (17fc3c5) | FIX-FIRST on a stale plan after an age change and loose field validation; fixed. Month-aware ages, palette-checked colors, import validation. |
-| HAR-23 Dead-code prune | — | **In development** from the final main (13:42 UTC) | Lands after the end-to-end harness so the harness can catch any accidental behavior change. |
+| HAR-23 Dead-code prune | [#28](https://github.com/simgue/harrington/pull/28) | **Merged** (6edd7f3) | FIX-FIRST on documentation only (README, SECURITY, CONTRIBUTING and the POC note still described the deleted Helper and Commune code as retained), fixed. The prune itself was verified byte-identical in behavior: prompts, map layout and screenshots unchanged, 32 route captures clean. Adds `scripts/dead-code.mjs` and a CI test that fails on an unreachable module or a used-but-unimported name. |
+| Follow-ups | [#27](https://github.com/simgue/harrington/pull/27), [#29](https://github.com/simgue/harrington/pull/29), [#30](https://github.com/simgue/harrington/pull/30), [#31](https://github.com/simgue/harrington/pull/31) | **Merged** | #27: bulk "mark mastered" keeps placed entries (found by the HAR-18 re-verification). #29: the calendar import hotfix plus a guard test. #30: a learner switch made away from the graph no longer drops the new learner's selection (found by a GitHub review bot on #23). #31: one privacy story on names, notes and age across README, SECURITY, GUIDE.md and the in-app Guide, checked against what each prompt sends. |
 | HAR-24 Evidence-checklist mastery and level-set workbook | — | Queued | The non-AI way to pass a section; needs the family's answers in section 5. |
 | HAR-25 Multi-device deployment | — | Queued | See section 5. |
 | HAR-26 AI provider decision and first experiment | — | Queued; unblocked now that HAR-13 and HAR-19 are in | See section 5. |
@@ -242,6 +252,11 @@ repository description, which still describes Homestead.
   scope was added silently to a pull request.
 - Every FIX-FIRST verdict was re-verified by a second independent run on the new head
   before merge; four wave-3 pull requests needed two rounds, one needed three.
-- Delivery sessions and reviewers were killed twice by account rate limits (02:17 and
-  07:40 UTC) and relaunched; scheduled wake-ups into busy sessions were occasionally lost
-  and had to be re-fired by hand, so every routed change list is now verified as delivered.
+- Delivery sessions and reviewers were killed three times by account rate limits (02:17,
+  07:40 and 15:10 UTC) and relaunched; scheduled wake-ups into busy sessions were
+  occasionally lost and had to be re-fired by hand, so every routed change list is now
+  verified as delivered.
+- The one regression that reached main (the calendar import) came from two textually clean
+  merges with a semantic overlap. From now on every merge candidate gets a browser smoke in
+  the integration worktree as well as the unit suite, and the end-to-end job on main is the
+  backstop.
