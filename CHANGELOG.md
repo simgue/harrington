@@ -6,6 +6,11 @@ tagged a release yet; everything below is on `main`.
 
 ## [Unreleased]
 
+### Fixed
+- The Calendar page rendered blank without an AI provider (`gateAi` was
+  called but not imported); a source test now checks every file that uses an
+  `ai-status.js` helper imports it.
+
 ### Changed
 - Calendar follows the family's home days and breaks (set under Home days &
   breaks); rest days schedule nothing. Unmastered literacy and numeracy topics
