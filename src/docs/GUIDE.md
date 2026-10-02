@@ -178,9 +178,10 @@ report curriculum changes.
   only on this computer by default.
 - Nothing leaves your home unless you configure an AI provider. If you do,
   lessons, tests and cards send it topic text and an age band; discussion
-  analysis and progress reviews also send your notes, transcripts and your
-  child's name until that is fixed (HAR-19). The live transcript is the exception described
-  above.
+  analysis and progress reviews also send the transcript and, only when you
+  tick "Include my notes in this request", your notes. Learner names are
+  replaced with "the child" before any request is built. The live transcript
+  is the exception described above.
 - There is no sign-in or encryption yet. Do not expose Harrington to the public
   internet.
 
