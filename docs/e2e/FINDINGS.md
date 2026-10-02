@@ -1,9 +1,9 @@
 # End-to-end findings
 
 What the e2e suite found while it was being written (1 and 2 October 2026). The
-suite was last run against `main` at `55c996c`, which includes HAR-10, HAR-13,
-HAR-14, HAR-15, HAR-16, HAR-17 and HAR-22. Nothing here is fixed in this pull request; each item names
-the spec that shows it.
+suite was last run against `main` at `8665fdc`, which includes HAR-10, HAR-13
+through HAR-22 and the #27 and #29 follow-ups. Nothing here is fixed in this pull request;
+each item names the spec that shows it.
 
 A test that pins a defect has **(finding F<n>)** in its title and asserts
 today's behavior, so it fails as soon as the defect is fixed; flip the
@@ -14,8 +14,9 @@ Severity: **High** affects data, privacy or the child view's promise;
 accessibility.
 
 Some findings were fixed by pull requests that merged while the suite was
-being written: three from the first run, and F7 and F10, which HAR-13 (#18,
-honest no-AI mode) fixed. They are listed under
+being written: three from the first run, F7 and F10 (HAR-13, #18), F2
+(HAR-19, #24), F5, F8 and F9 (HAR-18, #25), F11 (HAR-21, #23), and F19, a
+regression from a merge that #29 fixed within the hour. They are listed under
 [Fixed since the audit](#fixed-since-the-audit); their entries below are kept
 so the numbers stay stable.
 
@@ -24,16 +25,16 @@ so the numbers stay stable.
 | # | Finding | Severity | Spec | Pending fix |
 | --- | --- | --- | --- | --- |
 | F1 | Recall cards are never cached: the server rejects them | High | `api`, `topic` | |
-| F2 | Discussion analysis and progress review send the learner's name to the AI provider | High | `records`, `insights` | HAR-19 |
+| ~~F2~~ | ~~Discussion analysis and progress review send the learner's name to the AI provider~~ | High | `records`, `insights` | Fixed by HAR-19 |
 | F3 | A 3-year-old gets no daily choices and an "everything is mastered" message | Medium | `dashboard` | |
 | F4 | The preview banner says AI is not connected even when it is | Medium | `dashboard` | |
-| F5 | Day one offers a refresher quiz on a topic never taught | Medium | `dashboard`, `calendar` | |
+| ~~F5~~ | ~~Day one offers a refresher quiz on a topic never taught~~ | Medium | `dashboard`, `calendar` | Fixed by HAR-18 |
 | F6 | Export and Import are not reachable on a phone | Medium | `mobile` | |
 | ~~F7~~ | ~~A failed "Generate a different version" leaves a spinner forever~~ | Medium | `topic` | Fixed by HAR-13 |
-| F8 | "Extra practice" on the calendar opens a lesson | Medium | `calendar` | |
-| F9 | "Refreshers change each day automatically" is a button that does nothing | Low | `calendar` | |
+| ~~F8~~ | ~~"Extra practice" on the calendar opens a lesson~~ | Medium | `calendar` | Fixed by HAR-18 |
+| ~~F9~~ | ~~"Refreshers change each day automatically" is a button that does nothing~~ | Low | `calendar` | Fixed by HAR-18 |
 | ~~F10~~ | ~~Activity instructions failure says "Couldn't create the lesson"~~ | Low | `ai-unreachable` | Fixed by HAR-13 |
-| F11 | Selecting a skill scrolls the page to the top | Low | `map` | |
+| ~~F11~~ | ~~Selecting a skill scrolls the page to the top~~ | Low | `map` | Fixed by HAR-21 |
 | F12 | Recent growth lists topics set back to "Not started" | Low | `topic` | |
 | F13 | Notification bell has no accessible name | Low | `notifications` | |
 | F14 | Icon-only delete and remove buttons have no accessible name | Low | `learners`, `records`, `calendar` | |
@@ -41,6 +42,7 @@ so the numbers stay stable.
 | F16 | The child-view PIN is stored and exported in plain text | Low | `data-safety` | |
 | F17 | A losing tab confirms a change, then discards it; a tab's own boot write can raise the conflict | Medium | `data-safety` | |
 | F18 | "Plant something new" in the child view offers a topic already in progress | Low | `child-view` | |
+| ~~F19~~ | ~~Without an AI provider the Calendar does not render (`gateAi is not defined`)~~ | High | `no-ai` | Fixed by #29 |
 
 Verified fixed since the 27 September audit (the suite now guards them):
 see [the end of this page](#fixed-since-the-audit).
@@ -73,7 +75,16 @@ Fix idea: wrap the cards (`{ cards }`) when caching and unwrap on read.
 
 ## F2. Discussion analysis and progress review send the learner's name to the AI provider
 
-**High.** `records.js:166`, `recordings.js:155` and `insights.js:139` pass the
+**Fixed by HAR-19 (#24).** Every learner's name (and its possessive) is
+replaced with "the child" before a discussion analysis or progress review
+leaves, and parent notes go out only when "Include my notes in this request"
+is ticked (unchecked by default; Analyze waits for it on a note-only record).
+`records.spec.mjs` and `insights.spec.mjs` put learner names inside the notes
+and the transcript and assert that no learner's name reaches the mock
+provider, that the note stays home without the opt-in, and that it arrives
+as "the child …" with it.
+
+Original report: **High.** `records.js:166`, `recordings.js:155` and `insights.js:139` pass the
 learner's real name into the prompt (`studentName`), and the progress review
 also sends the parent's record notes. The README says "Never send a real
 child's name into a model prompt"; the guide already admits this until HAR-19.
@@ -83,9 +94,8 @@ Lessons, tests, explain, quiz and activity prompts are clean (asserted in
 Repro: with a provider, Records › a discussion › **Analyze & get advice**;
 the provider receives "…between the parent and Rowan Example (age 6)…".
 
-Shown by `records.spec.mjs` › "analyze a discussion… (finding F2)" and
-`insights.spec.mjs` › "generate a progress review; the learner name goes
-into the prompt (finding F2)", both reading the mock provider's request log.
+It was pinned by the `records.spec.mjs` and `insights.spec.mjs` tests marked
+(finding F2), now flipped as above.
 
 ## F3. A 3-year-old gets no daily choices and an "everything is mastered" message
 
@@ -113,16 +123,21 @@ even when it is (finding F4)".
 
 ## F5. Day one offers a refresher quiz on a topic never taught
 
-**Medium.** With fewer than three mastered topics, `dailyExtras`
+**Fixed by HAR-18 (#25).** Refreshers and activities now come only from
+mastered topics. With nothing mastered the dashboard has no refresher stop
+and the calendar says "Refresher quizzes and activities start once … has
+mastered a topic."; with one topic mastered both are about it
+(`calendar.spec.mjs`, `dashboard.spec.mjs`).
+
+Original report: **Medium.** With fewer than three mastered topics, `dailyExtras`
 (`scheduler.js:140`) draws the "refresher" from any topic at or below the
 learner's age. A brand-new 6-year-old's Today's path shows "Refresher quiz ·
 Coping with Life Changes — Keep an earlier Personal & Social Development
 skill sharp", and the calendar shows a "REFRESHER QUIZ" card the same way.
 (Audit §4.4, still present.)
 
-Shown in `screenshots/dashboard/01-dashboard-six-year-old.jpg` and asserted
-present by the `dashboard.spec.mjs` and `calendar.spec.mjs` tests marked
-(finding F5).
+It was pinned by the `dashboard.spec.mjs` and `calendar.spec.mjs` tests
+marked (finding F5), now flipped.
 
 ## F6. Export and Import are not reachable on a phone
 
@@ -154,19 +169,23 @@ failing leaves a spinner (finding F7)", now flipped as above.
 
 ## F8. "Extra practice" on the calendar opens a lesson
 
-**Medium.** An extra added as "Extra practice" opens the full lesson, the same
+**Fixed by HAR-18 (#25).** It now opens spaced practice ("All caught up!"
+when nothing is due), asserted in `calendar.spec.mjs`.
+
+Original report: **Medium.** An extra added as "Extra practice" opens the full lesson, the same
 as "Re-teach lesson" (`calendar.js:229`). There is no practice flow behind it.
 
-Shown by `calendar.spec.mjs` › "add an extra of each kind, open one, remove
-one; Extra practice opens a lesson (finding F8)".
+It was pinned by `calendar.spec.mjs`, now flipped.
 
 ## F9. "Refreshers change each day automatically" is a button that does nothing
 
-**Low.** The footer of the calendar's refresher block is a `<button>`
+**Fixed by HAR-18 (#25).** The button is gone (asserted in
+`calendar.spec.mjs`).
+
+Original report: **Low.** The footer of the calendar's refresher block is a `<button>`
 (`calendar.js:442`) with no handler. Clicking it changes nothing.
 
-Shown by `calendar.spec.mjs` › "refresher, activity and stretch cards open
-their tools; the footer button does nothing (finding F9)".
+It was pinned by `calendar.spec.mjs`, now flipped.
 
 ## F10. Activity instructions failure says "Couldn't create the lesson"
 
@@ -187,12 +206,15 @@ It was shown by the pre-HAR-13 `no-ai.spec.mjs`.
 
 ## F11. Selecting a skill scrolls the page to the top
 
-**Low.** Every node click in the skill tree calls `navigate()`, which calls
+**Fixed by HAR-21 (#23).** Selecting a skill keeps the page's scroll, the
+selection is in the address (`?skill=`), and "Back to graph" from the topic
+page returns to the same skill, selected, at the same scroll (`map.spec.mjs`).
+
+Original report: **Low.** Every node click in the skill tree calls `navigate()`, which calls
 `window.scrollTo({ top: 0 })` (`app.js:25`). The tree's own scroll position
 is restored, but the page jumps up. (Audit §4.3.)
 
-Shown by `map.spec.mjs` › "selecting a skill scrolls the page back to the top
-(finding F11)".
+It was pinned by `map.spec.mjs`, now flipped.
 
 ## F12. Recent growth lists topics set back to "Not started"
 
@@ -287,6 +309,30 @@ read the Plant something new button.
 Shown by `child-view.spec.mjs` › "\"Plant something new\" offers a topic
 already in progress (finding F18)".
 
+## F19. Without an AI provider the Calendar does not render (`gateAi is not defined`)
+
+**Fixed by #29**, which restored the import and added
+`tests/ai-status-imports.test.mjs` so a dropped import fails the unit tests.
+`no-ai.spec.mjs` checks the calendar's chips again.
+
+Original report: **High.** A regression on `main` from the HAR-18 merge (`428e9ea`). HAR-20
+(#26) made the calendar's topic rows call `gateAi(lesson, { cachedKey })`
+(`src/js/views/calendar.js:370`) and imported it; HAR-18's merge resolved the
+import line to its own version, `import { aiUnavailableChip } from
+'../ai-status.js';` (`calendar.js:12`), which drops `gateAi`. With a provider
+configured the branch is never reached. Without one, any day with a
+scheduled topic throws `ReferenceError: gateAi is not defined`: clicking
+**Calendar** changes the URL to `#calendar` but the previous screen stays,
+so a family without AI cannot open the calendar at all. The fix is adding
+`gateAi` back to that import.
+
+Repro: run the server without `HARRINGTON_AI_BASE_URL`, add a learner and
+click **Calendar**; the console shows the error.
+
+It was pinned by a `no-ai.spec.mjs` test marked (finding F19), now replaced
+by the calendar checks in "quest log, calendar, insights, records and
+recordings show chips".
+
 ---
 
 ## Fixed since the audit
@@ -305,6 +351,12 @@ The suite confirms these audit items now behave, and fails if they regress:
 | Topic page scrolled sideways on a phone (first run's F7) | HAR-14 moved the growth chip into a wrapping status row; every route now fits 390 px | `mobile` |
 | Recordings folder labeled the unfiled group with a topic; manual "Recording" records had no audio (first run's F11) | HAR-16: groups by section, then topic, then "Not linked to a section"; the form no longer offers "Recording"; analysis from Records is saved on the record; records count toward the day's activity | `records` |
 | No placement; mastery near 0% for older learners | HAR-14 placement from the learner menu or a subject card, with prerequisites, and undo from Records | `placement` |
+| Selecting a skill scrolled the page to the top (F11) | HAR-21: scroll and selection kept, also on return from the topic page | `map` |
+| No calendar without a provider after a merge (F19) | #29 restored the import | `no-ai` |
+| Discussion analysis and progress review sent the learner's name (F2) | HAR-19: names become "the child" before sending; notes need an opt-in | `records`, `insights` |
+| Day-one refresher on untaught material (F5) | HAR-18: refreshers and activities only from mastered topics | `dashboard`, `calendar` |
+| Calendar "Extra practice" opened a lesson (F8) | HAR-18: opens spaced practice | `calendar` |
+| Dead "Refreshers change each day automatically" button (F9) | HAR-18 removed it | `calendar` |
 | A failed lesson regenerate left a spinner (F7) | HAR-13: the plain-language error block with Try again | `topic` |
 | Activity instructions failure reused the lesson's wording (F10) | HAR-13: chips with no provider; one set of messages (unreachable, timeout, provider error) everywhere | `no-ai`, `ai-unreachable` |
 | AI buttons failed with "Couldn't … right now" when no provider was set up | HAR-13: "Needs a local AI provider" chips linking to the README; the dashboard and child view hide what needs AI | `no-ai` |

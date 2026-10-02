@@ -65,19 +65,35 @@ test('subject chips, stats, recommended next and a locked final test', async ({ 
 });
 
 test.describe('with the mock AI provider', () => {
-  test('generate a progress review; the learner name goes into the prompt (finding F2)', async ({ page, gotoApp, mockAi, shot }) => {
-    await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'learning' }, records: [{ type: 'observation', title: 'Counted to 12', note: 'Skipped 8.', topicId: TOPICS.oneToOne.id }] } });
+  test('progress review: no learner name reaches the provider, and notes only when the parent opts in (F2, fixed by HAR-19)', async ({ page, gotoApp, mockAi, shot }) => {
+    // The note names two learners; both must be replaced before anything leaves.
+    await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'learning' }, records: [{ type: 'observation', title: 'Counted to 12', note: 'Rowan Example skipped 8; Sage Example helped.', topicId: TOPICS.oneToOne.id }] } });
     await nav(page, 'Insights').click();
     await mockAi.clear();
     const review = page.locator('div.rounded-2xl', { has: page.getByRole('heading', { name: 'Progress review' }) });
+    await expect(review).toContainText('Names of learners in this app are replaced with “the child” before this is sent.');
+    const include = review.getByRole('checkbox', { name: 'Include my notes in this request' });
+    await expect(include).not.toBeChecked();
+
+    // Without the opt-in the note stays home.
     await review.getByRole('button', { name: 'Generate' }).click();
     await expect(review).toContainText(MARKERS.review);
     await expect(review).toContainText('What to do next');
     await shot('insights-progress-review', { locator: review });
-    const [entry] = await mockAi.log();
+    let [entry] = await mockAi.log();
     expect(entry.kind).toBe('review');
-    expect(entry.prompt).toContain('Rowan Example');
-    expect(entry.prompt).toContain('Skipped 8.');
+    expect(entry.prompt).not.toContain('skipped 8');
+
+    // With it, the note goes out with the names replaced.
+    await mockAi.clear();
+    await include.check();
+    await review.getByRole('button', { name: 'Generate' }).click();
+    await expect(review).toContainText(MARKERS.review);
+    [entry] = await mockAi.log();
+    expect(entry.prompt).toContain('the child skipped 8; the child helped.');
+    for (const { prompt } of await mockAi.log()) {
+      for (const { name } of Object.values(LEARNERS)) expect(prompt).not.toContain(name.split(' ')[0]);
+    }
   });
 
   test('final test unlocks when every section is passed; passing offers bulk mastery and a certificate', async ({ page, gotoApp, shot }) => {

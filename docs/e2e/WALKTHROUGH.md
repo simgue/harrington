@@ -129,7 +129,8 @@ From top to bottom:
   map, and the child view button.
 - **Today's path**: a literacy and a numeracy choice with two options each
   (the child picks one; the arrow opens the topic), today's topics **from the
-  calendar**, a **refresher quiz**, and **Record what happened** (Voice or
+  calendar**, a **refresher quiz** once something is mastered (HAR-18), and
+  **Record what happened** (Voice or
   Note). Once the child picks, the lane asks "How did it go?" with its own
   Voice and Note; their forms offer an opt-in "Mark curriculum coverage for
   …" checkbox, and a record that claims it turns the lane's line into
@@ -175,8 +176,6 @@ interest chips (suggested and custom) and the note are saved per learner.
 - A 3-year-old gets no daily choices and no stepping stones, and the card
   says "Everything available is mastered" (F3).
 - The yellow banner says AI is "not connected yet" even when it is (F4).
-- On day one the refresher quiz is about a topic never taught (F5): above,
-  "Coping with Life Changes" for a learner with nothing mastered.
 - "0 of 1590 topics" is not formatted like the map's "1,590" (F15).
 
 ---
@@ -273,8 +272,9 @@ saves a linked record; Mark as learning turns the node into a bud and shows on
 the dashboard; Mark as mastered blooms it and unlocks the next skill; list
 drill-down and breadcrumbs; the view choice survives a reload. The old
 `#timeline` route was removed by HAR-13 and now opens the dashboard.
-
-**Caveats.** Every selection scrolls the page back to the top (F11).
+HAR-21: selecting a skill keeps the page where it is, the selection is in the
+address, and Back to graph from the topic page returns to the same skill,
+selected, at the same scroll.
 
 ---
 
@@ -389,8 +389,8 @@ longer leaves a spinner (F7, fixed).
 
 ## 8. Calendar
 
-**Purpose.** A weekday plan from the learner's start date, which the parent
-can bend.
+**Purpose.** A plan of home learning days from the learner's start date,
+which the parent can bend.
 **How to reach it.** Calendar in the navigation, or "Open calendar" on the
 dashboard.
 
@@ -399,22 +399,35 @@ dashboard.
 A Monday-first month grid shows each day's topics (dots on a phone), extras
 ("+n") and done days. The day panel lists **New today** (each with Lesson,
 Test and Move), **Extra practice** added by the parent, and **Daily
-refreshers & extras**: a refresher quiz, an activity or game, and a stretch
-topic.
+refreshers & extras**: a refresher quiz and an activity or game about a
+mastered topic (before anything is mastered, a line says they start once
+something is), and a stretch topic. **Extra practice** opens spaced
+practice.
+
+**Home days & breaks** (HAR-18) sets the family's learning weekdays (Monday
+to Friday by default) and named breaks. Other weekdays and breaks are rest
+days: nothing is scheduled, there is no Mark done and no refreshers, and the
+track picks up on the next home day. A new learner's first days start with
+an on-ramp of earlier foundation topics.
+
+![Home days and breaks](screenshots/calendar/02-calendar-home-days-and-breaks.jpg)
 
 | Add an extra | Extras on a day | Move a topic |
 | --- | --- | --- |
-| ![Add extra](screenshots/calendar/02-calendar-add-extra.jpg) | ![Extras](screenshots/calendar/03-calendar-extras.jpg) | ![Move](screenshots/calendar/04-calendar-move-topic.jpg) |
+| ![Add extra](screenshots/calendar/03-calendar-add-extra.jpg) | ![Extras](screenshots/calendar/04-calendar-extras.jpg) | ![Move](screenshots/calendar/05-calendar-move-topic.jpg) |
 
 **What the tests assert** (`calendar.spec.mjs`): the start date and month;
-previous, next and Today; weekend and outside-track days; changing the start
-date reschedules; Mark done and reopen; each of the four extra kinds (and the
-"pick a topic first" guard), the day's "+4", removing one; moving a topic to
-the next school day and to a chosen date; every card's button opens its tool.
+previous, next and Today; rest (weekend) and outside-track days; changing the
+start date reschedules; Mark done and reopen; each of the four extra kinds
+(and the "pick a topic first" guard), the day's "+4", removing one, Extra
+practice opening spaced practice; moving a topic to the next home day and to
+a chosen date; no refresher before anything is mastered and refresher and
+activity about the mastered topic after; every card's button opens its tool
+and the old dead footer button is gone; Wednesdays off plus a "Fall break"
+turn today into a rest day, the break days read "Break · Fall break", today's
+topic moves to Thursday, and the settings are saved.
 
-**Caveats.** "Extra practice" opens a lesson (F8). The "Refreshers change
-each day automatically" line is a button that does nothing (F9). Day one's
-refresher is untaught material (F5).
+**Caveats.** The on-ramp order is not asserted.
 
 ---
 
@@ -429,7 +442,9 @@ Records are an Observation, Question, Discussion or Assessment, with an
 optional linked topic, title, notes and a 1–5 confidence rating. The list
 filters by type. Discussions and recordings offer **Analyze & get advice**
 (AI); the analysis is saved on the record and can also be saved as an advice
-record.
+record. Learner names are replaced with "the child" before anything is sent,
+and the parent's notes go only when "Include my notes in this request" is
+ticked (HAR-19); a note-only record's Analyze button waits for that box.
 
 | New record | Records |
 | --- | --- |
@@ -459,9 +474,12 @@ active. With Chromium's fake microphone: start, a four-second take, stop,
 preview, link, transcript, save, the audio stored on the server with an audio
 content type and played back. Escape mid-take asks before discarding. Folder
 grouping, playback and delete (which removes the audio file). Analysis from
-both places is saved and survives a reload.
+both places is saved and survives a reload. HAR-19: Analyze is disabled on a
+note-only discussion until the box is ticked; with learner names written into
+the note and the transcript, the mock provider receives "the child" and
+"the child's", and no learner's name.
 
-**Caveats.** The analysis prompt includes the learner's name (F2). Delete
+**Caveats.** Delete
 buttons are unlabeled icons (F14). Live transcription uses the browser's
 speech service and is not exercised by the suite.
 
@@ -478,7 +496,8 @@ written review.
 Subject chips switch the page. Each subject shows its percent mastered and
 counts of Mastered, Practicing, Learning and Not started; the **final mastery
 test** (locked until every section check is passed); a **Progress review**
-(AI); and **Recommended next** topics. Approved **adaptive suggestions** to
+(AI, with the same name replacement and notes opt-in as Records); and
+**Recommended next** topics. Approved **adaptive suggestions** to
 pitch a domain harder appear at the top, with a banner on the dashboard.
 
 | Progress review | Final test passed | Adaptive suggestion |
@@ -489,10 +508,9 @@ pitch a domain harder appear at the top, with a banner on the dashboard.
 match seeded progress; a recommendation opens its topic; the final test is
 locked, then unlocks when every Mathematics section is passed, passes, and
 offers "Mark all Mathematics topics as mastered" (100% afterwards) and a
-certificate; a suggestion is approved (adaptation saved) and undone.
-
-**Caveats.** The review prompt includes the learner's name and the parent's
-notes (F2).
+certificate; a suggestion is approved (adaptation saved) and undone; the
+progress review's prompt carries no learner name, leaves the note out until
+the box is ticked, and then carries it with "the child".
 
 ---
 
@@ -580,6 +598,11 @@ Everything else (status, records, planning, the map) works as usual.
 | --- | --- |
 | ![Topic chips](screenshots/no-ai/01-topic-chips.jpg) | ![Calendar chips](screenshots/no-ai/02-calendar-chips.jpg) |
 
+On the calendar, topic rows show a chip in place of Lesson (Test is hidden)
+and the refresher, activity and stretch cards show chips; Move still works.
+(For about an hour on 2 October a merge broke this page without a provider,
+F19; #29 fixed it.)
+
 | Progress review | Records |
 | --- | --- |
 | ![Insights chip](screenshots/no-ai/03-insights-chip.jpg) | ![Records chips](screenshots/no-ai/04-records-chips.jpg) |
@@ -610,9 +633,10 @@ instructions), one chip per section and per activity, every chip links to
 `README.md#optional-local-model-ollama` with `target="_blank"` and
 `rel="noopener"` and opens it in a new tab; no "Couldn't … right now" or
 "Try again" anywhere; no test or challenge saved; chips in the quest log,
-the calendar day, the progress review and records; a saved analysis still
-shows without Regenerate; the dashboard and child view as above; the guide
-labels AI features. With an unreachable provider: no chips, the message
+the progress review and records; a saved analysis still shows without
+Regenerate; the dashboard and child view as above; the guide labels AI
+features; on the calendar a chip per topic and on the stretch card, Move
+still there. With an unreachable provider: no chips, the message
 above in the helper and the lesson, Try again fails the same way without
 stacking, no "Writing…" spinner.
 

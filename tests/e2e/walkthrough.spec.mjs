@@ -161,7 +161,11 @@ test.describe('parent', () => {
     await beat(page, 500);
     await modal(page).getByRole('button', { name: 'Save record' }).click();
     await beat(page);
-    await page.locator('div.rounded-2xl', { hasText: 'Talked about sharing' }).getByRole('button', { name: 'Analyze & get advice' }).click();
+    // HAR-19: notes go to the provider only when the parent ticks the box.
+    const discussion = page.locator('div.rounded-2xl', { hasText: 'Talked about sharing' });
+    await discussion.getByRole('checkbox', { name: 'Include my notes in this request' }).check();
+    await beat(page, 500);
+    await discussion.getByRole('button', { name: 'Analyze & get advice' }).click();
     await expect(modal(page).locator('.ai-prose')).toBeVisible();
     await beat(page, 1500);
     await modal(page).getByRole('button', { name: 'Save advice to records' }).click();

@@ -6,7 +6,7 @@ import { TODAY_KEY } from './support/env.mjs';
 
 const ROWAN = LEARNERS.rowan.id;
 
-test('hero greeting and every dashboard section for a 6-year-old, refresher included (finding F5, finding F15)', async ({ page, gotoApp, shot, errors }) => {
+test('hero greeting and every dashboard section for a 6-year-old; no day-one refresher (F5 fixed by HAR-18; finding F15)', async ({ page, gotoApp, shot, errors }) => {
   await gotoApp({
     seed: {
       progress: { [TOPICS.oneToOne.id]: 'learning' },
@@ -33,7 +33,8 @@ test('hero greeting and every dashboard section for a 6-year-old, refresher incl
     await expect(group.locator('button[aria-pressed]')).toHaveCount(2);
   }
   await expect(page.getByText('From the calendar')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Refresher quiz · / })).toBeVisible();
+  // HAR-18: nothing is mastered yet, so there is no refresher stop.
+  await expect(page.getByRole('button', { name: /Refresher quiz · / })).toHaveCount(0);
   await expect(page.getByText('Unplanned learning counts too.')).toBeVisible();
 
   // Week, overall ring, stepping stones, memory, subjects, level, recordings.

@@ -85,18 +85,25 @@ test('quest log, calendar, insights, records and recordings show chips', async (
   await expect(chips(log)).toHaveCount(1);
   await expect(log.getByRole('button', { name: 'Mark as learning' })).toBeVisible();
 
+  // F19 (fixed by #29): the calendar renders without a provider again.
   await nav(page, 'Calendar').click();
-  const day = page.locator('div.space-y-5', { has: page.getByRole('button', { name: /^(Mark done|Done)$/ }) });
-  for (const name of ['Lesson', 'Test', 'Give refresher quiz', 'Get instructions', 'Open lesson']) {
+  await expect(page.getByRole('heading', { name: 'Daily Calendar' })).toBeVisible();
+  const day = page.locator('div.space-y-5', { has: page.getByText('New today', { exact: true }) });
+  for (const name of ['Lesson', 'Test', 'Open lesson']) {
     await expect(day.getByRole('button', { name, exact: true })).toHaveCount(0);
   }
-  expect(await chips(day).count()).toBeGreaterThanOrEqual(4);
+  // A chip per topic row and one on the stretch card (nothing is mastered,
+  // so there is no refresher or activity card).
+  const topics = await day.locator('button.open').count();
+  expect(topics).toBeGreaterThan(0);
+  await expect(chips(day)).toHaveCount(topics + 1);
   // Planning itself still works.
   await expect(day.getByRole('button', { name: 'Move' }).first()).toBeVisible();
   await expectNoFailureCopy(page);
   await shot('calendar-chips');
 
   await nav(page, 'Insights').click();
+  await expect(page.getByRole('heading', { name: 'Insights' }).first()).toBeVisible();
   const review = page.locator('div.rounded-2xl', { has: page.getByRole('heading', { name: 'Progress review' }) });
   await expect(review.getByRole('button', { name: 'Generate' })).toHaveCount(0);
   await expect(chips(review)).toHaveCount(1);
@@ -145,3 +152,4 @@ test('the guide still labels the AI features', async ({ page, gotoApp }) => {
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Guide' }).click();
   expect(await modal(page).getByText('Needs a local AI provider; see the README.').count()).toBeGreaterThan(3);
 });
+

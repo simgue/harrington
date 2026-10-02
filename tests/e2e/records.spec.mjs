@@ -205,18 +205,25 @@ test('recordings folder: grouping, play, delete', async ({ page, api, gotoApp, s
 });
 
 test.describe('with the mock AI provider', () => {
-  test('analyze a discussion and save the advice; analysis on a recording persists (finding F2)', async ({ page, api, gotoApp, mockAi, shot }) => {
+  test('analyze a discussion (notes only with the opt-in) and save the advice; no learner name reaches the provider (F2, fixed by HAR-19)', async ({ page, api, gotoApp, mockAi, shot }) => {
     await gotoApp({
       seed: {
         records: [
-          { type: 'discussion', title: 'Talked about sharing', note: 'We split 6 grapes between 2 bowls.', topicId: TOPICS.oneToOne.id, topicName: TOPICS.oneToOne.name },
-          { type: 'recording', title: 'Bedtime counting', transcript: 'one two three five', sectionId: 'Mathematics|Counting & Cardinality|5', sectionLabel: 'Counting & Cardinality · Age 5', subject: 'Mathematics' },
+          { type: 'discussion', title: 'Talked about sharing', note: 'Rowan Example split 6 grapes between 2 bowls.', topicId: TOPICS.oneToOne.id, topicName: TOPICS.oneToOne.name },
+          { type: 'recording', title: 'Bedtime counting', transcript: "Rowan's count: one two three five", sectionId: 'Mathematics|Counting & Cardinality|5', sectionLabel: 'Counting & Cardinality · Age 5', subject: 'Mathematics' },
         ],
       },
     });
     await mockAi.clear();
     await nav(page, 'Records').click();
-    await card(page, 'Talked about sharing').getByRole('button', { name: 'Analyze & get advice' }).click();
+    // A note-only discussion waits for the parent to share the note.
+    const discussionCard = card(page, 'Talked about sharing');
+    const analyze = discussionCard.getByRole('button', { name: 'Analyze & get advice' });
+    await expect(analyze).toBeDisabled();
+    await expect(discussionCard).toContainText('Tick “Include my notes” to analyze your notes.');
+    await discussionCard.getByRole('checkbox', { name: 'Include my notes in this request' }).check();
+    await expect(analyze).toBeEnabled();
+    await analyze.click();
     const m = modal(page);
     await expect(m.getByText('Discussion analysis')).toBeVisible();
     await expect(m).toContainText(MARKERS.discussion);
@@ -232,10 +239,10 @@ test.describe('with the mock AI provider', () => {
     await expect(discussion.getByRole('button', { name: 'Regenerate' })).toBeVisible();
     await api.waitForState((s) => s.records?.[ROWAN]?.find((r) => r.title === 'Talked about sharing')?.analysis);
 
-    // Finding: the learner's real name goes into the analysis prompt.
+    // HAR-19: the note went out with the learner's name replaced.
     const [entry] = await mockAi.log();
     expect(entry.kind).toBe('discussion');
-    expect(entry.prompt).toContain('Rowan Example');
+    expect(entry.prompt).toContain('the child split 6 grapes');
 
     // In the recordings folder the analysis is stored on the recording itself.
     await nav(page, 'Dashboard').click();
@@ -250,5 +257,13 @@ test.describe('with the mock AI provider', () => {
     await page.reload();
     await page.getByRole('button', { name: /Recordings folder/ }).click();
     await expect(modal(page).getByText('AI summary & advice')).toBeVisible();
+
+    // A transcript needs no opt-in, and the possessive is replaced too.
+    const prompts = (await mockAi.log()).map((e) => e.prompt);
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain("the child's count: one two three five");
+    for (const prompt of prompts) {
+      for (const { name } of Object.values(LEARNERS)) expect(prompt).not.toContain(name.split(' ')[0]);
+    }
   });
 });

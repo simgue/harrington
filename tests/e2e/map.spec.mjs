@@ -154,14 +154,26 @@ test('List view drills subject → domain → age band → topic and the choice 
   await api.waitForState((s) => s.graphView === 'atlas');
 });
 
-test('selecting a skill scrolls the page back to the top (finding F11)', async ({ page, gotoApp }) => {
+test('selecting a skill keeps the scroll; Back to graph returns to it, selected (F11, fixed by HAR-21)', async ({ page, gotoApp }) => {
   await gotoApp({ seed: {}, hash: COUNTING_HASH });
   await page.evaluate(() => window.scrollTo(0, 400));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
   await node(page, TOPICS.oneToOne.name).click();
   await expect(questLog(page)).toBeVisible();
-  // Each selection re-navigates (app.js navigate → scrollTo top).
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  // The page stays where it was (it used to jump to the top).
+  await page.waitForTimeout(300);
+  const kept = await page.evaluate(() => window.scrollY);
+  expect(kept).toBeGreaterThan(100);
+  // The selection is in the address.
+  expect(await page.evaluate(() => location.hash)).toContain('skill=');
+
+  // To the topic page and back: same skill selected, same scroll.
+  await questLog(page).getByRole('button', { name: 'Open topic page' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: TOPICS.oneToOne.name })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to graph' }).click();
+  await expect(questLog(page)).toBeVisible();
+  await expect(questLog(page).getByRole('heading', { name: TOPICS.oneToOne.name })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
 });
 
 test('the old timeline route is gone (HAR-13) and falls back to the dashboard', async ({ page, gotoApp, errors }) => {

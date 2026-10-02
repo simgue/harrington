@@ -53,7 +53,7 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 | Feature | Status | Spec | Notes |
 | --- | --- | --- | --- |
 | World map | covered | `map` | Eight realms with domain counts, click and keyboard Enter, topic and link totals. |
-| Skill tree per domain | covered | `map` | Default domain, legend, node states, breadcrumbs, gateway domains rendered. Page jumps to the top on selection (F11). |
+| Skill tree per domain | covered | `map` | Default domain, legend, node states, breadcrumbs, gateway domains rendered. HAR-21: selecting a skill keeps the page scroll and puts `?skill=` in the address; Back to graph from the topic page returns to the same skill, selected, at the same scroll (F11 fixed). |
 | Quest log | covered with mock AI | `map`, `no-ai` | Open topic page, record evidence, mark as learning, foundations and unlock chips, close; "Open full lesson" with and without a provider. |
 | List drill-down | covered | `map`, `mobile` | Subject → domain → age band → topic, breadcrumbs, prerequisite chips, toggle saved with the family and restored after reload. |
 | Topic page | covered with mock AI | `topic`, `no-ai`, `mobile` | Header chips and status row, evidence, quick check, connections both ways, records, section recordings, every AI tool; fits a 390 px screen. |
@@ -65,10 +65,10 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 
 | Feature | Status | Spec | Notes |
 | --- | --- | --- | --- |
-| Calendar (start date, month grid, move, mark done, extras) | covered | `calendar` | Month navigation, Today, weekend and outside-track days, start-date change, mark done and reopen, add each of the four extra kinds, remove one, move to the next school day and to a chosen date. |
-| Scheduler | partly covered | `calendar`, `dashboard` | Day-one topics, weekends off, reschedule on start-date change. Refresher drawn from untaught topics (F5). Multi-year ranges are not walked. |
-| Calendar launch targets | covered with mock AI | `calendar`, `no-ai` | Refresher quiz, activity instructions, stretch lesson, topic Lesson and Test, extra Open. |
-| Small calendar bugs | covered | `calendar` | Dead "Refreshers change each day automatically" button (F9), "Extra practice" opens a lesson (F8). |
+| Calendar (start date, month grid, move, mark done, extras) | covered | `calendar` | Month navigation, Today, rest and outside-track days, start-date change, mark done and reopen, add each of the four extra kinds, remove one, move to the next home day and to a chosen date. HAR-18 home days & breaks: weekdays toggled, a named break, rest days with nothing scheduled and no Mark done, the topic moved to the next home day, settings saved. The "clear moved topics?" prompt on a start-date change with moves is not exercised. |
+| Scheduler | partly covered | `calendar`, `dashboard` | Day-one topics, rest days, reschedule on start-date change, refreshers and activities only from mastered topics (F5 fixed by HAR-18). The on-ramp order and multi-year ranges are not asserted (the pure scheduler core has unit tests). |
+| Calendar launch targets | covered with mock AI | `calendar` | Refresher quiz, activity instructions, stretch lesson, topic Lesson and Test, extra Open (Extra practice opens spaced practice). Without a provider: a chip per topic row and on the stretch card, Move still works (`no-ai`). |
+| Small calendar bugs | covered | `calendar`, `no-ai` | F8 and F9 fixed by HAR-18, F19 fixed by #29; all asserted fixed. |
 
 ## 4.5 Instruction
 
@@ -103,7 +103,7 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 | Records | covered | `records`, `topic`, `map`, `dashboard` | One of each type the form offers (HAR-16 removed "Recording"), required title or note, rating, topic link and navigation, filters, delete with confirm, the day counts as active. HAR-17 coverage claims and `source` links from a daily pick (`dashboard`). |
 | Voice recorder with live transcript | covered | `records`, `child-view`, `walkthrough` | Fake microphone: start, timer, stop, preview, link topic, transcript, save, audio on the server, playback, Escape asks before discarding (Cancel keeps the microphone track live; OK ends every track). Live speech recognition itself is not exercised (needs a real speech service). |
 | Recordings folder | covered | `records`, `dashboard` | Empty state, HAR-16 grouping (section, topic, "Not linked to a section"), playback request, delete removes the audio file. |
-| AI discussion analysis | covered with mock AI | `records`, `no-ai` | From Records (saved on the record with Regenerate, and as an advice record) and from the folder (saved on the recording, survives reload). Sends the learner's name (F2). |
+| AI discussion analysis | covered with mock AI | `records`, `no-ai` | From Records (saved on the record with Regenerate, and as an advice record) and from the folder (saved on the recording, survives reload). HAR-19: no learner's name reaches the provider (names written into notes and transcripts arrive as "the child"), notes only with the "Include my notes" opt-in, Analyze disabled on a note-only record until then (F2 fixed). |
 | Photo / file attachments | not covered | | Does not exist on `main`. |
 
 ## 4.9 Analytics and insight
@@ -112,7 +112,7 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 | --- | --- | --- | --- |
 | Dashboard | covered | `dashboard` | Every section listed in the audit, for ages 3, 6 and 9, with no console errors. Banner wording (F4), count formatting (F15). |
 | Insights: subject stats, recommended next | covered | `insights` | Subject chips, the four counts, recommendation opens its topic. |
-| Insights: progress review, final test, adaptive suggestions | covered with mock AI | `insights`, `no-ai` | Review generated (and its prompt checked, F2); final test locked and unlocked; suggestions approved and undone. |
+| Insights: progress review, final test, adaptive suggestions | covered with mock AI | `insights`, `no-ai` | Review generated; HAR-19: no learner name in the prompt, notes left out by default and sent (with names replaced) once the box is ticked (F2 fixed); final test locked and unlocked; suggestions approved and undone. |
 | Notifications bell | covered | `notifications` | Unread badge, mark all read, mark one read, empty state. Accessible name (F13). |
 
 ## 4.10 Engagement
