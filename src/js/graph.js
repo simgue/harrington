@@ -301,6 +301,14 @@ export function selectionForLearner(params = {}, previous, current) {
   return { params: rest, switched, dropped: true };
 }
 
+// The learner the graph's selection belongs to after a store emit. Off the
+// graph a switch is recorded at once, so a selection made later for the new
+// learner (a topic page's "Back to graph") is kept. On the graph it is left
+// for the next render, which sees the switch and drops the old skill.
+export function learnerAfterEmit(previous, current, onGraph) {
+  return onGraph ? previous : current;
+}
+
 export const MAX_DOMAIN_GATEWAYS = 8;
 
 export const WORLD_MAP_VIEWBOX = { width: 1100, height: 640 };

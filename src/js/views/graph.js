@@ -8,7 +8,9 @@ import {
   findSubject,
   findDomain,
   findSection,
+  learnerAfterEmit,
   localEdges,
+  parseGraphHash,
   quietMasteryFill,
   resolveSkillNodeState,
   selectionForLearner,
@@ -25,10 +27,21 @@ import { GROWTH, growthChip, growthIcon, stageForSkillState, stageForStatus } fr
 
 // The selected skill lives in the hash (params.skill). The state below only
 // makes it per learner and carries scroll and focus across re-renders.
-let lastLearnerId; // undefined until the first render, so deep links keep their skill
+let lastLearnerId; // undefined until the store first emits or the graph renders, so deep links keep their skill
 let savedTreeScroll = null; // { key, skill, x, y, left, top } for the return from a topic page, consumed once
 let afterSelect = null; // { key, focusId, reveal } set by a selection, applied by the next tree render
 const pendingRestore = new WeakMap(); // scroller -> { target, after } its next frame applies
+
+// A learner switch made away from the graph (the dashboard selector, say) is
+// recorded here, so the next graph arrival compares against the new learner.
+store.subscribe(() => {
+  const active = store.activeStudent();
+  const learnerId = active ? active.id : null;
+  const next = learnerAfterEmit(lastLearnerId, learnerId, parseGraphHash(window.location.hash) !== null);
+  if (next === lastLearnerId) return;
+  if (lastLearnerId !== undefined) savedTreeScroll = null;
+  lastLearnerId = next;
+});
 
 export function renderGraph(params, { navigate }) {
   const active = store.activeStudent();
