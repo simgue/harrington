@@ -25,8 +25,21 @@ example). Commune is still disabled until it has an explicit self-hosted adapter
 
 This preview binds to the local computer only. Use synthetic learner names until
 authentication, encrypted backups, and private remote access are implemented.
-Never send a real child's name into a model prompt — generators use “your child”
-and an age band only.
+Never send a real child's name into a model prompt. Generators say “your child”,
+and names of learners in this app are replaced with “the child” in the browser
+before a request is built (accents, hyphens and apostrophe variants included).
+When an AI provider is configured, this is what still leaves the machine:
+
+- topic names, descriptions and statuses, and mastery percentages;
+- the learner's exact age (or “age unknown”);
+- record counts by type, the topics they link to and the average confidence rating;
+- a discussion transcript, when the parent asks for an analysis;
+- the parent's notes, only when they tick “Include my notes in this request”
+  for that one request (record titles are never sent).
+- the parent's own messages to the assistant, as typed (with learner names
+  replaced).
+
+Nicknames, and other people's names in a transcript, are sent as spoken.
 
 ## What works without an AI provider
 
