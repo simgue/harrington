@@ -42,7 +42,7 @@ export function planStartKey(student) {
 export function buildPlan(student) {
   if (!student) return { byDate: new Map(), topicDate: new Map() };
   const movesSig = JSON.stringify(store.planOverrides(student.id).moves || {});
-  const cacheKey = student.id + '|' + planStartKey(student) + '|' + movesSig;
+  const cacheKey = student.id + '|' + planStartKey(student) + '|' + store.studentAge(student) + '|' + movesSig;
   if (_planCache.has(cacheKey)) return _planCache.get(cacheKey);
 
   const d = getData();
