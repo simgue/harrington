@@ -157,8 +157,19 @@ function renderOnboard() {
             <input name="name" required placeholder="e.g. Sample Learner" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
           </div>
           <div>
-            <label class="text-sm font-medium block mb-1.5">Birth year</label>
-            <input name="birthYear" type="number" required min="2005" max="2024" placeholder="e.g. 2017" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label for="ob-month" class="text-sm font-medium block mb-1.5">Birth month <span class="text-ink-faint font-normal">(optional)</span></label>
+                <select id="ob-month" name="birthMonth" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand">
+                  <option value="">Not set</option>
+                  ${store.MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label for="ob-year" class="text-sm font-medium block mb-1.5">Birth year</label>
+                <input id="ob-year" name="birthYear" type="number" required min="2005" max="${new Date().getFullYear()}" placeholder="e.g. 2017" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+              </div>
+            </div>
             <p class="text-xs text-ink-faint mt-1">We use this to show age-relevant ideas and connections for you to consider.</p>
           </div>
           <button class="w-full px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Set up their learning space</button>
@@ -171,7 +182,7 @@ function renderOnboard() {
     const name = fd.get('name').trim();
     const by = parseInt(fd.get('birthYear'), 10);
     if (!name || !by) return;
-    store.addStudent(name, by);
+    store.addStudent(name, by, parseInt(fd.get('birthMonth'), 10) || null);
     toast(`${name}'s learning space is ready`, 'success');
     navigate('dashboard');
   };
