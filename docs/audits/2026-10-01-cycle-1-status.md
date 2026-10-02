@@ -11,7 +11,7 @@ items; this document is the narrative snapshot.
 independent reviewer against the ticket's acceptance criteria, and merged only when CI
 was green and the review verdict was MERGE. Review findings were sent back to the
 implementing session as change lists and fixed before merge. Status as of main at
-`e4fa750`.
+`add6a04` (2 October 2026).
 
 ---
 
@@ -20,18 +20,21 @@ implementing session as change lists and fixed before merge. Status as of main a
 - **Wave 1 (stabilisation) is merged.** Six pull requests closed every bug the audit
   called "actually broken" plus the data-safety gap. The test suite grew from 40 to 84
   tests. Main CI has been green on every merge.
-- **Wave 2 (first-use readiness) is in review.** Placement, child-view containment and
-  records integrity have open pull requests that pass CI; honest no-AI mode is still
-  being written. An end-to-end Playwright harness with recorded walkthroughs is being
-  built alongside.
-- **Wave 3 is queued** in Linear (HAR-17 to HAR-23) and starts as wave 2 lands.
+- **Wave 2 (first-use readiness) is three-quarters merged.** Records integrity
+  (HAR-16), child-view containment (HAR-15) and placement (HAR-14) are on main after
+  independent review; honest no-AI mode (HAR-13) is merging last. The suite is at 106
+  tests. An end-to-end Playwright harness with 90 browser tests, 90 screenshots and
+  recorded walkthroughs is in review as PR #20.
+- **Wave 3 has started**: interest capture and coverage-claim evidence (HAR-17) and
+  learner editing (HAR-22) are in development; calendar realism, prompt privacy, cache
+  hygiene and the skill-tree fix follow HAR-13.
 - **Three decisions and one command are owed by the family** (section 5): the AI
   provider, the device topology, the placement workbook questions, and deleting the
   upstream telemetry shim from `src/index.html`.
 
 | Audit question | 27 September | 1 October |
 | --- | --- | --- |
-| Tests | 40 | 84 on main (85, 90 and 94 on the three open wave-2 branches) |
+| Tests | 40 | 106 unit tests on main, plus 90 end-to-end browser tests in PR #20 |
 | Microphone left on after Escape or backdrop | Broken | Fixed (HAR-8) |
 | Challenge timer runs on after dismissal, phantom result | Broken | Fixed (HAR-8) |
 | "Review answers → Back" re-saves and re-awards | Broken | Fixed (HAR-9) |
@@ -41,9 +44,9 @@ implementing session as change lists and fixed before merge. Status as of main a
 | No export, no backup | Gap | Export/import in the account box, `npm run backup` (HAR-10) |
 | Unescaped names and record fields in `innerHTML` | Risk | Swept through `ui.esc()` across every view (HAR-11 part 1) |
 | Tour, Guide, onboarding describe the upstream | Misleading | Rewritten to what works today; Harrington changelog started (HAR-12) |
-| Placement for an older child | Missing | Pull request open (HAR-14) |
-| Scores and XP leak into the child view | Leaking | Pull request open (HAR-15) |
-| AI buttons dead-end without a provider | Confusing | In progress (HAR-13) |
+| Placement for an older child | Missing | Merged: placement modal with prerequisite closure and undo (HAR-14) |
+| Scores and XP leak into the child view | Leaking | Merged: parent PIN, inert shell, score-free child paths (HAR-15) |
+| AI buttons dead-end without a provider | Confusing | Pull request #18 in final merge (HAR-13) |
 
 ### Report card delta
 
@@ -51,13 +54,13 @@ implementing session as change lists and fixed before merge. Status as of main a
 | --- | --- | --- | --- |
 | Platform & operations | Bud | **Bud+** | Versioned state, export/import, backup script, CSRF check on the beacon path. Still no auth or LAN story (HAR-25). |
 | Curriculum & navigation | Bloom | Bloom | Unchanged. Scroll and selection loss on the skill tree is queued (HAR-21). |
-| Learner model & daily rhythm | Bud | Bud → **Bloom once HAR-14 merges** | Placement turns empty rings into useful ones for the 9-year-old. |
+| Learner model & daily rhythm | Bud | **Bloom** | Placement turns empty rings into useful ones for the 9-year-old; daily choices rebuild after a placement. |
 | Instruction | Seed | Seed | Still fully AI-gated by design; honest gating lands with HAR-13. |
 | Assessment | Seed | **Sprout** | Grading, duplicate results and empty tests fixed. A non-AI path is HAR-24. |
 | Retention | Seed | Sprout | Recall scheduler repaired; still starved without a provider. |
-| Evidence | Bud | **Bud+** | Mic cleanup, escaping, and the five records/recordings bugs (HAR-16, in review). |
+| Evidence | Bud | **Bud+** | Mic cleanup, escaping, and the five records/recordings bugs fixed (HAR-16). |
 | Analytics & insight | Sprout | Sprout | Unchanged. |
-| Engagement | Sprout | Sprout → **Bud once HAR-15 merges** | PIN, no celebrations or scores in the child view, child-safe topic card. |
+| Engagement | Sprout | **Bud** | PIN, inert parent shell, no celebrations or scores in the child view, child-safe topic card. |
 | Collaboration | Seed | Seed | Still disabled by design. |
 | Documentation & copy | Sprout | **Bud** | Tour, Guide, GUIDE.md, onboarding, changelog and PR template now describe Harrington. Repo description still says Homestead. |
 
@@ -83,19 +86,20 @@ self-hosting work merged on 5 September).
 
 ---
 
-## 3. In flight (wave 2 and the end-to-end harness)
+## 3. Wave 2 and the end-to-end harness
 
-| Ticket | Pull request | State on 1 October | Notes |
+| Ticket | Pull request | State on 2 October | Independent review |
 | --- | --- | --- | --- |
-| HAR-16 Records and recordings integrity | [#15](https://github.com/simgue/harrington/pull/15) | Open, CI green, 85 tests, under independent review | No manual "Recording" type; unfiled recordings grouped honestly; analysis from the Records page persisted; `addRecord` marks the day active with one persist; filter resets on learner switch. |
-| HAR-15 Child view containment | [#16](https://github.com/simgue/harrington/pull/16) | Open, CI green, 90 tests, under independent review | Parent PIN on "Grown-ups"; no chip, popup, confetti or sound while the child view is open; challenge and test results without numbers; a child-safe topic card with "Can you…?" prompts replaces the 90 % test behind "Plant something new" and the daily picks. |
-| HAR-14 Placement and manual status | [#17](https://github.com/simgue/harrington/pull/17) | Open, CI green, 94 tests, under independent review | Pure `selectPlacement` with a hard-prerequisite closure; placement modal from the learner menu and subject cards; one-persist bulk write; an undoable placement record; status buttons first-class on the topic page and quest log. |
-| HAR-13 Honest no-AI mode | — | Development session running | Reads `/api/health` once; every AI-backed action is hidden or badged with one consistent message when no provider is configured. |
-| End-to-end harness and walkthrough (ticket to be filed when Linear is reachable) | — | Development session running | Playwright under `tests/e2e/`, a mock AI server, desktop and phone projects, recorded walkthroughs and screenshots under `docs/e2e/`, coverage and findings documents, a CI workflow that uploads the artifacts. |
+| HAR-16 Records and recordings integrity | [#15](https://github.com/simgue/harrington/pull/15) | **Merged** (1a981ba) | FIX-FIRST on one regression (topic-linked recordings filed under a group named "Section"), fixed and re-verified, then MERGE. |
+| HAR-15 Child view containment | [#16](https://github.com/simgue/harrington/pull/16) | **Merged** (838b958) | MERGE. Containment survived Tab, Shift+Tab, programmatic focus, hit-tests, keys, hash changes and history navigation; the parent shell is inert while the child view is open; recall, challenge and test end score-free. |
+| HAR-14 Placement and manual status | [#17](https://github.com/simgue/harrington/pull/17) | **Merged** (add6a04) | FIX-FIRST on stale daily choices after a placement, fixed and re-verified, then MERGE. The prerequisite closure matched an independent implementation across a 72-case subject and age sweep; placement no longer counts as a learning day. |
+| HAR-13 Honest no-AI mode | [#18](https://github.com/simgue/harrington/pull/18) | Open, merging last | FIX-FIRST on a calendar layout defect (extra-practice rows lost their title when the chip replaced the button), fixed; two ungated recall paths and the stray `#timeline` route closed. Waiting on the merge of main with the agreed child-view and Regenerate resolutions. |
+| End-to-end harness and walkthrough | [#20](https://github.com/simgue/harrington/pull/20) | Open, CI green (unit and e2e) | Under review. Playwright 1.56 against the real server with a deterministic mock AI provider; 90 tests across api, desktop, no-ai, mobile and walkthrough projects; 90 JPEG screenshots committed (5.3 MB); videos as CI artifacts; `docs/e2e/` README, WALKTHROUGH, COVERAGE and FINDINGS (16 open findings, two rated high). |
 
-Merge order: in order of review readiness, re-running the full suite on each branch after
-every merge and asking the owning session to merge `origin/main` when the base moves.
-HAR-13 touches the most views, so it merges after the other three and rebases last.
+Merge order was HAR-16, HAR-15, HAR-14, then HAR-13, because HAR-13 overlaps the
+other three in the child view and the Records card. Each merge was preceded by a
+full-suite run on the branch, an integration run of all open branches on top of main,
+and green CI.
 
 ---
 
@@ -103,12 +107,12 @@ HAR-13 touches the most views, so it merges after the other three and rebases la
 
 | Ticket | Title | Depends on | Why it is in this wave |
 | --- | --- | --- | --- |
-| HAR-17 | Salvage PR #5 onto `daily.js`: coverage-claim evidence, "why locked" line, interest invitations | — | Finishes HAR-4 the second way; PR #5 closes with a pointer once this merges. |
+| HAR-17 | Salvage PR #5 onto `daily.js`: coverage-claim evidence, "why locked" line, interest capture | — | **In development.** Finishes HAR-4 the second way; PR #5 closes with a pointer once this merges. |
 | HAR-18 | Calendar realism: holidays and term breaks, on-ramp for younger topics | — | Audit §4.4; the calendar is otherwise unusable for a real term. |
 | HAR-19 | Never send learner names or parent notes into AI prompts; extend the privacy copy | — | Must land before any AI provider is switched on. |
-| HAR-20 | Generated-content caches: regenerate buttons, never cache empty results | HAR-13 | Only matters once a provider exists. |
+| HAR-20 | Generated-content caches: regenerate buttons, never cache empty results | HAR-13 | Only matters once a provider exists. Now also carries the recall-cache bug (cards are never persisted because the server refuses a bare array) and an "open cached" upgrade so generated content stays reachable when the server starts without a provider. |
 | HAR-21 | Skill tree: keep scroll position and selection on node click and status change | HAR-11, HAR-14 | Status buttons on the quest log make the reset more visible. |
-| HAR-22 | Learner editing: name, birth month and year, colour | wave 2 | Kept out of wave 2 to avoid conflicts in the shell. |
+| HAR-22 | Learner editing: name, birth month and year, colour | wave 2 | **In development.** Kept out of wave 2 to avoid conflicts in the shell. |
 | HAR-23 | Prune dead code and unused imports after the stabilisation wave | all of the above | Last, so it does not conflict with anything. |
 | HAR-24 | Evidence-checklist mastery and level-set placement workbook (non-AI assessment) | HAR-14 | The non-AI way to pass a section; needs the family's answers in section 5. |
 | HAR-25 | Multi-device deployment: LAN access, shared secret, TLS, secure-context microphone | decision | See section 5. |
