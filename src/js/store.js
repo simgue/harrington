@@ -14,7 +14,8 @@ let state = {
   students: [],       // {id, name, birthYear, birthMonth?, avatar, color}
   activeStudentId: null,
   progress: {},       // studentId -> { topicId -> { status, updatedAt } }
-  records: {},        // studentId -> [ {id, topicId, type, title, note, rating, questions, createdAt} ]
+  records: {},        // studentId -> [ {id, topicId, type, title, note, rating, questions, createdAt,
+                      //   coverage?: [{topicId, topicName}], source?: {kind: 'daily-pick'|'invitation', key}} ]
   tests: {},          // studentId -> [ {id, subject, mode, score, total, pct, passed, createdAt} ]
   plan: {},           // studentId -> { moves:{topicId:dateKey}, done:{dateKey:true}, extras:{dateKey:[items]} }
   challenges: {},     // studentId -> [ {id, topicId, subject, domain, correct, total, seconds, createdAt} ]
@@ -27,6 +28,7 @@ let state = {
   activity: {},       // studentId -> { 'yyyy-mm-dd': true }  (days with recall/lesson/mastery activity)
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
   daily: {},          // studentId -> { 'yyyy-mm-dd': { offers: {literacy:[topicId], numeracy:[topicId]}, picks: {literacy, numeracy} } }
+  interests: {},      // studentId -> { chips: [label], text: '' }  (what the learner is into, parent-entered)
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
   settings: {},       // family-wide: { parentPin }
 };
@@ -71,7 +73,7 @@ let pendingAudioDeletes = [];
 
 // Per-learner maps keyed by student id. removeStudent clears every one of them.
 const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
-  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily'];
+  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests'];
 
 // Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'failed', error? }
 export function onSaveStatus(fn) { saveListeners.add(fn); return () => saveListeners.delete(fn); }
@@ -120,6 +122,7 @@ function snapshotData() {
     activity: state.activity,
     game: state.game,
     daily: state.daily,
+    interests: state.interests,
     graphView: state.graphView === 'list' ? 'list' : 'atlas',
     settings: state.settings,
   };
@@ -845,6 +848,39 @@ export function pickDaily(studentId, dateKey, lane, topicId) {
   if (!day) return;
   day.picks[lane] = topicId || null;
   persist(); emit();
+}
+
+// ---- Interests (what the learner is into) ----
+export const INTEREST_CHIPS_MAX = 12;
+const INTEREST_CHIP_LEN = 40;
+const INTEREST_TEXT_LEN = 500;
+// Tolerates anything an import or an older document might hold (null, arrays,
+// non-string values), so the dashboard never trips over a bad entry.
+function cleanInterests(value) {
+  const { chips, text } = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const seen = new Set();
+  const list = [];
+  for (const raw of Array.isArray(chips) ? chips : []) {
+    if (typeof raw !== 'string') continue;
+    const chip = raw.trim().replace(/\s+/g, ' ').slice(0, INTEREST_CHIP_LEN);
+    if (!chip || seen.has(chip.toLowerCase())) continue;
+    seen.add(chip.toLowerCase());
+    list.push(chip);
+    if (list.length >= INTEREST_CHIPS_MAX) break;
+  }
+  return { chips: list, text: typeof text === 'string' ? text.trim().slice(0, INTEREST_TEXT_LEN) : '' };
+}
+// Always { chips, text }; a copy, so callers can't mutate state by accident.
+export function interestsFor(studentId) {
+  return cleanInterests(state.interests[studentId]);
+}
+// quiet: save without re-rendering, for the card's own free-text edits (a
+// re-render mid-typing would drop focus and swallow the next tap).
+export function setInterests(studentId, interests, { quiet = false } = {}) {
+  state.interests[studentId] = cleanInterests(interests);
+  persist();
+  if (!quiet) emit();
+  return interestsFor(studentId);
 }
 
 // Whether the student was active on each of the last `days` days, oldest first.
