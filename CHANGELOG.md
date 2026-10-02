@@ -6,11 +6,6 @@ tagged a release yet; everything below is on `main`.
 
 ## [Unreleased]
 
-### Fixed
-- The Calendar page rendered blank without an AI provider (`gateAi` was
-  called but not imported); a source test now checks every file that uses an
-  `ai-status.js` helper imports it.
-
 ### Changed
 - Calendar follows the family's home days and breaks (set under Home days &
   breaks); rest days schedule nothing. Unmastered literacy and numeracy topics
@@ -62,6 +57,14 @@ tagged a release yet; everything below is on `main`.
 ### Removed
 - Hosted sign-in, cloud storage and the hosted deploy workflow inherited from
   Homestead (HAR-2).
+
+### Fixed
+- The Calendar page rendered blank without an AI provider (`gateAi` was
+  called but not imported); a source test now checks every file that uses an
+  `ai-status.js` helper imports it (HAR-18, HAR-20).
+- The in-app Guide and `src/docs/GUIDE.md` no longer say the child's name is
+  sent to the AI provider; README, SECURITY and both guides state the same
+  data, including which requests carry the learner's exact age (HAR-19).
 
 ## Forked from Homestead (2026-08-11)
 
