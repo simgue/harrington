@@ -6,7 +6,6 @@ import { el, refreshIcons, toast } from './ui.js';
 import { renderShell } from './views/shell.js';
 import { graphHash } from './graph.js';
 import { renderDashboard } from './views/dashboard.js';
-import { renderTimeline } from './views/timeline.js';
 import { renderCalendar } from './views/calendar.js';
 import { renderTopic } from './views/topic.js';
 import { renderGraph } from './views/graph.js';
@@ -79,7 +78,6 @@ function render() {
   const views = {
     dashboard: renderDashboard,
     calendar: renderCalendar,
-    timeline: renderTimeline,
     graph: renderGraph,
     topic: renderTopic,
     records: renderRecords,

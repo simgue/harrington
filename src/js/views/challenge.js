@@ -2,6 +2,7 @@ import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiChallenge } from '../ai.js';
+import { aiErrorBlock } from '../ai-status.js';
 import { isCorrect } from '../grading.js';
 import { evaluateChallenge, nextConceptHint } from '../adapt.js';
 import { award, XP } from '../game.js';
@@ -67,12 +68,9 @@ export async function openChallenge(topic) {
       if (closed) return;
       runQuiz(test);
     } catch (e) {
-      console.error(e);
+      if (closed) return;
       stage.innerHTML = '';
-      const err = el(`<div class="text-center py-10"><i data-lucide="cloud-off" class="w-8 h-8 text-ink-faint mx-auto mb-3"></i><p class="text-sm text-ink-soft mb-3">Couldn't build the challenge. Try again.</p><button id="r" class="px-4 py-2 rounded-lg bg-brand text-white text-sm font-medium">Try again</button></div>`);
-      err.querySelector('#r').onclick = renderIntro;
-      stage.appendChild(err);
-      refreshIcons();
+      stage.appendChild(aiErrorBlock(e, renderIntro));
     }
   }
 

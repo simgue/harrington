@@ -1,24 +1,9 @@
 import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
-import * as backend from '../backend.js';
 import { el, refreshIcons, toast, openModal } from '../ui.js';
 import { aiLesson, aiActivityDetail } from '../ai.js';
 import { openPrintables } from './printables.js';
-
-function isAiUnconfiguredError(error) {
-  return /not configured/i.test(String(error?.message || ''));
-}
-
-async function requireConfiguredAi() {
-  try {
-    const health = await backend.health();
-    if (health && health.aiConfigured === false) {
-      throw new Error('AI is not configured');
-    }
-  } catch (error) {
-    if (isAiUnconfiguredError(error)) throw error;
-  }
-}
+import { aiErrorBlock, aiNotConfiguredError } from '../ai-status.js';
 
 // ---- Full lesson plan modal ----
 export async function openLesson(topic) {
@@ -57,13 +42,16 @@ export async function openLesson(topic) {
       stage.innerHTML = '';
       stage.appendChild(renderLesson(fresh, topic, regen));
       refreshIcons();
-    } catch { toast('Could not regenerate', 'error'); }
+    } catch (e) {
+      stage.innerHTML = '';
+      stage.appendChild(aiErrorBlock(e, regen));
+    }
   };
 
   try {
     let lesson = await store.getCachedLesson(cacheId);
     if (!lesson) {
-      await requireConfiguredAi();
+      if (!store.aiAvailable()) throw aiNotConfiguredError();
       lesson = await aiLesson(topic);
       await store.saveCachedLesson(cacheId, lesson);
     }
@@ -72,10 +60,8 @@ export async function openLesson(topic) {
     stage.appendChild(renderLesson(lesson, topic, regen));
     refreshIcons();
   } catch (e) {
-    console.error(e);
     stage.innerHTML = '';
-    stage.appendChild(errorBlock(() => { m.close(); openLesson(topic); }, isAiUnconfiguredError(e)));
-    refreshIcons();
+    stage.appendChild(aiErrorBlock(e, () => { m.close(); openLesson(topic); }));
   }
 }
 
@@ -212,10 +198,8 @@ export async function openActivityDetail(topic, activity, kind) {
     stage.appendChild(wrap);
     refreshIcons();
   } catch (e) {
-    console.error(e);
     stage.innerHTML = '';
-    stage.appendChild(errorBlock(() => { m.close(); openActivityDetail(topic, activity, kind); }));
-    refreshIcons();
+    stage.appendChild(aiErrorBlock(e, () => { m.close(); openActivityDetail(topic, activity, kind); }));
   }
 }
 
@@ -239,15 +223,6 @@ function loadingBlock(title, sub) {
     <p class="text-sm font-600">${title}</p>
     ${sub ? `<p class="text-xs text-ink-faint mt-1 max-w-xs mx-auto">${sub}</p>` : ''}
   </div>`);
-}
-function errorBlock(retry, unconfigured = false) {
-  const b = el(`<div class="text-center py-10">
-    <i data-lucide="cloud-off" class="w-8 h-8 text-ink-faint mx-auto mb-3"></i>
-    <p class="text-sm text-ink-soft mb-3">${unconfigured ? 'AI is not configured.' : 'Couldn\u2019t create the lesson right now.'}</p>
-    <button id="r" class="px-4 py-2 rounded-lg bg-brand text-white text-sm font-medium">Try again</button>
-  </div>`);
-  b.querySelector('#r').onclick = retry;
-  return b;
 }
 
 // ---- Printable lesson ----
