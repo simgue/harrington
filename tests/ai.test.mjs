@@ -95,7 +95,7 @@ const PROMPT_CALLS = {
   },
 };
 // Exports that neither build nor send a prompt.
-const NOT_PROMPTS = new Set(['promptLearnerLabel', 'promptAge', 'safeCalc', 'normalizeTest', 'redactNames', 'redactLearnerNames', 'summarizeRecords']);
+const NOT_PROMPTS = new Set(['promptAge', 'redactNames', 'redactLearnerNames', 'summarizeRecords']);
 
 test('every exported prompt function is covered by the name guard', () => {
   const exported = Object.entries(ai).filter(([, v]) => typeof v === 'function').map(([k]) => k);
@@ -115,6 +115,7 @@ test(`no prompt function sends a learner name, with "${LEARNER}" in state`, asyn
       assert.ok(sent.length > 0, `${name} sent nothing to backend.chat`);
       assert.doesNotMatch(outgoing(), LEAK, `${name} sent a learner name`);
       assert.doesNotMatch(outgoing(), /\bSample\b/, `${name} sent a sibling's name`);
+      assert.ok(sent.every((body) => Object.keys(body).join() === 'messages'), `${name} sent more than the messages`);
     }
   }
 });

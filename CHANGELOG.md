@@ -63,8 +63,9 @@ tagged a release yet; everything below is on `main`.
 - Dead code after the stabilization wave: the unmounted Harrington Helper
   chat, the unrouted Commune and Day Sheet views, the unlinked timeline view,
   the unused section-graph helpers, unused exports and imports, and the
-  ignored client model aliases. `scripts/dead-code.mjs` lists what is left
-  and also flags a call whose import is missing (HAR-23).
+  ignored client model aliases; README, SECURITY, CONTRIBUTING and the POC
+  notes no longer describe them. `scripts/dead-code.mjs` lists what is left
+  and flags a use of another module's export whose import is missing (HAR-23).
 - Hosted sign-in, cloud storage and the hosted deploy workflow inherited from
   Homestead (HAR-2).
 

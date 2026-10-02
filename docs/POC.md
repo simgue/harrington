@@ -11,8 +11,9 @@ Taxonomy attribution.
 
 Harrington now runs through its own small server. Family state, lesson caches,
 and recordings are stored in a directory controlled by the family; no external
-account is required. AI and Commune remain disabled until they have explicit,
-self-hosted adapters.
+account is required. AI stays disabled until a self-hosted provider is
+configured. The inherited Commune views were removed on 2 October 2026
+(HAR-23); only a fail-closed stub remains for the isolation test.
 
 ## POC question
 
@@ -53,13 +54,13 @@ runtime and graph explorer have been used.
 
 ## Keep, but do not optimise yet
 
-The fork retains the complete upstream feature set. These capabilities remain
+The fork retains most of the upstream feature set (the unreachable Helper chat
+and Commune views were removed in HAR-23). These capabilities remain
 available for evaluation but are not part of the initial proof:
 
 - AI-generated lessons and tests
 - voice recording and transcript analysis
 - child gamification and timed challenges
-- Commune and external-teacher handoffs
 - full-year scheduling and automated compliance reporting
 - production hosting, authentication, and encrypted backups
 - complete Victorian Curriculum or Wurundjeri seasonal overlays

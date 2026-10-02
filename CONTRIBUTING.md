@@ -47,13 +47,13 @@ src/js/
   scheduler.js        The day-by-day calendar plan
   adapt.js            Adaptivity engine (difficulty suggestions)
   curriculum-sync.js  Detects upstream curriculum changes -> notifications
-  ai.js               All AI helpers (lessons, tests, recall, chat, etc.)
+  ai.js               All AI helpers (lessons, tests, recall, feedback, etc.)
   recorder.js         Voice recording + live transcript
   ui.js               DOM helpers, modals, toasts, icons
-  views/              One module per screen (dashboard, graph, timeline,
-                      topic, calendar, records, insights, recall, challenge,
+  views/              One module per screen (dashboard, graph, topic,
+                      calendar, records, insights, recall, challenge,
                       masterytest, lesson, printables, recordings, guide,
-                      assistant, notifications, shell)
+                      notifications, kidmode, shell, and their helpers)
 src/docs/GUIDE.md     The full written feature guide
 ```
 

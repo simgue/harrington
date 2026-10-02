@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Dead-code report for src/js: modules the app never loads, named exports no
-// other module imports, imports never referenced, and calls to an exported
-// function the calling module forgot to import. Tests and scripts count as
-// importers; exports only tests import are listed for information.
+// other module imports, imports never referenced, and uses of another
+// module's named export that the module forgot to import (heuristic: string
+// and template text are blanked, local declarations and parameters excluded).
+// Tests and scripts count as importers; exports only tests import are listed
+// for information.
 // Usage: node scripts/dead-code.mjs   (exit code 1 when anything is found)
 import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -154,19 +156,71 @@ const visit = (file) => {
 visit(join(root, 'src/js/app.js'));
 const unreachable = srcFiles.filter((file) => !reachable.has(file) && !KEEP.has(relative(root, file))).map((file) => relative(root, file));
 
-// The reverse mistake: a call to another module's exported function that this
-// module neither imports nor declares (a pruned import whose call survived).
-const exportedFunctions = new Set();
-for (const file of srcFiles) {
-  for (const m of sources.get(file).matchAll(/export\s+(?:async\s+)?function\*?\s+(\w+)/g)) exportedFunctions.add(m[1]);
+// The reverse mistake: a reference to another module's named export that this
+// module neither imports nor declares (a pruned import whose use survived).
+// String and template text are blanked first so prose cannot match.
+function codeOnly(code) {
+  let out = '';
+  const stack = [];
+  for (let i = 0; i < code.length; i += 1) {
+    const ch = code[i];
+    const top = stack[stack.length - 1];
+    if (top === "'" || top === '"') {
+      if (ch === '\\') { out += '  '; i += 1; continue; }
+      if (ch === top) stack.pop();
+      out += ch === top ? ch : ' ';
+    } else if (top === '`') {
+      if (ch === '\\') { out += '  '; i += 1; continue; }
+      if (ch === '`') { stack.pop(); out += ch; continue; }
+      if (ch === '$' && code[i + 1] === '{') { stack.push('{'); out += '${'; i += 1; continue; }
+      out += ch === '\n' ? '\n' : ' ';
+    } else if (ch === '/' && /[(,=:[!&|?{};+\-*%<>~^]\s*$|^\s*$|\breturn\s*$/.test(out.slice(-40).split('\n').pop())) {
+      // A regex literal: copy it through to its closing slash.
+      let inClass = false;
+      out += ch;
+      for (i += 1; i < code.length; i += 1) {
+        const c = code[i];
+        out += c;
+        if (c === '\\') { out += code[i + 1] || ''; i += 1; continue; }
+        if (c === '[') inClass = true;
+        else if (c === ']') inClass = false;
+        else if (c === '/' && !inClass) break;
+        else if (c === '\n') break;
+      }
+    } else {
+      if (ch === "'" || ch === '"' || ch === '`') stack.push(ch);
+      else if (ch === '{') stack.push('{');
+      else if (ch === '}' && top === '{') stack.pop();
+      out += ch;
+    }
+  }
+  return out;
 }
+const exportedNames = new Set(srcFiles.flatMap((file) => parseExports(sources.get(file))));
 const missingImports = [];
 for (const file of srcFiles) {
-  const code = sources.get(file);
-  const bound = new Set(parseImports(code, file).flatMap(({ bindings }) => bindings.map((b) => b.local)));
-  for (const name of exportedFunctions) {
-    if (bound.has(name) || !ref(`${name}\\s*\\(`).test(code)) continue;
-    const declared = new RegExp(`(?:function\\*?|const|let|var|class)\\s+${name}\\b|[{,(]\\s*${name}\\s*[,})=]`).test(code);
+  const imports = parseImports(sources.get(file), file);
+  const bound = new Set(imports.flatMap(({ bindings }) => bindings.map((b) => b.local)));
+  let code = codeOnly(sources.get(file));
+  for (const { statement } of imports) if (statement) code = code.replace(statement, ' ');
+  // Declared here and exported (a bare `export { name }` re-export is not).
+  const own = new Set([...sources.get(file).matchAll(/export\s+(?:async\s+)?(?:function\*?|const|let|var|class)\s+(\w+)/g)].map((m) => m[1]));
+  for (const name of exportedNames) {
+    if (bound.has(name) || own.has(name)) continue;
+    // A use: an identifier that is not an object key (`name:`) or a property.
+    if (!new RegExp(`${ref(name).source}(?!\\s*:(?!:))`).test(code)) continue;
+    const n = `\\b${name}\\b`;
+    const declared = [
+      `(?:function\\*?|const|let|var|class)\\s+${name}\\b`, // declaration
+      `(?:const|let|var)\\s*[{[][^}\\]]*${n}[^}\\]]*[}\\]]\\s*=`, // destructuring
+      `function\\s*\\w*\\s*\\((?:[^)]*,)?\\s*${name}\\s*(?:[,=][^)]*)?\\)`, // function parameter
+      `\\((?:[^()]*,)?\\s*${name}\\s*(?:[,=][^()]*)?\\)\\s*=>`, // arrow parameters
+      `(?<![\\w$.])${name}\\s*=>`, // single arrow parameter
+      `catch\\s*\\(\\s*${name}\\s*\\)`,
+      `function\\s*\\w*\\s*\\([^)]*\\{(?:[^}]*,)?\\s*${name}\\s*[,}=]`, // destructured parameter
+      `\\([^()]*\\{(?:[^}]*,)?\\s*${name}\\s*[,}=][^()]*\\)\\s*=>`,
+      `[{,(]\\s*${name}\\s*=(?![=>])`, // parameter or destructuring default
+    ].some((pattern) => new RegExp(pattern).test(code));
     if (!declared) missingImports.push(`${relative(root, file)}: ${name}`);
   }
 }
@@ -176,5 +230,5 @@ section('Unreachable modules from src/js/app.js', unreachable);
 section('Exports with no importer', unusedExports);
 section('Exports imported only by tests (informational)', testOnlyExports);
 section('Imports never referenced', unusedImports);
-section('Calls to an exported function that is not imported', missingImports);
+section('Uses of another module\'s export that is not imported', missingImports);
 process.exitCode = unreachable.length + unusedExports.length + unusedImports.length + missingImports.length ? 1 : 0;

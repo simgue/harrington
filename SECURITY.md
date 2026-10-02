@@ -23,10 +23,10 @@ your report and work on a fix as quickly as we reasonably can.
   mastery percentages, topic statuses, record counts and the average confidence
   rating, a discussion transcript when the parent asks for an analysis, and
   parent notes only when the parent opts in for that request (record titles are
-  never sent), and the parent's own assistant messages as typed. Nicknames and other people's names in a transcript are sent as
+  never sent). Nicknames and other people's names in a transcript are sent as
   spoken, and names in scripts written without spaces (for example Chinese) are
-  not matched when they run straight into other text. Shared-family
-  features remain disabled by default.
+  not matched when they run straight into other text. There are no
+  shared-family features.
 - Please never include real children's personal data in a report.
 
 Thank you for helping keep families using Harrington safe.

@@ -109,7 +109,7 @@ export function renderInsights(params, { navigate }) {
         <h2 class="font-600">Final ${selSubject} mastery test</h2>
         <p class="text-sm text-ink-soft leading-relaxed">${canTake
           ? 'The capstone across the whole subject. Needs 90%+ to pass — digital or printable.'
-          : 'Unlocks once every section has been passed. Work through the timeline\u2019s topic and section checks first.'}</p>
+          : 'Unlocks once every section has been passed. Pass the topic and section checks on the topic pages first.'}</p>
         ${lastTest ? `<p class="text-xs mt-1.5 flex items-center gap-1.5 ${lastTest.passed ? 'text-brand-dark' : 'text-[#a4473a]'}"><i data-lucide="${lastTest.passed ? 'badge-check' : 'history'}" class="w-3.5 h-3.5"></i>Last: ${lastTest.pct}% ${lastTest.passed ? '· Passed' : '· Try again'} on ${fmtDate(lastTest.createdAt)}</p>` : ''}
       </div>
       <button id="test" class="shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${canTake ? 'bg-brand hover:bg-brand-dark text-white' : 'bg-paper border border-paper-line text-ink-faint cursor-not-allowed'} font-medium transition-colors" ${!canTake ? 'disabled' : ''}><i data-lucide="${canTake ? 'file-check-2' : 'lock'}" class="w-4 h-4"></i>${passed ? 'Retake test' : !canTake ? 'Locked' : 'Start test'}</button>
@@ -170,7 +170,7 @@ export function renderInsights(params, { navigate }) {
   </div>`);
   const recList = recCard.querySelector('#rec');
   if (nexts.length === 0) {
-    recList.appendChild(el(`<p class="text-sm text-ink-faint">No unlocked ${selSubject} topics waiting — mark some topics mastered on the timeline to open the next ones.</p>`));
+    recList.appendChild(el(`<p class="text-sm text-ink-faint">No unlocked ${selSubject} topics waiting — mark some topics mastered from the map or a topic page to open the next ones.</p>`));
   } else {
     nexts.forEach(n => {
       const row = el(`<button class="w-full text-left flex items-center gap-3 p-3 rounded-xl border border-paper-line hover:border-brand/40 hover:bg-paper transition-colors">

@@ -21,7 +21,7 @@ Harrington no longer requires an external account. Its own Node server stores
 family state, lesson caches, and recordings in a family-controlled data
 directory. Lesson generation is optional: it stays fail-closed until you point
 Harrington at a local OpenAI-compatible endpoint (Ollama is the documented
-example). Commune is still disabled until it has an explicit self-hosted adapter.
+example).
 
 This preview binds to the local computer only. Use synthetic learner names until
 authentication, encrypted backups, and private remote access are implemented.
@@ -36,8 +36,6 @@ When an AI provider is configured, this is what still leaves the machine:
 - a discussion transcript, when the parent asks for an analysis;
 - the parent's notes, only when they tick “Include my notes in this request”
   for that one request (record titles are never sent).
-- the parent's own messages to the assistant, as typed (with learner names
-  replaced).
 
 Nicknames, and other people's names in a transcript, are sent as spoken.
 
@@ -94,8 +92,6 @@ first start and does not update on its own.
   and add extra practice to.
 - **Records & voice capture** — log observations and store lesson recordings on
   the family server. AI coaching is disabled in this preview.
-- **Harrington Helper (retained, disabled)** — the upstream AI coach remains in
-  the codebase while a family-controlled provider interface is designed.
 - **Daily pick-one choices** — Today's path offers a short literacy choice and
   a short numeracy choice, two options each, drawn from the POC focus domains
   (see docs/POC-SPINE.md). In-progress work and domains that have gone quiet
@@ -109,13 +105,6 @@ first start and does not update on its own.
   garden, big activity buttons and "Tell about my day", with no levels, XP or
   percentages. The inherited XP, levels, badges and celebration effects remain
   in the codebase for evaluation.
-- **Commune (retained, disabled)** — the shared-teaching experience remains for
-  later migration to Harrington-owned infrastructure. It is not exposed in the
-  preview navigation. The intended experience lets families team up in a private
-  “commune,” approve and share what a child is working on for a given day, and
-  cover each other's kids with a one-tap printable Day Sheet. Only the day's
-  topics and an optional note are shared; each family's data stays on its own
-  server.
 - **Insights & notifications**, a **streak tracker**, and a **downloadable guide**.
 
 ## Research-Backed Evidence
@@ -164,32 +153,6 @@ classroom effect aren't always the same size.
   enhances learning in real primary school settings, whether distributed or
   not](https://pmc.ncbi.nlm.nih.gov/articles/PMC12372469/).
 
-## Commune — shared teaching
-
-Homeschooling parents often share teaching duties. **Commune** lets a small
-group of families do that inside Harrington without giving up their privacy.
-
-**Intended design (not active in the preview):**
-
-1. **Open the Commune tab** and either create a commune or join one with an
-   invite code another family shares.
-2. **Share a child's day.** For a day another parent is covering your child,
-   choose “Share today's focus,” pick the child, the date, and the topics they
-   should work on, add an optional note, and share it with the commune.
-3. **Cover and teach.** When you're covering, the “Covering today” section shows
-   each child shared with you. Choose **Teach** on a topic for the full lesson,
-   or **Print day sheet** for one packet covering every child you have that day —
-   lessons, activities, resources, and the sharing parent's note.
-
-**What stays private:** only the topics a parent explicitly approves for that day
-(plus an optional note) are ever shared. Progress, mastery, records, and
-recordings never leave a family's own server. The covering parent's app rebuilds
-each lesson locally from the shared topic, so *what and how to teach* is available
-without ever exposing how the child is actually doing.
-
-Commune is unavailable in the self-hosted preview. It will return only after its
-membership and sharing service can be operated independently by Harrington.
-
 ## Tech
 
 - Browser app: HTML + CSS + vanilla JavaScript (ES modules), styled with a
@@ -231,9 +194,8 @@ npm start
 ```
 
 Restart Harrington after changing these variables. `/api/health` reports
-`aiConfigured: true` only when both the base URL and model are set. Inherited
-client aliases (`small`, `strong`, `gpt-4o-mini`, `gpt-4o`) are mapped to
-`HARRINGTON_AI_MODEL`; the adapter never calls a vendor by those names.
+`aiConfigured: true` only when both the base URL and model are set. The browser
+sends only the messages; every request uses `HARRINGTON_AI_MODEL`.
 
 Local models can take a while to write lesson JSON. The adapter waits up to
 three minutes (`HARRINGTON_AI_TIMEOUT_MS` to override) and then fails closed.
@@ -255,9 +217,9 @@ topics you open** (or a small focus band later), then switch back to Ollama.
 A cloud or vendor endpoint means topic text leaves the house. Never use Puter.
 Never put learner names in prompts.
 
-Chat / Harrington Helper is a later slice: interactive chat needs a live local
-model, and progress or records must not be dumped into prompts. The same
-`/api/ai` pipe would use whatever is configured.
+There is no chat. The inherited Harrington Helper and Commune views were never
+reachable in Harrington and were removed on 2 October 2026 (HAR-23); a fail-closed
+Commune stub remains only so the isolation test can prove nothing calls out.
 
 Docker is also supported:
 
