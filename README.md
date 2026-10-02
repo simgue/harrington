@@ -36,6 +36,8 @@ When an AI provider is configured, this is what still leaves the machine:
 - a discussion transcript, when the parent asks for an analysis;
 - the parent's notes, only when they tick “Include my notes in this request”
   for that one request (record titles are never sent).
+- the parent's own messages to the assistant, as typed (with learner names
+  replaced).
 
 Nicknames, and other people's names in a transcript, are sent as spoken.
 

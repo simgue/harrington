@@ -202,16 +202,28 @@ for (const [label, said, expected] of [
   });
 }
 
-test('short name parts match only capitalized or in capitals', () => {
+test('one- and two-letter name parts match only capitalized or in capitals', () => {
   const names = ['An Nguyen', 'He Lin', 'Do Park'];
   assert.equal(redactNames('He said he would do it with an apple.', names), 'the child said he would do it with an apple.');
-  assert.equal(redactNames('AN and LIN and Do', names), 'the child and the child and the child');
+  assert.equal(redactNames('AN and Do', names), 'the child and the child');
   assert.equal(redactNames('an nguyen, nguyen', names), 'the child, the child', 'the full name and long parts stay any-case');
+});
+
+test('three-letter name parts match in any case', () => {
+  const names = ['Leo Park', 'Sam Little', 'Zoë Park', "Mia O'Neil", 'He Lin'];
+  assert.equal(redactNames('leo and sam ran; mia laughed and zoe waved', names), 'the child and the child ran; the child laughed and the child waved');
+  assert.equal(redactNames('LEO, Sam, lin', names), 'the child, the child, the child');
+});
+
+test('a name after "the" does not read "the the child"', () => {
+  assert.equal(redactNames('Ask the Child, then Child Harold.', ['Child Harold']), 'Ask the child, then the child.');
+  assert.equal(redactNames('Then leo left', ['Leo']), 'Then the child left', '"Then" is not "the"');
 });
 
 test('a name straddling the transcript and notes limits is redacted before the cut', () => {
   for (const [cut, field] of [[4000, 'transcript'], [1500, 'note']]) {
-    const text = 'x'.repeat(cut - 3) + ' Zebulon Quixote and more';
+    // The name starts five characters before the cut, so slicing first would leave "Zebul".
+    const text = 'x'.repeat(cut - 6) + ' Zebulon Quixote and more';
     const prompt = ai.buildDiscussionPrompt({ age: 6, topic, transcript: field === 'transcript' ? text : 'hi', note: field === 'note' ? text : '', includeNotes: true });
     assert.doesNotMatch(prompt, /zeb|quix/i, `${field} leaked part of a name at the cut`);
   }

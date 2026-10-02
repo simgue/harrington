@@ -49,9 +49,10 @@ const NAME_SEP = /[\s\-'‘’]+/;
 const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // The full name, each space-separated part and each half of a hyphenated part.
-// Parts of three letters or fewer ("An", "Lin", "Do") match only capitalized or
-// in capitals so they do not swallow function words; everything else, and the
-// full name itself, matches in any case. Longest first, so a full name goes
+// Parts of one or two letters ("An", "He", "Do") match only capitalized or in
+// capitals so they do not swallow function words; everything else, including
+// three-letter parts like "leo" or "mia", and the full name itself, matches in
+// any case. Longest first, so a full name goes
 // before its parts.
 function namePatterns(fullNames) {
   const seen = new Map();
@@ -62,7 +63,7 @@ function namePatterns(fullNames) {
     const key = tokens.join(' ').toLowerCase();
     if (seen.has(key)) return;
     const body = toks => toks.map(escapeRegExp).join(`${NAME_SEP.source.slice(0, -1)}*`);
-    const short = !anyCase && letters.length <= 3;
+    const short = !anyCase && letters.length <= 2;
     const source = short
       ? [tokens.map(t => t[0].toUpperCase() + t.slice(1).toLowerCase()), tokens.map(t => t.toUpperCase())].map(body).join('|')
       : body(tokens);
@@ -114,7 +115,12 @@ export function redactNames(text, fullNames) {
   const src = String(text ?? '');
   const ranges = foldedMatches(src, namePatterns(fullNames));
   let out = '', at = 0;
-  for (const [a, b] of ranges) { out += src.slice(at, a) + 'the child'; at = b; }
+  for (const [a, b] of ranges) {
+    out += src.slice(at, a);
+    // "the Child" for a learner named Child Harold reads "the child", not "the the child".
+    out += /(?:^|[^\p{L}\p{N}_])the\s+$/iu.test(out) ? 'child' : 'the child';
+    at = b;
+  }
   return out + src.slice(at);
 }
 
