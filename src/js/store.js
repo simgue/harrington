@@ -11,7 +11,7 @@ export const MASTERY = {
 const listeners = new Set();
 let state = {
   user: { username: 'Family' },
-  students: [],       // {id, name, birthYear, avatar, color}
+  students: [],       // {id, name, birthYear, birthMonth?, avatar, color}
   activeStudentId: null,
   progress: {},       // studentId -> { topicId -> { status, updatedAt } }
   records: {},        // studentId -> [ {id, topicId, type, title, note, rating, questions, createdAt} ]
@@ -346,6 +346,8 @@ export function importDocument(doc) {
   const check = inspectImport(doc);
   if (!check.ok) return Promise.reject(new Error(check.error));
   const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = doc;
+  // Colors end up in style attributes, so only palette colors are imported.
+  data.students = data.students.map(s => (PALETTE.includes(s.color) ? s : { ...s, color: PALETTE[0] }));
   clearTimeout(saveTimer);
   saveTimer = null;
   dirty = false;
@@ -361,23 +363,45 @@ export function importDocument(doc) {
 }
 
 // ---- Students ----
-const PALETTE = ['#3f6b3b', '#a4473a', '#2f6285', '#5b4a86', '#8a6412', '#9a4a6e'];
-export function addStudent(name, birthYear) {
+export const PALETTE = ['#3f6b3b', '#a4473a', '#2f6285', '#5b4a86', '#8a6412', '#9a4a6e'];
+export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export const MIN_BIRTH_YEAR = 1990;
+const validMonth = m => Number.isInteger(m) && m >= 1 && m <= 12;
+const validYear = y => Number.isInteger(y) && y >= MIN_BIRTH_YEAR && y <= new Date().getFullYear();
+const validDateKey = k => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
+export function addStudent(name, birthYear, birthMonth = null) {
   const id = 's_' + Math.random().toString(36).slice(2, 9);
   const color = PALETTE[state.students.length % PALETTE.length];
   const now = new Date();
   const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  state.students.push({ id, name, birthYear, color, createdAt: Date.now(), startDate });
+  const student = { id, name, birthYear, color, createdAt: Date.now(), startDate };
+  if (validMonth(birthMonth)) student.birthMonth = birthMonth;
+  state.students.push(student);
   state.progress[id] = state.progress[id] || {};
   state.records[id] = state.records[id] || [];
   state.activeStudentId = id;
   persist(); emit();
   return id;
 }
+// Only these fields can change, and each is checked so a bad value never
+// reaches the saved document: an empty name, a year outside MIN_BIRTH_YEAR to
+// this year, a month outside 1-12, a color outside the palette or a malformed
+// start date is ignored. birthMonth null clears the month.
 export function updateStudent(id, patch) {
   const s = state.students.find(s => s.id === id);
-  if (s) Object.assign(s, patch);
+  if (!s) return false;
+  const { name, birthYear, birthMonth, color, startDate } = patch;
+  const ageBefore = studentAge(s);
+  if (typeof name === 'string' && name.trim()) s.name = name.trim();
+  if (validYear(birthYear)) s.birthYear = birthYear;
+  if (birthMonth === null) delete s.birthMonth;
+  else if (validMonth(birthMonth)) s.birthMonth = birthMonth;
+  if (PALETTE.includes(color)) s.color = color;
+  if (validDateKey(startDate)) s.startDate = startDate;
+  // Today's choices were filtered by the old age; rebuild them on next render.
+  if (studentAge(s) !== ageBefore) forgetTodaysChoices(id);
   persist(); emit();
+  return true;
 }
 export function removeStudent(id) {
   // Recordings are deleted only once the server accepts the removal, so a
@@ -395,9 +419,13 @@ export function removeStudent(id) {
 export function setActiveStudent(id) { state.activeStudentId = id; persist(); emit(); }
 export function activeStudent() { return state.students.find(s => s.id === state.activeStudentId) || null; }
 
-export function studentAge(s) {
+// Whole years completed. With a birth month the birthday counts from the
+// first of that month; without one, the age is the calendar-year difference.
+export function studentAge(s, now = new Date()) {
   if (!s || !s.birthYear) return null;
-  return new Date().getFullYear() - s.birthYear;
+  const years = now.getFullYear() - s.birthYear;
+  if (!validMonth(s.birthMonth)) return years;
+  return now.getMonth() + 1 < s.birthMonth ? Math.max(0, years - 1) : years;
 }
 
 // ---- Progress / mastery ----
@@ -429,7 +457,8 @@ export function setStatusBulk(studentId, topicIds, status, meta = {}) {
 // ---- Placement (bulk-mark earlier topics mastered, with undo) ----
 // A placement is a parent admin action, not learning: it does not mark the
 // day active. It changes which topics are open, so today's daily choices
-// (offers and picks) are dropped and rebuilt on the next render.
+// (offers and picks) are dropped and rebuilt on the next render. A learner
+// whose age changes (updateStudent) drops them the same way.
 function forgetTodaysChoices(studentId) {
   const days = state.daily[studentId];
   if (days) delete days[dateKeyLocal(Date.now())];
