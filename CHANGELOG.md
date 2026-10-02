@@ -7,6 +7,11 @@ tagged a release yet; everything below is on `main`.
 ## [Unreleased]
 
 ### Changed
+- Calendar follows the family's home days and breaks (set under Home days &
+  breaks); rest days schedule nothing. Unmastered literacy and numeracy topics
+  below the learner's age come first, after their prerequisites. Refreshers
+  come only from mastered topics, Extra practice opens spaced practice, and
+  changing the start date offers to clear moved topics (HAR-18).
 - Learners can be edited (name, birth month and year, color) from the learner
   selector, and onboarding and Add student take an optional birth month. Age
   counts whole years when the month is known; the map, daily choices,
@@ -15,6 +20,11 @@ tagged a release yet; everything below is on `main`.
   are, and "Back to graph" from a topic page returns to the same skill,
   selected, at the same scroll. The selection is in the address
   (`?skill=`) and resets when the learner changes (HAR-21).
+- Generated lessons, print sheets, activity instructions and recall cards are
+  never cached empty or malformed, open once for rapid repeat clicks, and each
+  has "Generate a different version" that keeps the previous version if it
+  fails. Recall cards now persist, printed sheets show topic, subject and age,
+  and cached content opens without an AI provider (HAR-20).
 - Welcome tour, in-app Guide, printable guide and `src/docs/GUIDE.md` describe
   only what works today. AI-backed features carry one line: "Needs a local AI
   provider; see the README." The curriculum auto-update claim is gone, and the

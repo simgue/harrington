@@ -1,9 +1,9 @@
 import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, toast, openModal } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiLesson, aiActivityDetail } from '../ai.js';
 import { openPrintables } from './printables.js';
-import { aiErrorBlock, aiNotConfiguredError } from '../ai-status.js';
+import { gateAi, generateAnotherButton, regenerateInto, showGenerated } from '../ai-status.js';
 
 // ---- Full lesson plan modal ----
 export async function openLesson(topic) {
@@ -11,8 +11,8 @@ export async function openLesson(topic) {
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
       <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${SUBJECTS[topic.subject].color}18"><i data-lucide="notebook-text" class="w-5 h-5" style="color:${SUBJECTS[topic.subject].color}"></i></span>
       <div class="flex-1 min-w-0">
-        <p class="text-xs text-ink-faint">Lesson plan · ${topic.subject}</p>
-        <h3 class="font-display text-lg font-600 leading-tight">${topic.name}</h3>
+        <p class="text-xs text-ink-faint">Lesson plan · ${esc(topic.subject)}</p>
+        <h3 class="font-display text-lg font-600 leading-tight">${esc(topic.name)}</h3>
       </div>
       <button id="print" class="hidden sm:flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink shrink-0"><i data-lucide="printer" class="w-4 h-4"></i>Print</button>
     </div>
@@ -26,43 +26,18 @@ export async function openLesson(topic) {
   let currentLesson = null;
 
   // loading state
-  stage.appendChild(loadingBlock(`Building a full lesson for ${topic.name}\u2026`, 'This takes a few seconds the first time. It\u2019s then saved for reuse.'));
+  stage.appendChild(loadingBlock(`Building a full lesson for ${esc(topic.name)}\u2026`, 'This takes a few seconds the first time. It\u2019s then saved for reuse.'));
   refreshIcons();
 
-  const cacheId = 'topic:' + topic.id;
-
-  const regen = async () => {
-    stage.innerHTML = '';
-    stage.appendChild(loadingBlock('Writing a fresh version\u2026', ''));
-    refreshIcons();
-    try {
-      const fresh = await aiLesson(topic);
-      await store.saveCachedLesson(cacheId, fresh);
-      currentLesson = fresh;
-      stage.innerHTML = '';
-      stage.appendChild(renderLesson(fresh, topic, regen));
-      refreshIcons();
-    } catch (e) {
-      stage.innerHTML = '';
-      stage.appendChild(aiErrorBlock(e, regen));
-    }
+  const generated = {
+    key: 'topic:' + topic.id,
+    generate: () => aiLesson(topic),
+    render: (lesson) => renderLesson(lesson, topic, regen),
+    loading: loadingBlock('Writing a fresh version\u2026', ''),
+    onShow: (lesson) => { currentLesson = lesson; },
   };
-
-  try {
-    let lesson = await store.getCachedLesson(cacheId);
-    if (!lesson) {
-      if (!store.aiAvailable()) throw aiNotConfiguredError();
-      lesson = await aiLesson(topic);
-      await store.saveCachedLesson(cacheId, lesson);
-    }
-    currentLesson = lesson;
-    stage.innerHTML = '';
-    stage.appendChild(renderLesson(lesson, topic, regen));
-    refreshIcons();
-  } catch (e) {
-    stage.innerHTML = '';
-    stage.appendChild(aiErrorBlock(e, () => { m.close(); openLesson(topic); }));
-  }
+  const regen = () => regenerateInto(stage, generated);
+  await showGenerated(stage, { ...generated, retry: () => { m.close(); openLesson(topic); } });
 }
 
 function renderLesson(L, topic, onRegen) {
@@ -74,12 +49,12 @@ function renderLesson(L, topic, onRegen) {
     ${L.duration ? `<span class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-paper border border-paper-line text-ink-soft"><i data-lucide="clock" class="w-4 h-4"></i>${esc(L.duration)}</span>` : ''}
   </div>`));
 
-  if (L.materials && L.materials.length) {
-    wrap.appendChild(block('package', 'What you\u2019ll need', el(`<div class="flex flex-wrap gap-2">${L.materials.map(m => `<span class="text-sm px-2.5 py-1 rounded-lg bg-paper border border-paper-line text-ink-soft">${esc(m)}</span>`).join('')}</div>`)));
+  if (arr(L.materials).length) {
+    wrap.appendChild(block('package', 'What you\u2019ll need', el(`<div class="flex flex-wrap gap-2">${arr(L.materials).map(m => `<span class="text-sm px-2.5 py-1 rounded-lg bg-paper border border-paper-line text-ink-soft">${esc(m)}</span>`).join('')}</div>`)));
   }
 
   // Parent tips — focus / struggles / advice
-  const tips = L.parentTips;
+  const tips = isObj(L.parentTips) ? L.parentTips : null;
   if (tips && (tips.focus || tips.struggles || tips.advice)) {
     const tipRow = (icon, color, label, text) => text ? `<div class="flex gap-2.5">
       <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style="background:${color}18"><i data-lucide="${icon}" class="w-4 h-4" style="color:${color}"></i></span>
@@ -97,9 +72,9 @@ function renderLesson(L, topic, onRegen) {
 
   if (L.hook) wrap.appendChild(block('sparkles', 'Get started (hook)', el(`<p class="text-sm text-ink-soft leading-relaxed">${esc(L.hook)}</p>`)));
 
-  if (L.teach && L.teach.length) {
+  if (arr(L.teach).some(isObj)) {
     const steps = el(`<div class="space-y-3"></div>`);
-    L.teach.forEach((s, i) => steps.appendChild(el(`<div class="flex gap-3">
+    arr(L.teach).filter(isObj).forEach((s, i) => steps.appendChild(el(`<div class="flex gap-3">
       <span class="w-6 h-6 rounded-full bg-brand text-white text-xs font-700 flex items-center justify-center shrink-0 mt-0.5">${i + 1}</span>
       <div class="flex-1">
         ${s.title ? `<p class="font-600 text-sm">${esc(s.title)}</p>` : ''}
@@ -110,23 +85,23 @@ function renderLesson(L, topic, onRegen) {
     wrap.appendChild(block('presentation', 'Teach it step by step', steps));
   }
 
-  if (L.guidedPractice && L.guidedPractice.length) {
-    wrap.appendChild(block('users', 'Practice together', list(L.guidedPractice)));
+  if (arr(L.guidedPractice).length) {
+    wrap.appendChild(block('users', 'Practice together', list(arr(L.guidedPractice))));
   }
 
-  if (L.independentActivity) {
+  if (isObj(L.independentActivity)) {
     const ia = L.independentActivity;
     const inner = el(`<div>${ia.title ? `<p class="font-600 text-sm mb-1.5">${esc(ia.title)}</p>` : ''}</div>`);
-    if (ia.steps && ia.steps.length) inner.appendChild(orderedList(ia.steps));
+    if (arr(ia.steps).length) inner.appendChild(orderedList(arr(ia.steps)));
     wrap.appendChild(block('pencil', 'Child works on their own', inner));
   }
 
-  if (L.questions && L.questions.length) {
-    wrap.appendChild(block('message-circle-question', 'Discussion & check questions', list(L.questions)));
+  if (arr(L.questions).length) {
+    wrap.appendChild(block('message-circle-question', 'Discussion & check questions', list(arr(L.questions))));
   }
 
-  if (L.commonMistakes && L.commonMistakes.length) {
-    wrap.appendChild(block('alert-triangle', 'Watch out for', list(L.commonMistakes)));
+  if (arr(L.commonMistakes).length) {
+    wrap.appendChild(block('alert-triangle', 'Watch out for', list(arr(L.commonMistakes))));
   }
 
   if (L.masteryCheck) {
@@ -148,15 +123,15 @@ function renderLesson(L, topic, onRegen) {
       <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint"></i>
     </button>`);
     b.onclick = () => openPrintables(topic);
-    return b;
+    return gateAi(b, { cachedKey: 'print:' + topic.id, fallback: el('<span class="hidden"></span>') });
   })());
 
   // footer actions
   const footer = el(`<div class="flex items-center justify-between gap-2 pt-2 border-t border-paper-line">
-    <button id="regen" class="flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink"><i data-lucide="refresh-cw" class="w-4 h-4"></i>Generate a different version</button>
+    <span id="regen"></span>
     <button id="printm" class="sm:hidden flex items-center gap-1.5 text-sm text-brand-dark font-medium"><i data-lucide="printer" class="w-4 h-4"></i>Print</button>
   </div>`);
-  footer.querySelector('#regen').onclick = onRegen;
+  footer.querySelector('#regen').replaceWith(generateAnotherButton(onRegen));
   footer.querySelector('#printm').onclick = () => printLesson(topic, L);
   wrap.appendChild(footer);
 
@@ -164,13 +139,15 @@ function renderLesson(L, topic, onRegen) {
 }
 
 // ---- Activity / game detail modal ----
+export function activityCacheKey(topic, activity, kind) { return `act:${topic.id}:${kind}:${activity.title}`; }
+
 export async function openActivityDetail(topic, activity, kind) {
   const body = el(`<div class="p-5">
     <div class="flex items-start gap-3 mb-4">
-      <span class="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0"><i data-lucide="${activity.icon || 'lightbulb'}" class="w-5 h-5 text-brand-dark"></i></span>
+      <span class="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0"><i data-lucide="${esc(activity.icon || 'lightbulb')}" class="w-5 h-5 text-brand-dark"></i></span>
       <div>
-        <p class="text-xs text-ink-faint capitalize">${kind} · ${topic.name}</p>
-        <h3 class="font-display text-lg font-600 leading-tight">${activity.title}</h3>
+        <p class="text-xs text-ink-faint capitalize">${esc(kind)} · ${esc(topic.name)}</p>
+        <h3 class="font-display text-lg font-600 leading-tight">${esc(activity.title)}</h3>
       </div>
     </div>
     <div id="stage"></div>
@@ -180,31 +157,32 @@ export async function openActivityDetail(topic, activity, kind) {
   stage.appendChild(loadingBlock('Writing step-by-step instructions\u2026', ''));
   refreshIcons();
 
-  const cacheId = `act:${topic.id}:${kind}:${activity.title}`;
-  try {
-    let detail = await store.getCachedLesson(cacheId);
-    if (!detail) {
-      detail = await aiActivityDetail(topic, activity, kind);
-      await store.saveCachedLesson(cacheId, detail);
-    }
-    stage.innerHTML = '';
-    const wrap = el(`<div class="space-y-4 fade-up"></div>`);
-    wrap.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed">${esc(activity.body)}</p>`));
-    if (detail.materials && detail.materials.length) wrap.appendChild(block('package', 'You\u2019ll need', el(`<div class="flex flex-wrap gap-2">${detail.materials.map(x => `<span class="text-sm px-2.5 py-1 rounded-lg bg-paper border border-paper-line text-ink-soft">${esc(x)}</span>`).join('')}</div>`)));
-    if (detail.setup) wrap.appendChild(block('settings-2', 'Set up', el(`<p class="text-sm text-ink-soft leading-relaxed">${esc(detail.setup)}</p>`)));
-    if (detail.steps && detail.steps.length) wrap.appendChild(block('list-ordered', 'How to play', orderedList(detail.steps)));
-    if (detail.example) wrap.appendChild(el(`<div class="rounded-xl bg-paper border border-paper-line p-3.5"><p class="text-xs font-600 text-ink-faint uppercase tracking-wide mb-1">Example</p><p class="text-sm text-ink-soft leading-relaxed">${esc(detail.example)}</p></div>`));
-    if (detail.tip) wrap.appendChild(el(`<div class="flex gap-2 text-sm text-ink-soft"><i data-lucide="lightbulb" class="w-4 h-4 text-[#8a6412] shrink-0 mt-0.5"></i><span>${esc(detail.tip)}</span></div>`));
-    stage.appendChild(wrap);
-    refreshIcons();
-  } catch (e) {
-    stage.innerHTML = '';
-    stage.appendChild(aiErrorBlock(e, () => { m.close(); openActivityDetail(topic, activity, kind); }));
-  }
+  const generated = {
+    key: activityCacheKey(topic, activity, kind),
+    generate: () => aiActivityDetail(topic, activity, kind),
+    render: (detail) => renderActivityDetail(activity, detail, regen),
+    loading: loadingBlock('Writing a fresh version\u2026', ''),
+  };
+  const regen = () => regenerateInto(stage, generated);
+  await showGenerated(stage, { ...generated, retry: () => { m.close(); openActivityDetail(topic, activity, kind); } });
+}
+
+function renderActivityDetail(activity, detail, onRegen) {
+  const wrap = el(`<div class="space-y-4 fade-up"></div>`);
+  wrap.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed">${esc(activity.body)}</p>`));
+  if (arr(detail.materials).length) wrap.appendChild(block('package', 'You\u2019ll need', el(`<div class="flex flex-wrap gap-2">${arr(detail.materials).map(x => `<span class="text-sm px-2.5 py-1 rounded-lg bg-paper border border-paper-line text-ink-soft">${esc(x)}</span>`).join('')}</div>`)));
+  if (detail.setup) wrap.appendChild(block('settings-2', 'Set up', el(`<p class="text-sm text-ink-soft leading-relaxed">${esc(detail.setup)}</p>`)));
+  if (arr(detail.steps).length) wrap.appendChild(block('list-ordered', 'How to play', orderedList(arr(detail.steps))));
+  if (detail.example) wrap.appendChild(el(`<div class="rounded-xl bg-paper border border-paper-line p-3.5"><p class="text-xs font-600 text-ink-faint uppercase tracking-wide mb-1">Example</p><p class="text-sm text-ink-soft leading-relaxed">${esc(detail.example)}</p></div>`));
+  if (detail.tip) wrap.appendChild(el(`<div class="flex gap-2 text-sm text-ink-soft"><i data-lucide="lightbulb" class="w-4 h-4 text-[#8a6412] shrink-0 mt-0.5"></i><span>${esc(detail.tip)}</span></div>`));
+  wrap.appendChild(el(`<div class="pt-2 border-t border-paper-line"></div>`)).appendChild(generateAnotherButton(onRegen));
+  return wrap;
 }
 
 // ---- helpers ----
-function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+// Provider output is untrusted: list fields render only when they are arrays.
+const arr = (v) => Array.isArray(v) ? v : [];
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
 function block(icon, title, contentEl) {
   const b = el(`<div><p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-2 flex items-center gap-1.5"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i>${title}</p><div class="body"></div></div>`);
@@ -231,9 +209,9 @@ function printLesson(topic, L) {
   const w = window.open('', '_blank');
   if (!w) { toast('Allow pop-ups to print', 'error'); return; }
   const sec = (title, html) => html ? `<h2>${title}</h2>${html}` : '';
-  const ul = arr => arr && arr.length ? `<ul>${arr.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : '';
-  const ol = arr => arr && arr.length ? `<ol>${arr.map(i => `<li>${esc(i)}</li>`).join('')}</ol>` : '';
-  const teach = (L.teach || []).map((s, i) => `<div class="step"><strong>${i + 1}. ${esc(s.title || '')}</strong>${s.say ? `<p><em>Say:</em> ${esc(s.say)}</p>` : ''}${s.do ? `<p><em>Do:</em> ${esc(s.do)}</p>` : ''}</div>`).join('');
+  const ul = a => arr(a).length ? `<ul>${arr(a).map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : '';
+  const ol = a => arr(a).length ? `<ol>${arr(a).map(i => `<li>${esc(i)}</li>`).join('')}</ol>` : '';
+  const teach = arr(L.teach).filter(isObj).map((s, i) => `<div class="step"><strong>${i + 1}. ${esc(s.title || '')}</strong>${s.say ? `<p><em>Say:</em> ${esc(s.say)}</p>` : ''}${s.do ? `<p><em>Do:</em> ${esc(s.do)}</p>` : ''}</div>`).join('');
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(topic.name)} — Lesson</title>
   <style>
     body{font-family:Georgia,serif;max-width:720px;margin:32px auto;padding:0 20px;color:#2e2a24;line-height:1.55}
@@ -252,12 +230,12 @@ function printLesson(topic, L) {
     <h1>${esc(topic.name)}</h1>
     <div class="sub">${esc(topic.subject)} &middot; ${esc(topic.domain)} &middot; Ages ${topic.ageRangeStart}–${topic.ageRangeEnd}${L.duration ? ' &middot; ' + esc(L.duration) : ''}</div>
     ${L.objective ? `<div class="obj"><strong>Objective:</strong> ${esc(L.objective)}</div>` : ''}
-    ${L.parentTips && (L.parentTips.focus || L.parentTips.struggles || L.parentTips.advice) ? sec('Notes for the parent', `<div class="tips">${L.parentTips.focus ? `<p><strong>Focus on:</strong> ${esc(L.parentTips.focus)}</p>` : ''}${L.parentTips.struggles ? `<p><strong>Likely struggles:</strong> ${esc(L.parentTips.struggles)}</p>` : ''}${L.parentTips.advice ? `<p><strong>Advice:</strong> ${esc(L.parentTips.advice)}</p>` : ''}</div>`) : ''}
+    ${isObj(L.parentTips) && (L.parentTips.focus || L.parentTips.struggles || L.parentTips.advice) ? sec('Notes for the parent', `<div class="tips">${L.parentTips.focus ? `<p><strong>Focus on:</strong> ${esc(L.parentTips.focus)}</p>` : ''}${L.parentTips.struggles ? `<p><strong>Likely struggles:</strong> ${esc(L.parentTips.struggles)}</p>` : ''}${L.parentTips.advice ? `<p><strong>Advice:</strong> ${esc(L.parentTips.advice)}</p>` : ''}</div>`) : ''}
     ${sec('Materials', ul(L.materials))}
     ${sec('Get started', L.hook ? `<p>${esc(L.hook)}</p>` : '')}
     ${sec('Teach it', teach)}
     ${sec('Practice together', ul(L.guidedPractice))}
-    ${L.independentActivity ? sec('Independent activity', `<p><strong>${esc(L.independentActivity.title || '')}</strong></p>${ol(L.independentActivity.steps)}`) : ''}
+    ${isObj(L.independentActivity) ? sec('Independent activity', `<p><strong>${esc(L.independentActivity.title || '')}</strong></p>${ol(L.independentActivity.steps)}`) : ''}
     ${sec('Questions', ul(L.questions))}
     ${sec('Watch out for', ul(L.commonMistakes))}
     ${sec('Mastery check', L.masteryCheck ? `<p>${esc(L.masteryCheck)}</p>` : '')}
