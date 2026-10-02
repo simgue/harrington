@@ -1,6 +1,6 @@
 import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
-import { el, esc, refreshIcons, fmtDateTime } from '../ui.js';
+import { el, esc, refreshIcons, fmtDateTime, toast } from '../ui.js';
 import { studentStats, recommendedNext, recentActivity, todaysChoices, MASTERY } from '../mastery.js';
 import { openRecordForm } from './records.js';
 import { openRecorder } from '../recorder.js';
@@ -13,6 +13,7 @@ import { BADGES } from '../game.js';
 import { meadowScene, petalRing, weekFlower, growthIcon, growthChip, stageForStatus, stageForArea, GROWTH } from '../meadow.js';
 import { openKidMode } from './kidmode.js';
 import { openPlacement } from './placement.js';
+import { pickKey, invitationEvidenceSummary } from '../daily.js';
 
 // Pastel stop colours for the day's path, cycled per topic.
 const STOPS = [
@@ -82,6 +83,7 @@ export function renderDashboard(params, { navigate }) {
   const side = el(`<div class="flex flex-col gap-5 min-w-0"></div>`);
   side.appendChild(weekCard(active));
   side.appendChild(overallCard(stats));
+  side.appendChild(interestsCard(active));
   main.appendChild(side);
   root.appendChild(main);
 
@@ -271,7 +273,19 @@ function todayCard(active, navigate) {
   const laneTone = { literacy: STOPS[0], numeracy: STOPS[1] };
   let anyOptions = false;
   for (const [key, c] of Object.entries(choices)) {
-    if (!c.options.length) continue;
+    if (!c.options.length) {
+      // Nothing open in this lane today: say why, which is when it matters most.
+      if (c.blocked.length) {
+        const tone = laneTone[key];
+        const empty = el(`<div class="relative rounded-3xl p-4" style="background:${tone.tint}">
+          ${stop(++stopNo, tone, c.lane.icon)}
+          <p class="font-600">${c.lane.label} <span class="font-400 text-sm text-ink-soft">· nothing open today</span></p>
+        </div>`);
+        empty.appendChild(whyLockedLine(c.blocked));
+        body.appendChild(empty);
+      }
+      continue;
+    }
     anyOptions = true;
     body.appendChild(choiceStop(active, todayKey, key, c, laneTone[key], stop(++stopNo, laneTone[key], c.lane.icon), navigate));
   }
@@ -324,8 +338,14 @@ function todayCard(active, navigate) {
       <button data-k="note" class="flex items-center gap-1.5 h-10 px-3.5 rounded-full bg-paper-card text-brand text-xs font-600 hover:bg-sage-light"><i data-lucide="pencil" class="w-4 h-4"></i>Note</button>
     </span>
   </div>`);
-  rec.querySelector('[data-k="voice"]').onclick = () => openRecorder(active.id);
-  rec.querySelector('[data-k="note"]').onclick = () => openRecordForm(active.id);
+  // The day's picks are the coverage candidates; one record can cover both.
+  const picked = Object.entries(choices).filter(([, c]) => c.pick && c.options.some(t => t.id === c.pick));
+  const recOptions = picked.length ? {
+    coverageTopicIds: picked.map(([, c]) => c.pick),
+    source: { kind: 'daily-pick', key: picked.map(([key, c]) => pickKey(todayKey, key, c.pick)).join(',') },
+  } : {};
+  rec.querySelector('[data-k="voice"]').onclick = () => openRecorder(active.id, null, null, recOptions);
+  rec.querySelector('[data-k="note"]').onclick = () => openRecordForm(active.id, null, recOptions);
   body.appendChild(rec);
 
   return card;
@@ -344,6 +364,7 @@ function choiceStop(active, dateKey, laneKey, c, tone, stopHtml, navigate) {
     <div class="grid sm:grid-cols-2 gap-2.5"></div>
   </div>`);
   const grid = wrap.querySelector('.grid');
+  const pickTopic = c.pick ? c.options.find(t => t.id === c.pick) : null;
   c.options.forEach(t => {
     const picked = c.pick === t.id;
     const dimmed = c.pick && !picked;
@@ -363,7 +384,93 @@ function choiceStop(active, dateKey, laneKey, c, tone, stopHtml, navigate) {
     card.querySelector('.open').onclick = () => navigate('topic', { id: t.id });
     grid.appendChild(card);
   });
+
+  // Evidence for the pick: shown as recorded only once a linked record claims coverage.
+  if (pickTopic) {
+    const key = pickKey(dateKey, laneKey, pickTopic.id);
+    const evidence = invitationEvidenceSummary(store.recordsFor(active.id), key);
+    const row = el(`<div class="flex flex-wrap items-center gap-2 mt-3">
+      ${evidence.coverageCount
+        ? `<span class="inline-flex items-center gap-1.5 text-xs font-600 px-2.5 py-1 rounded-full bg-sage-light text-brand-dark"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>Evidence recorded</span>`
+        : `<span class="text-xs text-ink-soft mr-auto">How did it go?</span>`}
+      <button data-k="voice" class="flex items-center gap-1.5 h-9 px-3 rounded-full bg-paper-card text-brand text-xs font-600 hover:bg-sage-light"><i data-lucide="mic" class="w-3.5 h-3.5"></i>Voice</button>
+      <button data-k="note" class="flex items-center gap-1.5 h-9 px-3 rounded-full bg-paper-card text-brand text-xs font-600 hover:bg-sage-light"><i data-lucide="pencil" class="w-3.5 h-3.5"></i>Note</button>
+    </div>`);
+    const opts = { coverageTopicIds: [pickTopic.id], source: { kind: 'daily-pick', key } };
+    row.querySelector('[data-k="voice"]').onclick = () => openRecorder(active.id, pickTopic, null, opts);
+    row.querySelector('[data-k="note"]').onclick = () => openRecordForm(active.id, pickTopic, opts);
+    wrap.appendChild(row);
+  }
+
+  // Parent-only: why the next topics in this lane aren't offered yet.
+  if (c.blocked.length) wrap.appendChild(whyLockedLine(c.blocked));
   return wrap;
+}
+
+// One compact parent-only line: "Not yet: <topic> needs <prerequisite> first".
+function whyLockedLine(blocked) {
+  const parts = blocked.map(b => `<strong class="font-600 text-ink-soft">${esc(b.topic.name)}</strong> needs <strong class="font-600 text-ink-soft">${esc(b.needs.name)}</strong> first`);
+  return el(`<p class="why-locked text-xs text-ink-faint mt-3 flex items-start gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5 shrink-0 mt-px"></i><span>Not yet: ${parts.join(' · ')}</span></p>`);
+}
+
+// What the learner is into: suggestion chips, their own chips and a free-text
+// note, stored per learner. Shown to the parent only; nothing uses it yet.
+const INTEREST_SUGGESTIONS = ['Animals', 'Building things', 'Gardening', 'Cooking', 'Music', 'Drawing', 'Space', 'Vehicles', 'Stories', 'Sports'];
+function interestsCard(student) {
+  const current = store.interestsFor(student.id);
+  // Chips compare ignoring case, as the store does: a custom "animals" shows
+  // as the "Animals" suggestion, selected.
+  const lower = (x) => x.toLowerCase();
+  const on = new Set(current.chips.map(lower));
+  const chips = [...INTEREST_SUGGESTIONS, ...current.chips.filter(c => !INTEREST_SUGGESTIONS.some(x => lower(x) === lower(c)))];
+  const card = el(`<section class="meadow-card p-5" aria-labelledby="int-h">
+    <h2 id="int-h" class="font-display text-lg font-600 flex items-center gap-2"><i data-lucide="sparkles" class="w-5 h-5 text-butter-deep"></i>${esc(student.name)}'s interests</h2>
+    <p class="text-xs text-ink-faint mt-0.5 mb-3">What they're into lately. Tap to choose.</p>
+    <div class="chips flex flex-wrap gap-1.5"></div>
+    <form class="add flex gap-1.5 mt-2.5">
+      <input name="chip" maxlength="40" placeholder="Add your own…" aria-label="Add an interest" class="flex-1 min-w-0 h-9 px-3 rounded-full border border-paper-line bg-paper text-sm focus:outline-none focus:ring-2 focus:ring-brand/30" />
+      <button class="h-9 px-3 rounded-full bg-brand-light text-brand text-xs font-600 hover:bg-sage-light">Add</button>
+    </form>
+    <label class="block text-xs font-600 text-ink-soft mt-3 mb-1" for="int-text">Anything else?</label>
+    <textarea id="int-text" name="text" rows="2" maxlength="500" placeholder="e.g. asks lots of questions about how bridges stay up" class="w-full px-3 py-2 rounded-2xl border border-paper-line bg-paper text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand/30">${esc(current.text)}</textarea>
+  </section>`);
+  const text = card.querySelector('textarea');
+  let textTimer = null;
+  // Every save carries the box's current text, so a pending edit is never lost.
+  const save = (patch, opts) => {
+    clearTimeout(textTimer);
+    store.setInterests(student.id, { ...store.interestsFor(student.id), text: text.value, ...patch }, opts);
+  };
+  const addChip = (chip) => {
+    const list = store.interestsFor(student.id).chips;
+    if (list.some(x => lower(x) === lower(chip))) return;
+    if (list.length >= store.INTEREST_CHIPS_MAX) { toast(`Up to ${store.INTEREST_CHIPS_MAX} interests; tap one to remove it first`, 'error'); return; }
+    save({ chips: [...list, chip] });
+  };
+  const wrap = card.querySelector('.chips');
+  chips.forEach(chip => {
+    const sel = on.has(lower(chip));
+    const b = el(`<button type="button" aria-pressed="${sel}" class="px-3 py-1 rounded-full text-xs font-600 transition-colors ${sel ? 'bg-butter text-ink' : 'bg-paper text-ink-soft hover:bg-butter-light'}">${esc(chip)}</button>`);
+    b.onclick = () => {
+      if (sel) save({ chips: store.interestsFor(student.id).chips.filter(x => lower(x) !== lower(chip)) });
+      else addChip(chip);
+    };
+    wrap.appendChild(b);
+  });
+  card.querySelector('.add').onsubmit = (e) => {
+    e.preventDefault();
+    const value = e.target.chip.value.trim();
+    if (value) addChip(value);
+  };
+  // Typing saves quietly (no re-render), so focus stays put and the next tap lands.
+  text.oninput = () => {
+    clearTimeout(textTimer);
+    textTimer = setTimeout(() => store.setInterests(student.id, { ...store.interestsFor(student.id), text: text.value }, { quiet: true }), 400);
+  };
+  text.onblur = () => {
+    if (textTimer) save({}, { quiet: true });
+  };
+  return card;
 }
 
 // The week as seven little flowers: bloomed on days with learning activity.

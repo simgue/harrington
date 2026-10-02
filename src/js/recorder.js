@@ -4,6 +4,7 @@ import * as store from './store.js';
 import * as backend from './backend.js';
 import { getData, SUBJECTS, topicAge } from './data.js';
 import { aiDiscussionAnalysis } from './ai.js';
+import { coverageFields } from './daily.js';
 
 // Section id for a topic, matching mastery.js sectionId(): "subject|domain|age".
 function sectionIdForTopic(t) {
@@ -95,11 +96,30 @@ export function audioPlayer(path, duration) {
   return wrap;
 }
 
+// Topics a record may claim as coverage, from ids (unknown ids are dropped).
+export function coverageCandidates(d, ids) {
+  return [...new Set(Array.isArray(ids) ? ids : [])].map(id => d.byId.get(id)).filter(Boolean);
+}
+
+// Opt-in coverage claim, unchecked by default. Parent-only: the record forms
+// never open from the child view with coverage candidates.
+export function coverageClaimField(topics) {
+  if (!topics.length) return '';
+  return `<label class="flex items-start gap-2.5 text-sm rounded-2xl bg-brand-light px-3.5 py-3 cursor-pointer">
+    <input type="checkbox" name="claimCoverage" class="mt-0.5 w-4 h-4 accent-[#3f6b3b]" />
+    <span>Mark curriculum coverage for ${topics.map(t => `<strong class="font-600">${esc(t.name)}</strong>`).join(' and ')}</span>
+  </label>`;
+}
+
 // ---- The recorder modal ----
 // section (optional): { id, subject, domain, age } — links the recording to a section.
-export function openRecorder(studentId, topic = null, section = null) {
+// options (optional, also accepted in place of section): { coverageTopicIds, source },
+// as for openRecordForm in views/records.js.
+export function openRecorder(studentId, topic = null, section = null, options = {}) {
+  if (section && !section.domain && (section.coverageTopicIds || section.source)) { options = section; section = null; }
   if (!studentId) { toast('Add a student first', 'error'); return; }
   const d = getData();
+  const coverageTopics = coverageCandidates(d, options.coverageTopicIds);
   const contextLabel = topic ? 'Linked to ' + topic.name
     : section ? `Linked to ${section.domain} · Age ${section.age}`
     : 'Capture a lesson discussion, then link it to a topic.';
@@ -109,7 +129,7 @@ export function openRecorder(studentId, topic = null, section = null) {
       <span class="w-8 h-8 rounded-lg bg-[#a4473a]/10 flex items-center justify-center"><i data-lucide="mic" class="w-4.5 h-4.5 text-[#a4473a]"></i></span>
       <h3 class="font-display text-lg font-600">Record conversation</h3>
     </div>
-    <p class="text-xs text-ink-faint mb-4">${contextLabel}</p>
+    <p class="text-xs text-ink-faint mb-4">${esc(contextLabel)}</p>
 
     <div id="stage"></div>
   </div>`);
@@ -232,7 +252,7 @@ export function openRecorder(studentId, topic = null, section = null) {
           <input id="search" placeholder="Search topics\u2026" autocomplete="off" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
           <div id="results" class="mt-1 max-h-36 overflow-y-auto space-y-1"></div>
           <input type="hidden" name="topicId" />
-        </div>` : `<input type="hidden" name="topicId" value="${topic.id}" />`}
+        </div>` : `<input type="hidden" name="topicId" value="${esc(topic.id)}" />`}
         <div>
           <label class="text-sm font-medium block mb-1.5">Title</label>
           <input name="title" placeholder="e.g. Talking through fractions" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
@@ -241,6 +261,7 @@ export function openRecorder(studentId, topic = null, section = null) {
           <label class="text-sm font-medium block mb-1.5">Notes <span class="text-ink-faint font-normal">(optional)</span></label>
           <textarea name="note" rows="2" placeholder="Key questions, moments, or things to revisit\u2026" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none"></textarea>
         </div>
+        ${coverageClaimField(coverageTopics)}
         ${(transcript || speechSupported()) ? `<div>
           <label class="text-sm font-medium mb-1.5 flex items-center gap-1.5"><i data-lucide="captions" class="w-4 h-4 text-brand-dark"></i>Transcript <span class="text-ink-faint font-normal">(used for AI analysis — edit if needed)</span></label>
           <textarea name="transcript" rows="4" placeholder="${transcript ? '' : 'No speech was captured. You can type or paste what was said here.'}" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none text-sm">${esc(transcript || '')}</textarea>
@@ -263,7 +284,7 @@ export function openRecorder(studentId, topic = null, section = null) {
         results.innerHTML = '';
         if (q.length < 2) return;
         d.topics.filter(t => t.name.toLowerCase().includes(q)).slice(0, 6).forEach(t => {
-          const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${t.name}</span><span class="text-xs text-ink-faint">${t.subject}</span></button>`);
+          const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
           r.onclick = () => { hidden.value = t.id; search.value = t.name; results.innerHTML = ''; };
           results.appendChild(r);
         });
@@ -295,6 +316,7 @@ export function openRecorder(studentId, topic = null, section = null) {
           subject: section ? section.subject : (topicId ? d.byId.get(topicId)?.subject : null),
           audioPath: path,
           duration,
+          ...coverageFields(coverageTopics, !!fd.get('claimCoverage'), options.source),
         });
         toast('Recording saved', 'success');
         m.close();
