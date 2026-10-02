@@ -92,3 +92,48 @@ test('re-mastering keeps the placement source and the original date', () => {
   assert.equal(store.progressFor(id).placed.source, undefined);
   assert.equal(store.statusOf(id, 'placed'), 'practicing');
 });
+
+const { planTrack } = await import('../src/js/scheduler.js');
+const spineTopic = (n, domain, age) => ({ id: `${domain}-${age}-${n}`, name: `${domain} ${age} ${n}`, subject: 'Mathematics', domain, ageRangeStart: age });
+const mathTopics = ['Counting & Cardinality', 'Addition & Subtraction'].flatMap(dm => [5, 6, 7, 8].flatMap(age => [0, 1, 2].map(n => spineTopic(n, dm, age))));
+const planFor = (sid, startKey) => {
+  const done = new Set(masteredBeforeTrack(store.progressFor(sid), startKey));
+  return planTrack(mathTopics, { startKey, age: 8, mastered: id => done.has(id), subjects: ['Mathematics'] });
+};
+
+test('marking a placed subject mastered in bulk changes no plan dates', () => {
+  const sid = store.addStudent('Sample Ten', 2018);
+  const startKey = '2026-09-07';
+  const placed = mathTopics.filter(t => t.ageRangeStart <= 7).map(t => t.id);
+  store.applyPlacement(sid, { topicIds: placed, title: 'Placement', subject: 'Mathematics', maxAge: 7 });
+  const before = planFor(sid, startKey);
+  const entries = JSON.stringify(placed.map(id => store.progressFor(sid)[id]));
+
+  // "Mark all Mathematics topics as mastered" after a subject test.
+  store.setStatusBulk(sid, mathTopics.map(t => t.id), 'mastered');
+  assert.equal(JSON.stringify(placed.map(id => store.progressFor(sid)[id])), entries);
+  const after = planFor(sid, startKey);
+  assert.deepEqual([...after.topicDate], [...before.topicDate]);
+  // Topics that were not mastered yet get a fresh entry.
+  const fresh = store.progressFor(sid)[mathTopics.find(t => t.ageRangeStart === 8).id];
+  assert.equal(fresh.status, 'mastered');
+  assert.equal(fresh.source, undefined);
+});
+
+test('placement and undo still round-trip', () => {
+  const sid = store.addStudent('Sample Eleven', 2018);
+  const [a, b, c] = mathTopics.map(t => t.id);
+  store.setStatus(sid, a, 'practicing');
+  store.setStatus(sid, c, 'mastered');
+  const prior = JSON.parse(JSON.stringify(store.progressFor(sid)));
+
+  const rec = store.applyPlacement(sid, { topicIds: [a, b, c], title: 'Placement', subject: 'Mathematics', maxAge: 5 });
+  for (const id of [a, b, c]) {
+    assert.equal(store.progressFor(sid)[id].source, 'placement', id);
+    assert.equal(store.progressFor(sid)[id].updatedAt, rec.placement.at, id);
+  }
+  // A later bulk mastery leaves the placed entries alone, so undo still reverts them.
+  store.setStatusBulk(sid, [a, b, c], 'mastered');
+  assert.deepEqual(store.undoPlacement(sid, rec.id), { reverted: 3, kept: 0 });
+  assert.deepEqual(store.progressFor(sid), prior);
+});
