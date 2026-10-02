@@ -721,6 +721,25 @@ export function recallStatsForTopic(studentId, cardIds) {
 export function recallDueCount(studentId) {
   return dueRecallCards(studentId).length;
 }
+// A regenerated card set replaces a topic's cards for every learner. Card ids
+// are positional, so old scheduling state would attach to different questions
+// (or to cards that no longer exist); drop it and start the new set fresh.
+export function resetRecallTopic(topicId) {
+  let changed = false;
+  for (const r of Object.values(state.recall || {})) {
+    for (const [id, c] of Object.entries(r || {})) {
+      if ((c?.topicId || String(id).split('::')[0]) === topicId) { delete r[id]; changed = true; }
+    }
+  }
+  if (changed) { persist(); emit(); }
+}
+// Removes a learner's scheduling records for cards that no longer exist.
+export function dropRecallCards(studentId, cardIds) {
+  const r = recallOf(studentId);
+  const gone = cardIds.filter(id => id in r);
+  gone.forEach(id => { delete r[id]; });
+  if (gone.length) { persist(); emit(); }
+}
 
 // ---- Spaced practice for missed mastery-test questions ----
 // Extends the same expanding-interval ladder to problem-solving, not just facts.
@@ -964,19 +983,27 @@ export function normalizeCached(kind, value) {
   return value;
 }
 
+// Optional list fields must be arrays when present; the renderers map over them.
+const listsOrAbsent = (v, keys) => keys.every(k => v[k] == null || Array.isArray(v[k]));
+const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+
 export function isValidCached(kind, value) {
   const v = normalizeCached(kind, value);
-  if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+  if (!isObject(v)) return false;
   switch (kind) {
-    case 'lesson': return text(v.objective) && Array.isArray(v.teach) && v.teach.some(hasContent);
-    case 'printables': return Array.isArray(v.printables) && v.printables.some(p => p && hasContent(p.content));
-    case 'activity': return Array.isArray(v.steps) && v.steps.some(hasContent);
-    case 'recall': return Array.isArray(v.cards) && v.cards.some(c => c && text(c.front) && text(c.back));
+    case 'lesson':
+      return text(v.objective) && Array.isArray(v.teach) && v.teach.some(s => isObject(s) && hasContent(s))
+        && listsOrAbsent(v, ['materials', 'guidedPractice', 'questions', 'commonMistakes'])
+        && (v.parentTips == null || isObject(v.parentTips))
+        && (v.independentActivity == null || (isObject(v.independentActivity) && listsOrAbsent(v.independentActivity, ['steps'])));
+    case 'printables': return Array.isArray(v.printables) && v.printables.some(p => isObject(p) && isObject(p.content) && hasContent(p.content));
+    case 'activity': return Array.isArray(v.steps) && v.steps.some(hasContent) && listsOrAbsent(v, ['materials']);
+    case 'recall': return Array.isArray(v.cards) && v.cards.some(c => isObject(c) && text(c.front) && text(c.back));
     default: return true;
   }
 }
 
-function invalidResult() {
+export function invalidResult() {
   // Reads as a provider failure in explainAiError.
   return new Error('The AI provider returned an invalid response');
 }
@@ -996,33 +1023,51 @@ export async function getCachedLesson(id) {
   return null;
 }
 
-// Returns false (and writes nothing) when `data` fails its kind's shape.
+// Returns false, and keeps the previous value, when `data` fails its kind's
+// shape or the server does not store it.
 export async function saveCachedLesson(id, data) {
   const kind = cacheKind(id);
   const value = normalizeCached(kind, data);
   if (!isValidCached(kind, value)) return false;
+  try { await backend.saveLesson(id, value); }
+  catch (e) { console.warn('Could not save to the lesson cache', e); return false; }
   lessonCache.set(id, value);
   existsMemo.set(id, Promise.resolve(true));
-  try { await backend.saveLesson(id, value); } catch (e) { console.warn('Could not save to the lesson cache', e); }
   return true;
 }
 
-// Drops this tab's copies, as a fresh session would start (used by tests).
+// Test-only: drops this tab's copies, as a fresh session would start.
 export function forgetCachedLessons() {
   lessonCache.clear();
   existsMemo.clear();
 }
 
-// Whether a valid cached value exists, memoized for the session.
+// Whether a valid cached value exists, memoized for the session. Only a
+// definite answer is remembered; a failed request is tried again next time.
 export function hasCachedLesson(id) {
-  if (!existsMemo.has(id)) existsMemo.set(id, getCachedLesson(id).then(Boolean));
-  return existsMemo.get(id);
+  if (existsMemo.has(id)) return existsMemo.get(id);
+  const kind = cacheKind(id);
+  const check = (async () => {
+    if (lessonCache.has(id)) return true;
+    try {
+      const data = normalizeCached(kind, await backend.loadLesson(id));
+      if (data && isValidCached(kind, data)) { lessonCache.set(id, data); return true; }
+      return false;
+    } catch {
+      existsMemo.delete(id);
+      return false;
+    }
+  })();
+  existsMemo.set(id, check);
+  return check;
 }
 
 // The cached value, or a freshly generated one that is validated and saved.
-// `force` skips the cache (regenerate). Concurrent calls for one key share a
-// single generation. Without a provider a cache miss rejects as "not configured".
-export function generateCached(id, generate, { force = false } = {}) {
+// `force` skips the cache (regenerate). `accept(fresh)` runs before saving
+// (views pass a trial render) and a throw there leaves the cache untouched.
+// Concurrent calls for one key share a single generation. Without a provider
+// a cache miss rejects as "not configured".
+export function generateCached(id, generate, { force = false, accept = null } = {}) {
   if (inflight.has(id)) return inflight.get(id);
   const kind = cacheKind(id);
   const run = (async () => {
@@ -1032,7 +1077,11 @@ export function generateCached(id, generate, { force = false } = {}) {
     }
     if (!aiAvailable()) throw new Error('AI is not configured');
     const fresh = normalizeCached(kind, await generate());
-    if (!(await saveCachedLesson(id, fresh))) throw invalidResult();
+    if (!isValidCached(kind, fresh)) throw invalidResult();
+    if (accept) {
+      try { accept(fresh); } catch (e) { console.error(e); throw invalidResult(); }
+    }
+    if (!(await saveCachedLesson(id, fresh))) throw new Error('Harrington could not save the result');
     return fresh;
   })();
   inflight.set(id, run);

@@ -235,10 +235,18 @@ function extraRow(x, active, navigate) {
   row.querySelector('.del').onclick = () => { store.removeExtra(active.id, selectedKey, x.id); navigate('calendar'); };
   if (!store.aiAvailable()) {
     // Keep the title and kind readable; the chip goes on its own line under them.
-    row.querySelector('.go').remove();
+    const go = row.querySelector('.go');
+    const slot = el('<span class="hidden"></span>');
+    go.replaceWith(slot);
     const chip = aiUnavailableChip();
     chip.classList.add('mt-1.5');
     row.querySelector('.flex-1.min-w-0').appendChild(chip);
+    // A lesson already in the cache still opens.
+    if (x.topicId && (x.kind === 'lesson' || x.kind === 'practice')) {
+      store.hasCachedLesson('topic:' + x.topicId).then(found => {
+        if (found && slot.parentNode) { slot.replaceWith(go); chip.remove(); }
+      });
+    }
   }
   return row;
 }
@@ -336,7 +344,8 @@ function dayTopicRow(t, active, navigate) {
   row.querySelector('.push').onclick = () => openMoveTopic(t, active, navigate);
   if (!store.aiAvailable()) {
     row.querySelector('.test').remove();
-    row.querySelector('.lesson').replaceWith(aiUnavailableChip());
+    const lesson = row.querySelector('.lesson');
+    lesson.replaceWith(gateAi(lesson, { cachedKey: 'topic:' + t.id }));
   }
   return row;
 }

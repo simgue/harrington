@@ -7,6 +7,8 @@ let aiConfigured = true;
 const lessons = new Map();
 const calls = { ai: 0, put: 0 };
 let aiReplies = [];
+let failPuts = false;
+let failGets = false;
 const json = (status, body) => ({ ok: status < 400, status, headers: new Headers(), json: async () => body });
 globalThis.fetch = async (path, options = {}) => {
   const url = String(path);
@@ -20,18 +22,40 @@ globalThis.fetch = async (path, options = {}) => {
   const key = url.startsWith('/api/lessons/') ? decodeURIComponent(url.slice('/api/lessons/'.length)) : null;
   if (key !== null && options.method === 'PUT') {
     calls.put++;
+    if (failPuts) return json(500, { error: 'Internal server error' });
     const value = JSON.parse(options.body);
     if (!value || Array.isArray(value) || typeof value !== 'object') return json(400, { error: 'Request body must be a JSON object' });
     lessons.set(key, value);
     return json(204, null);
   }
+  if (key !== null && failGets) throw new TypeError('Failed to fetch');
   if (key !== null) return lessons.has(key) ? json(200, lessons.get(key)) : json(404, { error: 'Lesson not found' });
   return json(404, { error: 'Not found' });
 };
 
+// Just enough DOM for ui.el() and aiErrorBlock: nodes record their markup.
+function fakeNode(html = '') {
+  const classes = new Set((html.match(/class="([^"]*)"/)?.[1] || '').split(/\s+/).filter(Boolean));
+  return {
+    html, children: [], parentNode: {}, replacedWith: null,
+    classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c), contains: (c) => classes.has(c) },
+    querySelector: () => fakeNode(),
+    appendChild(child) { this.children.push(child); return child; },
+    remove() {},
+    replaceWith(node) { this.replacedWith = node; },
+  };
+}
+globalThis.document = {
+  createElement: () => ({ innerHTML: '', get content() { return { firstElementChild: fakeNode(this.innerHTML) }; } }),
+};
+function fakeStage(...nodes) {
+  return { childNodes: nodes, replaceChildren(...next) { this.childNodes = next; } };
+}
+
 const store = await import('../src/js/store.js');
 const { aiLesson } = await import('../src/js/ai.js');
-const { gateAi, explainAiError } = await import('../src/js/ai-status.js');
+const { gateAi, explainAiError, regenerateInto, showGenerated } = await import('../src/js/ai-status.js');
+const { pageHeader, ageBand } = await import('../src/js/views/printables.js');
 
 const topic = { id: 't-cache', name: 'Counting to ten', subject: 'Mathematics', domain: 'Number', ageRangeStart: 4, ageRangeEnd: 6, description: 'Counting objects' };
 const LESSON = { objective: 'Count to ten', teach: [{ title: 'Count', say: 'One, two', do: 'Point' }] };
@@ -42,6 +66,8 @@ function reset({ ai = true } = {}) {
   calls.ai = 0;
   calls.put = 0;
   aiReplies = [];
+  failPuts = false;
+  failGets = false;
   store.forgetCachedLessons();
   return store.refreshHealth();
 }
@@ -161,10 +187,6 @@ test('without a provider a cached lesson opens and a missing one is "not configu
   assert.equal(calls.ai, 0);
 });
 
-// gateAi only touches the DOM through the placeholder it is given.
-function fakeNode(name) {
-  return { name, parentNode: {}, replacedWith: null, replaceWith(node) { this.replacedWith = node; } };
-}
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 
 test('gateAi upgrades a placeholder to the real control when its cache key exists', async () => {
@@ -208,4 +230,140 @@ test('a freshly generated lesson upgrades its gated button in the same session',
   assert.equal(await store.hasCachedLesson('topic:t-cache'), false);
   await store.saveCachedLesson('topic:t-cache', LESSON);
   assert.equal(await store.hasCachedLesson('topic:t-cache'), true);
+});
+
+test('validators reject list fields that are not arrays', () => {
+  assert.equal(store.isValidCached('lesson', { ...LESSON, materials: 'paper and pencil' }), false);
+  assert.equal(store.isValidCached('lesson', { ...LESSON, guidedPractice: 'together' }), false);
+  assert.equal(store.isValidCached('lesson', { ...LESSON, independentActivity: { steps: 'go' } }), false);
+  assert.equal(store.isValidCached('lesson', { ...LESSON, materials: ['paper'], questions: [] }), true);
+  assert.equal(store.isValidCached('activity', { steps: ['Hop'], materials: 'chalk' }), false);
+  assert.equal(store.isValidCached('printables', { printables: [{ type: 'worksheet', content: 'text' }] }), false);
+});
+
+test('a provider result with a string list field never reaches the cache', async () => {
+  await reset();
+  await store.saveCachedLesson('topic:t-cache', LESSON);
+  aiReplies = [{ objective: 'x', teach: [{ title: 'a', say: 'b' }], materials: 'paper and pencil' }];
+  await assert.rejects(store.generateCached('topic:t-cache', () => aiLesson(topic), { force: true }),
+    (err) => explainAiError(err).kind === 'provider');
+  assert.deepEqual(lessons.get('topic:t-cache'), LESSON);
+});
+
+test('a result that fails the trial render is not saved', async () => {
+  await reset();
+  aiReplies = [LESSON];
+  await assert.rejects(store.generateCached('topic:t-cache', () => aiLesson(topic), { accept: () => { throw new TypeError('x.map is not a function'); } }),
+    (err) => explainAiError(err).kind === 'provider');
+  assert.equal(calls.put, 0);
+  assert.equal(lessons.has('topic:t-cache'), false);
+});
+
+test('a failed save keeps the previous version and reports failure', async () => {
+  await reset();
+  await store.saveCachedLesson('topic:t-cache', LESSON);
+  failPuts = true;
+  const fresh = { objective: 'New', teach: [{ title: 'New step' }] };
+  assert.equal(await store.saveCachedLesson('topic:t-cache', fresh), false);
+  assert.deepEqual(await store.getCachedLesson('topic:t-cache'), LESSON);
+  aiReplies = [fresh];
+  await assert.rejects(store.generateCached('topic:t-cache', () => aiLesson(topic), { force: true }));
+  assert.deepEqual(await store.getCachedLesson('topic:t-cache'), LESSON);
+});
+
+test('a transient error while checking the cache is not remembered', async () => {
+  await reset({ ai: false });
+  lessons.set('topic:t-cache', LESSON);
+  failGets = true;
+  assert.equal(await store.hasCachedLesson('topic:t-cache'), false);
+  failGets = false;
+  assert.equal(await store.hasCachedLesson('topic:t-cache'), true);
+  // A definite 404 is remembered.
+  assert.equal(await store.hasCachedLesson('print:t-cache'), false);
+  lessons.set('print:t-cache', { printables: [{ type: 'worksheet', content: { problems: ['1'] } }] });
+  assert.equal(await store.hasCachedLesson('print:t-cache'), false);
+});
+
+test('regenerateInto restores the previous content when the new version cannot render', async () => {
+  await reset();
+  await store.saveCachedLesson('topic:t-cache', LESSON);
+  const previous = fakeNode('<div>previous</div>');
+  const stage = fakeStage(previous);
+  aiReplies = [{ objective: 'Renders badly', teach: [{ title: 'x' }] }];
+  let shown = null;
+  const result = await regenerateInto(stage, {
+    key: 'topic:t-cache', generate: () => aiLesson(topic), loading: fakeNode('<div>loading</div>'),
+    render: (value) => { if (value.objective === 'Renders badly') throw new TypeError('L.materials.map is not a function'); return fakeNode('<div>ok</div>'); },
+    onShow: (value) => { shown = value; },
+  });
+  assert.equal(result, null);
+  assert.equal(stage.childNodes.length, 2);
+  assert.ok(stage.childNodes[0].classList.contains('ai-regen-error'), 'inline error first');
+  assert.equal(stage.childNodes[1], previous, 'previous content restored');
+  assert.equal(shown, null);
+  assert.deepEqual(lessons.get('topic:t-cache'), LESSON, 'the cache keeps the previous version');
+
+  // Retry with a good version replaces both the error and the old content.
+  aiReplies = [{ objective: 'Good', teach: [{ title: 'y' }] }];
+  const again = await regenerateInto(stage, {
+    key: 'topic:t-cache', generate: () => aiLesson(topic), loading: fakeNode('<div>loading</div>'),
+    render: () => fakeNode('<div>new</div>'), onShow: (value) => { shown = value; },
+  });
+  assert.equal(again.objective, 'Good');
+  assert.equal(stage.childNodes.length, 1);
+  assert.equal(stage.childNodes[0].html, '<div>new</div>');
+  assert.equal(shown.objective, 'Good');
+});
+
+test('regenerateInto keeps one inline error across repeated failures', async () => {
+  await reset();
+  const previous = fakeNode('<div>previous</div>');
+  const stage = fakeStage(previous);
+  aiReplies = ['not json'];
+  const opts = { key: 'topic:t-cache', generate: () => aiLesson(topic), loading: fakeNode('<div>loading</div>'), render: () => fakeNode('<div>x</div>') };
+  await regenerateInto(stage, opts);
+  await regenerateInto(stage, opts);
+  assert.equal(stage.childNodes.length, 2);
+  assert.equal(stage.childNodes[1], previous);
+});
+
+test('showGenerated offers a fresh version when a cached value no longer renders', async () => {
+  await reset();
+  lessons.set('topic:t-cache', LESSON);
+  const stage = fakeStage(fakeNode('<div>loading</div>'));
+  const value = await showGenerated(stage, {
+    key: 'topic:t-cache', generate: () => aiLesson(topic), loading: fakeNode('<div>loading</div>'),
+    render: () => { throw new TypeError('boom'); }, retry: () => {},
+  });
+  assert.equal(value, null);
+  assert.equal(stage.childNodes.length, 1);
+  assert.ok(stage.childNodes[0].classList.contains('ai-regen-error'));
+  assert.match(stage.childNodes[0].html, /couldn.t use/);
+  assert.equal(calls.ai, 0, 'nothing is generated until the parent asks');
+});
+
+test('printed sheet headers carry topic, subject and age band', () => {
+  const hdr = pageHeader({ type: 'worksheet', title: 'Count the dots' }, { name: 'Counting <to> ten', subject: 'Mathematics', ageRangeStart: 4, ageRangeEnd: 6 });
+  assert.match(hdr, /Count the dots/);
+  assert.match(hdr, /Counting &lt;to&gt; ten &middot; Mathematics &middot; Ages 4\u20136/);
+  assert.equal(ageBand({ ageRangeStart: 7, ageRangeEnd: 7 }), 'Age 7');
+  assert.equal(ageBand({}), 'All ages');
+});
+
+test('every cached view generates through store.generateCached', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const read = (path) => readFile(new URL(`../src/js/${path}`, import.meta.url), 'utf8');
+  // showGenerated and regenerateInto are the ai-status wrappers around it.
+  const helpers = await read('ai-status.js');
+  assert.match(helpers, /export async function showGenerated[\s\S]*?store\.generateCached\(/);
+  assert.match(helpers, /export async function regenerateInto[\s\S]*?store\.generateCached\(/);
+  for (const name of ['lesson', 'printables']) {
+    const code = await read(`views/${name}.js`);
+    assert.match(code, /showGenerated\(/, `${name}.js opens through showGenerated`);
+    assert.match(code, /regenerateInto\(/, `${name}.js regenerates through regenerateInto`);
+  }
+  for (const name of ['recall', 'daysheet']) assert.match(await read(`views/${name}.js`), /store\.generateCached\(/, `${name}.js`);
+  for (const name of ['lesson', 'printables', 'recall', 'daysheet']) {
+    assert.doesNotMatch(await read(`views/${name}.js`), /store\.(saveCachedLesson|getCachedLesson)\(/, `${name}.js reads or saves the cache by hand`);
+  }
 });

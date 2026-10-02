@@ -511,7 +511,7 @@ function renderQuestLog(topic, { active, navigate, prereqsOf, unlocksOf, byId, s
   const actions = el(`<div class="space-y-2"></div>`);
   const lesson = el(`<button type="button" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium text-sm"><i data-lucide="book-open-text" class="w-4 h-4"></i>Open full lesson</button>`);
   lesson.onclick = () => openLesson(topic);
-  actions.appendChild(gateAi(lesson));
+  actions.appendChild(gateAi(lesson, { cachedKey: 'topic:' + topic.id }));
 
   const deep = el(`<button type="button" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper border border-paper-line text-ink font-medium text-sm hover:border-brand/40"><i data-lucide="panel-right" class="w-4 h-4"></i>Open topic page</button>`);
   deep.onclick = () => navigate('topic', { id: topic.id });

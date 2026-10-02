@@ -56,33 +56,61 @@ export function gateAi(control, options = {}) {
 }
 
 // The "Generate a different version" action, or the chip without a provider.
-export function regenerateButton(onRegen) {
+export function generateAnotherButton(onRegen) {
   const btn = el(`<button class="ai-regen flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink"><i data-lucide="refresh-cw" class="w-4 h-4"></i>Generate a different version</button>`);
   btn.onclick = onRegen;
   return gateAi(btn);
 }
 
-// "Generate a different version": shows `loading` in `stage`, then calls
-// `render(fresh)`. On failure the previous content comes back with an inline
-// error and Retry above it, so a spinner never stays.
-export async function regenerateInto(stage, { key, generate, render, loading }) {
-  const previous = [...stage.childNodes];
-  const again = () => regenerateInto(stage, { key, generate, render, loading });
+// `render(value)` returns a detached node and may throw. Both helpers render
+// before anything is shown or saved; `onShow(value)` runs once it is on screen.
+
+// "Generate a different version": shows `loading`, then the new version. On
+// any failure (provider, shape, render or save) the previous content comes
+// back with an inline error and Retry above it, and the cache keeps it too.
+export async function regenerateInto(stage, opts) {
+  const { key, generate, render, loading, onShow = null } = opts;
+  const previous = [...stage.childNodes].filter(n => !n.classList?.contains('ai-regen-error'));
   stage.replaceChildren(loading);
   refreshIcons();
-  let fresh;
   try {
-    fresh = await store.generateCached(key, generate, { force: true });
+    const fresh = await store.generateCached(key, generate, { force: true, accept: render });
+    stage.replaceChildren(render(fresh));
+    refreshIcons();
+    onShow?.(fresh);
+    return fresh;
   } catch (err) {
-    stage.replaceChildren(aiErrorBlock(err, again, { compact: true }), ...previous.filter(n => !n.classList?.contains('ai-regen-error')));
-    stage.firstChild.classList.add('ai-regen-error');
+    const block = aiErrorBlock(err, () => regenerateInto(stage, opts), { compact: true });
+    block.classList.add('ai-regen-error');
+    stage.replaceChildren(block, ...previous);
     refreshIcons();
     return null;
   }
-  stage.replaceChildren();
-  render(fresh);
-  refreshIcons();
-  return fresh;
+}
+
+// Opens cached or freshly generated content. A failure to generate shows the
+// error with `retry`; a cached value that no longer renders offers a fresh
+// version instead of reading the same cache again.
+export async function showGenerated(stage, { key, generate, render, loading, retry, onShow = null }) {
+  let value;
+  try {
+    value = await store.generateCached(key, generate, { accept: render });
+  } catch (err) {
+    stage.replaceChildren(aiErrorBlock(err, retry));
+    return null;
+  }
+  try {
+    stage.replaceChildren(render(value));
+    refreshIcons();
+    onShow?.(value);
+    return value;
+  } catch (err) {
+    console.error(err);
+    const block = aiErrorBlock(store.invalidResult(), () => regenerateInto(stage, { key, generate, render, loading, onShow }));
+    block.classList.add('ai-regen-error');
+    stage.replaceChildren(block);
+    return null;
+  }
 }
 
 // Replaces every "Couldn't … right now" message. `retry` re-runs the action;
