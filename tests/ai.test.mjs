@@ -320,5 +320,7 @@ test('lesson generators and callers do not interpolate learner names into prompt
   assert.doesNotMatch(printables, /aiPrintables\(topic, student\?\.name\)/);
   assert.doesNotMatch(daysheet, /aiLesson\(topic, childName\)/);
   assert.doesNotMatch(topicView, /fn\(t, student\?\.name\)/);
-  assert.match(lesson, /store\.aiAvailable\(\)/);
+  // Generation is gated in store.generateCached, which showGenerated wraps (see lesson-cache.test.mjs).
+  assert.match(lesson, /showGenerated\(/);
+  assert.doesNotMatch(lesson, /aiLesson\(topic\);\s*\n\s*await store\.saveCachedLesson/);
 });

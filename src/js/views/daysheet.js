@@ -17,12 +17,7 @@ import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 // Rebuild one topic's teaching payload (lesson + activities + resources),
 // reusing the shared per-topic lesson cache.
 async function buildTopicMaterial(topic) {
-  const cacheId = 'topic:' + topic.id;
-  let lesson = await store.getCachedLesson(cacheId);
-  if (!lesson) {
-    lesson = await aiLesson(topic);
-    try { await store.saveCachedLesson(cacheId, lesson); } catch {}
-  }
+  const lesson = await store.generateCached('topic:' + topic.id, () => aiLesson(topic));
   return {
     topic,
     lesson,

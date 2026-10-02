@@ -1,8 +1,8 @@
 import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, toast, openModal } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiPrintables } from '../ai.js';
-import { aiErrorBlock } from '../ai-status.js';
+import { generateAnotherButton, regenerateInto, showGenerated } from '../ai-status.js';
 
 const TYPE_META = {
   worksheet: { icon: 'file-text', label: 'Worksheet' },
@@ -17,8 +17,8 @@ export async function openPrintables(topic) {
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
       <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${SUBJECTS[topic.subject].color}18"><i data-lucide="printer" class="w-5 h-5" style="color:${SUBJECTS[topic.subject].color}"></i></span>
       <div class="flex-1 min-w-0">
-        <p class="text-xs text-ink-faint">Print &amp; go · ${topic.subject}</p>
-        <h3 class="font-display text-lg font-600 leading-tight">${topic.name}</h3>
+        <p class="text-xs text-ink-faint">Print &amp; go · ${esc(topic.subject)}</p>
+        <h3 class="font-display text-lg font-600 leading-tight">${esc(topic.name)}</h3>
       </div>
     </div>
     <div id="stage" class="px-5 py-5"></div>
@@ -29,33 +29,33 @@ export async function openPrintables(topic) {
   stage.appendChild(loadingBlock('Preparing the easiest print-and-go materials\u2026', 'Made once, then saved for reuse.'));
   refreshIcons();
 
-  const cacheId = 'print:' + topic.id;
-  try {
-    let data = await store.getCachedLesson(cacheId);
-    if (!data) {
-      data = await aiPrintables(topic);
-      await store.saveCachedLesson(cacheId, data);
-    }
-    const printables = (data && data.printables) || [];
-    stage.innerHTML = '';
-    if (!printables.length) { stage.appendChild(el(`<p class="text-sm text-ink-soft py-6 text-center">No printable materials for this topic.</p>`)); refreshIcons(); return; }
+  const generated = {
+    key: 'print:' + topic.id,
+    generate: () => aiPrintables(topic),
+    render: (data) => renderPrintables(topic, data, regen),
+    loading: loadingBlock('Writing a fresh version\u2026', ''),
+  };
+  const regen = () => regenerateInto(stage, generated);
+  await showGenerated(stage, { ...generated, retry: () => { m.close(); openPrintables(topic); } });
+}
 
-    const intro = el(`<p class="text-sm text-ink-soft mb-4 leading-relaxed">These are the lowest-prep materials for this topic — press print, and (where noted) cut along the lines. Nothing else to prepare.</p>`);
-    stage.appendChild(intro);
+function renderPrintables(topic, data, onRegen) {
+  // The cache only holds results with at least one usable item; skip empty ones.
+  const printables = arr(data.printables).filter(p => isObj(p) && isObj(p.content));
+  const wrap = el(`<div class="fade-up"></div>`);
+  wrap.appendChild(el(`<p class="text-sm text-ink-soft mb-4 leading-relaxed">These are the lowest-prep materials for this topic — press print, and (where noted) cut along the lines. Nothing else to prepare.</p>`));
 
-    const listWrap = el(`<div class="space-y-3"></div>`);
-    printables.forEach(p => listWrap.appendChild(printableCard(topic, p)));
-    stage.appendChild(listWrap);
+  // Build every print page now, so a result that cannot be printed fails before it is shown or saved.
+  printables.forEach(p => renderPrintPage(p, topic));
+  const listWrap = el(`<div class="space-y-3"></div>`);
+  printables.forEach(p => listWrap.appendChild(printableCard(topic, p)));
+  wrap.appendChild(listWrap);
 
-    // print all
-    const all = el(`<button id="printall" class="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="printer" class="w-4 h-4"></i>Print all materials</button>`);
-    all.onclick = () => printMaterials(topic, printables);
-    stage.appendChild(all);
-    refreshIcons();
-  } catch (e) {
-    stage.innerHTML = '';
-    stage.appendChild(aiErrorBlock(e, () => { m.close(); openPrintables(topic); }));
-  }
+  const all = el(`<button id="printall" class="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="printer" class="w-4 h-4"></i>Print all materials</button>`);
+  all.onclick = () => printMaterials(topic, printables);
+  wrap.appendChild(all);
+  wrap.appendChild(el(`<div class="mt-4 pt-2 border-t border-paper-line"></div>`)).appendChild(generateAnotherButton(onRegen));
+  return wrap;
 }
 
 function printableCard(topic, p) {
@@ -76,10 +76,11 @@ function printableCard(topic, p) {
     </div>
   </div>`);
   const previewBox = card.querySelector('.preview');
+  const preview = previewHtml(p);
   card.querySelector('.prev').onclick = (e) => {
     const btn = e.currentTarget;
     if (previewBox.classList.contains('hidden')) {
-      previewBox.innerHTML = `<div class="rounded-lg border border-paper-line bg-white p-3 text-xs text-ink-soft overflow-x-auto">${previewHtml(p)}</div>`;
+      previewBox.innerHTML = `<div class="rounded-lg border border-paper-line bg-white p-3 text-xs text-ink-soft overflow-x-auto">${preview}</div>`;
       previewBox.classList.remove('hidden');
       btn.innerHTML = '<i data-lucide="eye-off" class="w-3.5 h-3.5"></i>Hide';
     } else {
@@ -93,8 +94,9 @@ function printableCard(topic, p) {
 }
 
 // ---- helpers ----
-function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
-
+// Provider output is untrusted: list fields render only when they are arrays.
+const arr = (v) => Array.isArray(v) ? v : [];
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 function loadingBlock(title, sub) {
   return el(`<div class="text-center py-10">
     <div class="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
@@ -105,18 +107,18 @@ function loadingBlock(title, sub) {
 
 // Small in-app preview (condensed)
 function previewHtml(p) {
-  const c = p.content || {};
+  const c = isObj(p.content) ? p.content : {};
   switch (p.type) {
     case 'worksheet':
-      return `${c.intro ? `<p class="mb-1 italic">${esc(c.intro)}</p>` : ''}<ol class="ml-4 list-decimal space-y-0.5">${(c.problems || []).slice(0, 5).map(x => `<li>${esc(x)}</li>`).join('')}</ol>${(c.problems || []).length > 5 ? `<p class="text-ink-faint mt-1">+${c.problems.length - 5} more</p>` : ''}`;
+      return `${c.intro ? `<p class="mb-1 italic">${esc(c.intro)}</p>` : ''}<ol class="ml-4 list-decimal space-y-0.5">${arr(c.problems).slice(0, 5).map(x => `<li>${esc(x)}</li>`).join('')}</ol>${arr(c.problems).length > 5 ? `<p class="text-ink-faint mt-1">+${arr(c.problems).length - 5} more</p>` : ''}`;
     case 'flashcards':
-      return `<div class="grid grid-cols-2 gap-1.5">${(c.cards || []).slice(0, 4).map(cd => `<div class="border border-paper-line rounded p-1.5"><b>${esc(cd.front)}</b> → ${esc(cd.back)}</div>`).join('')}</div>`;
+      return `<div class="grid grid-cols-2 gap-1.5">${arr(c.cards).slice(0, 4).map(cd => `<div class="border border-paper-line rounded p-1.5"><b>${esc(cd?.front)}</b> → ${esc(cd?.back)}</div>`).join('')}</div>`;
     case 'matching':
-      return `<div class="space-y-0.5">${(c.pairs || []).slice(0, 5).map(pr => `<div class="flex justify-between gap-3"><span>${esc(pr.left)}</span><span class="text-ink-faint">${esc(pr.right)}</span></div>`).join('')}</div>`;
+      return `<div class="space-y-0.5">${arr(c.pairs).slice(0, 5).map(pr => `<div class="flex justify-between gap-3"><span>${esc(pr?.left)}</span><span class="text-ink-faint">${esc(pr?.right)}</span></div>`).join('')}</div>`;
     case 'tracing':
-      return `<div class="flex flex-wrap gap-2" style="font-family:Georgia,serif">${(c.items || []).slice(0, 6).map(x => `<span style="color:#cfc8bb;font-size:18px;letter-spacing:2px">${esc(x)}</span>`).join('')}</div>`;
+      return `<div class="flex flex-wrap gap-2" style="font-family:Georgia,serif">${arr(c.items).slice(0, 6).map(x => `<span style="color:#cfc8bb;font-size:18px;letter-spacing:2px">${esc(x)}</span>`).join('')}</div>`;
     case 'sorting':
-      return `<p class="mb-1"><b>${(c.categories || []).map(esc).join('</b> · <b>')}</b></p><div class="flex flex-wrap gap-1.5">${(c.items || []).slice(0, 8).map(it => `<span class="border border-paper-line rounded px-1.5 py-0.5">${esc(it.text)}</span>`).join('')}</div>`;
+      return `<p class="mb-1"><b>${arr(c.categories).map(esc).join('</b> · <b>')}</b></p><div class="flex flex-wrap gap-1.5">${arr(c.items).slice(0, 8).map(it => `<span class="border border-paper-line rounded px-1.5 py-0.5">${esc(it?.text)}</span>`).join('')}</div>`;
     default: return '';
   }
 }
@@ -125,7 +127,7 @@ function previewHtml(p) {
 function printMaterials(topic, printables) {
   const w = window.open('', '_blank');
   if (!w) { toast('Allow pop-ups to print', 'error'); return; }
-  const pages = printables.map(p => renderPrintPage(p)).join('<div style="page-break-after:always"></div>');
+  const pages = printables.map(p => renderPrintPage(p, topic)).join('<div style="page-break-after:always"></div>');
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(topic.name)} — Printables</title>
   <style>
     *{box-sizing:border-box}
@@ -162,35 +164,41 @@ function printMaterials(topic, printables) {
   w.document.close();
 }
 
-function pageHeader(p, topic) {
+export function pageHeader(p, topic) {
   const meta = TYPE_META[p.type] || { label: 'Printable' };
-  return `<div class="hd"><h1>${esc(p.title || meta.label)}</h1><div class="meta">${esc(topic.name)} &middot; ${esc(topic.subject)} &middot; Ages ${topic.ageRangeStart}–${topic.ageRangeEnd}</div></div>
+  return `<div class="hd"><h1>${esc(p.title || meta.label)}</h1><div class="meta">${esc(topic.name)} &middot; ${esc(topic.subject)} &middot; ${esc(ageBand(topic))}</div></div>
   <div class="name-line"><div>Name: <span></span></div><div>Date: <span></span></div></div>`;
 }
 
-function renderPrintPage(p) {
-  const c = p.content || {};
-  const hdr = `<div class="hd"><h1>${esc(p.title || (TYPE_META[p.type]||{}).label || 'Printable')}</h1></div>
-  <div class="name-line"><div>Name: <span></span></div><div>Date: <span></span></div></div>`;
+export function ageBand(topic) {
+  const { ageRangeStart: a, ageRangeEnd: b } = topic;
+  if (a == null && b == null) return 'All ages';
+  if (a == null || b == null || a === b) return `Age ${a ?? b}`;
+  return `Ages ${a}\u2013${b}`;
+}
+
+function renderPrintPage(p, topic) {
+  const c = isObj(p.content) ? p.content : {};
+  const hdr = pageHeader(p, topic);
   switch (p.type) {
     case 'worksheet':
       return hdr +
         (c.intro ? `<p class="instr">${esc(c.intro)}</p>` : '') +
-        `<ol class="ws">${(c.problems || []).map(x => `<li>${esc(x)}</li>`).join('')}</ol>` +
-        (c.answers && c.answers.length ? `<div class="ans"><strong>Answer key:</strong> ${c.answers.map((a, i) => `${i + 1}. ${esc(a)}`).join('&nbsp;&nbsp; ')}</div>` : '');
+        `<ol class="ws">${arr(c.problems).map(x => `<li>${esc(x)}</li>`).join('')}</ol>` +
+        (arr(c.answers).length ? `<div class="ans"><strong>Answer key:</strong> ${arr(c.answers).map((a, i) => `${i + 1}. ${esc(a)}`).join('&nbsp;&nbsp; ')}</div>` : '');
     case 'flashcards':
       return hdr + `<p class="instr">Cut along the dashed lines. Fold or use front/back.</p>` +
-        `<div class="cards">${(c.cards || []).map(cd => `<div class="card"><div class="front">${esc(cd.front)}</div><div class="back">${esc(cd.back)}</div></div>`).join('')}</div>`;
+        `<div class="cards">${arr(c.cards).map(cd => `<div class="card"><div class="front">${esc(cd?.front)}</div><div class="back">${esc(cd?.back)}</div></div>`).join('')}</div>`;
     case 'matching':
       return hdr + `<p class="instr">Draw a line from each item on the left to its match on the right.</p>` +
-        `<table class="match"><tbody>${(c.pairs || []).map(pr => `<tr><td class="l">${esc(pr.left)}</td><td class="dot">&bull;</td><td class="dot">&bull;</td><td class="r">${esc(pr.right)}</td></tr>`).join('')}</tbody></table>`;
+        `<table class="match"><tbody>${arr(c.pairs).map(pr => `<tr><td class="l">${esc(pr?.left)}</td><td class="dot">&bull;</td><td class="dot">&bull;</td><td class="r">${esc(pr?.right)}</td></tr>`).join('')}</tbody></table>`;
     case 'tracing':
       return hdr + `<p class="instr">Trace over each one, then try writing it yourself.</p>` +
-        (c.items || []).map(x => `<div class="trace">${esc(x)}</div>`).join('');
+        arr(c.items).map(x => `<div class="trace">${esc(x)}</div>`).join('');
     case 'sorting':
       return hdr + `<p class="instr">Cut out the cards below and sort them into the right box.</p>` +
-        `<div class="sort-cats">${(c.categories || []).map(cat => `<div class="sort-cat"><h3>${esc(cat)}</h3></div>`).join('')}</div>` +
-        `<h2 class="sub">Cut these out</h2><div class="chips">${(c.items || []).map(it => `<span class="chip">${esc(it.text)}</span>`).join('')}</div>`;
+        `<div class="sort-cats">${arr(c.categories).map(cat => `<div class="sort-cat"><h3>${esc(cat)}</h3></div>`).join('')}</div>` +
+        `<h2 class="sub">Cut these out</h2><div class="chips">${arr(c.items).map(it => `<span class="chip">${esc(it?.text)}</span>`).join('')}</div>`;
     default:
       return hdr;
   }
