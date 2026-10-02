@@ -165,7 +165,7 @@ function renderOnboard() {
               </div>
               <div>
                 <label for="ob-year" class="text-sm font-medium block mb-1.5">Birth year</label>
-                <input id="ob-year" name="birthYear" type="number" required min="2005" max="${new Date().getFullYear()}" placeholder="e.g. 2017" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+                <input id="ob-year" name="birthYear" type="number" required min="${store.MIN_BIRTH_YEAR}" max="${new Date().getFullYear()}" placeholder="e.g. 2017" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
               </div>
             </div>
             <p class="text-xs text-ink-faint mt-1">We use this to show age-relevant ideas and connections for you to consider.</p>

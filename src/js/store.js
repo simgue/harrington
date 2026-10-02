@@ -346,6 +346,8 @@ export function importDocument(doc) {
   const check = inspectImport(doc);
   if (!check.ok) return Promise.reject(new Error(check.error));
   const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = doc;
+  // Colors end up in style attributes, so only palette colors are imported.
+  data.students = data.students.map(s => (PALETTE.includes(s.color) ? s : { ...s, color: PALETTE[0] }));
   clearTimeout(saveTimer);
   saveTimer = null;
   dirty = false;
@@ -363,7 +365,10 @@ export function importDocument(doc) {
 // ---- Students ----
 export const PALETTE = ['#3f6b3b', '#a4473a', '#2f6285', '#5b4a86', '#8a6412', '#9a4a6e'];
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export const MIN_BIRTH_YEAR = 1990;
 const validMonth = m => Number.isInteger(m) && m >= 1 && m <= 12;
+const validYear = y => Number.isInteger(y) && y >= MIN_BIRTH_YEAR && y <= new Date().getFullYear();
+const validDateKey = k => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
 export function addStudent(name, birthYear, birthMonth = null) {
   const id = 's_' + Math.random().toString(36).slice(2, 9);
   const color = PALETTE[state.students.length % PALETTE.length];
@@ -378,22 +383,21 @@ export function addStudent(name, birthYear, birthMonth = null) {
   persist(); emit();
   return id;
 }
-// Profile fields are checked here so a bad value never reaches the saved
-// document: an empty name, a non-integer year or a color outside the palette
-// is ignored, and birthMonth null (or any value outside 1-12) clears it.
+// Only these fields can change, and each is checked so a bad value never
+// reaches the saved document: an empty name, a year outside MIN_BIRTH_YEAR to
+// this year, a month outside 1-12, a color outside the palette or a malformed
+// start date is ignored. birthMonth null clears the month.
 export function updateStudent(id, patch) {
   const s = state.students.find(s => s.id === id);
   if (!s) return false;
-  const { name, birthYear, birthMonth, color, ...rest } = patch;
+  const { name, birthYear, birthMonth, color, startDate } = patch;
   const ageBefore = studentAge(s);
-  Object.assign(s, rest);
   if (typeof name === 'string' && name.trim()) s.name = name.trim();
-  if (Number.isInteger(birthYear)) s.birthYear = birthYear;
-  if (birthMonth !== undefined) {
-    if (validMonth(birthMonth)) s.birthMonth = birthMonth;
-    else delete s.birthMonth;
-  }
+  if (validYear(birthYear)) s.birthYear = birthYear;
+  if (birthMonth === null) delete s.birthMonth;
+  else if (validMonth(birthMonth)) s.birthMonth = birthMonth;
   if (PALETTE.includes(color)) s.color = color;
+  if (validDateKey(startDate)) s.startDate = startDate;
   // Today's choices were filtered by the old age; rebuild them on next render.
   if (studentAge(s) !== ageBefore) forgetTodaysChoices(id);
   persist(); emit();

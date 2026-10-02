@@ -109,7 +109,7 @@ function studentSwitcher(navigate, compact = false) {
   const active = store.activeStudent();
   const btn = el(`
     <button class="w-full flex items-center gap-2.5 ${compact ? 'p-1 pr-2' : 'p-1.5 pr-3'} rounded-full bg-paper-card shadow-[0_0_0_2px_#f2c14e] hover:shadow-[0_0_0_3px_#f2c14e] transition-shadow" aria-label="Switch learner">
-      <span class="${compact ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'} rounded-full flex items-center justify-center text-white font-display font-600 shrink-0" style="background:${active?.color || '#6f665a'}">${esc(active ? initials(active.name) : '?')}</span>
+      <span class="${compact ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'} rounded-full flex items-center justify-center text-white font-display font-600 shrink-0" style="background:${esc(active?.color || '#6f665a')}">${esc(active ? initials(active.name) : '?')}</span>
       ${compact ? '' : `<span class="flex-1 text-left min-w-0"><span class="block text-sm font-600 truncate">${esc(active ? active.name : 'No student')}</span><span class="block text-xs text-ink-faint">${active ? 'Age ' + store.studentAge(active) : 'Add a student'}</span></span>`}
       <i data-lucide="chevrons-up-down" class="w-4 h-4 text-ink-faint shrink-0"></i>
     </button>`);
@@ -131,7 +131,7 @@ function openStudentMenu(navigate) {
     const age = store.studentAge(s);
     const isActive = s.id === state.activeStudentId;
     const row = el(`<div class="flex items-center gap-3 p-2 pr-3 rounded-full ${isActive ? 'bg-brand-light shadow-[0_0_0_2px_#f2c14e]' : 'bg-paper'}">
-      <span class="w-10 h-10 rounded-full flex items-center justify-center text-white font-display text-base font-600" style="background:${s.color}">${esc(initials(s.name))}</span>
+      <span class="w-10 h-10 rounded-full flex items-center justify-center text-white font-display text-base font-600" style="background:${esc(s.color)}">${esc(initials(s.name))}</span>
       <div class="flex-1 min-w-0">
         <p class="font-600 text-sm truncate">${esc(s.name)}</p>
         <p class="text-xs text-ink-faint">Age ${age} · born ${bornLabel(s)}</p>
@@ -154,7 +154,8 @@ function openStudentMenu(navigate) {
 }
 
 function bornLabel(s) {
-  return s.birthMonth ? `${store.MONTHS[s.birthMonth - 1]} ${s.birthYear}` : String(s.birthYear);
+  const month = store.MONTHS[s.birthMonth - 1];
+  return Number.isInteger(s.birthMonth) && month ? `${month} ${s.birthYear}` : String(s.birthYear);
 }
 
 const inputCls = 'w-full px-3.5 py-2.5 rounded-full border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand';
@@ -187,7 +188,7 @@ function studentFields(s = null) {
         </div>
         <div>
           <label for="sf-year" class="text-sm font-medium block mb-1.5">Birth year</label>
-          <input id="sf-year" name="birthYear" type="number" min="2005" max="${year}" required value="${s?.birthYear ?? ''}" class="${inputCls}" />
+          <input id="sf-year" name="birthYear" type="number" min="${store.MIN_BIRTH_YEAR}" max="${year}" required value="${s?.birthYear ?? ''}" class="${inputCls}" />
         </div>
       </div>
       <p class="text-xs text-ink-faint -mt-2">The month makes the age exact; without it, age counts from January.</p>
