@@ -9,7 +9,7 @@ import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';
 import { openDueRecall } from './recall.js';
 import { openDuePractice } from './practice.js';
-import { gateAi, aiUnavailableChip } from '../ai-status.js';
+import { aiUnavailableChip } from '../ai-status.js';
 import { activityIdeas, gameIdeas } from '../resources.js';
 import { MASTERY, isUnlocked } from '../mastery.js';
 import { growthIcon, stageForStatus } from '../meadow.js';
@@ -91,6 +91,7 @@ function monthPanel(active, today, navigate) {
   const wrap = el(`<div class="lg:col-span-2 min-w-0"></div>`);
   const plan = buildPlan(active);
   const calendar = familyCalendar();
+  const byId = getData().byId;
 
   const header = el(`<div class="flex items-center justify-between mb-4">
     <h2 class="font-display text-xl font-600">${MONTHS[viewMonth.getMonth()]} ${viewMonth.getFullYear()}</h2>
@@ -127,7 +128,7 @@ function monthPanel(active, today, navigate) {
     const isToday = k === keyOf(today);
     const isSel = k === selectedKey;
     const dayDone = store.isDayDone(active.id, k);
-    const extraCount = store.extrasOn(active.id, k).length;
+    const extraCount = store.extrasOn(active.id, k).filter(x => x.topicId && byId.has(x.topicId)).length;
 
     // subject dots + a small topic list (desktop)
     const subs = [...new Set(topics.map(t => t.subject))].slice(0, 4);

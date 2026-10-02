@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  planTrack, pickExtras, onRampTopics, normalizeCalendar, restInfo, nextHomeDayKey, parseKey,
+  planTrack, pickExtras, onRampTopics, normalizeCalendar, restInfo, nextHomeDayKey, parseKey, masteredBeforeTrack,
 } from '../src/js/scheduler.js';
 
 const topic = (id, subject, domain, ageRangeStart, centrality = 0) => ({ id, name: id, subject, domain, ageRangeStart, centrality });
@@ -103,4 +103,59 @@ test('refreshers come only from mastered topics; none when nothing is mastered',
   const a = pickExtras(topics, { seed: 's1|d', dateKey: 'd', age: 8, statusOf: statusNone });
   const b = pickExtras(topics, { seed: 's1|d', dateKey: 'd', age: 8, statusOf: statusNone });
   assert.equal(a.challenge.id, b.challenge.id);
+});
+
+test('on-ramp round-robins across domains within each age', () => {
+  const two = [
+    topic('p5a', 'English', 'Phonics & Word Reading', 5, 2), topic('p5b', 'English', 'Phonics & Word Reading', 5, 1),
+    topic('c5a', 'Mathematics', 'Counting & Cardinality', 5, 2), topic('c5b', 'Mathematics', 'Counting & Cardinality', 5, 1),
+    topic('p6a', 'English', 'Phonics & Word Reading', 6, 2), topic('p6b', 'English', 'Phonics & Word Reading', 6, 1),
+    topic('c6a', 'Mathematics', 'Counting & Cardinality', 6, 2), topic('c6b', 'Mathematics', 'Counting & Cardinality', 6, 1),
+  ];
+  assert.deepEqual(onRampTopics(two, { age: 7 }).map(t => t.id), ['p5a', 'c5a', 'p5b', 'c5b', 'p6a', 'c6a', 'p6b', 'c6b']);
+});
+
+test('on-ramp never schedules a topic on or before its hard prerequisites', () => {
+  // Two levels: read-6 needs phon-6, which needs geo-5 (off the spine) and
+  // add-7 (older); count-5 needs add-6 (later in the youngest-first order).
+  const edges = { 'read-6': ['phon-6'], 'phon-6': ['geo-5', 'add-7'], 'count-5': ['add-6'], 'b8-1': ['read-6'] };
+  const prereqs = id => edges[id] || [];
+  const ramp = onRampTopics(topics, { age: 8, prereqs }).map(t => t.id);
+  assert.ok(ramp.includes('geo-5'), 'an unmastered off-spine prerequisite is pulled in');
+  for (const [id, ps] of Object.entries(edges)) {
+    if (!ramp.includes(id)) continue;
+    for (const p of ps) assert.ok(ramp.indexOf(p) < ramp.indexOf(id), `${p} before ${id}`);
+  }
+  // Mastered prerequisites are not pulled back in.
+  assert.ok(!onRampTopics(topics, { age: 8, prereqs, mastered: id => id === 'geo-5' }).some(t => t.id === 'geo-5'));
+
+  const plan = planTrack(topics, { ...base, prereqs });
+  for (const [id, ps] of Object.entries(edges)) {
+    for (const p of ps) assert.ok(plan.topicDate.get(p) < plan.topicDate.get(id), `${p} (${plan.topicDate.get(p)}) before ${id} (${plan.topicDate.get(id)})`);
+  }
+  assert.equal([...plan.topicDate.keys()].length, new Set(plan.topicDate.keys()).size);
+  assert.ok(perDayMax(plan) <= 2);
+  // A cycle does not hang or drop topics.
+  const cyc = planTrack(topics, { ...base, prereqs: id => ({ 'phon-5': ['phon-6'], 'phon-6': ['phon-5'] })[id] || [] });
+  assert.ok(cyc.topicDate.has('phon-5') && cyc.topicDate.has('phon-6'));
+});
+
+test('mastered before the track: placement and pre-start, not in-track', () => {
+  const at = (k) => parseKey(k).getTime() + 10 * 3600e3;
+  const progress = {
+    placed: { status: 'mastered', source: 'placement', updatedAt: at('2026-09-20') },
+    'placed-after-start': { status: 'mastered', source: 'placement', updatedAt: at('2026-10-01') },
+    'pre-start': { status: 'mastered', updatedAt: at('2026-09-01') },
+    'in-track': { status: 'mastered', updatedAt: at('2026-09-08') },
+    'on-start-day': { status: 'mastered', updatedAt: at('2026-09-07') },
+    practicing: { status: 'practicing', updatedAt: at('2026-09-01') },
+  };
+  assert.deepEqual(masteredBeforeTrack(progress, '2026-09-07'), ['placed', 'placed-after-start', 'pre-start']);
+  assert.deepEqual(masteredBeforeTrack(undefined, '2026-09-07'), []);
+});
+
+test('a fractional age plans whole bands', () => {
+  const a = planTrack(topics, { ...base, age: 8.6 });
+  const b = planTrack(topics, { ...base, age: 8 });
+  assert.deepEqual([...a.topicDate], [...b.topicDate]);
 });

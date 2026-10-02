@@ -433,9 +433,12 @@ export function progressFor(studentId) { return state.progress[studentId] || {};
 export function statusOf(studentId, topicId) {
   return (state.progress[studentId] && state.progress[studentId][topicId]?.status) || 'none';
 }
+// Setting the status a topic already has (a passed retake or refresher on a
+// mastered topic) keeps its entry, so its source (e.g. placement) and the
+// date it reached that status survive; the calendar plans around both.
 export function setStatus(studentId, topicId, status) {
-  state.progress[studentId] = state.progress[studentId] || {};
-  state.progress[studentId][topicId] = { status, updatedAt: Date.now() };
+  const p = state.progress[studentId] = state.progress[studentId] || {};
+  if (p[topicId]?.status !== status) p[topicId] = { status, updatedAt: Date.now() };
   markActivity(studentId);
   persist(); emit();
 }
@@ -958,19 +961,38 @@ export function setParentPin(pin) {
   return true;
 }
 
-// Family calendar: home days of the week and break ranges. Stored as given
-// (the scheduler normalizes it); null until the family sets it.
+// Family calendar: home days of the week (Date#getDay numbers) and break
+// ranges. Anything malformed is dropped or repaired; no home days at all
+// falls back to Mon–Fri. Returns { homeDays: [0-6, …], breaks: [{ start, end, label }, …] }.
+export const DEFAULT_HOME_DAYS = [1, 2, 3, 4, 5];
+const realDateKey = k => {
+  if (!validDateKey(k)) return false;
+  const [y, m, d] = k.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+};
+export function normalizeCalendar(raw) {
+  const cal = objectOr(raw, {});
+  let homeDays = Array.isArray(cal.homeDays)
+    ? [...new Set(cal.homeDays.map(n => (typeof n === 'string' && n.trim() !== '' ? Number(n) : n))
+      .filter(n => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b)
+    : [];
+  if (!homeDays.length) homeDays = [...DEFAULT_HOME_DAYS];
+  const breaks = (Array.isArray(cal.breaks) ? cal.breaks : [])
+    .filter(b => b && realDateKey(b.start) && realDateKey(b.end))
+    .map(b => {
+      const [start, end] = b.start <= b.end ? [b.start, b.end] : [b.end, b.start];
+      return { start, end, label: typeof b.label === 'string' ? b.label.trim().slice(0, 60) : '' };
+    })
+    .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+  return { homeDays, breaks };
+}
+// The stored settings, or null until the family sets them.
 export function calendarSettings() {
   return objectOr(state.settings?.calendar, null);
 }
 export function setCalendarSettings(calendar) {
-  const c = objectOr(calendar, {});
-  const homeDays = Array.isArray(c.homeDays) ? c.homeDays.filter(n => Number.isInteger(n) && n >= 0 && n <= 6) : [];
-  const breaks = Array.isArray(c.breaks)
-    ? c.breaks.filter(b => b && typeof b.start === 'string' && typeof b.end === 'string')
-      .map(b => ({ start: b.start, end: b.end, label: typeof b.label === 'string' ? b.label : '' }))
-    : [];
-  state.settings = { ...state.settings, calendar: { homeDays, breaks } };
+  state.settings = { ...state.settings, calendar: normalizeCalendar(calendar) };
   persist(); emit();
 }
 

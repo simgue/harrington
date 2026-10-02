@@ -2,39 +2,22 @@
 // picks deterministic daily "extras" (refreshers + activities/quizzes).
 // The planning core (planTrack, pickExtras, the calendar helpers) is pure so
 // it can be tested without the store; buildPlan and dailyExtras wire it up.
-import { getData, SUBJECTS, orderTopics, topicAge } from './data.js';
+import { getData, SUBJECTS, orderTopics, topicAge, hardPrereqs } from './data.js';
 import { LANES } from './daily.js';
 import * as store from './store.js';
+import { normalizeCalendar, DEFAULT_HOME_DAYS } from './store.js';
 
 const SCHOOL_DAYS_PER_YEAR = 180;   // home days of new-topic teaching per year
-export const DEFAULT_HOME_DAYS = [1, 2, 3, 4, 5]; // Date#getDay(): Mon–Fri
 
 function pad(n) { return String(n).padStart(2, '0'); }
 export function keyOf(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 export function parseKey(k) { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); }
 export function isWeekend(d) { const g = d.getDay(); return g === 0 || g === 6; }
 
-const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
-const validKey = (k) => typeof k === 'string' && KEY_RE.test(k) && keyOf(parseKey(k)) === k;
+const validKey = (k) => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k) && keyOf(parseKey(k)) === k;
 
-// Family calendar settings: which weekdays are home days, and break ranges.
-// Anything malformed is dropped; no home days at all falls back to Mon–Fri.
-// Returns { homeDays: [0-6, …], breaks: [{ start, end, label }, …] }.
-export function normalizeCalendar(raw) {
-  const cal = raw && typeof raw === 'object' ? raw : {};
-  let homeDays = Array.isArray(cal.homeDays)
-    ? [...new Set(cal.homeDays.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b)
-    : [];
-  if (!homeDays.length) homeDays = [...DEFAULT_HOME_DAYS];
-  const breaks = (Array.isArray(cal.breaks) ? cal.breaks : [])
-    .filter(b => b && validKey(b.start) && validKey(b.end))
-    .map(b => {
-      const [start, end] = b.start <= b.end ? [b.start, b.end] : [b.end, b.start];
-      return { start, end, label: typeof b.label === 'string' ? b.label.trim().slice(0, 60) : '' };
-    })
-    .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
-  return { homeDays, breaks };
-}
+// Calendar normalization lives with the store, which validates what it saves.
+export { normalizeCalendar, DEFAULT_HOME_DAYS };
 
 // Why a day is a rest day: null on a home day, else
 // { kind: 'break', label } inside a break or { kind: 'off' } on a non-home weekday.
@@ -82,15 +65,44 @@ function interleave(lists) {
 
 // Spine topics (the POC literacy and numeracy domains, LANES in daily.js)
 // that start below `age` and are not yet mastered: the youngest age first,
-// interleaved across the domains within each age.
-export function onRampTopics(topics, { age, mastered = () => false, lanes = LANES }) {
+// interleaved across the domains within each age. Each topic's unmastered
+// hard prerequisites come in just before it (wherever they sit in the
+// taxonomy), so no topic is taught ahead of what it builds on.
+// prereqs(id) -> [id] gives a topic's hard prerequisites.
+export function onRampTopics(topics, { age, mastered = () => false, prereqs = () => [], lanes = LANES }) {
   const domains = Object.values(lanes).flatMap(l => l.domains.map(domain => ({ subject: l.subject, domain })));
-  const out = [];
+  const base = [];
   for (let a = 5; a < age; a++) {
-    out.push(...interleave(domains.map(({ subject, domain }) => orderTopics(topics.filter(t =>
+    base.push(...interleave(domains.map(({ subject, domain }) => orderTopics(topics.filter(t =>
       t.subject === subject && t.domain === domain && topicAge(t) === a && !mastered(t.id))))));
   }
+  const byId = new Map(topics.map(t => [t.id, t]));
+  const out = [];
+  const seen = new Set(); // visited, so a prerequisite cycle cannot loop
+  const visit = (t) => {
+    if (seen.has(t.id)) return;
+    seen.add(t.id);
+    for (const pid of prereqs(t.id)) {
+      const p = byId.get(pid);
+      if (p && !mastered(pid)) visit(p);
+    }
+    out.push(t);
+  };
+  base.forEach(visit);
   return out;
+}
+
+// Topics marked mastered before the track: placement results, and anything
+// mastered before the start date. The on-ramp skips them; a topic mastered
+// while following the track keeps its day, so the plan does not reshuffle as
+// topics bloom. progress: { topicId: { status, updatedAt, source? } }.
+export function masteredBeforeTrack(progress, startKey) {
+  const ids = [];
+  for (const [id, p] of Object.entries(progress || {})) {
+    if (p?.status !== 'mastered') continue;
+    if (p.source === 'placement' || !p.updatedAt || keyOf(new Date(p.updatedAt)) < startKey) ids.push(id);
+  }
+  return ids.sort();
 }
 
 /**
@@ -98,42 +110,60 @@ export function onRampTopics(topics, { age, mastered = () => false, lanes = LANE
  *
  * opts: {
  *   startKey,        // 'yyyy-mm-dd' the track begins
- *   age,             // learner's age, clamped to 5–13
+ *   age,             // learner's age (whole years, clamped to 5–13)
  *   calendar,        // { homeDays, breaks } (normalized here)
  *   moves,           // { topicId: dateKey } parent overrides
- *   mastered(id),    // true for topics already mastered before the track (on-ramp skips them)
+ *   mastered(id),    // true for topics mastered before the track (on-ramp skips them)
+ *   prereqs(id),     // hard prerequisite ids, for the on-ramp order
  *   subjects,        // subject names in display order
  * }
  *
  * Each age band spreads that age's topics over ~180 home days. The first band
- * also carries the on-ramp (unmastered spine topics below the learner's age),
- * placed first and never more per day than the band alone would have; the
- * band stretches over extra home days when it needs to.
+ * also carries the on-ramp (see onRampTopics), placed first and never more per
+ * day than the band alone would have; the band stretches over extra home
+ * days when it needs to. A topic lands on a later day than any prerequisite
+ * placed before it in the same band.
  * Returns { byDate: Map(key -> [topic]), topicDate: Map(id -> key), firstKey, lastKey }.
  */
 export function planTrack(topics, opts) {
-  const { startKey, moves = {}, mastered = () => false, subjects = Object.keys(SUBJECTS) } = opts;
+  const { startKey, moves = {}, mastered = () => false, prereqs = () => [], subjects = Object.keys(SUBJECTS) } = opts;
   const cal = normalizeCalendar(opts.calendar);
-  const startAge = Math.min(13, Math.max(5, opts.age || 5));
+  const startAge = Math.min(13, Math.max(5, Math.floor(opts.age || 5)));
   const byId = new Map(topics.map(t => [t.id, t]));
   const topicDate = new Map();
   let cursor = parseKey(startKey);
 
+  const ramp = onRampTopics(topics, { age: startAge, mastered, prereqs });
+  const claimed = new Set(ramp.map(t => t.id)); // pulled into the ramp from any age
+
   for (let age = startAge; age <= 13; age++) {
     const band = interleave(subjects.map(sub => orderTopics(topics.filter(t => t.subject === sub && topicAge(t) === age))));
     const perDay = Math.max(1, Math.ceil(band.length / SCHOOL_DAYS_PER_YEAR));
-    const list = age === startAge ? [...onRampTopics(topics, { age: startAge, mastered }), ...band] : band;
-    const days = homeDaysFrom(cursor, Math.max(SCHOOL_DAYS_PER_YEAR, Math.ceil(list.length / perDay)), cal);
+    const rest = band.filter(t => !claimed.has(t.id));
+    const list = age === startAge ? [...ramp, ...rest] : rest;
+    const n = list.length;
+    const span = Math.max(SCHOOL_DAYS_PER_YEAR, Math.ceil(n / perDay));
+    // Extra home days as slack for prerequisite pushes.
+    const days = homeDaysFrom(cursor, span + n, cal);
     if (days.length === 0) continue;
 
-    const n = list.length;
+    const dayOf = new Map();
+    const perDayCount = [];
+    let prev = 0, last = span - 1;
     list.forEach((t, i) => {
-      const dayIdx = n <= 1 ? 0 : Math.min(days.length - 1, Math.floor(i * days.length / n));
-      topicDate.set(t.id, keyOf(days[dayIdx]));
+      let d = Math.max(prev, n <= 1 ? 0 : Math.floor(i * span / n));
+      for (const pid of prereqs(t.id)) if (dayOf.has(pid)) d = Math.max(d, dayOf.get(pid) + 1);
+      while ((perDayCount[d] || 0) >= perDay) d++;
+      d = Math.min(d, days.length - 1);
+      perDayCount[d] = (perDayCount[d] || 0) + 1;
+      dayOf.set(t.id, d);
+      topicDate.set(t.id, keyOf(days[d]));
+      prev = d;
+      last = Math.max(last, d);
     });
 
     // Next age-band begins the day after this one ends.
-    cursor = new Date(days[days.length - 1]);
+    cursor = new Date(days[Math.min(last, days.length - 1)]);
     cursor.setDate(cursor.getDate() + 1);
   }
 
@@ -202,30 +232,19 @@ export function planStartKey(student) {
   return keyOf(new Date());
 }
 
-// Topics the on-ramp treats as already mastered: placement results, and
-// anything mastered before the track began. Topics mastered while following
-// the track stay on their day, so the plan does not reshuffle as they bloom.
-function masteredBeforeTrack(studentId, startKey) {
-  const ids = [];
-  for (const [id, p] of Object.entries(store.progressFor(studentId))) {
-    if (p?.status !== 'mastered') continue;
-    if (p.source === 'placement' || !p.updatedAt || keyOf(new Date(p.updatedAt)) < startKey) ids.push(id);
-  }
-  return ids.sort();
-}
-
 export function buildPlan(student) {
   if (!student) return { byDate: new Map(), topicDate: new Map() };
   const startKey = planStartKey(student);
   const age = store.studentAge(student) || 5;
   const calendar = familyCalendar();
   const moves = store.planOverrides(student.id).moves || {};
-  const before = masteredBeforeTrack(student.id, startKey);
+  const before = masteredBeforeTrack(store.progressFor(student.id), startKey);
   const cacheKey = student.id + '|' + JSON.stringify([startKey, age, calendar, moves, before]);
   if (_planCache.has(cacheKey)) return _planCache.get(cacheKey);
 
   const set = new Set(before);
-  const plan = planTrack(getData().topics, { startKey, age, calendar, moves, mastered: id => set.has(id) });
+  const prereqs = id => hardPrereqs(id).map(p => p.id);
+  const plan = planTrack(getData().topics, { startKey, age, calendar, moves, mastered: id => set.has(id), prereqs });
   for (const k of [..._planCache.keys()]) { if (k.startsWith(student.id + '|')) _planCache.delete(k); }
   _planCache.set(cacheKey, plan);
   return plan;
