@@ -1,9 +1,9 @@
 import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, toast, openModal } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiLesson, aiActivityDetail } from '../ai.js';
 import { openPrintables } from './printables.js';
-import { aiErrorBlock, aiNotConfiguredError } from '../ai-status.js';
+import { aiErrorBlock, gateAi, regenerateButton, regenerateInto } from '../ai-status.js';
 
 // ---- Full lesson plan modal ----
 export async function openLesson(topic) {
@@ -11,8 +11,8 @@ export async function openLesson(topic) {
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
       <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${SUBJECTS[topic.subject].color}18"><i data-lucide="notebook-text" class="w-5 h-5" style="color:${SUBJECTS[topic.subject].color}"></i></span>
       <div class="flex-1 min-w-0">
-        <p class="text-xs text-ink-faint">Lesson plan · ${topic.subject}</p>
-        <h3 class="font-display text-lg font-600 leading-tight">${topic.name}</h3>
+        <p class="text-xs text-ink-faint">Lesson plan · ${esc(topic.subject)}</p>
+        <h3 class="font-display text-lg font-600 leading-tight">${esc(topic.name)}</h3>
       </div>
       <button id="print" class="hidden sm:flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink shrink-0"><i data-lucide="printer" class="w-4 h-4"></i>Print</button>
     </div>
@@ -26,39 +26,24 @@ export async function openLesson(topic) {
   let currentLesson = null;
 
   // loading state
-  stage.appendChild(loadingBlock(`Building a full lesson for ${topic.name}\u2026`, 'This takes a few seconds the first time. It\u2019s then saved for reuse.'));
+  stage.appendChild(loadingBlock(`Building a full lesson for ${esc(topic.name)}\u2026`, 'This takes a few seconds the first time. It\u2019s then saved for reuse.'));
   refreshIcons();
 
   const cacheId = 'topic:' + topic.id;
-
-  const regen = async () => {
-    stage.innerHTML = '';
-    stage.appendChild(loadingBlock('Writing a fresh version\u2026', ''));
-    refreshIcons();
-    try {
-      const fresh = await aiLesson(topic);
-      await store.saveCachedLesson(cacheId, fresh);
-      currentLesson = fresh;
-      stage.innerHTML = '';
-      stage.appendChild(renderLesson(fresh, topic, regen));
-      refreshIcons();
-    } catch (e) {
-      stage.innerHTML = '';
-      stage.appendChild(aiErrorBlock(e, regen));
-    }
-  };
-
-  try {
-    let lesson = await store.getCachedLesson(cacheId);
-    if (!lesson) {
-      if (!store.aiAvailable()) throw aiNotConfiguredError();
-      lesson = await aiLesson(topic);
-      await store.saveCachedLesson(cacheId, lesson);
-    }
+  const show = (lesson) => {
     currentLesson = lesson;
-    stage.innerHTML = '';
     stage.appendChild(renderLesson(lesson, topic, regen));
     refreshIcons();
+  };
+  const regen = () => regenerateInto(stage, {
+    key: cacheId, generate: () => aiLesson(topic), render: show,
+    loading: loadingBlock('Writing a fresh version\u2026', ''),
+  });
+
+  try {
+    const lesson = await store.generateCached(cacheId, () => aiLesson(topic));
+    stage.innerHTML = '';
+    show(lesson);
   } catch (e) {
     stage.innerHTML = '';
     stage.appendChild(aiErrorBlock(e, () => { m.close(); openLesson(topic); }));
@@ -148,15 +133,15 @@ function renderLesson(L, topic, onRegen) {
       <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint"></i>
     </button>`);
     b.onclick = () => openPrintables(topic);
-    return b;
+    return gateAi(b, { cachedKey: 'print:' + topic.id, fallback: el('<span class="hidden"></span>') });
   })());
 
   // footer actions
   const footer = el(`<div class="flex items-center justify-between gap-2 pt-2 border-t border-paper-line">
-    <button id="regen" class="flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink"><i data-lucide="refresh-cw" class="w-4 h-4"></i>Generate a different version</button>
+    <span id="regen"></span>
     <button id="printm" class="sm:hidden flex items-center gap-1.5 text-sm text-brand-dark font-medium"><i data-lucide="printer" class="w-4 h-4"></i>Print</button>
   </div>`);
-  footer.querySelector('#regen').onclick = onRegen;
+  footer.querySelector('#regen').replaceWith(regenerateButton(onRegen));
   footer.querySelector('#printm').onclick = () => printLesson(topic, L);
   wrap.appendChild(footer);
 
@@ -164,13 +149,15 @@ function renderLesson(L, topic, onRegen) {
 }
 
 // ---- Activity / game detail modal ----
+export function activityCacheKey(topic, activity, kind) { return `act:${topic.id}:${kind}:${activity.title}`; }
+
 export async function openActivityDetail(topic, activity, kind) {
   const body = el(`<div class="p-5">
     <div class="flex items-start gap-3 mb-4">
-      <span class="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0"><i data-lucide="${activity.icon || 'lightbulb'}" class="w-5 h-5 text-brand-dark"></i></span>
+      <span class="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0"><i data-lucide="${esc(activity.icon || 'lightbulb')}" class="w-5 h-5 text-brand-dark"></i></span>
       <div>
-        <p class="text-xs text-ink-faint capitalize">${kind} · ${topic.name}</p>
-        <h3 class="font-display text-lg font-600 leading-tight">${activity.title}</h3>
+        <p class="text-xs text-ink-faint capitalize">${esc(kind)} · ${esc(topic.name)}</p>
+        <h3 class="font-display text-lg font-600 leading-tight">${esc(activity.title)}</h3>
       </div>
     </div>
     <div id="stage"></div>
@@ -180,32 +167,39 @@ export async function openActivityDetail(topic, activity, kind) {
   stage.appendChild(loadingBlock('Writing step-by-step instructions\u2026', ''));
   refreshIcons();
 
-  const cacheId = `act:${topic.id}:${kind}:${activity.title}`;
-  try {
-    let detail = await store.getCachedLesson(cacheId);
-    if (!detail) {
-      detail = await aiActivityDetail(topic, activity, kind);
-      await store.saveCachedLesson(cacheId, detail);
-    }
-    stage.innerHTML = '';
-    const wrap = el(`<div class="space-y-4 fade-up"></div>`);
-    wrap.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed">${esc(activity.body)}</p>`));
-    if (detail.materials && detail.materials.length) wrap.appendChild(block('package', 'You\u2019ll need', el(`<div class="flex flex-wrap gap-2">${detail.materials.map(x => `<span class="text-sm px-2.5 py-1 rounded-lg bg-paper border border-paper-line text-ink-soft">${esc(x)}</span>`).join('')}</div>`)));
-    if (detail.setup) wrap.appendChild(block('settings-2', 'Set up', el(`<p class="text-sm text-ink-soft leading-relaxed">${esc(detail.setup)}</p>`)));
-    if (detail.steps && detail.steps.length) wrap.appendChild(block('list-ordered', 'How to play', orderedList(detail.steps)));
-    if (detail.example) wrap.appendChild(el(`<div class="rounded-xl bg-paper border border-paper-line p-3.5"><p class="text-xs font-600 text-ink-faint uppercase tracking-wide mb-1">Example</p><p class="text-sm text-ink-soft leading-relaxed">${esc(detail.example)}</p></div>`));
-    if (detail.tip) wrap.appendChild(el(`<div class="flex gap-2 text-sm text-ink-soft"><i data-lucide="lightbulb" class="w-4 h-4 text-[#8a6412] shrink-0 mt-0.5"></i><span>${esc(detail.tip)}</span></div>`));
-    stage.appendChild(wrap);
+  const cacheId = activityCacheKey(topic, activity, kind);
+  const generate = () => aiActivityDetail(topic, activity, kind);
+  const show = (detail) => {
+    stage.appendChild(renderActivityDetail(activity, detail, regen));
     refreshIcons();
+  };
+  const regen = () => regenerateInto(stage, {
+    key: cacheId, generate, render: show,
+    loading: loadingBlock('Writing a fresh version\u2026', ''),
+  });
+  try {
+    const detail = await store.generateCached(cacheId, generate);
+    stage.innerHTML = '';
+    show(detail);
   } catch (e) {
     stage.innerHTML = '';
     stage.appendChild(aiErrorBlock(e, () => { m.close(); openActivityDetail(topic, activity, kind); }));
   }
 }
 
-// ---- helpers ----
-function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+function renderActivityDetail(activity, detail, onRegen) {
+  const wrap = el(`<div class="space-y-4 fade-up"></div>`);
+  wrap.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed">${esc(activity.body)}</p>`));
+  if (detail.materials && detail.materials.length) wrap.appendChild(block('package', 'You\u2019ll need', el(`<div class="flex flex-wrap gap-2">${detail.materials.map(x => `<span class="text-sm px-2.5 py-1 rounded-lg bg-paper border border-paper-line text-ink-soft">${esc(x)}</span>`).join('')}</div>`)));
+  if (detail.setup) wrap.appendChild(block('settings-2', 'Set up', el(`<p class="text-sm text-ink-soft leading-relaxed">${esc(detail.setup)}</p>`)));
+  if (detail.steps && detail.steps.length) wrap.appendChild(block('list-ordered', 'How to play', orderedList(detail.steps)));
+  if (detail.example) wrap.appendChild(el(`<div class="rounded-xl bg-paper border border-paper-line p-3.5"><p class="text-xs font-600 text-ink-faint uppercase tracking-wide mb-1">Example</p><p class="text-sm text-ink-soft leading-relaxed">${esc(detail.example)}</p></div>`));
+  if (detail.tip) wrap.appendChild(el(`<div class="flex gap-2 text-sm text-ink-soft"><i data-lucide="lightbulb" class="w-4 h-4 text-[#8a6412] shrink-0 mt-0.5"></i><span>${esc(detail.tip)}</span></div>`));
+  wrap.appendChild(el(`<div class="pt-2 border-t border-paper-line"></div>`)).appendChild(regenerateButton(onRegen));
+  return wrap;
+}
 
+// ---- helpers ----
 function block(icon, title, contentEl) {
   const b = el(`<div><p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-2 flex items-center gap-1.5"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i>${title}</p><div class="body"></div></div>`);
   b.querySelector('.body').appendChild(contentEl);

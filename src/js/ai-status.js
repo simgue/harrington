@@ -38,9 +38,51 @@ export function aiUnavailableChip(href = AI_HELP_HREF) {
   return el(`<a href="${esc(href)}" target="_blank" rel="noopener" title="Set up a local AI provider to use this" class="ai-unavailable inline-flex max-w-full items-center gap-1.5 px-2.5 py-1 rounded-full border border-paper-line bg-paper text-xs font-medium text-ink-faint hover:text-ink-soft hover:border-ink-faint/40 transition-colors"><i data-lucide="plug-zap" class="w-3.5 h-3.5"></i>${AI_UNAVAILABLE_LABEL}</a>`);
 }
 
-// The control itself when the provider is set up, otherwise the chip.
-export function gateAi(control, href = AI_HELP_HREF) {
-  return store.aiAvailable() ? control : aiUnavailableChip(href);
+// The control itself when the provider is set up, otherwise the chip (or
+// `fallback`). With `cachedKey`, a control that only opens content already in
+// the lesson cache replaces the placeholder once the cache confirms it.
+export function gateAi(control, options = {}) {
+  const { href = AI_HELP_HREF, cachedKey = null, fallback = null } = typeof options === 'string' ? { href: options } : options;
+  if (store.aiAvailable()) return control;
+  const placeholder = fallback || aiUnavailableChip(href);
+  if (cachedKey) {
+    store.hasCachedLesson(cachedKey).then(found => {
+      if (!found || !placeholder.parentNode) return;
+      placeholder.replaceWith(control);
+      refreshIcons();
+    });
+  }
+  return placeholder;
+}
+
+// The "Generate a different version" action, or the chip without a provider.
+export function regenerateButton(onRegen) {
+  const btn = el(`<button class="ai-regen flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink"><i data-lucide="refresh-cw" class="w-4 h-4"></i>Generate a different version</button>`);
+  btn.onclick = onRegen;
+  return gateAi(btn);
+}
+
+// "Generate a different version": shows `loading` in `stage`, then calls
+// `render(fresh)`. On failure the previous content comes back with an inline
+// error and Retry above it, so a spinner never stays.
+export async function regenerateInto(stage, { key, generate, render, loading }) {
+  const previous = [...stage.childNodes];
+  const again = () => regenerateInto(stage, { key, generate, render, loading });
+  stage.replaceChildren(loading);
+  refreshIcons();
+  let fresh;
+  try {
+    fresh = await store.generateCached(key, generate, { force: true });
+  } catch (err) {
+    stage.replaceChildren(aiErrorBlock(err, again, { compact: true }), ...previous.filter(n => !n.classList?.contains('ai-regen-error')));
+    stage.firstChild.classList.add('ai-regen-error');
+    refreshIcons();
+    return null;
+  }
+  stage.replaceChildren();
+  render(fresh);
+  refreshIcons();
+  return fresh;
 }
 
 // Replaces every "Couldn't … right now" message. `retry` re-runs the action;

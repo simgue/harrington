@@ -2,19 +2,18 @@ import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiRecallCards } from '../ai.js';
-import { aiErrorBlock, gateAi } from '../ai-status.js';
+import { aiErrorBlock, gateAi, regenerateButton, regenerateInto } from '../ai-status.js';
 import { award, XP } from '../game.js';
 
-// Cards are cached per topic (shared, like lessons) so retrieval practice is instant.
-async function cardsForTopic(topic) {
-  const cacheId = 'recall:' + topic.id;
-  let cards = await store.getCachedLesson(cacheId);
-  if (!cards || !Array.isArray(cards) || !cards.length) {
-    const age = topic.ageRangeStart || 8;
-    cards = await aiRecallCards(topic, age);
-    if (cards && cards.length) await store.saveCachedLesson(cacheId, cards);
-  }
-  return cards || [];
+// Cards are cached per topic (shared, like lessons) so retrieval practice is
+// instant. Stored as { cards }; generateCached also reads the older bare arrays.
+function recallKey(topic) { return 'recall:' + topic.id; }
+function generateCards(topic) {
+  return () => aiRecallCards(topic, topic.ageRangeStart || 8).then(cards => ({ cards }));
+}
+export async function cardsForTopic(topic) {
+  const data = await store.generateCached(recallKey(topic), generateCards(topic));
+  return data.cards.filter(c => c && c.front && c.back);
 }
 
 // Study a single topic's recall cards.
@@ -30,8 +29,17 @@ export async function openRecall(topic) {
   try {
     const cards = await cardsForTopic(topic);
     if (!cards.length) { stage.innerHTML = ''; stage.appendChild(el(`<p class="text-sm text-ink-soft py-6 text-center">No recall cards for this topic.</p>`)); return; }
-    cards.forEach(c => store.ensureRecallCard(student.id, c.id, topic.id));
-    runSession(stage, m, student, meta, cards.map(c => ({ ...c, topicId: topic.id })), () => openRecall(topic));
+    const start = (list) => {
+      list.forEach(c => store.ensureRecallCard(student.id, c.id, topic.id));
+      // The child view never shows provider wording, so no regenerate there.
+      const onRegen = store.isChildViewOpen() ? null : () => regenerateInto(stage, {
+        key: recallKey(topic), generate: generateCards(topic),
+        render: (fresh) => start(fresh.cards.filter(c => c && c.front && c.back)),
+        loading: loading('Writing a fresh set of cards\u2026', ''),
+      });
+      runSession(stage, m, student, meta, list.map(c => ({ ...c, topicId: topic.id })), () => openRecall(topic), false, onRegen);
+    };
+    start(cards);
   } catch (e) {
     stage.innerHTML = '';
     stage.appendChild(aiErrorBlock(e, () => { m.close(); openRecall(topic); }));
@@ -65,12 +73,16 @@ export async function openDueRecall() {
   due.forEach(c => { const t = c.topicId || String(c.id).split('::')[0]; (byTopic[t] = byTopic[t] || []).push(c.id); });
   const allCards = [];
   try {
+    let missed = null;
     for (const [topicId, ids] of Object.entries(byTopic)) {
       const topic = d.byId.get(topicId);
       if (!topic) continue;
-      const cards = await cardsForTopic(topic);
+      let cards;
+      // Without a provider, review whatever is cached and skip the rest.
+      try { cards = await cardsForTopic(topic); } catch (e) { if (store.aiAvailable()) throw e; missed = e; continue; }
       cards.filter(c => ids.includes(c.id)).forEach(c => allCards.push({ ...c, subject: topic.subject, topicId: topic.id }));
     }
+    if (!allCards.length && missed) throw missed;
     // shuffle for interleaving
     for (let i = allCards.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [allCards[i], allCards[j]] = [allCards[j], allCards[i]]; }
     stage.innerHTML = '';
@@ -81,7 +93,7 @@ export async function openDueRecall() {
   }
 }
 
-function runSession(stage, m, student, meta, cards, restart, mixed = false) {
+function runSession(stage, m, student, meta, cards, restart, mixed = false, onRegen = null) {
   let i = 0, revealed = false;
   const results = { again: 0, good: 0, easy: 0 };
 
@@ -135,6 +147,7 @@ function runSession(stage, m, student, meta, cards, restart, mixed = false) {
       refreshIcons();
     };
     controls.appendChild(reveal);
+    if (onRegen) wrap.appendChild(el(`<div class="mt-5 pt-2 border-t border-paper-line"></div>`)).appendChild(regenerateButton(onRegen));
     refreshIcons();
   };
 
@@ -204,7 +217,7 @@ export function recallSectionCard(topic, student) {
   body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-3">Retrieval practice: ${esc(student.name)} answers short questions <span class="font-600">from memory</span>, then reviews on a spaced schedule so it sticks.</p>`));
   const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium text-sm transition-colors"><i data-lucide="brain" class="w-4 h-4"></i>Practice recall</button>`);
   btn.onclick = () => openRecall(topic);
-  body.appendChild(gateAi(btn));
+  body.appendChild(gateAi(btn, { cachedKey: recallKey(topic) }));
   return sectionWrap(body);
 }
 function sectionWrap(body) {
