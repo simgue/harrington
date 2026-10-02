@@ -2,6 +2,7 @@ import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiRecallCards } from '../ai.js';
+import { aiErrorBlock, gateAi } from '../ai-status.js';
 import { award, XP } from '../game.js';
 
 // Cards are cached per topic (shared, like lessons) so retrieval practice is instant.
@@ -32,10 +33,8 @@ export async function openRecall(topic) {
     cards.forEach(c => store.ensureRecallCard(student.id, c.id, topic.id));
     runSession(stage, m, student, meta, cards.map(c => ({ ...c, topicId: topic.id })), () => openRecall(topic));
   } catch (e) {
-    console.error(e);
     stage.innerHTML = '';
-    stage.appendChild(errBlock(() => { m.close(); openRecall(topic); }));
-    refreshIcons();
+    stage.appendChild(aiErrorBlock(e, () => { m.close(); openRecall(topic); }));
   }
 }
 
@@ -77,10 +76,8 @@ export async function openDueRecall() {
     stage.innerHTML = '';
     runSession(stage, m, student, SUBJECTS.Mathematics, allCards, () => openDueRecall(), true);
   } catch (e) {
-    console.error(e);
     stage.innerHTML = '';
-    stage.appendChild(errBlock(() => { m.close(); openDueRecall(); }));
-    refreshIcons();
+    stage.appendChild(aiErrorBlock(e, () => { m.close(); openDueRecall(); }));
   }
 }
 
@@ -199,11 +196,6 @@ function shell(icon, kicker, title, meta) {
 function loading(t, s) {
   return el(`<div class="text-center py-10"><div class="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4"></div><p class="text-sm font-600">${t}</p>${s ? `<p class="text-xs text-ink-faint mt-1">${s}</p>` : ''}</div>`);
 }
-function errBlock(retry) {
-  const b = el(`<div class="text-center py-10"><i data-lucide="cloud-off" class="w-8 h-8 text-ink-faint mx-auto mb-3"></i><p class="text-sm text-ink-soft mb-3">Couldn't load recall cards.</p><button id="r" class="px-4 py-2 rounded-lg bg-brand text-white text-sm font-medium">Try again</button></div>`);
-  b.querySelector('#r').onclick = retry;
-  return b;
-}
 
 // A compact "Active recall" card for the topic page.
 export function recallSectionCard(topic, student) {
@@ -212,7 +204,7 @@ export function recallSectionCard(topic, student) {
   body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-3">Retrieval practice: ${esc(student.name)} answers short questions <span class="font-600">from memory</span>, then reviews on a spaced schedule so it sticks.</p>`));
   const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium text-sm transition-colors"><i data-lucide="brain" class="w-4 h-4"></i>Practice recall</button>`);
   btn.onclick = () => openRecall(topic);
-  body.appendChild(btn);
+  body.appendChild(gateAi(btn));
   return sectionWrap(body);
 }
 function sectionWrap(body) {
