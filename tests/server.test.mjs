@@ -572,6 +572,37 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
     }
   });
 
+  test('accepts a request with no model field and uses HARRINGTON_AI_MODEL', async () => {
+    const captured = [];
+    const upstream = createServer(async (req, res) => {
+      captured.push(JSON.parse(await readRequestBody(req)));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }));
+    });
+    await listen(upstream);
+    const harrington = await spawnHarrington({
+      HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`,
+      HARRINGTON_AI_MODEL: 'llama3.2',
+    });
+
+    try {
+      // What the browser sends since HAR-23: only the messages.
+      const ai = await fetch(`${harrington.url}/api/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'Explain counting' }] }),
+      });
+      assert.equal(ai.status, 200);
+      assert.deepEqual(await ai.json(), { content: 'ok' });
+      assert.equal(captured.length, 1);
+      assert.equal(captured[0].model, 'llama3.2');
+      assert.deepEqual(captured[0].messages, [{ role: 'user', content: 'Explain counting' }]);
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+  });
+
   test('keeps provider failures fail-closed without leaking secrets', async () => {
     const secret = 'sk-secret-SHOULD-NOT-LEAK';
     const upstream = createServer(async (req, res) => {

@@ -3,7 +3,6 @@ import { el, esc, refreshIcons, toast, openModal } from './ui.js';
 import * as store from './store.js';
 import * as backend from './backend.js';
 import { getData, SUBJECTS, topicAge } from './data.js';
-import { aiDiscussionAnalysis } from './ai.js';
 import { coverageFields } from './daily.js';
 
 // Section id for a topic, matching mastery.js sectionId(): "subject|domain|age".
@@ -12,7 +11,7 @@ function sectionIdForTopic(t) {
   return `${t.subject}|${t.domain}|${topicAge(t)}`;
 }
 
-export function fmtDur(sec) {
+function fmtDur(sec) {
   sec = Math.round(sec || 0);
   const m = Math.floor(sec / 60), s = sec % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
@@ -24,7 +23,7 @@ function pickMime() {
   return '';
 }
 
-export function speechSupported() {
+function speechSupported() {
   return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 }
 
@@ -56,14 +55,14 @@ function makeTranscriber(onUpdate) {
   };
 }
 
-export async function saveAudio(recId, blob, ext) {
+async function saveAudio(recId, blob, ext) {
   const name = `${recId}.${ext}`;
   await backend.saveAudio(name, blob);
   return name;
 }
 
 const urlCache = new Map();
-export async function loadAudioUrl(path) {
+async function loadAudioUrl(path) {
   if (urlCache.has(path)) return urlCache.get(path);
   const blob = await backend.loadAudio(path);
   const url = URL.createObjectURL(blob);

@@ -116,7 +116,7 @@ function recordingCard(r, student, rerender) {
 
 // Shows the saved AI summary/advice for a recording (if any), plus a button to
 // generate or refresh it. Once generated, it's stored on the recording.
-export function renderAnalysis(container, r, student, topic) {
+function renderAnalysis(container, r, student, topic) {
   container.innerHTML = '';
   const run = includeNotes => runAnalysis(container, r, student, topic, includeNotes);
 
@@ -193,7 +193,7 @@ export function regenerateButton() {
   return el(`<button class="mt-2 flex items-center gap-1.5 text-xs font-medium text-ink-faint hover:text-ink-soft"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>Regenerate</button>`);
 }
 
-export function runAnalysis(container, r, student, topic, includeNotes = false) {
+function runAnalysis(container, r, student, topic, includeNotes = false) {
   const hasContent = (r.transcript && r.transcript.trim()) || (includeNotes && r.note && r.note.trim());
   if (!hasContent) { toast('No transcript or shared notes to analyze', 'error'); return; }
   container.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-1"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Analyzing${includeNotes ? ' (notes included)' : ''}…</div>`;

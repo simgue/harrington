@@ -98,12 +98,3 @@ export function hardPrereqs(topicId) {
   return (d.prereqsOf.get(topicId) || []).filter(p => p.strength === 'hard');
 }
 
-export function allPrereqs(topicId) {
-  const d = getData();
-  return d.prereqsOf.get(topicId) || [];
-}
-
-export function unlocks(topicId) {
-  const d = getData();
-  return d.unlocksOf.get(topicId) || [];
-}

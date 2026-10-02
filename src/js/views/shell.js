@@ -5,7 +5,7 @@ import { openGuide } from './guide.js';
 import { openPlacement } from './placement.js';
 
 // Storybook Meadow mark: a sun rising over a hill.
-export function meadowLogo(size = 34) {
+function meadowLogo(size = 34) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 36 36" aria-hidden="true" class="shrink-0">
     <circle cx="18" cy="18" r="18" fill="#bfdcec"/>
     <path d="M18 6.6v2.4M10.4 9.8l1.7 1.7M25.6 9.8l-1.7 1.7" fill="none" stroke="#f2c14e" stroke-width="2" stroke-linecap="round"/>

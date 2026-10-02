@@ -17,7 +17,7 @@ const app = document.getElementById('app');
 
 const route = { name: 'dashboard', params: {} };
 
-export function navigate(name, params = {}, options = {}) {
+function navigate(name, params = {}, options = {}) {
   route.name = name;
   route.params = params;
   commitNavigation(window, hashFor(name, params), render, options);

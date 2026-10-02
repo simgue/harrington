@@ -2,7 +2,7 @@ import { SUBJECTS, getData } from '../data.js';
 import { graphParamsForTopic } from './graph.js';
 import * as store from '../store.js';
 import { growthChip, growthIcon, stageForStatus } from '../meadow.js';
-import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
+import { el, esc, refreshIcons, toast, fmtDateTime } from '../ui.js';
 import { isUnlocked, blockingPrereqs, MASTERY, sectionForTopic, topicsMasteryStats, sectionTestReady } from '../mastery.js';
 import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';
@@ -470,4 +470,3 @@ function recordItem(r) {
   return item;
 }
 
-export { recordItem };

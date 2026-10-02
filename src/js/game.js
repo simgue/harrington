@@ -1,7 +1,6 @@
 // Gamification engine: XP, levels, badges, and celebration effects.
 import * as store from './store.js';
-import { getData, SUBJECTS } from './data.js';
-import { studentStats } from './mastery.js';
+import { getData } from './data.js';
 import { el } from './ui.js';
 
 export const XP = {
@@ -84,7 +83,7 @@ function beep(freqs = [660, 880], dur = 0.12) {
   } catch {}
 }
 
-export function confetti(count = 90) {
+function confetti(count = 90) {
   const colors = ['#3f6b3b', '#8a6412', '#2f6285', '#a4473a', '#5b4a86', '#9a4a6e'];
   const layer = el(`<div class="fixed inset-0 z-[120] pointer-events-none overflow-hidden"></div>`);
   document.body.appendChild(layer);

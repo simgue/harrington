@@ -240,7 +240,7 @@ test.describe('with the mock AI provider', () => {
     expect(await mockAi.kinds()).toEqual(['explain', 'quiz', 'activity']);
     // Prompts never carry the learner's name.
     for (const entry of await mockAi.log()) expect(entry.prompt).not.toContain('Rowan');
-    // The client asks for aliases ('small', 'gpt-4o'); the server always sends HARRINGTON_AI_MODEL.
+    // The browser sends no model (HAR-23); the server always sends HARRINGTON_AI_MODEL.
     for (const entry of await mockAi.log()) expect(entry.model).toBe('mock');
   });
 

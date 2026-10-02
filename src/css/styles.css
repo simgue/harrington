@@ -40,12 +40,6 @@ body { -webkit-font-smoothing: antialiased; }
 .meadow-hero > svg.meadow-scene { position: absolute; inset: auto 0 0 0; width: 100%; height: 100%; pointer-events: none; }
 .meadow-hero > .meadow-hero-body { position: relative; }
 
-/* Timeline rail */
-.rail-line { background: linear-gradient(to bottom, transparent, #ede3cf 8%, #ede3cf 92%, transparent); }
-
-/* Topic node connectors */
-.node-lock { filter: grayscale(0.4); opacity: 0.78; }
-
 /* Gentle card hover: lift a little, like turning a page. */
 .card-hover { transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease; }
 .card-hover:hover { transform: translateY(-2px); box-shadow: 0 1px 0 rgba(46,42,36,.04), 0 18px 34px -18px rgba(94,78,48,.45); }

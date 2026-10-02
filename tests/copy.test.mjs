@@ -21,6 +21,6 @@ test('no user-facing string promises a later fix', async () => {
   assert.ok(paths.includes('src/js/views/guide.js') && paths.includes('src/docs/GUIDE.md'));
   for (const path of paths) {
     const text = await readFile(new URL(path, repoRoot), 'utf8');
-    assert.doesNotMatch(text, /until (that|this|it) is fixed/i, `${path} promises a later fix`);
+    assert.doesNotMatch(text, /until\s+(that|this|it)\s+is\s+fixed/i, `${path} promises a later fix`);
   }
 });

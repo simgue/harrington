@@ -31,7 +31,7 @@ function toHtml(text) {
 const US_SPELLING = ' Always write in American English spelling (e.g. "practice", "artifact", "color", "organize", "labeled", "favorite", "math", "recognize", "center").';
 
 // Prompts describe a generic learner. Never interpolate a real child name.
-export function promptLearnerLabel() {
+function promptLearnerLabel() {
   return 'your child';
 }
 
@@ -187,7 +187,7 @@ Make "teach" have 3-5 steps. Keep language warm, concrete and age-appropriate. U
 }
 
 async function ask(prompt) {
-  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }], 'small');
+  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }]);
   const text = res?.content || res?.text || String(res);
   return toHtml(text);
 }
@@ -212,18 +212,15 @@ function parseJson(text) {
   return JSON.parse(s);
 }
 
-async function askJson(prompt, model = 'gpt-4o-mini') {
-  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }], model);
+async function askJson(prompt) {
+  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }]);
   const text = res?.content || res?.text || String(res);
   return parseJson(text);
 }
 
-// A stronger model is worth it for correctness of test questions/answers.
-const TEST_MODEL = 'gpt-4o';
-
 // Safely evaluate a simple arithmetic expression (digits, + - * / . ( ) only).
 // Returns a Number, or null if the expression is unsafe/invalid.
-export function safeCalc(expr) {
+function safeCalc(expr) {
   if (typeof expr !== 'string') return null;
   const cleaned = expr.replace(/\s+/g, '');
   if (!cleaned || !/^[-+*/().\d]+$/.test(cleaned)) return null;
@@ -251,7 +248,7 @@ function normStr(s) { return String(s ?? '').trim().toLowerCase(); }
 // For multiple_choice: reconcile the correct-option index using (in priority order)
 // the arithmetic verifier, the exact answerText, then the given index. Anything we
 // cannot make consistent is dropped so a broken question never reaches the student.
-export function normalizeTest(test) {
+function normalizeTest(test) {
   if (!test || !Array.isArray(test.questions)) return test;
   const out = [];
   for (const q of test.questions) {
@@ -329,7 +326,7 @@ Return ONLY valid JSON (no markdown):
 
   let verdicts = {};
   try {
-    const res = await askJson(prompt, TEST_MODEL);
+    const res = await askJson(prompt);
     (res.results || []).forEach(r => { verdicts[r.n] = r; });
   } catch {
     // If verification fails entirely, fall back to the normalized test as-is.
@@ -459,7 +456,7 @@ Return ONLY valid JSON (no markdown) matching exactly:
   "questions": [ ... ${count} questions using the shapes above, ordered easiest-first ... ]
 }
 Use real, specific, age-appropriate content (actual numbers, words, examples) — never placeholders.`;
-  return askJson(prompt, TEST_MODEL).then(normalizeTest).then(verifyTest).then(normalizeTest);
+  return askJson(prompt).then(normalizeTest).then(verifyTest).then(normalizeTest);
 }
 
 // A timed "challenge" quiz taken AFTER a topic is mastered. Designed to stretch
@@ -483,7 +480,7 @@ Question shape:
 Return ONLY valid JSON (no markdown):
 { "title": "${topic.name} — Challenge", "questions": [ ...8 multiple_choice items... ] }
 Use real, specific, age-appropriate content — never placeholders.`;
-  return askJson(prompt, TEST_MODEL).then(t => { t.questions = (t.questions || []).map(q => ({ ...q, type: 'multiple_choice' })); return t; }).then(normalizeTest).then(verifyTest).then(normalizeTest);
+  return askJson(prompt).then(t => { t.questions = (t.questions || []).map(q => ({ ...q, type: 'multiple_choice' })); return t; }).then(normalizeTest).then(verifyTest).then(normalizeTest);
 }
 
 // Active-recall cards for a topic: short question -> concise answer prompts the
@@ -505,7 +502,7 @@ Rules:
 Return ONLY valid JSON (no markdown):
 { "cards": [ { "front": "...", "back": "...", "hint": "..." } ] }
 Use real, specific content — never placeholders.`;
-  return askJson(prompt, TEST_MODEL).then(data => {
+  return askJson(prompt).then(data => {
     const cards = (data && Array.isArray(data.cards)) ? data.cards : [];
     return cards
       .filter(c => c && c.front && c.back)
@@ -546,25 +543,6 @@ If the transcript is too short or unclear to judge, say so honestly and suggest 
 
 export function aiDiscussionAnalysis(opts) {
   return ask(buildDiscussionPrompt(opts));
-}
-
-// Parent assistant chatbot. Holds a short conversation, grounded in the active
-// student's real progress + the curriculum, and gives practical teaching help.
-export async function aiParentChat(messages, context) {
-  const sys =
-`You are "Harrington Helper", a warm, practical AI teaching coach for a homeschooling PARENT (not the child). Give concrete, doable, encouraging advice — specific activities, ways to re-explain, everyday examples, manipulatives, small sub-skills to revisit, and signs of progress to look for. Keep answers focused and skimmable (short paragraphs or a few bullets), usually under 200 words unless asked for more. American English. You are advising the grown-up on how to teach; never talk down to them.
-
-Context about their setup:
-${redactLearnerNames(context)}
-
-If they mention a struggling topic, suggest a clear plan: how to reteach it simply, one hands-on activity, a way to check understanding, and what usually trips kids up. Point them to Harrington features by name when relevant (a topic's Lesson, Print & go materials, Active recall cards, the timed Challenge, or recording a discussion for AI analysis). If you don't have enough info, ask one short clarifying question.`;
-
-  // The parent may type a name into the chat; it is redacted like a transcript.
-  const turns = messages.map(m => ({ role: m.role, content: redactLearnerNames(m.content) }));
-  const convo = [{ role: 'system', content: sys }, ...turns];
-  const res = await backend.chat(convo, 'strong');
-  const text = res?.content || res?.text || String(res);
-  return toHtml(text);
 }
 
 // Teacher feedback based on a student's real progress + records. Records go

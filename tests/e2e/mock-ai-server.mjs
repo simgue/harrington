@@ -60,7 +60,6 @@ export const MARKERS = {
   review: 'Strengths',
   lessonHook: 'Start with a mystery bag',
   activitySetup: 'Clear a table and lay out the items',
-  chat: 'Harrington Helper (mock)',
 };
 
 function topicName(prompt) {
@@ -166,7 +165,6 @@ const TEXT = {
   quiz: (p) => `### ${MARKERS.quiz}\n1. Show me three buttons.\n2. What comes after 7?\n3. Which group is bigger?\n4. How did you check?\n\n**Answers**\n- Three buttons\n- 8\n- The group with more\n- By counting each once`,
   discussion: () => `**${MARKERS.discussion}**\n- Counts small groups accurately.\n\n**Where the misunderstanding is**\n- Skips objects when they are not in a line.\n\n**How to approach this topic next**\n- Line objects up first.\n- Touch each one.\n- Ask how they checked.\n\n**A phrase to try**\n"Show me how you know."`,
   review: () => `**${MARKERS.review}**\n- Curious and persistent.\n- Talks through their thinking.\n\n**Watch areas**\n- Rushes when tired.\n- Needs objects in a line.\n\n**What to do next**\n- Short daily counting games.\n- Revisit one earlier topic.\n- Record one conversation.`,
-  chat: () => `${MARKERS.chat}: try a five-minute counting game today.`,
 };
 
 export function classify(prompt) {
@@ -181,7 +179,6 @@ export function classify(prompt) {
   if (prompt.includes('mini-quiz')) return 'quiz';
   if (prompt.includes('Analyze the following discussion')) return 'discussion';
   if (prompt.includes('progress review')) return 'review';
-  if (prompt.includes('Harrington Helper')) return 'chat';
   return 'unknown';
 }
 
@@ -197,7 +194,7 @@ export function respond(kind, prompt) {
     case 'lesson': return JSON.stringify(lesson(prompt));
     case 'printables': return JSON.stringify(printables(prompt));
     case 'activity': return JSON.stringify(activityDetail(prompt));
-    case 'explain': case 'quiz': case 'discussion': case 'review': case 'chat':
+    case 'explain': case 'quiz': case 'discussion': case 'review':
       return TEXT[kind](prompt);
     default: return 'The mock provider did not recognize this prompt.';
   }

@@ -7,7 +7,7 @@ import { test } from 'node:test';
 let aiConfigured = false;
 globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ ok: true, aiConfigured }) });
 const store = await import('../src/js/store.js');
-const { explainAiError, aiNotConfiguredError } = await import('../src/js/ai-status.js');
+const { explainAiError } = await import('../src/js/ai-status.js');
 
 const repoRoot = new URL('..', import.meta.url);
 const source = (path) => readFile(new URL(path, repoRoot), 'utf8');
@@ -15,7 +15,7 @@ const source = (path) => readFile(new URL(path, repoRoot), 'utf8');
 test('explainAiError recognizes the server and client "not configured" messages', () => {
   for (const err of [
     new Error('AI is not configured for this self-hosted Harrington server'),
-    aiNotConfiguredError(),
+    new Error('AI is not configured'), // what store.generateCached throws offline
   ]) {
     const result = explainAiError(err);
     assert.equal(result.kind, 'unconfigured');
@@ -68,23 +68,15 @@ test('refreshHealth rejects on an outage and keeps the last known flag', async (
   }
 });
 
-// Views that call ai.js but are unreachable today, so they are not gated here.
-// Their fate is tracked separately from HAR-13.
-const UNGATED_UNREACHABLE = new Set([
-  'daysheet',  // only imported by coop.js (Commune), which is disabled by design and not routed
-  'assistant', // Harrington Helper chat, never mounted
-]);
-
-test('every reachable AI-backed view uses the shared ai-status helper', async () => {
+test('every AI-backed view uses the shared ai-status helper', async () => {
   const dir = new URL('src/js/views/', repoRoot);
   const callers = [];
   for (const file of await readdir(dir)) {
     if (/from '\.\.\/ai\.js'/.test(await readFile(new URL(file, dir), 'utf8'))) callers.push(file.replace(/\.js$/, ''));
   }
-  for (const name of UNGATED_UNREACHABLE) assert.ok(callers.includes(name), `${name}.js no longer calls ai.js; drop it from the exclusions`);
   // Views that launch AI modals without calling ai.js themselves.
   const launchers = ['graph', 'calendar'];
-  const views = [...callers.filter(name => !UNGATED_UNREACHABLE.has(name)), ...launchers];
+  const views = [...callers, ...launchers];
   for (const name of views) {
     const code = await source(`src/js/views/${name}.js`);
     assert.match(code, /from '\.\.\/ai-status\.js'/, `${name}.js does not import ../ai-status.js`);
@@ -101,5 +93,5 @@ test('the child view hides AI actions without provider wording', async () => {
 
 test('the unlinked timeline view is no longer routed', async () => {
   const app = await source('src/js/app.js');
-  assert.doesNotMatch(app, /renderTimeline/);
+  assert.doesNotMatch(app, /renderTimeline|views\/timeline\.js/);
 });

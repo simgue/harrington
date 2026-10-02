@@ -1,7 +1,7 @@
 import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
-import { openRecorder, audioPlayer, fmtDur, coverageCandidates, coverageClaimField } from '../recorder.js';
+import { openRecorder, audioPlayer, coverageCandidates, coverageClaimField } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
 import { aiErrorBlock, gateAi } from '../ai-status.js';
 import { savedAnalysis, regenerateButton, analysisOptIn, notesIncludedLine } from './recordings.js';
