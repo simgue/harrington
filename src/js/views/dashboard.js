@@ -1,10 +1,10 @@
 import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, fmtDateTime, toast } from '../ui.js';
-import { studentStats, recommendedNext, recentActivity, todaysChoices, MASTERY } from '../mastery.js';
+import { studentStats, recommendedNext, recentActivity, todaysChoices, isUnlocked, MASTERY } from '../mastery.js';
 import { openRecordForm } from './records.js';
 import { openRecorder } from '../recorder.js';
-import { keyOf, topicsOn, dailyExtras } from '../scheduler.js';
+import { keyOf, topicsOn, dailyExtras, restInfo, familyCalendar } from '../scheduler.js';
 import { openMasteryTest } from './masterytest.js';
 import { openRecordingsLibrary } from './recordings.js';
 import { openDueRecall } from './recall.js';
@@ -301,7 +301,7 @@ function todayCard(active, navigate) {
     const list = cal.querySelector("[data-list]");
     topics.slice(0, 4).forEach(t => {
       const row = el(`<button class="w-full min-w-0 text-left flex items-center gap-2.5 px-3 py-2 rounded-2xl bg-paper-card hover:shadow-soft transition-shadow">
-        ${growthIcon(stageForStatus(store.statusOf(active.id, t.id), true), 26)}
+        ${growthIcon(stageForStatus(store.statusOf(active.id, t.id), isUnlocked(active.id, t.id)), 26)}
         <span class="flex-1 min-w-0"><span class="block text-sm font-600 truncate">${esc(t.name)}</span><span class="block text-xs truncate" style="color:${tone.deep}">${t.subject}${t.domain ? ' · ' + esc(t.domain) : ''}</span></span>
         <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0"></i>
       </button>`);
@@ -317,12 +317,12 @@ function todayCard(active, navigate) {
     </div>`));
   }
 
-  // refresher quick action (the quiz is written by the AI provider)
-  if (extras.refresher && store.aiAvailable()) {
+  // refresher quick action (the quiz is written by the AI provider); none on rest days
+  if (extras.refresher && store.aiAvailable() && !restInfo(todayKey, familyCalendar())) {
     const t = extras.refresher;
     const ref = el(`<button class="relative w-full min-w-0 text-left flex items-center gap-3 p-4 rounded-3xl border-2 border-dashed border-butter card-hover bg-paper-card">
       ${stop(++stopNo, { fill: '#f2c14e', deep: '#2e2a24' }, 'dumbbell')}
-      <span class="flex-1 min-w-0"><span class="block font-600 truncate">Refresher quiz · ${esc(t.name)}</span><span class="block text-xs text-butter-deep truncate">Keep an earlier ${t.subject} skill sharp</span></span>
+      <span class="flex-1 min-w-0"><span class="block font-600 truncate">Refresher quiz · ${esc(t.name)}</span><span class="block text-xs text-butter-deep truncate">Keep an earlier ${esc(t.subject)} skill sharp</span></span>
       <i data-lucide="file-check-2" class="w-4 h-4 shrink-0 text-butter-deep"></i>
     </button>`);
     ref.onclick = () => openMasteryTest(t.subject, null, t);

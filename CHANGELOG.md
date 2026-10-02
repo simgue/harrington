@@ -7,6 +7,11 @@ tagged a release yet; everything below is on `main`.
 ## [Unreleased]
 
 ### Changed
+- Calendar follows the family's home days and breaks (set under Home days &
+  breaks); rest days schedule nothing. Unmastered literacy and numeracy topics
+  below the learner's age come first, after their prerequisites. Refreshers
+  come only from mastered topics, Extra practice opens spaced practice, and
+  changing the start date offers to clear moved topics (HAR-18).
 - Learners can be edited (name, birth month and year, color) from the learner
   selector, and onboarding and Add student take an optional birth month. Age
   counts whole years when the month is known; the map, daily choices,

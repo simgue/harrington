@@ -56,7 +56,8 @@ computer only and these work:
   list drill-down, showing required and helpful foundations.
 - **Growth stages and manual mastery** — Seed, Sprout, Bud and Bloom; you set
   a topic's status from the quest log or the topic page.
-- **Calendar** — the weekday plan: move topics, mark days done, add extras.
+- **Calendar** — the day-by-day plan on your chosen home days, with breaks:
+  move topics, mark days done, add extras.
 - **Records and recordings** — notes, observations and voice recordings saved
   on this computer. The live transcript uses your browser's speech service,
   which may send audio to the browser vendor.
