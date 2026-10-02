@@ -83,6 +83,23 @@ test('import refuses files that are not a family export', async ({ page, api, go
   expect((await api.getState()).state.students).toHaveLength(3);
 });
 
+test('an imported analysis renders as text, not markup', async ({ page, api, gotoApp }) => {
+  await gotoApp({ seed: {} });
+  const doc = (await api.getState()).state;
+  const hostile = '<p>Kept paragraph</p><img src=x onerror="window.__pwned=1"><script>window.__pwned=2</script>';
+  doc.records[ROWAN] = [{ id: 'r_hostile', type: 'observation', title: 'Imported note', note: '', createdAt: FIXED_NOW.getTime() - 3_600_000, analysis: hostile }];
+  await chooseImportFile(page, JSON.stringify(doc));
+  await modal(page).getByRole('button', { name: 'Replace family data' }).click();
+  await expectToast(page, 'Family data imported');
+  await nav(page, 'Records').click();
+  const prose = page.locator('.ai-prose').first();
+  await expect(prose).toContainText('Kept paragraph');
+  await expect(prose).toContainText('<img src=x onerror="window.__pwned=1">');
+  await expect(prose.locator('p')).toHaveCount(1);
+  await expect(prose.locator('img, script')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+});
+
 test('two tabs: the second save loses and reloads the first one\'s data, after a success toast (finding F17)', async ({ page, context, api, gotoApp, shot }) => {
   await gotoApp({ seed: {}, hash: `topic/${TOPICS.oneToOne.id}` });
   const other = await context.newPage();

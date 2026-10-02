@@ -1,6 +1,6 @@
 import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';
-import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
+import { el, esc, analysisHtml, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { openRecorder, audioPlayer, coverageCandidates, coverageClaimField } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
 import { aiErrorBlock, gateAi } from '../ai-status.js';
@@ -187,7 +187,7 @@ function openAnalysis(record, student, topic, includeNotes = false) {
     // Persist onto the record, as the Recordings folder does, so the card shows it.
     store.updateRecord(student.id, record.id, { analysis: html, analyzedAt: Date.now() });
     stage.innerHTML = '';
-    stage.appendChild(el(`<div class="ai-prose text-sm text-ink-soft">${html}</div>`));
+    stage.appendChild(el(`<div class="ai-prose text-sm text-ink-soft">${analysisHtml(html)}</div>`));
     const save = el(`<button class="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="save" class="w-4 h-4"></i>Save advice to records</button>`);
     save.onclick = () => {
       store.addRecord(student.id, {

@@ -103,6 +103,15 @@ export function openModal(contentEl, opts = {}) {
   return handle;
 }
 
+// AI analysis HTML is stored on records and travels in exports, so it is
+// rendered through this allowlist: the bare tags ai.js toHtml() produces
+// (p, h4, ul, li, strong, em) are kept and any other markup, including a tag
+// with attributes, is shown as text.
+const ANALYSIS_TAG = /^<\/?(?:p|h4|ul|li|strong|em)>$/;
+export function analysisHtml(html) {
+  return String(html ?? '').replace(/<[^<>]*>?|>/g, m => (ANALYSIS_TAG.test(m) ? m : esc(m)));
+}
+
 export function fmtDate(ts) {
   const d = new Date(ts);
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });

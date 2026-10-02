@@ -1,6 +1,6 @@
 import * as store from '../store.js';
 import { getData, SUBJECTS } from '../data.js';
-import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
+import { el, esc, analysisHtml, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { audioPlayer, openRecorder } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
 import { aiErrorBlock, gateAi } from '../ai-status.js';
@@ -184,7 +184,7 @@ export function analysisOptIn(btn, r, run) {
 export function savedAnalysis(html) {
   return el(`<div class="rounded-xl bg-brand-light/40 border border-brand/20 p-3.5 mt-1">
     <p class="text-[11px] font-600 uppercase tracking-wide text-brand-dark mb-1.5 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i>AI summary &amp; advice</p>
-    <div class="ai-prose text-sm text-ink-soft">${html}</div>
+    <div class="ai-prose text-sm text-ink-soft">${analysisHtml(html)}</div>
   </div>`);
 }
 // Null without an AI provider, so both the Recordings and Records cards hide it.

@@ -110,3 +110,18 @@ test('esc() neutralizes markup and attribute breakouts', async () => {
   assert.equal(esc(undefined), '');
   assert.equal(esc(7), '7');
 });
+
+test('stored analysis HTML keeps only the tags toHtml() writes', async () => {
+  const { analysisHtml } = await importSource('src/js/ui.js');
+  const fine = '<h4>Summary</h4><p>Counted to <strong>ten</strong> &amp; <em>back</em>.</p><ul><li>a &lt;b&gt;</li></ul>';
+  assert.equal(analysisHtml(fine), fine);
+  // An imported document can carry any string here.
+  const hostile = '<p onclick="x()">Hi</p><img src=x onerror=alert(1)><script>alert(2)</script><a href="javascript:x">y</a><svg/onload=z><!-- c --><p';
+  const out = analysisHtml(hostile);
+  assert.doesNotMatch(out, /<(?!\/?(?:p|h4|ul|li|strong|em)>)/, out);
+  assert.equal(out, '&lt;p onclick=&quot;x()&quot;&gt;Hi</p>&lt;img src=x onerror=alert(1)&gt;&lt;script&gt;alert(2)&lt;/script&gt;'
+    + '&lt;a href=&quot;javascript:x&quot;&gt;y&lt;/a&gt;&lt;svg/onload=z&gt;&lt;!-- c --&gt;&lt;p');
+  assert.equal(analysisHtml('a > b <<p>c'), 'a &gt; b &lt;<p>c');
+  assert.equal(analysisHtml(null), '');
+  assert.equal(analysisHtml(7), '7');
+});
