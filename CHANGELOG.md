@@ -11,6 +11,11 @@ tagged a release yet; everything below is on `main`.
   selector, and onboarding and Add student take an optional birth month. Age
   counts whole years when the month is known; the map, daily choices,
   placement and calendar follow an edited age (HAR-22).
+- Generated lessons, print sheets, activity instructions and recall cards are
+  never cached empty or malformed, open once for rapid repeat clicks, and each
+  has "Generate a different version" that keeps the previous version if it
+  fails. Recall cards now persist, printed sheets show topic, subject and age,
+  and cached content opens without an AI provider (HAR-20).
 - Welcome tour, in-app Guide, printable guide and `src/docs/GUIDE.md` describe
   only what works today. AI-backed features carry one line: "Needs a local AI
   provider; see the README." The curriculum auto-update claim is gone, and the
