@@ -1,8 +1,8 @@
 # End-to-end findings
 
 What the e2e suite found while it was being written (1 and 2 October 2026). The
-suite was last run against `main` at `8665fdc`, which includes HAR-10, HAR-13
-through HAR-22 and the #27 and #29 follow-ups. Nothing here is fixed in this pull request;
+suite was last run against `main` at `c5ec6a6`, which includes HAR-10, HAR-13
+through HAR-22 and the #27, #29 and #30 follow-ups. Nothing here is fixed in this pull request;
 each item names the spec that shows it.
 
 A test that pins a defect has **(finding F<n>)** in its title and asserts
