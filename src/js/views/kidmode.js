@@ -7,7 +7,7 @@ import { BADGES } from '../game.js';
 import { openChildTopic } from './childtopic.js';
 import { openRecall, openDueRecall } from './recall.js';
 import { openChallenge } from './challenge.js';
-import { initials } from '../ui.js';
+import { esc, initials } from '../ui.js';
 import { openRecorder } from '../recorder.js';
 import { meadowScene, growthIcon, stageForArea, stageForStatus, GROWTH } from '../meadow.js';
 
@@ -123,7 +123,7 @@ function render(student) {
     ${meadowScene()}
     <div class="meadow-hero-body px-5 pt-5 pb-20">
       <div class="flex items-center justify-between">
-        <span class="w-14 h-14 rounded-full flex items-center justify-center text-white text-2xl font-display font-600 shadow-[0_0_0_4px_#fffdf8]" style="background:${student.color || '#3f6b3b'}">${initials(student.name)}</span>
+        <span class="w-14 h-14 rounded-full flex items-center justify-center text-white text-2xl font-display font-600 shadow-[0_0_0_4px_#fffdf8]" style="background:${esc(student.color || '#3f6b3b')}">${esc(initials(student.name))}</span>
         <button id="exit" class="flex items-center gap-1.5 h-11 px-4 rounded-full bg-paper-card text-sm font-600 text-ink" aria-label="Back to the grown-up view"><i data-lucide="lock" class="w-4 h-4"></i>Grown-ups</button>
       </div>
       <h1 class="font-display text-4xl font-600 mt-4">${greet}, ${name}!</h1>
@@ -266,5 +266,3 @@ function renderBadges(student) {
   overlay.appendChild(wrap);
   refreshIcons();
 }
-
-function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
