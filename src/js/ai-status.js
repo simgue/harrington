@@ -4,7 +4,7 @@ import * as store from './store.js';
 import { el, esc, refreshIcons, toast } from './ui.js';
 
 // The README section that walks a family through setting up a local model.
-const AI_HELP_HREF = 'https://github.com/simgue/harrington/blob/main/README.md#optional-local-model-ollama';
+export const AI_HELP_HREF = 'https://github.com/simgue/harrington/blob/main/README.md#optional-local-model-ollama';
 const AI_UNAVAILABLE_LABEL = 'Needs a local AI provider';
 
 const MESSAGES = {

@@ -88,6 +88,9 @@ const ref = (name, flags = '') => new RegExp(`(?<![\\w$])(?<!(?:^|[^.])\\.)${nam
 // Kept on purpose: the fail-closed Commune stub that tests/isolation.test.mjs
 // asserts on, so a future Commune view cannot quietly reach a remote service.
 const KEEP = new Set(['src/js/coop.js']);
+// Exports kept with no importer: ai-status.js's helper list is asserted on by
+// tests/ai-status-imports.test.mjs (the calendar gateAi hotfix).
+const KEEP_EXPORTS = new Set(['src/js/ai-status.js: AI_HELP_HREF']);
 
 const sources = new Map();
 for (const file of consumerFiles) sources.set(file, stripComments(await readFile(file, 'utf8')));
@@ -135,6 +138,7 @@ for (const file of srcFiles.filter((f) => !KEEP.has(relative(root, f)))) {
     const label = `${relative(root, file)}: ${name}`;
     const localUses = (sources.get(file).match(ref(name, 'g')) || []).length;
     const inside = localUses > 1 ? ' (used inside its module)' : '';
+    if (KEEP_EXPORTS.has(label)) continue;
     if (!users.length) unusedExports.push(label + inside);
     else if (users.every(isTest)) testOnlyExports.push(`${label}${inside} (${users.map((f) => relative(root, f)).join(', ')})`);
   }
