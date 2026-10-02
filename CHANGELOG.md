@@ -72,6 +72,14 @@ tagged a release yet; everything below is on `main`.
   Homestead (HAR-2).
 
 ### Fixed
+- Record cards, the recordings folder and the recorder escape every value
+  they put into markup, and a source test fails on any new unescaped one in
+  those files (HAR-11 follow-up).
+- A stored AI analysis renders through an allowlist of the tags the app
+  writes, so an imported file cannot inject markup through it.
+- Import checks every learner field (name, birth year and month, start
+  date, color) and the progress, interests, calendar and PIN data, and
+  refuses a malformed file with the reason (HAR-10 follow-up).
 - The server replaces every learner name in the family document with “the
   child” in each message it forwards to the AI provider, with the same rules
   as the browser, so a prompt that missed the browser-side redaction still

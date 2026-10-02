@@ -29,6 +29,10 @@ your report and work on a fix as quickly as we reasonably can.
   Nicknames and other people's names in a transcript are sent as spoken, and
   names in scripts written without spaces (for example Chinese) are not matched
   when they run straight into other text. There are no shared-family features.
+- An imported family file is checked field by field before it replaces the
+  family data, and a file from a newer data format (`schemaVersion`) is
+  refused. A stored AI analysis is rendered through an allowlist of the tags
+  Harrington writes, never as raw HTML.
 - Please never include real children's personal data in a report.
 
 Thank you for helping keep families using Harrington safe.
