@@ -13,7 +13,7 @@ async function chooseImportFile(page, content) {
   await chooser.setFiles({ name: 'family.json', mimeType: 'application/json', buffer: Buffer.isBuffer(content) ? content : Buffer.from(content) });
 }
 
-test('export downloads the whole family document as JSON, PIN included (finding F16)', async ({ page, gotoApp, shot }) => {
+test('export downloads the whole family document as JSON, the PIN only as a salted hash (F16)', async ({ page, gotoApp, shot }) => {
   await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'mastered' }, records: [{ type: 'observation', title: 'Counted to 12' }], extra: { settings: { parentPin: '2468' } } } });
   await shot('sidebar-export-import', { locator: page.locator('aside') });
   const [download] = await Promise.all([page.waitForEvent('download'), exportButton(page).click()]);
@@ -26,8 +26,11 @@ test('export downloads the whole family document as JSON, PIN included (finding 
   expect(doc.exportedAt).toBe(FIXED_NOW.toISOString());
   expect(doc.taxonomyVersion).toBe('v1');
   expect(Number.isInteger(doc.version)).toBe(true);
-  // Finding: the child-view PIN (HAR-15) is stored and exported in plain text.
-  expect(doc.settings.parentPin).toBe('2468');
+  // F16: the plain PIN seeded above was hashed on load; the file never has it.
+  expect(doc.settings.parentPin).toBeUndefined();
+  expect(doc.settings.parentPinHash).toMatch(/^[0-9a-f]{64}$/);
+  expect(doc.settings.parentPinSalt).toMatch(/^[0-9a-f]{32}$/);
+  expect(JSON.stringify(doc)).not.toContain('"2468"');
 });
 
 test('round trip: the exported file previews, cancel keeps the data, confirm restores it exactly', async ({ page, api, gotoApp, shot }) => {

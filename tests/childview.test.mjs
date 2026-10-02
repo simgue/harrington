@@ -74,18 +74,24 @@ test('award() still records XP in the child view', () => {
   assert.equal(store.gameState(id).xp, before + 40);
 });
 
-test('the parent PIN is four digits and persisted with the family settings', async () => {
-  assert.equal(store.parentPin(), null);
-  assert.equal(store.setParentPin('12a4'), false);
-  assert.equal(store.setParentPin('123'), false);
-  assert.equal(store.parentPin(), null);
-  assert.equal(store.setParentPin('0420'), true);
-  assert.equal(store.parentPin(), '0420');
+test('the parent PIN is four digits and only its salted hash is persisted', async () => {
+  assert.equal(store.hasParentPin(), false);
+  assert.equal(await store.setParentPin('12a4'), false);
+  assert.equal(await store.setParentPin('123'), false);
+  assert.equal(store.hasParentPin(), false);
+  assert.equal(await store.setParentPin('0420'), true);
+  assert.equal(store.hasParentPin(), true);
+  assert.equal(await store.checkParentPin('0420'), true);
+  assert.equal(await store.checkParentPin('0421'), false);
   await store.flushSaves();
-  assert.equal(saved.at(-1)?.settings?.parentPin, '0420');
-  // A hand-edited numeric PIN in the data file still compares as a string.
-  store.get().settings.parentPin = 1234;
-  assert.equal(store.parentPin(), '1234');
+  const settings = saved.at(-1)?.settings;
+  assert.match(settings?.parentPinHash, /^[0-9a-f]{64}$/);
+  assert.match(settings?.parentPinSalt, /^[0-9a-f]{32}$/);
+  assert.equal('parentPin' in settings, false);
+  assert.doesNotMatch(JSON.stringify(saved.at(-1)), /"0420"/);
+  // A hand-edited plain PIN in the data file still works until it migrates.
+  store.get().settings = { parentPin: 1234 };
+  assert.equal(await store.checkParentPin('1234'), true);
 });
 
 test('taxonomy evidence reads as "Can you…?" prompts', () => {

@@ -24,6 +24,7 @@ import { openLesson } from './lesson.js';
 import { gateAi } from '../ai-status.js';
 import { openRecordForm } from './records.js';
 import { GROWTH, growthChip, growthIcon, stageForSkillState, stageForStatus } from '../meadow.js';
+import { formatCount } from '../format.js';
 
 // The selected skill lives in the hash (params.skill). The state below only
 // makes it per learner and carries scroll and focus across re-renders.
@@ -199,7 +200,7 @@ function renderWorldMap(params, active, navigate) {
       <p class="text-[11px] uppercase tracking-[0.18em] text-ink-faint font-medium mb-1">World Map</p>
       <h1 class="font-display text-2xl sm:text-3xl font-600">Curriculum realms</h1>
       <p class="text-ink-soft text-sm mt-1 max-w-2xl">Eight subjects as lands on a map, not a syllabus calendar. Open a realm to walk its skill tree. Quiet tints are for you; this is not a report card.</p>
-      <p class="text-xs text-ink-faint mt-2">${d.meta.topics.toLocaleString()} topics · ${d.meta.dependencies.toLocaleString()} prerequisite links · ${d.meta.version}</p>
+      <p class="text-xs text-ink-faint mt-2">${formatCount(d.meta.topics)} topics · ${formatCount(d.meta.dependencies)} prerequisite links · ${d.meta.version}</p>
     </div>`));
 
   const stage = el(`<div class="world-map relative rounded-2xl border border-[#cfe0c6] overflow-hidden"></div>`);
@@ -643,7 +644,7 @@ function renderSubjects(active, navigate) {
     <div class="mb-6">
       <h1 class="font-display text-2xl sm:text-3xl font-600">Curriculum list</h1>
       <p class="text-ink-soft text-sm mt-1">The full Marble map as cards. Start at a subject and keep drilling in. Mastery stays in the parent view.</p>
-      <p class="text-xs text-ink-faint mt-2">${d.meta.topics.toLocaleString()} topics · ${d.meta.dependencies.toLocaleString()} prerequisite links · ${d.meta.version}</p>
+      <p class="text-xs text-ink-faint mt-2">${formatCount(d.meta.topics)} topics · ${formatCount(d.meta.dependencies)} prerequisite links · ${d.meta.version}</p>
     </div>`));
 
   const grid = el(`<div class="grid sm:grid-cols-2 gap-3"></div>`);
@@ -655,7 +656,7 @@ function renderSubjects(active, navigate) {
         <span class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="background:${meta.color}"><i data-lucide="${meta.icon}" class="w-5 h-5 text-white"></i></span>
         <span class="min-w-0">
           <span class="block font-600">${esc(node.subject)}</span>
-          <span class="block text-xs text-ink-faint">${node.domains.length} domains · ${node.topics.length} topics</span>
+          <span class="block text-xs text-ink-faint">${formatCount(node.domains.length)} domains · ${formatCount(node.topics.length)} topics</span>
         </span>
       </span>
       ${parentMastery(stats)}
@@ -695,7 +696,7 @@ function renderSubject(params, active, navigate) {
       <span class="flex items-start justify-between gap-3">
         <span>
           <span class="block font-600">${esc(domain.domain)}</span>
-          <span class="block text-xs text-ink-faint mt-1">${domain.sections.length} age band${domain.sections.length === 1 ? '' : 's'} · ${domain.topics.length} topics</span>
+          <span class="block text-xs text-ink-faint mt-1">${domain.sections.length} age band${domain.sections.length === 1 ? '' : 's'} · ${formatCount(domain.topics.length)} topics</span>
         </span>
         <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0 mt-1"></i>
       </span>
@@ -735,7 +736,7 @@ function renderDomain(params, active, navigate) {
       <span class="flex items-start justify-between gap-3">
         <span>
           <span class="block font-600">Age ${esc(section.age)}</span>
-          <span class="block text-sm text-ink-soft mt-1 leading-relaxed">${esc(section.summary || `${section.topics.length} topics in this band.`)}</span>
+          <span class="block text-sm text-ink-soft mt-1 leading-relaxed">${esc(section.summary || `${formatCount(section.topics.length)} topics in this band.`)}</span>
         </span>
         <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0 mt-1"></i>
       </span>
@@ -826,7 +827,7 @@ function parentMastery(stats) {
   return `<span class="block">
     <span class="flex items-center justify-between text-[11px] text-ink-faint mb-1">
       <span>Parent view</span>
-      <span>${stats.mastered} of ${stats.total} mastered</span>
+      <span>${formatCount(stats.mastered)} of ${formatCount(stats.total)} mastered</span>
     </span>
     <span class="block h-1.5 rounded-full bg-paper-line overflow-hidden"><span class="block h-full rounded-full bg-brand" style="width:${width}%"></span></span>
   </span>`;

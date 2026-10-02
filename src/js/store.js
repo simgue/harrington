@@ -1,5 +1,6 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
+import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
 
 export const MASTERY = {
   none:       { label: 'Not started', rank: 0, color: '#d2c6ad' },
@@ -30,7 +31,7 @@ let state = {
   daily: {},          // studentId -> { 'yyyy-mm-dd': { offers: {literacy:[topicId], numeracy:[topicId]}, picks: {literacy, numeracy} } }
   interests: {},      // studentId -> { chips: [label], text: '' }  (what the learner is into, parent-entered)
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
-  settings: {},       // family-wide: { parentPin, calendar: { homeDays:[0-6], breaks:[{start, end, label}] } }
+  settings: {},       // family-wide: { parentPinHash, parentPinSalt, calendar: { homeDays:[0-6], breaks:[{start, end, label}] } }
 };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -101,6 +102,12 @@ export async function loadAll() {
   } catch (e) {
     console.warn('load failed', e);
     throw e;
+  }
+  // A family document from before the PIN was hashed keeps it in plain text.
+  const settings = await migratePinSettings(state.settings);
+  if (settings !== state.settings) {
+    state.settings = settings;
+    persist();
   }
 }
 
@@ -310,8 +317,12 @@ function countOf(value) {
 export async function exportDocument() {
   await flushSaves();
   const meta = { exportedAt: new Date().toISOString(), taxonomyVersion: state.curriculumSnapshot?.version || null };
-  if (dirty) return { ...snapshotData(), version: stateVersion, ...meta, unsavedChanges: true };
-  return { ...(await backend.loadState()), ...meta };
+  const doc = dirty
+    ? { ...snapshotData(), version: stateVersion, ...meta, unsavedChanges: true }
+    : { ...(await backend.loadState()), ...meta };
+  // Never a plain PIN in the file, even one another device just saved.
+  doc.settings = await migratePinSettings(doc.settings);
+  return doc;
 }
 
 // Checks an export (or a raw family-state.json) before import. Returns
@@ -355,6 +366,8 @@ export function importDocument(doc) {
   saveTimer = null;
   dirty = false;
   saveQueue = saveQueue.catch(() => {}).then(async () => {
+    // An older export may carry the PIN in plain text; only its hash is saved.
+    if (data.settings !== undefined) data.settings = await migratePinSettings(objectOr(data.settings, {}));
     const ok = await saveWith(() => data);
     if (ok) {
       applyDocument({ ...data, version: stateVersion });
@@ -990,15 +1003,13 @@ export function isChildViewOpen() { return childViewOpen; }
 export function setChildViewOpen(open) { childViewOpen = !!open; }
 
 // A four-digit PIN that keeps the child view from closing with one tap. A
-// family-device convenience, not authentication.
-export function parentPin() {
-  // String() so a hand-edited numeric value in the data file still matches.
-  const pin = state.settings?.parentPin;
-  return pin == null || pin === '' ? null : String(pin);
-}
-export function setParentPin(pin) {
-  if (!/^\d{4}$/.test(String(pin))) return false;
-  state.settings = { ...state.settings, parentPin: String(pin) };
+// family-device convenience, not authentication; only a salted hash is kept
+// (pin.js).
+export function hasParentPin() { return hasPin(state.settings); }
+export function checkParentPin(pin) { return verifyPin(pin, state.settings); }
+export async function setParentPin(pin) {
+  if (!PIN_PATTERN.test(String(pin))) return false;
+  state.settings = await pinSettings(state.settings, pin);
   persist();
   return true;
 }

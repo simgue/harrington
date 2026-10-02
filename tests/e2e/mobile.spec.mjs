@@ -1,6 +1,6 @@
 // 390×844 phone viewport: every route renders without sideways scrolling, and
 // the phone-only chrome (top bar, bottom nav) works.
-import { test, expect, modal, closeModal, noHorizontalOverflow, childView, leaveChildView } from './fixtures.mjs';
+import { test, expect, modal, closeModal, expectToast, noHorizontalOverflow, childView, leaveChildView } from './fixtures.mjs';
 import { TOPICS } from './support/family.mjs';
 
 const ROUTES = [
@@ -69,9 +69,57 @@ test('bottom navigation, the top-bar guide and the compact learner switcher', as
   await closeModal(page);
 });
 
-test('export and import are not reachable on a phone (finding F6)', async ({ page, gotoApp }) => {
+test('export and import from the learner menu on a phone (F6)', async ({ page, gotoApp, shot }) => {
   await gotoApp({ seed: {} });
-  // HAR-10 put them in the desktop sidebar's family box only.
+  // Nothing outside the menu: the sidebar's family box is hidden below lg.
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Import', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Switch learner' }).click();
+  const menu = modal(page);
+  await expect(menu.getByRole('heading', { name: 'Students' })).toBeVisible();
+  await expect(menu.getByText('Family data')).toBeVisible();
+  await noHorizontalOverflow(page);
+  await shot('learner-menu-family-data', { full: false });
+
+  const [download] = await Promise.all([page.waitForEvent('download'), menu.getByRole('button', { name: 'Export', exact: true }).click()]);
+  await expectToast(page, 'Family data exported');
+  expect(download.suggestedFilename()).toMatch(/^harrington-family-\d{4}-\d{2}-\d{2}\.json$/);
+  const file = Buffer.concat(await (await download.createReadStream()).toArray());
+  expect(JSON.parse(file.toString('utf8')).students).toHaveLength(3);
+
+  // Import: the same preview and confirm as on a desktop.
+  await page.getByRole('button', { name: 'Switch learner' }).click();
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), modal(page).getByRole('button', { name: 'Import', exact: true }).click()]);
+  await chooser.setFiles({ name: 'family.json', mimeType: 'application/json', buffer: file });
+  const preview = modal(page);
+  await expect(preview.getByRole('heading', { name: 'Import family data?' })).toBeVisible();
+  await expect(preview.getByRole('button', { name: 'Replace family data' })).toBeVisible();
+  await noHorizontalOverflow(page);
+  await preview.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.locator('#modal-root > div')).toHaveCount(0);
+});
+
+test('learner row buttons are 40px tap targets with names (F14)', async ({ page, gotoApp }) => {
+  await gotoApp({ seed: {} });
+  await page.getByRole('button', { name: 'Switch learner' }).click();
+  const menu = modal(page);
+  for (const name of ['Placement for Wren Example', 'Edit Wren Example', 'Remove learner Wren Example']) {
+    const box = await menu.getByRole('button', { name, exact: true }).boundingBox();
+    expect(box.width, name).toBeGreaterThanOrEqual(40);
+    expect(box.height, name).toBeGreaterThanOrEqual(40);
+  }
+  await expect(menu.getByText('Wren Example', { exact: true })).toBeVisible();
+  await noHorizontalOverflow(page);
+});
+
+test('the "Include my notes" opt-in is a comfortable target and its label toggles it', async ({ page, gotoApp }) => {
+  await gotoApp({ seed: { records: [{ type: 'discussion', title: 'Talked about sharing', note: 'Split 6 grapes between 2 bowls.' }] }, hash: 'records' });
+  const box = page.getByRole('checkbox', { name: 'Include my notes in this request' });
+  await expect(box).not.toBeChecked();
+  const size = await box.boundingBox();
+  expect(size.width).toBeGreaterThanOrEqual(20);
+  expect(size.height).toBeGreaterThanOrEqual(20);
+  const label = page.locator('label', { hasText: 'Include my notes in this request' });
+  expect((await label.boundingBox()).height).toBeGreaterThanOrEqual(40);
+  await label.getByText('Include my notes in this request').click();
+  await expect(box).toBeChecked();
 });

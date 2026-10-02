@@ -53,7 +53,7 @@ function setShellInert(on) {
 // "Grown-ups" asks for the parent PIN, or sets one the first time. Forgot it?
 // Reloading the page always returns to the grown-up view.
 function askForPin(student, back) {
-  const existing = store.parentPin();
+  const existing = store.hasParentPin();
   let first = null; // the first entry while setting a new PIN
   overlay.innerHTML = '';
   const page = el(`<div class="min-h-full bg-paper flex flex-col">
@@ -81,19 +81,19 @@ function askForPin(student, back) {
   else show('Set a grown-up PIN', 'Choose 4 digits. You will need them to leave the child view.');
 
   page.querySelector('#back').onclick = back;
-  page.querySelector('form').onsubmit = e => {
+  page.querySelector('form').onsubmit = async e => {
     e.preventDefault();
     const pin = input.value.trim();
     if (!/^\d{4}$/.test(pin)) { msg.textContent = 'Please enter 4 digits.'; input.value = ''; input.focus(); return; }
     msg.textContent = '';
     if (existing) {
-      if (pin === existing) close();
+      if (await store.checkParentPin(pin)) close();
       else { msg.textContent = 'That is not the PIN.'; input.value = ''; input.focus(); }
     } else if (first === null) {
       first = pin;
       show('Type it again', 'Enter the same 4 digits to confirm.');
     } else if (pin === first) {
-      store.setParentPin(pin);
+      await store.setParentPin(pin);
       close();
     } else {
       first = null;

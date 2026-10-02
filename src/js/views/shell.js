@@ -117,6 +117,9 @@ function studentSwitcher(navigate, compact = false) {
   return btn;
 }
 
+// 40px tap targets on a phone; the same 24px icons as before on a desktop.
+const rowIconCls = 'w-10 h-10 lg:w-6 lg:h-6 rounded-full flex items-center justify-center text-ink-faint';
+
 function openStudentMenu(navigate) {
   const state = store.get();
   const body = el(`<div class="p-5">
@@ -125,21 +128,32 @@ function openStudentMenu(navigate) {
       <button id="add" class="text-sm font-medium text-brand-dark flex items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i>Add</button>
     </div>
     <div id="list" class="space-y-2"></div>
+    <div class="lg:hidden mt-5 pt-4 border-t border-paper-line">
+      <p class="text-xs font-600 text-ink-soft mb-2">Family data</p>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="m-export" class="flex items-center justify-center gap-1.5 h-11 rounded-full bg-paper text-sm font-medium text-ink hover:bg-paper-deep transition-colors" title="Export family data">
+          <i data-lucide="download" class="w-4 h-4"></i>Export</button>
+        <button id="m-import" class="flex items-center justify-center gap-1.5 h-11 rounded-full bg-paper text-sm font-medium text-ink hover:bg-paper-deep transition-colors" title="Import family data">
+          <i data-lucide="upload" class="w-4 h-4"></i>Import</button>
+      </div>
+    </div>
   </div>`);
   const list = body.querySelector('#list');
   state.students.forEach(s => {
     const age = store.studentAge(s);
     const isActive = s.id === state.activeStudentId;
-    const row = el(`<div class="flex items-center gap-3 p-2 pr-3 rounded-full ${isActive ? 'bg-brand-light shadow-[0_0_0_2px_#f2c14e]' : 'bg-paper'}">
+    const row = el(`<div class="flex items-center gap-2 lg:gap-3 p-2 pr-2 lg:pr-3 rounded-full ${isActive ? 'bg-brand-light shadow-[0_0_0_2px_#f2c14e]' : 'bg-paper'}">
       <span class="w-10 h-10 rounded-full flex items-center justify-center text-white font-display text-base font-600" style="background:${esc(s.color)}">${esc(initials(s.name))}</span>
       <div class="flex-1 min-w-0">
         <p class="font-600 text-sm truncate">${esc(s.name)}</p>
         <p class="text-xs text-ink-faint">Age ${age} · born ${bornLabel(s)}</p>
       </div>
       ${isActive ? '<span class="text-xs font-medium text-brand-dark px-2 py-0.5 rounded-full bg-brand/10">Active</span>' : '<button class="select text-xs font-medium text-brand px-3 py-1.5 rounded-full bg-paper-card hover:bg-brand-light">Switch</button>'}
-      <button class="place text-ink-faint hover:text-brand-dark p-1" title="Placement: mark earlier topics mastered" aria-label="Placement for ${esc(s.name)}"><i data-lucide="list-checks" class="w-4 h-4"></i></button>
-      <button class="edit text-ink-faint hover:text-brand-dark p-1" title="Edit learner" aria-label="Edit ${esc(s.name)}"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-      <button class="del text-ink-faint hover:text-[#a4473a] p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+      <div class="flex items-center shrink-0 lg:gap-3">
+        <button class="place ${rowIconCls} hover:text-brand-dark" title="Placement: mark earlier topics mastered" aria-label="Placement for ${esc(s.name)}"><i data-lucide="list-checks" class="w-4 h-4"></i></button>
+        <button class="edit ${rowIconCls} hover:text-brand-dark" title="Edit learner" aria-label="Edit ${esc(s.name)}"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+        <button class="del ${rowIconCls} hover:text-[#a4473a]" title="Remove learner" aria-label="Remove learner ${esc(s.name)}"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+      </div>
     </div>`);
     row.querySelector('.place').addEventListener('click', () => { m.close(); openPlacement(s); });
     row.querySelector('.edit').addEventListener('click', () => { m.close(); openEditStudent(s); });
@@ -150,6 +164,9 @@ function openStudentMenu(navigate) {
     list.appendChild(row);
   });
   body.querySelector('#add').onclick = () => { m.close(); openAddStudent(); };
+  // Phones have no sidebar, so Export and Import live here below lg.
+  body.querySelector('#m-export').onclick = () => { m.close(); exportFamilyData(); };
+  body.querySelector('#m-import').onclick = () => { m.close(); pickImportFile(); };
   const m = openModal(body);
 }
 

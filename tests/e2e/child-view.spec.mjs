@@ -71,7 +71,10 @@ test('Grown-ups: set a PIN the first time, then it is required', async ({ page, 
   await view.getByRole('button', { name: 'Continue' }).click();
   await expect(childView(page)).toHaveCount(0);
   await expect(page.locator('#app')).not.toHaveAttribute('inert', '');
-  await api.waitForState((s) => s.settings?.parentPin === TEST_PIN);
+  // F16: only a salted hash is saved.
+  const saved = await api.waitForState((s) => /^[0-9a-f]{64}$/.test(s.settings?.parentPinHash || ''));
+  expect(saved.settings.parentPin).toBeUndefined();
+  expect(JSON.stringify(saved)).not.toContain(`"${TEST_PIN}"`);
 
   // Next time the PIN is asked for; a wrong one keeps the child view open.
   await openChildView(page);

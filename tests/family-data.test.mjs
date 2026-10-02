@@ -513,4 +513,33 @@ describe('family data safety in the store', { concurrency: false }, () => {
     assert.equal(store.inspectImport({ students: [], records: [] }).ok, false);
     await assert.rejects(store.importDocument([]));
   });
+
+  test('a plain PIN is hashed on load and on import, and never exported', async () => {
+    const plain = (doc) => JSON.stringify(doc).includes('"parentPin"');
+    // An older family document on the server.
+    const before = await otherDevicePut((doc) => ({ ...doc, settings: { ...doc.settings, parentPin: '2468' } }));
+    assert.equal(before.settings.parentPin, '2468');
+    await store.loadAll();
+    await store.flushSaves();
+    const migrated = await serverState();
+    assert.equal(plain(migrated), false);
+    assert.match(migrated.settings.parentPinHash, /^[0-9a-f]{64}$/);
+    assert.deepEqual(migrated.settings.calendar, before.settings.calendar);
+    assert.equal(await store.checkParentPin('2468'), true);
+    assert.equal(await store.checkParentPin('1111'), false);
+    const exported = await store.exportDocument();
+    assert.equal(plain(exported), false);
+    assert.equal(JSON.stringify(exported).includes('"2468"'), false);
+
+    // An older export file with the PIN in plain text.
+    const oldFile = { ...JSON.parse(JSON.stringify(exported)), settings: { ...exported.settings, parentPin: '1357' } };
+    delete oldFile.settings.parentPinHash;
+    delete oldFile.settings.parentPinSalt;
+    assert.equal(await store.importDocument(oldFile), true);
+    const imported = await serverState();
+    assert.equal(plain(imported), false);
+    assert.equal(JSON.stringify(imported).includes('"1357"'), false);
+    assert.equal(await store.checkParentPin('1357'), true);
+    assert.equal(await store.checkParentPin('2468'), false);
+  });
 });
