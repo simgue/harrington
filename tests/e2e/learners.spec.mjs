@@ -79,3 +79,24 @@ test('the learner delete button is icon-only with no accessible name (finding F1
   // Finding: the delete button has no accessible name.
   await expect(del).toHaveAccessibleName('');
 });
+
+test('HAR-22: edit a learner; a birth month makes the age exact', async ({ page, api, gotoApp, shot }) => {
+  await gotoApp({ seed: {} });
+  await openSwitcher(page);
+  await expect(studentRow(page, 'Rowan Example')).toContainText(`Age 6 · born ${FIXED_YEAR - 6}`);
+  await modal(page).getByRole('button', { name: 'Edit Rowan Example' }).click();
+  const form = modal(page);
+  await expect(form.getByRole('heading', { name: 'Edit learner' })).toBeVisible();
+  await expect(form.getByRole('textbox', { name: 'Name' })).toHaveValue('Rowan Example');
+  // Born in December: not yet 6 on 7 October.
+  await form.getByRole('combobox', { name: /Birth month/ }).selectOption({ label: 'December' });
+  await form.getByRole('textbox', { name: 'Name' }).fill('Rowan B Example');
+  await shot('edit-learner', { full: false });
+  await form.getByRole('button', { name: 'Save changes' }).click();
+  await expectToast(page, 'Learner updated');
+  const state = await api.waitForState((s) => s.students?.find((x) => x.id === LEARNERS.rowan.id)?.birthMonth === 12);
+  expect(state.students.find((x) => x.id === LEARNERS.rowan.id)).toMatchObject({ name: 'Rowan B Example', birthYear: FIXED_YEAR - 6, birthMonth: 12 });
+  await expect(page.getByRole('heading', { name: "Rowan B Example's Wednesday" })).toBeVisible();
+  await openSwitcher(page);
+  await expect(studentRow(page, 'Rowan B Example')).toContainText(`Age 5 · born December ${FIXED_YEAR - 6}`);
+});

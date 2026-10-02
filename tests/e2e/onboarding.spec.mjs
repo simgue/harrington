@@ -11,9 +11,13 @@ test.describe('first run', () => {
     await expect(page.getByText('Add a learner to get started. There is no account to create.')).toBeVisible();
     await expect(page.getByText('Runs on this computer only. Nothing leaves your home unless you configure an AI provider.')).toBeVisible();
     await expect(page.getByPlaceholder('e.g. Sample Learner')).toBeVisible();
-    const year = page.locator('input[name="birthYear"]');
-    await expect(year).toHaveAttribute('min', '2005');
-    await expect(year).toHaveAttribute('max', '2024');
+    // HAR-22: any year from 1990 to this year, and an optional birth month.
+    const year = page.getByRole('spinbutton', { name: 'Birth year' });
+    await expect(year).toHaveAttribute('min', '1990');
+    await expect(year).toHaveAttribute('max', String(FIXED_YEAR));
+    const month = page.getByRole('combobox', { name: /Birth month/ });
+    await expect(month).toHaveValue('');
+    await expect(month.locator('option')).toHaveCount(13);
     await shot('first-run-form');
 
     // The form is required: submitting empty stays put.
@@ -22,6 +26,7 @@ test.describe('first run', () => {
 
     await page.getByPlaceholder('e.g. Sample Learner').fill('Rowan Example');
     await year.fill(String(FIXED_YEAR - 6));
+    await month.selectOption({ label: 'March' });
     await shot('first-run-form-filled');
     await page.getByRole('button', { name: 'Set up their learning space' }).click();
     await expectToast(page, "Rowan Example's learning space is ready");
@@ -29,7 +34,7 @@ test.describe('first run', () => {
 
     // The learner reaches the server.
     const state = await api.waitForState((s) => s.students?.length === 1);
-    expect(state.students[0]).toMatchObject({ name: 'Rowan Example', birthYear: FIXED_YEAR - 6, startDate: '2026-10-07' });
+    expect(state.students[0]).toMatchObject({ name: 'Rowan Example', birthYear: FIXED_YEAR - 6, birthMonth: 3, startDate: '2026-10-07' });
 
     // The tour opens on its own after the first render.
     const tour = modal(page);

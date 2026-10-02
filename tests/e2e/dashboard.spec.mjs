@@ -187,3 +187,58 @@ test('the preview banner says AI is not connected even when it is (finding F4)',
   expect((await (await request.get('/api/health')).json()).aiConfigured).toBe(true);
   await expect(page.getByText('Self-hosted preview · family data stays on this server · AI and shared-family features are not connected yet')).toBeVisible();
 });
+
+test('HAR-17: a pick offers Note and Voice; the coverage claim is off by default; only a claimed record shows "Evidence recorded"', async ({ page, api, gotoApp, shot }) => {
+  await gotoApp({ seed: {} });
+  const literacy = page.getByRole('group', { name: 'Literacy: pick one' });
+  const first = literacy.locator('button[aria-pressed]').first();
+  const pickName = (await first.locator('span.block').first().innerText()).trim();
+  await first.click();
+  await expect(literacy).toContainText('How did it go?');
+  await expect(literacy.getByText('Evidence recorded')).toHaveCount(0);
+
+  const writeNote = async (title, claim) => {
+    await literacy.getByRole('button', { name: 'Note', exact: true }).click();
+    const m = modal(page);
+    const box = m.getByRole('checkbox', { name: new RegExp(`Mark curriculum coverage for ${pickName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`) });
+    // The claim is opt-in.
+    await expect(box).not.toBeChecked();
+    if (claim) await box.check();
+    await m.locator('input[name="title"]').fill(title);
+    await m.getByRole('button', { name: 'Save record' }).click();
+    await expect(page.locator('#modal-root > div')).toHaveCount(0);
+  };
+
+  // A note without the claim is linked to the pick but is not evidence.
+  await writeNote('Read together, no claim', false);
+  let state = await api.waitForState((s) => s.records?.[ROWAN]?.length === 1);
+  const plain = state.records[ROWAN][0];
+  expect(plain.source).toMatchObject({ kind: 'daily-pick' });
+  expect(plain.source.key).toMatch(new RegExp(`^${TODAY_KEY}\\|literacy\\|`));
+  expect(plain.coverage).toBeUndefined();
+  await expect(literacy).toContainText('How did it go?');
+  await expect(literacy.getByText('Evidence recorded')).toHaveCount(0);
+
+  // With the claim checked, the lane shows the badge.
+  await writeNote('Read together, claimed', true);
+  state = await api.waitForState((s) => s.records?.[ROWAN]?.length === 2);
+  const claimed = state.records[ROWAN].find((r) => r.title === 'Read together, claimed');
+  expect(claimed.coverage).toEqual([expect.objectContaining({ topicName: pickName })]);
+  await expect(literacy.getByText('Evidence recorded')).toBeVisible();
+  await shot('pick-evidence-recorded', { locator: literacy });
+});
+
+test('HAR-17: the interests card saves chips and a note per learner', async ({ page, api, gotoApp, shot }) => {
+  await gotoApp({ seed: {} });
+  const card = page.getByRole('region', { name: "Rowan Example's interests" });
+  await expect(card).toContainText("What they're into lately. Tap to choose.");
+  await card.getByRole('button', { name: 'Space', exact: true }).click();
+  await expect(card.getByRole('button', { name: 'Space', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await card.getByRole('textbox', { name: 'Add an interest' }).fill('Bridges');
+  await card.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(card.getByRole('button', { name: 'Bridges', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await card.getByRole('textbox', { name: 'Anything else?' }).fill('Asks how bridges stay up');
+  const state = await api.waitForState((s) => s.interests?.[ROWAN]?.text === 'Asks how bridges stay up');
+  expect(state.interests[ROWAN].chips).toEqual(['Space', 'Bridges']);
+  await shot('interests-card', { locator: card });
+});

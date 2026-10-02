@@ -37,12 +37,13 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 
 | Feature | Status | Spec | Notes |
 | --- | --- | --- | --- |
-| Onboarding (first learner) | covered | `onboarding` | Copy, required fields, birth-year bounds, learner saved, tour once. |
-| Multi-learner: add, switch, remove | covered | `learners`, `data-safety` | Add two, switch, active learner survives reload, remove with confirm (cancel and OK), removal clears every per-learner key (HAR-10). Edit name/birth year does not exist. |
+| Onboarding (first learner) | covered | `onboarding` | Copy, required fields, HAR-22 birth-year bounds (1990 to this year) and optional birth month, learner saved with the month, tour once. |
+| Multi-learner: add, edit, switch, remove | covered | `learners`, `data-safety` | Add two, switch, active learner survives reload, remove with confirm (cancel and OK), removal clears every per-learner key (HAR-10). HAR-22 edit: prefilled form, name and birth month saved, month-aware age (December birthday → 5, not 6, on 7 October) in the hero and the menu. The color picker is not exercised. |
 | Mastery status per topic | covered | `topic`, `map` | HAR-14's always-visible "Set status" row: all four statuses and their effect on the page, dashboard and growth list; "Mark as learning" and "Mark as mastered" in the quest log. |
 | Placement / bulk mastery | covered | `placement`, `insights` | HAR-14: from a subject card and from the learner menu; default age, area and age filters, prerequisites on and off, toast, one placement record, undo from Records restores the ring. Also the post-final-test "Mark all … as mastered". |
 | Prerequisite gating (hard edges) | covered | `map`, `topic` | Locked node, "Foundations needed", disabled "Not ready to mark as learning", unlock after mastering the foundation, locked banner on the topic page. |
-| Daily literacy/numeracy pick-one | covered | `dashboard`, `child-view` | Two lanes × two options, pick, unpick, saved offers and picks, survives reload, shown in the child view and back. |
+| Daily literacy/numeracy pick-one | covered | `dashboard`, `child-view` | Two lanes × two options, pick, unpick, saved offers and picks, survives reload, shown in the child view and back. HAR-17 evidence: the pick's Note form has the coverage claim unchecked by default; an unclaimed note links to the pick without counting; a claimed one saves `coverage` and shows "Evidence recorded". The "Not yet: … needs … first" line is rendered but its wording is not asserted. |
+| Learner interests (HAR-17) | covered | `dashboard` | Suggested and custom chips toggle and save per learner with the free-text note. Nothing reads them yet. |
 | Recommended next ("Stepping stones") | partly covered | `dashboard`, `insights` | Four stones for ages 6 and 9, none for age 3 (F3), and a stone opens its topic. Which topics are chosen (started first, age fit, centrality) is not asserted, except where it shows in the child view's "Plant something new" (F18). |
 | Growth stages (Seed/Sprout/Bud/Bloom) | covered | `map`, `topic`, `dashboard`, `child-view` | Legend, node states, chips through every status, child garden words. |
 | Activity streak and week flowers | partly covered | `dashboard` | The week card renders with zero activity. Streak growth over several days is not driven. |
@@ -99,7 +100,7 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 
 | Feature | Status | Spec | Notes |
 | --- | --- | --- | --- |
-| Records | covered | `records`, `topic`, `map` | One of each type the form offers (HAR-16 removed "Recording"), required title or note, rating, topic link and navigation, filters, delete with confirm, the day counts as active. |
+| Records | covered | `records`, `topic`, `map`, `dashboard` | One of each type the form offers (HAR-16 removed "Recording"), required title or note, rating, topic link and navigation, filters, delete with confirm, the day counts as active. HAR-17 coverage claims and `source` links from a daily pick (`dashboard`). |
 | Voice recorder with live transcript | covered | `records`, `child-view`, `walkthrough` | Fake microphone: start, timer, stop, preview, link topic, transcript, save, audio on the server, playback, Escape asks before discarding (Cancel keeps the microphone track live; OK ends every track). Live speech recognition itself is not exercised (needs a real speech service). |
 | Recordings folder | covered | `records`, `dashboard` | Empty state, HAR-16 grouping (section, topic, "Not linked to a section"), playback request, delete removes the audio file. |
 | AI discussion analysis | covered with mock AI | `records`, `no-ai` | From Records (saved on the record with Regenerate, and as an advice record) and from the folder (saved on the recording, survives reload). Sends the learner's name (F2). |

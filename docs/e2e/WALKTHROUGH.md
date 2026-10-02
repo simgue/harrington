@@ -44,8 +44,9 @@ audit feature is in [COVERAGE.md](COVERAGE.md).
 **Purpose.** Create the first learner. There is no account.
 **How to reach it.** Open Harrington on a server with no family data.
 
-The form asks for a name and a birth year (2005 to 2024) and says the app
-runs on this computer only.
+The form asks for a name, an optional birth month and a birth year (1990 to
+the current year, HAR-22) and says the app runs on this computer only. With a
+month the age is exact; without it, age counts from January.
 
 | Empty | Filled in |
 | --- | --- |
@@ -76,14 +77,17 @@ older child already knows.
 **How to reach it.** The learner button at the top of the sidebar (the round
 initials button on a phone).
 
-The **Students** menu lists each learner with age and birth year, the active
-one marked, a Switch button for the others, a placement button and a delete
-button. **Add** opens a short name and birth-year form; a new learner becomes
-the active one.
+The **Students** menu lists each learner with age and birth month and year,
+the active one marked, a Switch button for the others, and placement, edit
+and delete buttons. **Add** opens a short form (name, optional birth month,
+birth year); a new learner becomes the active one. **Edit** (HAR-22) changes
+the name, birth month and year, and the avatar color.
 
 | Three learners | After removing one |
 | --- | --- |
 | ![Learner switcher](screenshots/learners/01-student-switcher-three-learners.jpg) | ![After remove](screenshots/learners/02-student-switcher-after-remove.jpg) |
+
+![Edit learner](screenshots/learners/03-edit-learner.jpg)
 
 **Placement** (HAR-14) opens from the list-check button on a learner row or on
 a dashboard subject card. It picks a subject, an area (whole subject or one
@@ -103,9 +107,11 @@ learners; switch; the active learner survives a reload; remove asks first
 menu, area and age filters, prerequisites on and off (fewer topics, with a
 warning), the toast count matches the saved progress, every entry is tagged
 `source: 'placement'`, and **Undo placement** returns Mathematics to 0/503.
+Editing: the form opens filled in, a December birth month makes a 6-year-old
+5 on 7 October, the new name and month reach the server and show in the hero
+and the menu ("born December 2020").
 
-**Caveats.** The delete button is an unlabeled icon (F14). There is no way to
-edit a name or birth year.
+**Caveats.** The delete button is an unlabeled icon (F14).
 
 ---
 
@@ -124,8 +130,14 @@ From top to bottom:
 - **Today's path**: a literacy and a numeracy choice with two options each
   (the child picks one; the arrow opens the topic), today's topics **from the
   calendar**, a **refresher quiz**, and **Record what happened** (Voice or
-  Note).
+  Note). Once the child picks, the lane asks "How did it go?" with its own
+  Voice and Note; their forms offer an opt-in "Mark curriculum coverage for
+  …" checkbox, and a record that claims it turns the lane's line into
+  **Evidence recorded** (HAR-17). A parent-only "Not yet: X needs Y first"
+  line says which nearby topics are still locked.
 - **Week** flowers and the **overall mastery** ring ("Only you can see this").
+- **Interests** (HAR-17): suggestion chips, the parent's own chips and a
+  free-text note per learner. Nothing uses them yet.
 - **Stepping stones next**: four unlocked topics near the learner's age.
 - **Active recall** and **Spaced practice** cards, which show a due count when
   something is due.
@@ -144,12 +156,20 @@ From top to bottom:
 | --- | --- |
 | ![Spaced practice empty](screenshots/dashboard/03-spaced-practice-empty.jpg) | ![Recordings folder empty](screenshots/dashboard/04-recordings-folder-empty.jpg) |
 
+| A pick with evidence recorded | Interests |
+| --- | --- |
+| ![Evidence recorded](screenshots/dashboard/07-pick-evidence-recorded.jpg) | ![Interests](screenshots/dashboard/08-interests-card.jpg) |
+
 **What the tests assert** (`dashboard.spec.mjs`): every section above for ages
 6 and 9; pick, unpick and re-pick a choice, the day's offers and picks saved
 on the server, the pick survives a reload and shows in the child view;
 calendar stop, pick arrow, stepping stone and subject card all navigate; Voice
 and Note open the recorder and the record form; empty recall and practice
-states; the recordings folder; no console errors.
+states; the recordings folder; no console errors. HAR-17: the coverage
+checkbox is unchecked by default; a note without the claim is linked to the
+pick (`source.kind: 'daily-pick'`, key `date|lane|topic`) but leaves "How did
+it go?"; a claimed note saves `coverage` and shows Evidence recorded;
+interest chips (suggested and custom) and the note are saved per learner.
 
 **Caveats.**
 - A 3-year-old gets no daily choices and no stepping stones, and the card
