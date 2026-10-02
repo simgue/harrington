@@ -11,6 +11,7 @@ import {
   localEdges,
   quietMasteryFill,
   resolveSkillNodeState,
+  selectionForLearner,
   SKILL_STATE_CHROME,
   WORLD_MAP_VIEWBOX,
 } from '../graph.js';
@@ -22,10 +23,15 @@ import { gateAi } from '../ai-status.js';
 import { openRecordForm } from './records.js';
 import { GROWTH, growthChip, growthIcon, stageForSkillState, stageForStatus } from '../meadow.js';
 
-let selectedSkillId = null;
+// The selected skill lives in the hash (params.skill). These two only make it
+// per learner and carry the tree's scroll across a trip to the topic page.
+let lastLearnerId; // undefined until the first render, so deep links keep their skill
+let savedTreeScroll = null; // { key, x, y, left, top }, consumed once
+const pendingScroll = new WeakMap(); // scroller -> scroll its next frame restores
 
 export function renderGraph(params, { navigate }) {
   const active = store.activeStudent();
+  params = applyLearnerSelection(params, active, navigate);
   const mode = store.graphView();
   const visual = mode === 'atlas';
   const root = el(`<div class="${visual ? 'max-w-[88rem]' : 'max-w-5xl'} mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-up"></div>`);
@@ -51,18 +57,70 @@ export function renderGraph(params, { navigate }) {
   return root;
 }
 
-function rememberTreeScroll() {
-  const scroller = document.querySelector('.skill-tree-scroller');
-  return scroller ? { left: scroller.scrollLeft, top: scroller.scrollTop } : null;
+// A learner switch drops the previous learner's selection; the route and the
+// hash are rewritten in place so a later re-render does not bring it back.
+function applyLearnerSelection(params, active, navigate) {
+  const learnerId = active ? active.id : null;
+  const result = selectionForLearner(params, lastLearnerId, learnerId);
+  lastLearnerId = learnerId;
+  if (result.switched) savedTreeScroll = null;
+  if (result.dropped) navigate('graph', result.params, { replace: true, render: false });
+  return result.params;
 }
 
-function restoreTreeScroll(pos) {
-  if (!pos) return;
+function treeKey(active, domainNode) {
+  return `${active ? active.id : ''}|${domainNode.subject}|${domainNode.domain}`;
+}
+
+// Scroll of the tree currently on screen, if it is the same tree. render()
+// builds the new view before it swaps out the old one, so this still reads
+// the live scroller on a selection change or a status write. A scroller whose
+// restore has not run yet (two renders in one frame) reports what it is about
+// to restore, not its momentary 0,0.
+function liveTreeScroll(key) {
+  const scroller = document.querySelector('.skill-tree-scroller');
+  if (!scroller || scroller.dataset.treeKey !== key) return null;
+  return pendingScroll.get(scroller) || { left: scroller.scrollLeft, top: scroller.scrollTop };
+}
+
+function rememberTreeForReturn(key) {
+  const scroller = document.querySelector('.skill-tree-scroller');
+  savedTreeScroll = {
+    key,
+    x: window.scrollX,
+    y: window.scrollY,
+    left: scroller ? scroller.scrollLeft : 0,
+    top: scroller ? scroller.scrollTop : 0,
+  };
+}
+
+function restoreTreeScroll(scroller, { live, saved, selectedId }) {
+  const target = live || saved;
+  if (target) pendingScroll.set(scroller, { left: target.left, top: target.top });
+  if (live) {
+    // Set before and after layout: the first keeps the browser from painting
+    // the tree at 0,0; the second wins once the new scroller has a size.
+    scroller.scrollLeft = live.left;
+    scroller.scrollTop = live.top;
+  }
   requestAnimationFrame(() => {
-    const scroller = document.querySelector('.skill-tree-scroller');
-    if (!scroller) return;
-    scroller.scrollLeft = pos.left;
-    scroller.scrollTop = pos.top;
+    pendingScroll.delete(scroller);
+    if (!scroller.isConnected) return;
+    if (live) {
+      scroller.scrollLeft = live.left;
+      scroller.scrollTop = live.top;
+    } else if (saved) {
+      window.scrollTo({ left: saved.x, top: saved.y, behavior: 'instant' });
+      scroller.scrollLeft = saved.left;
+      scroller.scrollTop = saved.top;
+    } else if (selectedId) {
+      // Arrived by link (another tree's quest log, a reload): bring the node
+      // into the tree's view without moving the page.
+      const node = scroller.querySelector(`[data-skill-id="${CSS.escape(selectedId)}"]`);
+      if (!node) return;
+      scroller.scrollLeft = Math.max(0, node.offsetLeft - (scroller.clientWidth - node.offsetWidth) / 2);
+      scroller.scrollTop = Math.max(0, node.offsetTop - (scroller.clientHeight - node.offsetHeight) / 2);
+    }
   });
 }
 
@@ -93,7 +151,6 @@ function openRealm(navigate, subjectNode, active, domainName = null) {
     navigate('graph', { subject: subjectNode.subject });
     return;
   }
-  selectedSkillId = null;
   navigate('graph', { subject: subjectNode.subject, domain: domain.domain });
 }
 
@@ -257,7 +314,14 @@ function renderSkillTree(params, active, navigate) {
   const siblingDomains = subjectNode.domains.map((node) => node.domain);
   const graph = buildSkillTree(domainNode, d, { siblingDomains });
   const homeIds = new Set(graph.homeTopics.map((topic) => topic.id));
-  if (selectedSkillId && !homeIds.has(selectedSkillId)) selectedSkillId = null;
+  const selectedSkillId = params.skill && homeIds.has(params.skill) ? params.skill : null;
+  const key = treeKey(active, domainNode);
+  const live = liveTreeScroll(key);
+  const saved = !live && savedTreeScroll && savedTreeScroll.key === key ? savedTreeScroll : null;
+  savedTreeScroll = null;
+  const here = { subject: domainNode.subject, domain: domainNode.domain };
+  // Same tree, new selection: update in place, keep the page where it is.
+  const select = (skill) => navigate('graph', skill ? { ...here, skill } : here, { preserveScroll: true, replace: true });
 
   const selected = selectedSkillId ? d.byId.get(selectedSkillId) : null;
   const selectedState = selected ? skillStateFor(active, selected.id, d.prereqsOf) : null;
@@ -267,7 +331,7 @@ function renderSkillTree(params, active, navigate) {
   const blockerSet = new Set(blockers);
 
   wrap.appendChild(crumbs([
-    { label: 'World Map', go: () => { selectedSkillId = null; navigate('graph'); } },
+    { label: 'World Map', go: () => navigate('graph') },
     { label: domainNode.subject, go: () => openRealm(navigate, subjectNode, active) },
     { label: domainNode.domain },
   ]));
@@ -286,22 +350,20 @@ function renderSkillTree(params, active, navigate) {
   wrap.appendChild(skillLegend());
 
   const stage = el(`<div class="skill-stage relative flex gap-0 rounded-2xl border border-paper-line bg-[#ebe4d4] overflow-hidden"></div>`);
-  stage.appendChild(renderSkillDag(graph, {
+  const scroller = renderSkillDag(graph, {
     navigate,
     color: meta.color,
     active,
     prereqsOf: d.prereqsOf,
     selectedId: selectedSkillId,
     blockerSet,
-    onSelect(topicId) {
-      const pos = rememberTreeScroll();
-      selectedSkillId = topicId;
-      navigate('graph', { subject: domainNode.subject, domain: domainNode.domain });
-      restoreTreeScroll(pos);
-    },
-  }));
+    onSelect: select,
+  });
+  scroller.dataset.treeKey = key;
+  stage.appendChild(scroller);
+  restoreTreeScroll(scroller, { live, saved, selectedId: selectedSkillId });
   if (selected) {
-    stage.appendChild(    renderQuestLog(selected, {
+    stage.appendChild(renderQuestLog(selected, {
       active,
       navigate,
       prereqsOf: d.prereqsOf,
@@ -310,23 +372,19 @@ function renderSkillTree(params, active, navigate) {
       state: selectedState,
       blockers,
       onSelect(topicId) {
-        const pos = rememberTreeScroll();
         if (homeIds.has(topicId)) {
-          selectedSkillId = topicId;
-          navigate('graph', { subject: domainNode.subject, domain: domainNode.domain });
-          restoreTreeScroll(pos);
+          select(topicId);
           return;
         }
         const other = d.byId.get(topicId);
         if (!other) return;
-        selectedSkillId = topicId;
-        navigate('graph', { subject: other.subject, domain: other.domain });
+        navigate('graph', { subject: other.subject, domain: other.domain, skill: topicId });
       },
       onClose() {
-        const pos = rememberTreeScroll();
-        selectedSkillId = null;
-        navigate('graph', { subject: domainNode.subject, domain: domainNode.domain });
-        restoreTreeScroll(pos);
+        select(null);
+      },
+      onOpenTopic() {
+        rememberTreeForReturn(key);
       },
     }));
   }
@@ -391,10 +449,7 @@ function renderSkillDag(graph, { navigate, color, active, prereqsOf, selectedId,
         <span class="block text-[10px] text-ink-faint mt-0.5">${esc(node.sublabel)}</span>
       </button>`);
       btn.setAttribute('title', `${node.label} — expand this domain`);
-      btn.onclick = () => {
-        selectedSkillId = null;
-        navigate('graph', { subject: node.hop.subject, domain: node.hop.domain });
-      };
+      btn.onclick = () => navigate('graph', { subject: node.hop.subject, domain: node.hop.domain });
       inner.appendChild(btn);
     } else {
       const topic = node.topic;
@@ -411,6 +466,7 @@ function renderSkillDag(graph, { navigate, color, active, prereqsOf, selectedId,
       </button>`);
       btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
       btn.setAttribute('data-skill-state', state);
+      btn.setAttribute('data-skill-id', topic.id);
       if (state === 'locked') btn.setAttribute('aria-description', 'Locked. Foundations needed.');
       btn.onclick = () => onSelect(topic.id);
       inner.appendChild(btn);
@@ -432,7 +488,7 @@ function edgePath(from, to) {
   return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
 }
 
-function renderQuestLog(topic, { active, navigate, prereqsOf, unlocksOf, byId, state, blockers, onSelect, onClose }) {
+function renderQuestLog(topic, { active, navigate, prereqsOf, unlocksOf, byId, state, blockers, onSelect, onClose, onOpenTopic }) {
   const chrome = SKILL_STATE_CHROME[state];
   const panel = el(`<aside class="quest-log shrink-0 bg-paper-card border-l border-paper-line overflow-y-auto" aria-label="Quest log"></aside>`);
   const locked = state === 'locked';
@@ -514,7 +570,10 @@ function renderQuestLog(topic, { active, navigate, prereqsOf, unlocksOf, byId, s
   actions.appendChild(gateAi(lesson));
 
   const deep = el(`<button type="button" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper border border-paper-line text-ink font-medium text-sm hover:border-brand/40"><i data-lucide="panel-right" class="w-4 h-4"></i>Open topic page</button>`);
-  deep.onclick = () => navigate('topic', { id: topic.id });
+  deep.onclick = () => {
+    onOpenTopic();
+    navigate('topic', { id: topic.id });
+  };
   actions.appendChild(deep);
 
   if (active) {
@@ -767,11 +826,13 @@ function missing(wrap, navigate, message) {
   return wrap;
 }
 
-// Used by the topic page so a parent returns to the matching graph section.
+// Used by the topic page so a parent returns to the matching graph section,
+// with the topic still selected in the skill tree.
 export function graphParamsForTopic(topic) {
   return {
     subject: topic.subject,
     domain: topic.domain,
     age: topicAge(topic),
+    skill: topic.id,
   };
 }
