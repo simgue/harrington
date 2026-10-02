@@ -9,7 +9,7 @@ import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';
 import { openDueRecall } from './recall.js';
 import { openDuePractice } from './practice.js';
-import { aiUnavailableChip } from '../ai-status.js';
+import { gateAi, aiUnavailableChip } from '../ai-status.js';
 import { activityIdeas, gameIdeas } from '../resources.js';
 import { MASTERY, isUnlocked } from '../mastery.js';
 import { growthIcon, stageForStatus } from '../meadow.js';
