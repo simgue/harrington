@@ -15,8 +15,8 @@ accessibility.
 
 Some findings were fixed by pull requests that merged while the suite was
 being written: three from the first run, F7 and F10 (HAR-13, #18), F2
-(HAR-19, #24), F5, F8 and F9 (HAR-18, #25), F11 (HAR-21, #23), and F19, a
-regression from a merge that #29 fixed within the hour. They are listed under
+(HAR-19, #24), F1 (HAR-20, #26), F5, F8 and F9 (HAR-18, #25), F11 (HAR-21,
+#23), and F19, a regression from a merge that #29 fixed within the hour. They are listed under
 [Fixed since the audit](#fixed-since-the-audit); their entries below are kept
 so the numbers stay stable.
 
@@ -24,17 +24,17 @@ so the numbers stay stable.
 
 | # | Finding | Severity | Spec | Pending fix |
 | --- | --- | --- | --- | --- |
-| F1 | Recall cards are never cached: the server rejects them | High | `api`, `topic` | |
-| ~~F2~~ | ~~Discussion analysis and progress review send the learner's name to the AI provider~~ | High | `records`, `insights` | Fixed by HAR-19 |
+| ~~F1~~ | ~~Recall cards are never cached: the server rejects them~~ | High | `topic` | Fixed by HAR-20 (`8311b03`) |
+| ~~F2~~ | ~~Discussion analysis and progress review send the learner's name to the AI provider~~ | High | `records`, `insights` | Fixed by HAR-19 (`cffc6ab`) |
 | F3 | A 3-year-old gets no daily choices and an "everything is mastered" message | Medium | `dashboard` | |
 | F4 | The preview banner says AI is not connected even when it is | Medium | `dashboard` | |
-| ~~F5~~ | ~~Day one offers a refresher quiz on a topic never taught~~ | Medium | `dashboard`, `calendar` | Fixed by HAR-18 |
+| ~~F5~~ | ~~Day one offers a refresher quiz on a topic never taught~~ | Medium | `dashboard`, `calendar` | Fixed by HAR-18 (`428e9ea`) |
 | F6 | Export and Import are not reachable on a phone | Medium | `mobile` | |
 | ~~F7~~ | ~~A failed "Generate a different version" leaves a spinner forever~~ | Medium | `topic` | Fixed by HAR-13 |
-| ~~F8~~ | ~~"Extra practice" on the calendar opens a lesson~~ | Medium | `calendar` | Fixed by HAR-18 |
-| ~~F9~~ | ~~"Refreshers change each day automatically" is a button that does nothing~~ | Low | `calendar` | Fixed by HAR-18 |
+| ~~F8~~ | ~~"Extra practice" on the calendar opens a lesson~~ | Medium | `calendar` | Fixed by HAR-18 (`428e9ea`) |
+| ~~F9~~ | ~~"Refreshers change each day automatically" is a button that does nothing~~ | Low | `calendar` | Fixed by HAR-18 (`428e9ea`) |
 | ~~F10~~ | ~~Activity instructions failure says "Couldn't create the lesson"~~ | Low | `ai-unreachable` | Fixed by HAR-13 |
-| ~~F11~~ | ~~Selecting a skill scrolls the page to the top~~ | Low | `map` | Fixed by HAR-21 |
+| ~~F11~~ | ~~Selecting a skill scrolls the page to the top~~ | Low | `map` | Fixed by HAR-21 (`68a94c9`) |
 | F12 | Recent growth lists topics set back to "Not started" | Low | `topic` | |
 | F13 | Notification bell has no accessible name | Low | `notifications` | |
 | F14 | Icon-only delete and remove buttons have no accessible name | Low | `learners`, `records`, `calendar` | |
@@ -42,7 +42,7 @@ so the numbers stay stable.
 | F16 | The child-view PIN is stored and exported in plain text | Low | `data-safety` | |
 | F17 | A losing tab confirms a change, then discards it; a tab's own boot write can raise the conflict | Medium | `data-safety` | |
 | F18 | "Plant something new" in the child view offers a topic already in progress | Low | `child-view` | |
-| ~~F19~~ | ~~Without an AI provider the Calendar does not render (`gateAi is not defined`)~~ | High | `no-ai` | Fixed by #29 |
+| ~~F19~~ | ~~Without an AI provider the Calendar does not render (`gateAi is not defined`)~~ | High | `no-ai` | Fixed by #29 (`8665fdc`) |
 
 Verified fixed since the 27 September audit (the suite now guards them):
 see [the end of this page](#fixed-since-the-audit).
@@ -51,7 +51,13 @@ see [the end of this page](#fixed-since-the-audit).
 
 ## F1. Recall cards are never cached: the server rejects them
 
-**High.** `src/js/views/recall.js:14` saves a topic's recall cards with
+**Fixed by HAR-20 (#26, `8311b03`).** Recall cards are cached as `{ cards }`
+(old arrays still read). `topic.spec.mjs` › "practice recall: cards cached on
+the server (F1, fixed by HAR-20)…" reads `/api/lessons/recall:<topic>` back
+and checks that opening recall again asks the provider for nothing new. The
+server still refuses a bare array (`api.spec.mjs`), which is now intended.
+
+Original report: **High.** `src/js/views/recall.js:14` saves a topic's recall cards with
 `store.saveCachedLesson('recall:<topicId>', cards)`, where `cards` is an
 **array**. `PUT /api/lessons/:key` only accepts a JSON object
 (`server.mjs` `readJson`), answers `400 Request body must be a JSON object`,
@@ -69,13 +75,12 @@ Repro:
    `GET /api/lessons/recall%3A<topicId>` is 404.
 3. Open **Practice recall** again: the provider is called again.
 
-Shown by `api.spec.mjs` › "lessons: … arrays are refused (finding F1)" and by
-the server log during `topic.spec.mjs` › "practice recall…".
-Fix idea: wrap the cards (`{ cards }`) when caching and unwrap on read.
+It was pinned by `api.spec.mjs` (finding F1); the fix wraps the cards as
+suggested.
 
 ## F2. Discussion analysis and progress review send the learner's name to the AI provider
 
-**Fixed by HAR-19 (#24).** Every learner's name (and its possessive) is
+**Fixed by HAR-19 (#24, `cffc6ab`).** Every learner's name (and its possessive) is
 replaced with "the child" before a discussion analysis or progress review
 leaves, and parent notes go out only when "Include my notes in this request"
 is ticked (unchecked by default; Analyze waits for it on a note-only record).
@@ -123,7 +128,7 @@ even when it is (finding F4)".
 
 ## F5. Day one offers a refresher quiz on a topic never taught
 
-**Fixed by HAR-18 (#25).** Refreshers and activities now come only from
+**Fixed by HAR-18 (#25, `428e9ea`).** Refreshers and activities now come only from
 mastered topics. With nothing mastered the dashboard has no refresher stop
 and the calendar says "Refresher quizzes and activities start once … has
 mastered a topic."; with one topic mastered both are about it
@@ -169,7 +174,7 @@ failing leaves a spinner (finding F7)", now flipped as above.
 
 ## F8. "Extra practice" on the calendar opens a lesson
 
-**Fixed by HAR-18 (#25).** It now opens spaced practice ("All caught up!"
+**Fixed by HAR-18 (#25, `428e9ea`).** It now opens spaced practice ("All caught up!"
 when nothing is due), asserted in `calendar.spec.mjs`.
 
 Original report: **Medium.** An extra added as "Extra practice" opens the full lesson, the same
@@ -179,7 +184,7 @@ It was pinned by `calendar.spec.mjs`, now flipped.
 
 ## F9. "Refreshers change each day automatically" is a button that does nothing
 
-**Fixed by HAR-18 (#25).** The button is gone (asserted in
+**Fixed by HAR-18 (#25, `428e9ea`).** The button is gone (asserted in
 `calendar.spec.mjs`).
 
 Original report: **Low.** The footer of the calendar's refresher block is a `<button>`
@@ -206,7 +211,7 @@ It was shown by the pre-HAR-13 `no-ai.spec.mjs`.
 
 ## F11. Selecting a skill scrolls the page to the top
 
-**Fixed by HAR-21 (#23).** Selecting a skill keeps the page's scroll, the
+**Fixed by HAR-21 (#23, `68a94c9`).** Selecting a skill keeps the page's scroll, the
 selection is in the address (`?skill=`), and "Back to graph" from the topic
 page returns to the same skill, selected, at the same scroll (`map.spec.mjs`).
 
@@ -311,7 +316,7 @@ already in progress (finding F18)".
 
 ## F19. Without an AI provider the Calendar does not render (`gateAi is not defined`)
 
-**Fixed by #29**, which restored the import and added
+**Fixed by #29 (`8665fdc`)**, which restored the import and added
 `tests/ai-status-imports.test.mjs` so a dropped import fails the unit tests.
 `no-ai.spec.mjs` checks the calendar's chips again.
 
@@ -351,6 +356,7 @@ The suite confirms these audit items now behave, and fails if they regress:
 | Topic page scrolled sideways on a phone (first run's F7) | HAR-14 moved the growth chip into a wrapping status row; every route now fits 390 px | `mobile` |
 | Recordings folder labeled the unfiled group with a topic; manual "Recording" records had no audio (first run's F11) | HAR-16: groups by section, then topic, then "Not linked to a section"; the form no longer offers "Recording"; analysis from Records is saved on the record; records count toward the day's activity | `records` |
 | No placement; mastery near 0% for older learners | HAR-14 placement from the learner menu or a subject card, with prerequisites, and undo from Records | `placement` |
+| Recall cards were never cached (F1) | HAR-20: cached as `{ cards }`; a second recall opens from the cache | `topic` |
 | Selecting a skill scrolled the page to the top (F11) | HAR-21: scroll and selection kept, also on return from the topic page | `map` |
 | No calendar without a provider after a merge (F19) | #29 restored the import | `no-ai` |
 | Discussion analysis and progress review sent the learner's name (F2) | HAR-19: names become "the child" before sending; notes need an opt-in | `records`, `insights` |

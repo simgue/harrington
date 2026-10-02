@@ -206,7 +206,9 @@ The questions and the marker phrases are exported (`MASTERY_QUESTIONS`,
 correctly and look for the output. Test-only endpoints: `GET /__log` lists
 every prompt it received with its kind (specs use it to check caching and
 what is sent), `DELETE /__log` clears it, `POST /__fail {"count":n}` makes
-the next n completions fail with HTTP 500, and `DELETE /__fail` cancels that.
+the next n completions fail with HTTP 500, `POST /__malformed {"count":n}`
+makes them answer 200 with JSON that is not a usable lesson
+(`MALFORMED_LESSON`), and `DELETE /__fail` cancels both.
 `globalSetup` resets both, and the `mockAi` fixture cancels any armed failure
 before and after each test that uses it.
 
@@ -237,7 +239,7 @@ before and after each test that uses it.
    - `api.putState(state)` / `api.getState()` / `api.waitForState(fn)`. Writes
      read the state's `ETag` first and send it back as `If-Match`.
    - `mockAi.log()`, `mockAi.kinds()`, `mockAi.clear()`, `mockAi.failNext(n)`,
-     `mockAi.stopFailing()`.
+     `mockAi.malformedNext(n)`, `mockAi.stopFailing()`.
    - `shot(name, { full, locator, target })` takes a full-page JPEG by
      default; pass `full: false` for modals, `locator` for one element.
    - `errors` collects console errors and page errors; end a test with

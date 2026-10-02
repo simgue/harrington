@@ -10,7 +10,10 @@
 //   GET  /__log         -> every completion request seen: [{ kind, prompt, model, at }]
 //   DELETE /__log       -> clear the log
 //   POST /__fail        -> { count } make the next `count` completions answer HTTP 500
-//   DELETE /__fail      -> stop failing (cancel what is left of a POST /__fail)
+//   DELETE /__fail      -> stop failing (cancel what is left of a POST /__fail
+//                          and of a POST /__malformed)
+//   POST /__malformed   -> { count } make the next `count` completions answer 200
+//                          with JSON the app must reject (MALFORMED_LESSON)
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { PORTS } from './support/env.mjs';
@@ -20,6 +23,10 @@ import { PORTS } from './support/env.mjs';
 // Topic / section / subject mastery tests: four arithmetic multiple-choice
 // questions. `answer`, `answerText` and `verify` all point at the same option,
 // so normalizeTest keeps them and the exam checker below agrees with the key.
+// Well-formed JSON that is not a usable lesson (`materials` must be a list):
+// what a model that ignores the schema sends back.
+export const MALFORMED_LESSON = { objective: 'x', teach: [{ title: 'a', say: 'b' }], materials: 'paper' };
+
 export const MASTERY_QUESTIONS = [
   { q: 'What is 2 + 3?', options: ['4', '5', '6', '7'], answer: 1, answerText: '5', verify: '2+3' },
   { q: 'What is 6 - 2?', options: ['3', '8', '4', '2'], answer: 2, answerText: '4', verify: '6-2' },
@@ -199,6 +206,7 @@ export function respond(kind, prompt) {
 export function startMockAi(port = PORTS.mockAi) {
   const log = [];
   let failNext = 0;
+  let malformedNext = 0;
   const json = (res, status, value) => {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(value));
@@ -210,12 +218,16 @@ export function startMockAi(port = PORTS.mockAi) {
       if (req.method === 'DELETE') { log.length = 0; return json(res, 200, { ok: true }); }
       return json(res, 200, log);
     }
-    if (req.method === 'DELETE' && url.pathname === '/__fail') { failNext = 0; return json(res, 200, { ok: true, failNext }); }
+    if (req.method === 'DELETE' && url.pathname === '/__fail') { failNext = 0; malformedNext = 0; return json(res, 200, { ok: true, failNext, malformedNext }); }
     let body = '';
     for await (const chunk of req) body += chunk;
     if (req.method === 'POST' && url.pathname === '/__fail') {
       failNext = Number(JSON.parse(body || '{}').count ?? 1);
       return json(res, 200, { ok: true, failNext });
+    }
+    if (req.method === 'POST' && url.pathname === '/__malformed') {
+      malformedNext = Number(JSON.parse(body || '{}').count ?? 1);
+      return json(res, 200, { ok: true, malformedNext });
     }
     if (req.method === 'POST' && url.pathname === '/v1/chat/completions') {
       let payload;
@@ -227,11 +239,13 @@ export function startMockAi(port = PORTS.mockAi) {
       // A short delay so loading states are visible in screenshots and videos.
       await new Promise((r) => setTimeout(r, 150));
       if (failNext > 0) { failNext -= 1; return json(res, 500, { error: 'mock failure' }); }
+      let content = respond(kind, prompt);
+      if (malformedNext > 0) { malformedNext -= 1; content = JSON.stringify(MALFORMED_LESSON); }
       return json(res, 200, {
         id: `mock-${log.length}`,
         object: 'chat.completion',
         model: payload.model,
-        choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: respond(kind, prompt) } }],
+        choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content } }],
       });
     }
     json(res, 404, { error: 'not found' });

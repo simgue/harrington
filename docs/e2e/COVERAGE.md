@@ -74,7 +74,7 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 
 | Feature | Status | Spec | Notes |
 | --- | --- | --- | --- |
-| Ready-to-teach lesson | covered with mock AI | `topic`, `no-ai` | Every section renders; cached on the server and served from `/api/lessons` on a second open after reload (no second AI call). A chip with no provider. A failed regenerate shows the error block and Try again recovers (F7 fixed). |
+| Ready-to-teach lesson | covered with mock AI | `topic`, `no-ai` | Every section renders; cached on the server and served from `/api/lessons` on a second open after reload (no second AI call). A chip with no provider. A failed regenerate (HTTP 500, or a 200 with an unusable lesson from the mock's `/__malformed`) shows the error above the previous lesson, which the cache keeps; Try again recovers (F7 fixed, HAR-20). |
 | Print & go materials | covered with mock AI | `topic`, `no-ai` | Worksheet and flashcards, Preview. The print window itself is not opened. |
 | Activities & games | covered with mock AI | `topic`, `calendar`, `no-ai` | Static ideas render; "Get instructions" opens step-by-step detail. A chip per activity with no provider; the unreachable message with a dead one (F10 fixed). |
 | Explain simply / Make a mini-quiz | covered with mock AI | `topic`, `no-ai` | Output rendered as prose; prompts carry no learner name. |
@@ -93,7 +93,7 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 
 | Feature | Status | Spec | Notes |
 | --- | --- | --- | --- |
-| Active recall cards (Leitner boxes) | covered with mock AI | `topic`, `child-view`, `no-ai` | Hint, reveal, grade, ungraded card stays due, dashboard "1 due", review from the dashboard, and two due the next day. Cards are never cached on the server (F1). |
+| Active recall cards (Leitner boxes) | covered with mock AI | `topic`, `child-view`, `no-ai` | Hint, reveal, grade, ungraded card stays due, dashboard "1 due", review from the dashboard, and two due the next day. HAR-20: the cards are cached on the server as `{ cards }` and a second open calls the provider for nothing new (F1 fixed). |
 | Spaced practice for missed test questions | covered with mock AI | `topic`, `dashboard` | A question missed on a paper test is queued, shows as "1 due", is retried and leaves the due list. |
 
 ## 4.8 Evidence

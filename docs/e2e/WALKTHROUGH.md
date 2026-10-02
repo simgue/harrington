@@ -371,7 +371,7 @@ Leitner schedule (the dashboard shows "2 due" the next day).
 **What the tests assert** (`topic.spec.mjs`, `insights.spec.mjs`): the
 sequence of provider calls for each tool (from the mock's log), that the
 server always sends the configured model, that none of these prompts contains
-the learner's name, every section of the lesson, caching, test results saved
+the learner's name, every section of the lesson, caching (lessons and, since HAR-20, recall cards), a regenerate that fails or returns an unusable lesson keeping the cached one, test results saved
 with scope, mode and percent, a section check that unlocks after the last of
 nine topics is mastered and passes, and a final subject test that unlocks
 when every section is passed.
@@ -382,8 +382,11 @@ longer leaves a spinner (F7, fixed).
 
 ![Regenerate failed](screenshots/topic/08-regenerate-failed.jpg)
 
-**Caveats.** Recall cards are never cached because the server refuses arrays
-(F1).
+Since HAR-20 the lesson, printables, activity and recall content is checked
+before it is shown or cached: a regenerate that fails, or whose answer is not
+usable, keeps the previous version on screen under the error, and the cache
+keeps it too. Recall cards are cached on the server, so they are made once.
+Cached lessons also open without a provider.
 
 ---
 

@@ -190,7 +190,30 @@ test.describe('with the mock AI provider', () => {
     // No raw server error text reaches the parent.
     await expect(modal(page)).not.toContainText('The AI provider failed');
     await shot('regenerate-failed', { full: false });
+    // HAR-20: the previous lesson stays on screen under the error.
+    await expect(modal(page)).toContainText(MARKERS.lessonHook);
     await modal(page).getByRole('button', { name: 'Try again' }).click();
+    await expect(modal(page)).toContainText(MARKERS.lessonHook);
+    await expect(modal(page).getByText(/sent back an error/)).toHaveCount(0);
+  });
+
+  test('"Generate a different version" with an unusable answer keeps the cached lesson (HAR-20)', async ({ page, gotoApp, mockAi }) => {
+    await gotoApp({ seed: {}, hash: topicHash(TOPICS.howMany.id) });
+    await page.getByRole('button', { name: 'Open full lesson' }).click();
+    await expect(modal(page)).toContainText(MARKERS.lessonHook);
+    // The provider answers 200 with JSON that is not a lesson.
+    await mockAi.malformedNext(1);
+    await modal(page).getByRole('button', { name: 'Generate a different version' }).click();
+    await expect(modal(page)).toContainText('The AI provider sent back an error or an answer Harrington couldn’t use. Try again.');
+    await expect(modal(page)).toContainText(MARKERS.lessonHook);
+    await expect(modal(page).getByRole('button', { name: 'Try again' })).toHaveCount(1);
+    await closeModal(page);
+    // The cache still holds the good lesson, not the bad answer.
+    const cached = await page.request.get(`/api/lessons/${encodeURIComponent(`topic:${TOPICS.howMany.id}`)}`);
+    const lesson = await cached.json();
+    expect(lesson.objective).not.toBe('x');
+    expect(Array.isArray(lesson.materials)).toBe(true);
+    await page.getByRole('button', { name: 'Open full lesson' }).click();
     await expect(modal(page)).toContainText(MARKERS.lessonHook);
   });
 
@@ -276,7 +299,7 @@ test.describe('with the mock AI provider', () => {
     await expect(section(page, 'Topic mastery test')).toContainText('Best: 8/8.');
   });
 
-  test('practice recall: grade cards, then the due count shows on the dashboard', async ({ page, api, gotoApp, mockAi, shot }) => {
+  test('practice recall: cards cached on the server (F1, fixed by HAR-20), graded, then the due count shows on the dashboard', async ({ page, api, gotoApp, mockAi, shot }) => {
     await gotoApp({ seed: {}, hash: topicHash(ONE.id) });
     await mockAi.clear();
     await section(page, 'Active recall').getByRole('button', { name: 'Practice recall' }).click();
@@ -292,6 +315,18 @@ test.describe('with the mock AI provider', () => {
     await m.getByRole('button', { name: 'Missed it' }).click();
     // Leave the last card ungraded: it stays due today.
     await closeModal(page);
+
+    // HAR-20: the cards are cached on the server as { cards }, so opening
+    // recall again asks the provider for nothing new.
+    const cached = await page.request.get(`/api/lessons/${encodeURIComponent(`recall:${ONE.id}`)}`);
+    expect(cached.status()).toBe(200);
+    expect((await cached.json()).cards.map((c) => c.front)).toEqual(RECALL_CARDS.map((c) => c.front));
+    const recallCalls = (await mockAi.kinds()).filter((k) => k === 'recall').length;
+    expect(recallCalls).toBeLessThanOrEqual(1);
+    await section(page, 'Active recall').getByRole('button', { name: 'Practice recall' }).click();
+    await expect(modal(page).getByText(RECALL_CARDS[0].front)).toBeVisible();
+    await closeModal(page);
+    expect((await mockAi.kinds()).filter((k) => k === 'recall')).toHaveLength(recallCalls);
 
     await nav(page, 'Dashboard').click();
     await expect(page.getByRole('button', { name: /Active recall · 1 due/ })).toBeVisible();

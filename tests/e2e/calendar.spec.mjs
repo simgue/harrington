@@ -95,8 +95,17 @@ test('home days and breaks: rest days schedule nothing and the track picks up af
   // Today (a Wednesday) is now a rest day; its topic moved to the next home day.
   await expect(dayPanel(page)).toContainText('Rest day');
   await expect(dayPanel(page)).toContainText('A rest day — nothing is scheduled.');
-  await dayCell(page, 13).click();
-  await expect(dayPanel(page)).toContainText('Break · Fall break');
+  // Nothing is scheduled inside the break (Oct 12–16) …
+  for (const d of [12, 13, 14, 15, 16]) {
+    await dayCell(page, d).click();
+    await expect(dayPanel(page)).toContainText('Break · Fall break');
+    await expect(dayPanel(page)).toContainText('A rest day — nothing is scheduled.');
+    await expect(dayPanel(page).locator('button.open')).toHaveCount(0);
+  }
+  // … and the track picks up on the first home day after it.
+  await dayCell(page, 19).click();
+  await expect(dayPanel(page)).toContainText('Home learning day');
+  expect(await dayPanel(page).locator('button.open').count()).toBeGreaterThan(0);
   await dayCell(page, 8).click();
   await expect(dayPanel(page)).toContainText('Home learning day');
   await expect(dayPanel(page).locator('button.open span.block').first()).toHaveText(todays);

@@ -71,6 +71,7 @@ export class MockAi {
   async kinds() { return (await this.log()).map((entry) => entry.kind); }
   async clear() { await this.request.delete(`${URLS.mockAi}/__log`); }
   async failNext(count = 1) { await this.request.post(`${URLS.mockAi}/__fail`, { data: { count } }); }
+  async malformedNext(count = 1) { await this.request.post(`${URLS.mockAi}/__malformed`, { data: { count } }); }
   async stopFailing() { await this.request.delete(`${URLS.mockAi}/__fail`); }
 }
 

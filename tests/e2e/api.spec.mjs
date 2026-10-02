@@ -111,13 +111,14 @@ test('unload beacon (HAR-10): POST carries the version in the body; 415, 403, 40
   await api.reset();
 });
 
-test('lessons: 404 until saved, then returned; arrays are refused (finding F1)', async ({ request }) => {
+test('lessons: 404 until saved, then returned; arrays are refused', async ({ request }) => {
   const key = encodeURIComponent(`topic:e2e-api-${Date.now()}`);
   expect((await request.get(`${URLS.appAi}/api/lessons/${key}`)).status()).toBe(404);
   const put = await request.put(`${URLS.appAi}/api/lessons/${key}`, { data: { objective: 'x' } });
   expect(put.status()).toBe(204);
   expect(await (await request.get(`${URLS.appAi}/api/lessons/${key}`)).json()).toEqual({ objective: 'x' });
-  // Recall cards are cached through this endpoint as an array, which it refuses.
+  // The endpoint only stores objects. Recall cards used to be sent as a bare
+  // array and were refused (F1); HAR-20 wraps them as { cards } (topic.spec).
   const cards = await request.put(`${URLS.appAi}/api/lessons/${encodeURIComponent('recall:e2e')}`, {
     headers: { 'Content-Type': 'application/json' }, data: JSON.stringify([{ id: 'a::0', front: 'q', back: 'a' }]),
   });
