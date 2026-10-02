@@ -37,3 +37,11 @@ backups/
 
 # Local Claude Code config (machine-specific; not shared)
 .claude/
+
+# End-to-end test output (see docs/e2e/README.md). Screenshots under
+# docs/e2e/screenshots/ are committed; videos and reports are not.
+test-results/
+playwright-report/
+blob-report/
+docs/e2e/recordings/
+tests/e2e/.cache/
