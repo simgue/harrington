@@ -72,6 +72,45 @@ test('versioned state (HAR-10): 428 without If-Match, 412 when stale, 403 cross-
   await api.reset();
 });
 
+test('unload beacon (HAR-10): POST carries the version in the body; 415, 403, 400 and 412 guard it', async ({ api, request }) => {
+  await api.putState(familyState());
+  const { state } = await api.getState();
+  const url = `${URLS.appAi}/api/state`;
+  const body = (extra) => JSON.stringify({ ...state, ...extra });
+
+  // A cross-site HTML form can POST text/plain without a preflight; refused.
+  const text = await request.post(url, { headers: { 'Content-Type': 'text/plain' }, data: body({ graphView: 'list' }) });
+  expect(text.status()).toBe(415);
+  const crossSite = await request.post(url, { headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'cross-site' }, data: body({ graphView: 'list' }) });
+  expect(crossSite.status()).toBe(403);
+  // Neither changed anything.
+  expect((await api.getState()).state.version).toBe(state.version);
+
+  // What navigator.sendBeacon sends: JSON, no If-Match, `version` in the body.
+  const beacon = await request.post(url, { headers: { 'Content-Type': 'application/json' }, data: body({ graphView: 'list', writeId: 'w_e2e_beacon' }) });
+  expect(beacon.status()).toBe(204);
+  expect(beacon.headers().etag).toBe(`"v${state.version + 1}"`);
+  const after = (await api.getState()).state;
+  expect(after.version).toBe(state.version + 1);
+  expect(after.graphView).toBe('list');
+  expect(after.writeId).toBe('w_e2e_beacon');
+
+  // The same beacon again is stale now.
+  const stale = await request.post(url, { headers: { 'Content-Type': 'application/json' }, data: body({ graphView: 'atlas' }) });
+  expect(stale.status()).toBe(412);
+  expect((await stale.json()).version).toBe(state.version + 1);
+  // A POST with neither If-Match nor a body version has no precondition.
+  const { version: _v, ...noVersion } = state;
+  const missing = await request.post(url, { headers: { 'Content-Type': 'application/json' }, data: JSON.stringify(noVersion) });
+  expect(missing.status()).toBe(428);
+
+  // A malformed If-Match is a client error, not a conflict.
+  const malformed = await request.put(url, { headers: { 'Content-Type': 'application/json', 'If-Match': 'yesterday' }, data: after });
+  expect(malformed.status()).toBe(400);
+  expect((await api.getState()).state.version).toBe(state.version + 1);
+  await api.reset();
+});
+
 test('lessons: 404 until saved, then returned; arrays are refused (finding F1)', async ({ request }) => {
   const key = encodeURIComponent(`topic:e2e-api-${Date.now()}`);
   expect((await request.get(`${URLS.appAi}/api/lessons/${key}`)).status()).toBe(404);

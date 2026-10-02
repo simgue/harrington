@@ -43,7 +43,7 @@ test('opens score-free with picks, four big buttons, garden; the parent shell is
   await expect(garden.locator(':scope > div > div')).toHaveCount(8);
   await expect(garden).toContainText('Sprouting');
   await expect(garden).toContainText('Planted');
-  await shot('child-view');
+  await shot('child-view', { full: false });
   expect(errors).toEqual([]);
 });
 
@@ -186,4 +186,14 @@ test('activities launched from the child view stay score-free; results still rea
   expect(state.challenges[ROWAN][0]).toMatchObject({ correct: 8, total: 8 });
   expect(state.game[ROWAN].xp).toBeGreaterThan(0);
   await leaveChildView(page);
+});
+
+test('"Plant something new" offers a topic already in progress (finding F18)', async ({ page, gotoApp }) => {
+  await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'practicing' } } });
+  await openChildView(page);
+  const plant = childView(page).getByRole('button', { name: /Plant something new/ });
+  // The child is already practicing this one; "new" points straight back at it.
+  await expect(plant).toContainText(TOPICS.oneToOne.name);
+  await plant.click();
+  await expect(modal(page).getByRole('heading', { name: TOPICS.oneToOne.name })).toBeVisible();
 });

@@ -71,6 +71,7 @@ export class MockAi {
   async kinds() { return (await this.log()).map((entry) => entry.kind); }
   async clear() { await this.request.delete(`${URLS.mockAi}/__log`); }
   async failNext(count = 1) { await this.request.post(`${URLS.mockAi}/__fail`, { data: { count } }); }
+  async stopFailing() { await this.request.delete(`${URLS.mockAi}/__fail`); }
 }
 
 function areaFor(testInfo) {
@@ -78,9 +79,34 @@ function areaFor(testInfo) {
   return file;
 }
 
+// Waits until the page stops changing so the same step gives the same image
+// on every run: the pointer is moved off whatever was clicked last (no hover
+// styles), web fonts and images are loaded, Lucide has swapped every
+// <i data-lucide> for its SVG, and the scroll position has stopped moving.
+// The screenshot itself then disables CSS animations and transitions.
+async function settle(target, { full = false } = {}) {
+  await target.mouse.move(0, 0);
+  // Full-page captures draw fixed elements (sidebar, toasts) at the current
+  // scroll offset, so start them from the top.
+  if (full) await target.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
+  await target.waitForTimeout(150); // modal fade-ins and toasts start on a timer
+  await target.waitForFunction(async () => {
+    await document.fonts.ready;
+    if (document.querySelector('i[data-lucide]')) return false;
+    if ([...document.images].some((img) => !img.complete)) return false;
+    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    const at = () => `${window.scrollX},${window.scrollY},${[...document.querySelectorAll('*')].filter((n) => n.scrollTop).map((n) => n.scrollTop).join()}`;
+    const before = at();
+    for (let i = 0; i < 6; i += 1) await frame();
+    return at() === before;
+  }, null, { timeout: 5_000, polling: 100 }).catch(() => {});
+  await target.waitForTimeout(200);
+}
+
 export const test = base.extend({
   tour: [false, { option: true }],
   fixedClock: [true, { option: true }],
+  fixedRandom: [true, { option: true }],
 
   errors: async ({ page }, use) => {
     const errors = [];
@@ -89,8 +115,40 @@ export const test = base.extend({
     await use(errors);
   },
 
-  page: async ({ page, tour, fixedClock }, use) => {
+  page: async ({ page, tour, fixedClock, fixedRandom }, use) => {
     if (fixedClock) await page.clock.setFixedTime(FIXED_NOW);
+    // Seeded Math.random for every tab in the test's context. The app derives
+    // learner ids from it, and the daily refresher and choices from the
+    // learner id, so without this each run plans a different day. Each page
+    // load gets its own stream, numbered in localStorage, so a reload or a
+    // second tab never repeats the ids of the first (the clock is fixed too),
+    // and every test starts from the same numbering.
+    // The app sets `html { scroll-behavior: smooth }`, so Playwright's
+    // scroll-into-view glides and a re-render can stop it anywhere; where a
+    // screen ends up scrolled would then vary from run to run.
+    await page.context().addInitScript(() => {
+      const add = () => {
+        const style = document.createElement('style');
+        style.textContent = 'html { scroll-behavior: auto !important; }';
+        (document.head || document.documentElement).appendChild(style);
+      };
+      if (document.documentElement) add(); else document.addEventListener('DOMContentLoaded', add);
+    });
+    if (fixedRandom) {
+      await page.context().addInitScript(() => {
+        const KEY = 'e2e:page-loads';
+        let load = 1;
+        try { load = (Number(localStorage.getItem(KEY)) || 0) + 1; localStorage.setItem(KEY, String(load)); } catch {}
+        let s = (Math.imul(load, 0x9e3779b1) ^ 0x2468ace) >>> 0;
+        Math.random = () => {
+          s = (s + 0x6d2b79f5) >>> 0;
+          let t = s;
+          t = Math.imul(t ^ (t >>> 15), t | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      });
+    }
     if (!tour) {
       await page.addInitScript(() => { try { localStorage.setItem('harrington:welcomeSeen', '1'); } catch {} });
     }
@@ -104,7 +162,14 @@ export const test = base.extend({
     await use(api);
   },
 
-  mockAi: async ({ request }, use) => { await use(new MockAi(request)); },
+  // A failure armed by one test never leaks into the next, even if that test
+  // stopped before the app used it up.
+  mockAi: async ({ request }, use) => {
+    const mock = new MockAi(request);
+    await mock.stopFailing();
+    await use(mock);
+    await mock.stopFailing();
+  },
 
   shot: async ({ page }, use, testInfo) => {
     const area = areaFor(testInfo);
@@ -114,10 +179,21 @@ export const test = base.extend({
       shotCounters.set(area, n);
       const dir = join(SHOTS_DIR, area);
       await mkdir(dir, { recursive: true });
-      // Let Lucide icons swap in and modal/fade transitions settle.
-      await target.waitForTimeout(350);
+      // A modal or the child view is fixed to the viewport; a full-page
+      // capture would show the page underneath it below the fold.
+      // (A modal that is closing stays in the DOM while it fades; give it time.)
+      if (!locator && full) {
+        const open = target.locator('#modal-root > div, [role="dialog"]');
+        await expect(open).toHaveCount(0, { timeout: 2_000 }).catch(() => {
+          throw new Error(`shot('${name}'): a modal or overlay is open; pass { full: false } or a locator`);
+        });
+      }
+      await settle(target, { full: !locator && full });
       const path = join(dir, `${String(n).padStart(2, '0')}-${name}.jpg`);
-      const options = { path, type: 'jpeg', quality: 70, animations: 'disabled', caret: 'hide' };
+      // Long full-page captures are most of the bytes; they go out a little
+      // softer than viewport and element shots.
+      const quality = !locator && full ? 55 : 70;
+      const options = { path, type: 'jpeg', quality, animations: 'disabled', caret: 'hide' };
       if (locator) await locator.screenshot(options);
       else await target.screenshot({ ...options, fullPage: full });
     });

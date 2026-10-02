@@ -179,16 +179,19 @@ test.describe('with the mock AI provider', () => {
     expect(await mockAi.kinds()).toEqual(['lesson', 'printables']);
   });
 
-  test('"Generate a different version" failing leaves a spinner (finding F7)', async ({ page, gotoApp, mockAi }) => {
+  test('"Generate a different version" failing explains the error and Try again recovers (F7, fixed by HAR-13)', async ({ page, gotoApp, mockAi, shot }) => {
     await gotoApp({ seed: {}, hash: topicHash(TOPICS.howMany.id) });
     await page.getByRole('button', { name: 'Open full lesson' }).click();
     await expect(modal(page)).toContainText(MARKERS.lessonHook);
     await mockAi.failNext(1);
     await modal(page).getByRole('button', { name: 'Generate a different version' }).click();
-    await expectToast(page, 'Could not regenerate');
-    await expect(modal(page).getByText('Writing a fresh version…')).toBeVisible();
-    await page.waitForTimeout(1000);
-    await expect(modal(page).getByText('Writing a fresh version…')).toBeVisible();
+    await expect(modal(page)).toContainText('The AI provider sent back an error or an answer Harrington couldn’t use. Try again.');
+    await expect(modal(page).getByText('Writing a fresh version…')).toHaveCount(0);
+    // No raw server error text reaches the parent.
+    await expect(modal(page)).not.toContainText('The AI provider failed');
+    await shot('regenerate-failed', { full: false });
+    await modal(page).getByRole('button', { name: 'Try again' }).click();
+    await expect(modal(page)).toContainText(MARKERS.lessonHook);
   });
 
   test('explain simply, mini-quiz and activity instructions', async ({ page, gotoApp, mockAi, shot }) => {

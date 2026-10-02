@@ -2,7 +2,7 @@
 // second tab sees when the first one saved first.
 import { test, expect, modal, expectToast, nav, setTopicStatus } from './fixtures.mjs';
 import { FIXED_NOW } from './support/env.mjs';
-import { LEARNERS, TOPICS, familyState } from './support/family.mjs';
+import { LEARNERS, TOPICS } from './support/family.mjs';
 
 const ROWAN = LEARNERS.rowan.id;
 const exportButton = (page) => page.getByRole('button', { name: 'Export', exact: true });
@@ -10,7 +10,7 @@ const importButton = (page) => page.getByRole('button', { name: 'Import', exact:
 
 async function chooseImportFile(page, content) {
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), importButton(page).click()]);
-  await chooser.setFiles({ name: 'family.json', mimeType: 'application/json', buffer: Buffer.from(content) });
+  await chooser.setFiles({ name: 'family.json', mimeType: 'application/json', buffer: Buffer.isBuffer(content) ? content : Buffer.from(content) });
 }
 
 test('export downloads the whole family document as JSON, PIN included (finding F16)', async ({ page, gotoApp, shot }) => {
@@ -30,16 +30,21 @@ test('export downloads the whole family document as JSON, PIN included (finding 
   expect(doc.settings.parentPin).toBe('2468');
 });
 
-test('import previews the file, cancel keeps the data, confirm replaces it', async ({ page, api, gotoApp, shot }) => {
-  await gotoApp({ seed: {} });
-  const incoming = {
-    ...familyState({ learners: ['sage'], active: 'sage', progress: { [TOPICS.oneToOne.id]: 'mastered', [TOPICS.howMany.id]: 'learning' }, records: [{ type: 'question', title: 'Imported question' }] }),
-    exportedAt: '2026-10-01T09:00:00.000Z',
-    taxonomyVersion: 'v1',
-    version: 41,
-  };
+test('round trip: the exported file previews, cancel keeps the data, confirm restores it exactly', async ({ page, api, gotoApp, shot }) => {
+  // The family to export: one learner with progress and a record.
+  await gotoApp({ seed: { learners: ['sage'], active: 'sage', progress: { [TOPICS.oneToOne.id]: 'mastered', [TOPICS.howMany.id]: 'learning' }, records: [{ type: 'question', title: 'Exported question' }] } });
+  await expect(page.getByRole('heading', { name: "Sage Example's Wednesday" })).toBeVisible();
+  const [download] = await Promise.all([page.waitForEvent('download'), exportButton(page).click()]);
+  const file = Buffer.concat(await (await download.createReadStream()).toArray());
+  const before = (await api.getState()).state;
+
+  // The family changes afterwards (the three-learner family replaces it).
+  await api.seed({});
+  await page.reload();
+  await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
+
   // Cancel first.
-  await chooseImportFile(page, JSON.stringify(incoming));
+  await chooseImportFile(page, file);
   const preview = modal(page);
   await expect(preview.getByRole('heading', { name: 'Import family data?' })).toBeVisible();
   await expect(preview).toContainText('Sage Example');
@@ -48,16 +53,18 @@ test('import previews the file, cancel keeps the data, confirm replaces it', asy
   await shot('import-preview', { full: false });
   await preview.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
+  expect((await api.getState()).state.students).toHaveLength(3);
 
-  // Then confirm.
-  await chooseImportFile(page, JSON.stringify(incoming));
+  // Then the same file, confirmed.
+  await chooseImportFile(page, file);
   await modal(page).getByRole('button', { name: 'Replace family data' }).click();
   await expectToast(page, 'Family data imported');
   await expect(page.getByRole('heading', { name: "Sage Example's Wednesday" })).toBeVisible();
-  const state = await api.waitForState((s) => s.students?.length === 1);
-  expect(state.students[0].name).toBe('Sage Example');
-  expect(state.records[LEARNERS.sage.id][0].title).toBe('Imported question');
-  expect(state.exportedAt).toBeUndefined();
+  const restored = await api.waitForState((s) => s.students?.length === 1);
+  // Everything the export carried comes back; only the save bookkeeping differs.
+  const strip = ({ version, updatedAt, writeId, exportedAt, taxonomyVersion, ...rest }) => rest;
+  expect(strip(restored)).toEqual(strip(before));
+  expect(restored.version).toBeGreaterThan(before.version);
 
   // It survives a reload.
   await page.reload();
@@ -76,7 +83,7 @@ test('import refuses files that are not a family export', async ({ page, api, go
   expect((await api.getState()).state.students).toHaveLength(3);
 });
 
-test('two tabs: the second save loses and reloads the first one\'s data with a toast', async ({ page, context, api, gotoApp, shot }) => {
+test('two tabs: the second save loses and reloads the first one\'s data, after a success toast (finding F17)', async ({ page, context, api, gotoApp, shot }) => {
   await gotoApp({ seed: {}, hash: `topic/${TOPICS.oneToOne.id}` });
   const other = await context.newPage();
   await other.clock.setFixedTime(FIXED_NOW);
@@ -87,8 +94,11 @@ test('two tabs: the second save loses and reloads the first one\'s data with a t
   await setTopicStatus(page, 'Learning');
   await api.waitForState((s) => s.progress?.[ROWAN]?.[TOPICS.oneToOne.id]?.status === 'learning');
 
-  // Tab B, still on the old version, saves and is told to reload.
+  // Tab B, still on the old version, saves and is told to reload. Finding:
+  // B first confirms "Marked as practicing", then discards it. (B's own boot
+  // write also lost to A's, so B shows the conflict toast twice; see F17.)
   await setTopicStatus(other, 'Practicing');
+  await expectToast(other, 'Marked as practicing');
   await expectToast(other, 'Another device saved changes. Reloaded the latest.');
   await shot('conflict-toast', { target: other, full: false });
 

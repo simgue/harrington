@@ -133,16 +133,39 @@ test('voice recorder: start → stop → review → save with a fake microphone,
 });
 
 test('dismissing the recorder mid-take asks first and stops the microphone', async ({ page, gotoApp }) => {
+  // Keep every stream the app opens, to check its tracks afterwards.
+  await page.addInitScript(() => {
+    const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    window.__e2eStreams = [];
+    navigator.mediaDevices.getUserMedia = async (constraints) => {
+      const stream = await original(constraints);
+      window.__e2eStreams.push(stream);
+      return stream;
+    };
+  });
+  const trackStates = () => page.evaluate(() => window.__e2eStreams.flatMap((s) => s.getTracks().map((t) => t.readyState)));
   await gotoApp({ seed: {} });
   await page.getByRole('button', { name: 'Record what happened' }).click();
   await modal(page).getByRole('button', { name: 'Start recording' }).click();
   await expect(modal(page).getByText('Recording…')).toBeVisible();
-  page.once('dialog', (d) => { expect(d.message()).toContain('Discard this recording?'); d.dismiss(); });
+  expect(await trackStates()).toContain('live');
+
+  const messages = [];
+  page.once('dialog', (d) => { messages.push(d.message()); d.dismiss(); });
   await page.keyboard.press('Escape');
+  await expect.poll(() => messages.length).toBe(1);
+  expect(messages[0]).toContain('Discard this recording?');
+  // Cancel keeps recording, microphone still on.
   await expect(modal(page).getByText('Recording…')).toBeVisible();
-  page.once('dialog', (d) => d.accept());
+  expect(await trackStates()).toContain('live');
+
+  page.once('dialog', (d) => { messages.push(d.message()); d.accept(); });
   await page.keyboard.press('Escape');
   await expect(page.locator('#modal-root > div')).toHaveCount(0);
+  expect(messages).toHaveLength(2);
+  // Every microphone track the recorder opened is stopped.
+  await expect.poll(trackStates).not.toContain('live');
+  expect((await trackStates()).length).toBeGreaterThan(0);
 });
 
 test('recordings folder: grouping, play, delete', async ({ page, api, gotoApp, shot }) => {

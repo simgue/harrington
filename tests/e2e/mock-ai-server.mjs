@@ -10,6 +10,7 @@
 //   GET  /__log         -> every completion request seen: [{ kind, prompt, model, at }]
 //   DELETE /__log       -> clear the log
 //   POST /__fail        -> { count } make the next `count` completions answer HTTP 500
+//   DELETE /__fail      -> stop failing (cancel what is left of a POST /__fail)
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { PORTS } from './support/env.mjs';
@@ -209,6 +210,7 @@ export function startMockAi(port = PORTS.mockAi) {
       if (req.method === 'DELETE') { log.length = 0; return json(res, 200, { ok: true }); }
       return json(res, 200, log);
     }
+    if (req.method === 'DELETE' && url.pathname === '/__fail') { failNext = 0; return json(res, 200, { ok: true, failNext }); }
     let body = '';
     for await (const chunk of req) body += chunk;
     if (req.method === 'POST' && url.pathname === '/__fail') {

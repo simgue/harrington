@@ -47,7 +47,9 @@ audit feature is in [COVERAGE.md](COVERAGE.md).
 The form asks for a name and a birth year (2005 to 2024) and says the app
 runs on this computer only.
 
-![First-run form](screenshots/onboarding/01-first-run-form.jpg)
+| Empty | Filled in |
+| --- | --- |
+| ![First-run form](screenshots/onboarding/01-first-run-form.jpg) | ![Filled in](screenshots/onboarding/02-first-run-form-filled.jpg) |
 
 After "Set up their learning space" a toast confirms the learner and the
 dashboard opens. About half a second later the **welcome tour** appears: ten
@@ -79,7 +81,9 @@ one marked, a Switch button for the others, a placement button and a delete
 button. **Add** opens a short name and birth-year form; a new learner becomes
 the active one.
 
-![Learner switcher](screenshots/learners/01-student-switcher-three-learners.jpg)
+| Three learners | After removing one |
+| --- | --- |
+| ![Learner switcher](screenshots/learners/01-student-switcher-three-learners.jpg) | ![After remove](screenshots/learners/02-student-switcher-after-remove.jpg) |
 
 **Placement** (HAR-14) opens from the list-check button on a learner row or on
 a dashboard subject card. It picks a subject, an area (whole subject or one
@@ -136,6 +140,10 @@ From top to bottom:
 | --- | --- | --- |
 | ![Literacy picked](screenshots/dashboard/02-today-path-literacy-picked.jpg) | ![Age 9](screenshots/dashboard/06-dashboard-nine-year-old.jpg) | ![Age 3](screenshots/dashboard/05-dashboard-three-year-old.jpg) |
 
+| Spaced practice, nothing due | Recordings folder, empty |
+| --- | --- |
+| ![Spaced practice empty](screenshots/dashboard/03-spaced-practice-empty.jpg) | ![Recordings folder empty](screenshots/dashboard/04-recordings-folder-empty.jpg) |
+
 **What the tests assert** (`dashboard.spec.mjs`): every section above for ages
 6 and 9; pick, unpick and re-pick a choice, the day's offers and picks saved
 on the server, the pick survives a reload and shows in the child view;
@@ -177,6 +185,10 @@ to the topic).
 | --- | --- | --- |
 | ![Topic card](screenshots/child-view/04-child-topic-card.jpg) | ![Collection](screenshots/child-view/05-child-view-collection.jpg) | ![All done](screenshots/child-view/07-child-challenge-result.jpg) |
 
+**Tell about my day** opens the recorder for a voice note from the child.
+
+![Tell about my day](screenshots/child-view/06-child-view-tell-about-my-day.jpg)
+
 **Grown-ups** leads back to the parent view through a 4-digit PIN. The first
 time, the parent sets it (typed twice); after that it is required. A wrong PIN
 keeps the child view open; reloading the page is the documented way out if it
@@ -195,7 +207,8 @@ saved to `settings.parentPin`. Beat the clock without a bloom shows "Grow a
 bloom to unlock challenges!".
 
 **Caveats.** The PIN is stored and exported in plain text (F16). A
-3-year-old's Plant something new says "Ask a grown-up to choose" (F3).
+3-year-old's Plant something new says "Ask a grown-up to choose" (F3); for
+an older child it offers a topic already in progress (F18).
 
 ---
 
@@ -212,10 +225,14 @@ on) a realm or a dot opens that domain's **skill tree**.
 
 The skill tree draws topics as plants (Seed locked, Sprout ready, Bud in
 progress, Bloom mastered), solid lines for required foundations and dashed
-for helpful ones, with neighboring domains as gateways. Selecting a topic
-opens the **quest log**: its stage, why it is or is not ready, required
-foundations and what it unlocks (both clickable), and Open full lesson, Open
-topic page, Record evidence, Mark as learning and Mark as mastered.
+for helpful ones, with neighboring domains as gateways.
+
+![Skill tree](screenshots/map/02-skill-tree-default-domain.jpg)
+
+Selecting a topic opens the **quest log**: its stage, why it is or is not
+ready, required foundations and what it unlocks (both clickable), and Open
+full lesson, Open topic page, Record evidence, Mark as learning and Mark as
+mastered.
 
 | Ready topic | Locked topic |
 | --- | --- |
@@ -235,7 +252,7 @@ foundations, highlights the blocker and cannot be marked; Record evidence
 saves a linked record; Mark as learning turns the node into a bud and shows on
 the dashboard; Mark as mastered blooms it and unlocks the next skill; list
 drill-down and breadcrumbs; the view choice survives a reload. The old
-`#timeline` route still renders but is not in the navigation.
+`#timeline` route was removed by HAR-13 and now opens the dashboard.
 
 **Caveats.** Every selection scrolls the page back to the top (F11).
 
@@ -266,6 +283,10 @@ a record's topic link, Insights, or any connection.
 | --- | --- |
 | ![Locked](screenshots/topic/02-topic-page-locked.jpg) | ![Mastered](screenshots/topic/04-topic-mastered-manually.jpg) |
 
+| Set status (HAR-14) | Records for this topic |
+| --- | --- |
+| ![Set status](screenshots/topic/03-manual-status-control.jpg) | ![Topic records](screenshots/topic/05-topic-records.jpg) |
+
 **What the tests assert** (`topic.spec.mjs`): header, evidence, quick check;
 three unlocks that navigate, and the prerequisite seen from the other side
 with a locked banner; five reference links open in a new tab with
@@ -291,7 +312,7 @@ and cached on the server: after a reload the lesson comes from
 
 | Lesson | Print & go preview | Explain simply |
 | --- | --- | --- |
-| ![Lesson](screenshots/topic/06-lesson-plan.jpg) | ![Print & go](screenshots/topic/07-print-and-go-preview.jpg) | ![Explain](screenshots/topic/08-explain-simply.jpg) |
+| ![Lesson](screenshots/topic/06-lesson-plan.jpg) | ![Print & go](screenshots/topic/07-print-and-go-preview.jpg) | ![Explain](screenshots/topic/09-explain-simply.jpg) |
 
 **Topic mastery test.** Choose On screen (recommended for math) or On paper /
 hands-on, then "Create the test". The app asks the provider for a test, then
@@ -303,14 +324,21 @@ the result, and missed questions join **spaced practice**.
 
 | Test intro | Answered | Passed |
 | --- | --- | --- |
-| ![Intro](screenshots/topic/10-mastery-test-intro.jpg) | ![Answered](screenshots/topic/11-mastery-test-answered.jpg) | ![Passed](screenshots/topic/12-mastery-test-passed.jpg) |
+| ![Intro](screenshots/topic/11-mastery-test-intro.jpg) | ![Answered](screenshots/topic/12-mastery-test-answered.jpg) | ![Passed](screenshots/topic/13-mastery-test-passed.jpg) |
 
 | Paper grading | Spaced practice retry | Section check ready |
 | --- | --- | --- |
-| ![Paper](screenshots/topic/17-paper-test-grading.jpg) | ![Practice](screenshots/topic/18-spaced-practice-correct.jpg) | ![Section](screenshots/topic/19-section-check-ready.jpg) |
+| ![Paper](screenshots/topic/18-paper-test-grading.jpg) | ![Practice](screenshots/topic/19-spaced-practice-correct.jpg) | ![Section](screenshots/topic/20-section-check-ready.jpg) |
+
+**Activity instructions.** "Get instructions" on an activity or game asks the
+provider for materials, setup, steps, an example and a tip.
+
+![Activity instructions](screenshots/topic/10-activity-instructions.jpg)
 
 **Challenge.** A two-minute, eight-question stretch for a mastered topic; the
 best score shows on the topic page.
+
+![Challenge intro](screenshots/topic/14-challenge-intro.jpg)
 
 **Active recall.** Cards answered from memory, with a hint, graded Missed it,
 Got it or Easy. Ungraded cards stay due today; graded ones come back on a
@@ -318,7 +346,7 @@ Leitner schedule (the dashboard shows "2 due" the next day).
 
 | Challenge | Recall card | Due on the dashboard |
 | --- | --- | --- |
-| ![Challenge](screenshots/topic/14-challenge-result.jpg) | ![Recall](screenshots/topic/15-recall-card-answer.jpg) | ![Due](screenshots/topic/16-dashboard-recall-due.jpg) |
+| ![Challenge](screenshots/topic/15-challenge-result.jpg) | ![Recall](screenshots/topic/16-recall-card-answer.jpg) | ![Due](screenshots/topic/17-dashboard-recall-due.jpg) |
 
 **What the tests assert** (`topic.spec.mjs`, `insights.spec.mjs`): the
 sequence of provider calls for each tool (from the mock's log), that the
@@ -328,8 +356,14 @@ with scope, mode and percent, a section check that unlocks after the last of
 nine topics is mastered and passes, and a final subject test that unlocks
 when every section is passed.
 
+When the provider fails, the tool says what went wrong in plain words and
+offers **Try again** (HAR-13); a failed "Generate a different version" no
+longer leaves a spinner (F7, fixed).
+
+![Regenerate failed](screenshots/topic/08-regenerate-failed.jpg)
+
 **Caveats.** Recall cards are never cached because the server refuses arrays
-(F1). A failed "Generate a different version" leaves a spinner (F7).
+(F1).
 
 ---
 
@@ -459,7 +493,7 @@ downloads `GUIDE.md`.
 
 | Guide | Printable guide |
 | --- | --- |
-| ![Guide](screenshots/notifications/03-guide-full.jpg) | ![Printable guide](screenshots/onboarding/06-printable-guide.jpg) |
+| ![Guide](screenshots/notifications/03-guide-full.jpg) | ![Printable guide](screenshots/onboarding/05-printable-guide.jpg) |
 
 **What the tests assert** (`notifications.spec.mjs`, `onboarding.spec.mjs`):
 one welcome item and a "1" badge; Mark all read clears it; a second boot adds
@@ -492,42 +526,75 @@ the latest data and says so.
 ![Conflict toast](screenshots/data-safety/03-conflict-toast.jpg)
 
 **What the tests assert** (`data-safety.spec.mjs`, `api.spec.mjs`): the export
-file name and contents; import cancel, confirm, reload, and refusal of
-non-JSON, non-export and malformed learner files; two tabs: the second save
-loses, shows the toast, shows the first tab's change and does not merge its
-own; removing a learner clears every per-learner key. Over HTTP: 428 without
-`If-Match`, a new `ETag` on success, 412 with the current document when
-stale, 403 for a cross-site write, and `stateVersion`/`stateBytes` in health.
+file name and contents; a round trip (the exported file, imported back after
+the family changed: preview, cancel, confirm, the same document restored,
+reload) and refusal of non-JSON, non-export and malformed learner files; two
+tabs: the second save loses, shows the toast, shows the first tab's change
+and does not merge its own; removing a learner clears every per-learner key.
+Over HTTP: 428 without `If-Match`, 400 for a malformed one, a new `ETag` on
+success, 412 with the current document when stale, 403 for a cross-site
+write, `stateVersion`/`stateBytes` in health, and the unload beacon's POST
+(version in the body; 415 for `text/plain`, 403 cross-site, 412 stale).
 
 **Caveats.** Export and Import are not reachable on a phone (F6). The PIN
-travels in the export (F16).
+travels in the export (F16). The losing tab first confirms the parent's
+change, then discards it, and a tab's own boot write can lose too: the
+screenshot shows the conflict toast twice (F17).
 
 ---
 
 ## 13. Without an AI provider
 
-Run against a server with no provider (`no-ai` project), every AI-backed
-button fails closed: nothing is generated, nothing is recorded as a result,
-and `/api/ai` answers 503.
+**Purpose.** Harrington works without AI; it should say so honestly
+(HAR-13).
+**How to reach it.** Run the server without `HARRINGTON_AI_BASE_URL` (the
+`no-ai` project), or with a provider that is not running (the
+`ai-unreachable` project).
 
-| Lesson | Print & go | AI helper |
-| --- | --- | --- |
-| ![Lesson](screenshots/no-ai/01-lesson-not-configured.jpg) | ![Print](screenshots/no-ai/02-print-and-go-failed.jpg) | ![Helper](screenshots/no-ai/03-ai-helper-failed.jpg) |
+With no provider configured, every AI-backed control is replaced by a quiet
+**Needs a local AI provider** chip that opens the README's local-model
+section in a new tab. Nothing is generated and nothing is saved as a result.
+Everything else (status, records, planning, the map) works as usual.
 
-| Mastery test | Progress review | Child view Memory walk |
-| --- | --- | --- |
-| ![Test](screenshots/no-ai/04-mastery-test-failed.jpg) | ![Review](screenshots/no-ai/05-insights-review-failed.jpg) | ![Memory walk](screenshots/no-ai/06-child-view-memory-walk-failed.jpg) |
+| Topic page | Calendar day |
+| --- | --- |
+| ![Topic chips](screenshots/no-ai/01-topic-chips.jpg) | ![Calendar chips](screenshots/no-ai/02-calendar-chips.jpg) |
 
-**What the tests assert** (`no-ai.spec.mjs`): the exact message for the
-lesson ("AI is not configured."), print & go, explain, mini-quiz, activity
-instructions, recall, topic test, challenge, both analysis buttons, the
-progress review, the calendar's lesson and instructions, the quest log's
-lesson and the child view's Memory walk; no test or challenge is saved; the
-guide labels AI features.
+| Progress review | Records |
+| --- | --- |
+| ![Insights chip](screenshots/no-ai/03-insights-chip.jpg) | ![Records chips](screenshots/no-ai/04-records-chips.jpg) |
 
-**Caveats.** Only the lesson says AI is not configured; the rest say "try
-again" (F10). HAR-13 (#18) replaces these buttons with "Needs a local AI
-provider" chips.
+The dashboard hides the refresher stop and disables the recall card with
+"Recall cards need a local AI provider."; the child view simply leaves out
+Memory walk and Beat the clock, with no provider wording in front of the
+child.
+
+| Dashboard | Child view |
+| --- | --- |
+| ![Dashboard](screenshots/no-ai/05-dashboard-no-ai.jpg) | ![Child view](screenshots/no-ai/06-child-view-no-ai.jpg) |
+
+When a provider is configured but not running, the controls stay and a
+failure says "Harrington couldn’t reach the AI provider. Check that it’s
+running, then try again.", with **Try again**; the server's own error text
+is never shown.
+
+| AI helper | Full lesson |
+| --- | --- |
+| ![Helper unreachable](screenshots/ai-unreachable/01-helper-unreachable.jpg) | ![Lesson unreachable](screenshots/ai-unreachable/02-lesson-unreachable.jpg) |
+
+**What the tests assert** (`no-ai.spec.mjs`, `ai-unreachable.spec.mjs`):
+`/api/health` reports `aiConfigured`; `/api/ai` answers 503 with no provider
+and 502 "unreachable" with a dead one. With no provider: no AI button on the
+topic page (lesson, Print & go, helper, recall, test, challenge, activity
+instructions), one chip per section and per activity, every chip links to
+`README.md#optional-local-model-ollama` with `target="_blank"` and
+`rel="noopener"` and opens it in a new tab; no "Couldn't … right now" or
+"Try again" anywhere; no test or challenge saved; chips in the quest log,
+the calendar day, the progress review and records; a saved analysis still
+shows without Regenerate; the dashboard and child view as above; the guide
+labels AI features. With an unreachable provider: no chips, the message
+above in the helper and the lesson, Try again fails the same way without
+stacking, no "Writing…" spinner.
 
 ---
 

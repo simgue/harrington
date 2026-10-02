@@ -81,7 +81,6 @@ test('Guide modal, tour replay and the printable guide', async ({ page, gotoApp,
   await expect(guide.getByText('What works today, and what needs an AI provider')).toBeVisible();
   // Every AI-backed feature carries the same line.
   await expect(guide.getByText('Needs a local AI provider; see the README.').first()).toBeVisible();
-  await shot('guide-modal', { full: false });
 
   // GUIDE.md is served and offered as a download.
   const link = guide.getByRole('link', { name: 'Download the written guide (GUIDE.md)' });

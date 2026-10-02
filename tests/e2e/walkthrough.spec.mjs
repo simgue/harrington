@@ -237,8 +237,12 @@ test('child view walkthrough', async ({ page, gotoApp }) => {
     await modal(page).getByRole('button', { name: q.answerText, exact: true }).click();
   }
   await beat(page);
-  page.once('dialog', (d) => d.accept());
+  // Escape mid-challenge asks before throwing the round away.
+  const asked = [];
+  page.once('dialog', (d) => { asked.push(d.message()); d.accept(); });
   await page.keyboard.press('Escape');
+  await expect.poll(() => asked.length).toBe(1);
+  await expect(modal(page).getByRole('button', { name: 'Start challenge' })).toHaveCount(0);
   await beat(page);
   // Grown-ups: set the PIN (typed twice) on the way out.
   await leaveChildView(page);

@@ -7,12 +7,18 @@ export const PORTS = {
   mockAi: base + 1,
   appAi: base + 2,
   appNoAi: base + 3,
+  appAiUnreachable: base + 4,
+  // Nothing ever listens here: the app on appAiUnreachable points its AI
+  // provider at this port to exercise "couldn't reach the AI provider".
+  deadAi: base + 9,
 };
 
 export const URLS = {
   mockAi: `http://127.0.0.1:${PORTS.mockAi}`,
   appAi: `http://127.0.0.1:${PORTS.appAi}`,
   appNoAi: `http://127.0.0.1:${PORTS.appNoAi}`,
+  appAiUnreachable: `http://127.0.0.1:${PORTS.appAiUnreachable}`,
+  deadAi: `http://127.0.0.1:${PORTS.deadAi}`,
 };
 
 // Every browser test runs with the clock pinned to this moment (UTC), so

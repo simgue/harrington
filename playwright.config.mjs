@@ -46,7 +46,7 @@ const mobile = {
 };
 
 // Files with a project of their own; the desktop project runs everything else.
-const SPECIAL = /(^|[\\/])(api|no-ai|mobile|walkthrough|walkthrough-mobile)\.spec\.mjs$/;
+const SPECIAL = /(^|[\\/])(api|no-ai|ai-unreachable|mobile|walkthrough|walkthrough-mobile)\.spec\.mjs$/;
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -84,6 +84,12 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 180_000,
     },
+    {
+      command: `node tests/e2e/start-app.mjs --port ${PORTS.appAiUnreachable} --ai-unreachable`,
+      url: `${URLS.appAiUnreachable}/api/health`,
+      reuseExistingServer: false,
+      timeout: 180_000,
+    },
   ],
   projects: [
     { name: 'api', testMatch: /(^|[\\/])api\.spec\.mjs$/, use: { baseURL: URLS.appAi } },
@@ -93,6 +99,7 @@ export default defineConfig({
       use: { ...desktop, baseURL: URLS.appAi },
     },
     { name: 'no-ai', testMatch: /(^|[\\/])no-ai\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appNoAi } },
+    { name: 'ai-unreachable', testMatch: /(^|[\\/])ai-unreachable\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appAiUnreachable } },
     { name: 'mobile', testMatch: /(^|[\\/])mobile\.spec\.mjs$/, use: { ...mobile, baseURL: URLS.appAi } },
     {
       name: 'walkthrough',

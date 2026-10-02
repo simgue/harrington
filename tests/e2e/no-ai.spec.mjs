@@ -1,11 +1,19 @@
-// Runs against the app server with no AI provider: every AI-backed button must
-// fail closed with a message, and nothing must be saved as if it had worked.
-import { test, expect, modal, closeModal, nav } from './fixtures.mjs';
+// Runs against the app server with no AI provider. With HAR-13 every
+// AI-backed control is replaced by a quiet "Needs a local AI provider" chip
+// that links to the setup instructions, and nothing is saved as if it worked.
+import { test, expect, modal, closeModal, nav, childView } from './fixtures.mjs';
 import { LEARNERS, TOPICS } from './support/family.mjs';
 
 const ROWAN = LEARNERS.rowan.id;
 const ONE = TOPICS.oneToOne;
+const AI_HELP_HREF = 'https://github.com/simgue/harrington/blob/main/README.md#optional-local-model-ollama';
 const section = (page, title) => page.locator('div.rounded-2xl', { has: page.getByRole('heading', { level: 2, name: title, exact: true }) });
+const chips = (scope) => scope.getByRole('link', { name: 'Needs a local AI provider' });
+
+// No old-style "Couldn't … right now" failures anywhere on the page.
+async function expectNoFailureCopy(page) {
+  await expect(page.getByText(/Couldn.t .* right now|Try again/)).toHaveCount(0);
+}
 
 test('health says AI is off and /api/ai answers 503', async ({ request }) => {
   expect((await (await request.get('/api/health')).json()).aiConfigured).toBe(false);
@@ -13,102 +21,127 @@ test('health says AI is off and /api/ai answers 503', async ({ request }) => {
   expect(res.status()).toBe(503);
 });
 
-test('topic page: every AI button shows its not-configured or failure message (finding F10)', async ({ page, api, gotoApp, shot }) => {
+test('topic page: every AI control becomes the chip, which links to the setup guide', async ({ page, api, gotoApp, shot }) => {
   await gotoApp({ seed: { progress: { [ONE.id]: 'mastered' } }, hash: `topic/${ONE.id}` });
+  await expect(page.getByRole('heading', { level: 1, name: ONE.name })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Open full lesson' }).click();
-  await expect(modal(page).getByText('AI is not configured.')).toBeVisible();
-  await shot('lesson-not-configured', { full: false });
-  await closeModal(page);
+  // None of the AI buttons are rendered.
+  for (const name of ['Open full lesson', 'Print & go', 'Explain simply', 'Make a mini-quiz', 'Practice recall', 'Retake topic test', 'Try the challenge quiz']) {
+    await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
+  }
+  await expect(page.getByText('Get instructions')).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Print & go' }).click();
-  await expect(modal(page).getByText('Couldn’t prepare the materials right now.')).toBeVisible();
-  await shot('print-and-go-failed', { full: false });
-  await closeModal(page);
+  // Chips: lesson CTA, mastery test, recall, AI helper, and one per activity and game.
+  const all = chips(page);
+  expect(await all.count()).toBeGreaterThanOrEqual(9);
+  for (const chip of await all.all()) {
+    await expect(chip).toHaveAttribute('href', AI_HELP_HREF);
+    await expect(chip).toHaveAttribute('target', '_blank');
+    await expect(chip).toHaveAttribute('rel', /noopener/);
+  }
+  await expect(chips(section(page, 'Topic mastery test'))).toHaveCount(1);
+  await expect(chips(section(page, 'Active recall'))).toHaveCount(1);
+  await expect(chips(section(page, 'AI teaching helper'))).toHaveCount(1);
+  // Activity ideas keep their text; only the instructions need AI.
+  const activities = section(page, 'Activities & games');
+  await expect(activities).toContainText('Kitchen counter math');
+  expect(await chips(activities).count()).toBeGreaterThanOrEqual(5);
 
-  const helper = section(page, 'AI teaching helper');
-  await helper.getByRole('button', { name: 'Explain simply' }).click();
-  await expect(helper.getByText("Couldn't generate that right now. Please try again.")).toBeVisible();
-  await helper.getByRole('button', { name: 'Make a mini-quiz' }).click();
-  await expect(helper.getByText("Couldn't generate that right now. Please try again.")).toBeVisible();
-  await shot('ai-helper-failed', { locator: helper });
+  // Manual status still works without AI.
+  await expect(page.getByRole('group', { name: 'Set status' })).toBeVisible();
+  await expectNoFailureCopy(page);
+  await shot('topic-chips');
 
-  // Activity instructions reuse the lesson error block (says "lesson": finding).
-  await section(page, 'Activities & games').getByRole('button', { name: /Kitchen counter math/ }).click();
-  await expect(modal(page).getByText('Couldn’t create the lesson right now.')).toBeVisible();
-  await closeModal(page);
+  // The chip opens the README's local-model section in a new tab. GitHub is
+  // stubbed so the test does not depend on the network.
+  await page.context().route('https://github.com/**', (route) => route.fulfill({ contentType: 'text/html', body: '<title>README</title>' }));
+  const [popup] = await Promise.all([
+    page.context().waitForEvent('page'),
+    chips(section(page, 'AI teaching helper')).click(),
+  ]);
+  await popup.waitForLoadState();
+  expect(popup.url()).toBe(AI_HELP_HREF);
+  await popup.close();
 
-  await section(page, 'Active recall').getByRole('button', { name: 'Practice recall' }).click();
-  await expect(modal(page).getByText("Couldn't load recall cards.")).toBeVisible();
-  await closeModal(page);
-
-  await section(page, 'Topic mastery test').getByRole('button', { name: 'Retake topic test' }).click();
-  await modal(page).getByRole('button', { name: 'Create the test' }).click();
-  await expect(modal(page).getByText('Couldn’t build the test right now.')).toBeVisible();
-  await shot('mastery-test-failed', { full: false });
-  await closeModal(page);
-
-  await section(page, 'Topic mastery test').getByRole('button', { name: 'Try the challenge quiz' }).click();
-  await modal(page).getByRole('button', { name: 'Start challenge' }).click();
-  await expect(modal(page).getByText("Couldn't build the challenge. Try again.")).toBeVisible();
-  await closeModal(page);
-
-  // Nothing was recorded as a result.
   const { state } = await api.getState();
   expect(state.tests?.[ROWAN] || []).toHaveLength(0);
   expect(state.challenges?.[ROWAN] || []).toHaveLength(0);
 });
 
-test('records, recordings, insights, calendar and child view fail closed too', async ({ page, gotoApp, shot }) => {
+test('quest log, calendar, insights, records and recordings show chips', async ({ page, gotoApp, shot }) => {
   await gotoApp({
     seed: {
       records: [
         { type: 'discussion', title: 'Talked about sharing', note: 'Split grapes.' },
-        { type: 'recording', title: 'Bedtime counting', transcript: 'one two three' },
+        { type: 'recording', title: 'Bedtime counting', transcript: 'one two three', analysis: '<p>Saved earlier advice.</p>' },
       ],
     },
+    hash: `graph/Mathematics/${encodeURIComponent('Counting & Cardinality')}`,
   });
-  await nav(page, 'Records').click();
-  await page.locator('div.rounded-2xl', { hasText: 'Talked about sharing' }).getByRole('button', { name: 'Analyze & get advice' }).click();
-  await expect(modal(page).getByText("Couldn't analyze this right now. Please try again.")).toBeVisible();
-  await closeModal(page);
 
-  await nav(page, 'Dashboard').click();
-  await page.getByRole('button', { name: /Recordings folder/ }).click();
-  await modal(page).getByRole('button', { name: 'Analyze & get advice' }).click();
-  await expect(modal(page).getByText("Couldn't analyze right now.")).toBeVisible();
-  await closeModal(page);
+  await page.locator('button.skill-node', { hasText: ONE.name }).first().click();
+  const log = page.getByRole('complementary', { name: 'Quest log' });
+  await expect(log.getByRole('button', { name: 'Open full lesson' })).toHaveCount(0);
+  await expect(chips(log)).toHaveCount(1);
+  await expect(log.getByRole('button', { name: 'Mark as learning' })).toBeVisible();
+
+  await nav(page, 'Calendar').click();
+  const day = page.locator('div.space-y-5', { has: page.getByRole('button', { name: /^(Mark done|Done)$/ }) });
+  for (const name of ['Lesson', 'Test', 'Give refresher quiz', 'Get instructions', 'Open lesson']) {
+    await expect(day.getByRole('button', { name, exact: true })).toHaveCount(0);
+  }
+  expect(await chips(day).count()).toBeGreaterThanOrEqual(4);
+  // Planning itself still works.
+  await expect(day.getByRole('button', { name: 'Move' }).first()).toBeVisible();
+  await expectNoFailureCopy(page);
+  await shot('calendar-chips');
 
   await nav(page, 'Insights').click();
   const review = page.locator('div.rounded-2xl', { has: page.getByRole('heading', { name: 'Progress review' }) });
-  await review.getByRole('button', { name: 'Generate' }).click();
-  await expect(review.getByText("Couldn't generate feedback right now. Please try again.")).toBeVisible();
-  await shot('insights-review-failed', { locator: review });
+  await expect(review.getByRole('button', { name: 'Generate' })).toHaveCount(0);
+  await expect(chips(review)).toHaveCount(1);
+  await shot('insights-chip', { locator: review });
 
-  await nav(page, 'Calendar').click();
-  await page.getByRole('button', { name: 'Open lesson' }).click();
-  await expect(modal(page).getByText('AI is not configured.')).toBeVisible();
-  await closeModal(page);
-  await page.getByRole('button', { name: 'Get instructions' }).click();
-  await expect(modal(page).getByText('Couldn’t create the lesson right now.')).toBeVisible();
-  await closeModal(page);
+  await nav(page, 'Records').click();
+  const discussion = page.locator('div.rounded-2xl', { hasText: 'Talked about sharing' });
+  await expect(discussion.getByRole('button', { name: 'Analyze & get advice' })).toHaveCount(0);
+  await expect(chips(discussion)).toHaveCount(1);
+  // An analysis saved earlier still shows, without Regenerate.
+  const recording = page.locator('div.rounded-2xl', { hasText: 'Bedtime counting' });
+  await expect(recording).toContainText('Saved earlier advice.');
+  await expect(recording.getByRole('button', { name: 'Regenerate' })).toHaveCount(0);
+  await shot('records-chips');
 
   await nav(page, 'Dashboard').click();
-  await page.getByRole('button', { name: "Rowan Example's view" }).click();
-  await page.getByRole('button', { name: /Memory walk/ }).click();
-  await expect(modal(page).getByText("Couldn't load recall cards.")).toBeVisible();
-  await shot('child-view-memory-walk-failed', { full: false });
+  await page.getByRole('button', { name: /Recordings folder/ }).click();
+  await expect(modal(page).getByRole('button', { name: 'Regenerate' })).toHaveCount(0);
+  await expect(modal(page)).toContainText('Saved earlier advice.');
+  await closeModal(page);
 });
 
-test('the quest log lesson button and the AI copy in the guide', async ({ page, gotoApp }) => {
-  await gotoApp({ seed: {}, hash: `graph/Mathematics/${encodeURIComponent('Counting & Cardinality')}` });
-  await page.locator('button.skill-node', { hasText: ONE.name }).first().click();
-  await page.getByRole('complementary', { name: 'Quest log' }).getByRole('button', { name: 'Open full lesson' }).click();
-  await expect(modal(page).getByText('AI is not configured.')).toBeVisible();
-  await closeModal(page);
+test('dashboard and child view hide what needs AI', async ({ page, gotoApp, shot }) => {
+  await gotoApp({ seed: { progress: { [ONE.id]: 'mastered' } } });
+  // No refresher stop on Today's path; the recall card is disabled and says why.
+  await expect(page.getByRole('button', { name: /Refresher quiz · / })).toHaveCount(0);
+  const recall = page.getByRole('button', { name: /^Active recall/ });
+  await expect(recall).toBeDisabled();
+  await expect(recall).toContainText('Recall cards need a local AI provider.');
+  await expect(page.getByRole('button', { name: /^Spaced practice/ })).toContainText('Mastery tests need a local AI provider.');
+  await shot('dashboard-no-ai', { full: false });
 
-  // The shell banner and the guide tell the parent AI is off.
-  await expect(page.getByText('AI and shared-family features are not connected yet')).toBeVisible();
+  await page.getByRole('button', { name: "Rowan Example's view" }).click();
+  const view = childView(page);
+  await expect(view.getByRole('button', { name: /Plant something new/ })).toBeVisible();
+  await expect(view.getByRole('button', { name: /My collection/ })).toBeVisible();
+  await expect(view.getByRole('button', { name: /Memory walk/ })).toHaveCount(0);
+  await expect(view.getByRole('button', { name: /Beat the clock/ })).toHaveCount(0);
+  // No provider wording in front of the child.
+  await expect(view.getByText(/AI provider/)).toHaveCount(0);
+  await shot('child-view-no-ai', { full: false });
+});
+
+test('the guide still labels the AI features', async ({ page, gotoApp }) => {
+  await gotoApp({ seed: {} });
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Guide' }).click();
   expect(await modal(page).getByText('Needs a local AI provider; see the README.').count()).toBeGreaterThan(3);
 });
