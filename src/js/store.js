@@ -455,7 +455,12 @@ export function setStatusBulk(studentId, topicIds, status, meta = {}) {
   const { activity = true, ...fields } = meta;
   const p = state.progress[studentId] = state.progress[studentId] || {};
   const now = fields.updatedAt || Date.now();
-  topicIds.forEach(id => { p[id] = { ...fields, status, updatedAt: now }; });
+  // As in setStatus, a topic already at `status` keeps its entry (source and
+  // date) unless the caller labels the change, as placement does.
+  topicIds.forEach(id => {
+    if (!fields.source && p[id]?.status === status) return;
+    p[id] = { ...fields, status, updatedAt: now };
+  });
   if (activity) activityOf(studentId)[dateKeyLocal(now)] = true;
   persist(); emit();
 }
