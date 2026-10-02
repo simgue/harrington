@@ -1,0 +1,199 @@
+// The child view overlay opened from the dashboard (with HAR-15: a parent PIN,
+// the child-safe topic card and score-free activities).
+import { test, expect, modal, closeModal, expectToast, childView, leaveChildView, TEST_PIN } from './fixtures.mjs';
+import { LEARNERS, TOPICS } from './support/family.mjs';
+import { CHALLENGE_QUESTIONS } from './mock-ai-server.mjs';
+
+const ROWAN = LEARNERS.rowan.id;
+
+async function openChildView(page) {
+  await page.getByRole('button', { name: "Rowan Example's view" }).click();
+  await expect(childView(page)).toBeVisible();
+}
+
+function expectScoreFree(text) {
+  expect(text).not.toMatch(/%/);
+  expect(text).not.toMatch(/\bXP\b/);
+  expect(text).not.toMatch(/\bLevel\b/);
+  expect(text).not.toMatch(/\d+\s*\/\s*\d+/);
+}
+
+test('opens score-free with picks, four big buttons, garden; the parent shell is inert', async ({ page, gotoApp, shot, errors }) => {
+  await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'learning' } } });
+  await openChildView(page);
+  const view = childView(page);
+  await expect(view.getByRole('heading', { name: 'Morning, Rowan Example!' })).toBeVisible();
+  await expect(view).toContainText('Wednesday');
+  await expect(view).toContainText('bud is growing a little every day');
+  expectScoreFree(await view.innerText());
+
+  // The parent shell underneath cannot be reached.
+  await expect(page.locator('#app')).toHaveAttribute('inert', '');
+  await expect(page.locator('#app')).toHaveAttribute('aria-hidden', 'true');
+
+  await expect(view.getByRole('region', { name: 'Story time: pick one' }).locator('button[aria-pressed]')).toHaveCount(2);
+  await expect(view.getByRole('region', { name: 'Number time: pick one' }).locator('button[aria-pressed]')).toHaveCount(2);
+  for (const label of ['Plant something new', 'Memory walk', 'Beat the clock', 'My collection']) {
+    await expect(view.getByRole('button', { name: new RegExp(label) })).toBeVisible();
+  }
+  await expect(view.getByRole('button', { name: 'Tell about my day' })).toBeVisible();
+
+  const garden = view.locator('section[aria-labelledby="garden-h"]');
+  await expect(garden.getByRole('heading', { name: 'My garden' })).toBeVisible();
+  await expect(garden.locator(':scope > div > div')).toHaveCount(8);
+  await expect(garden).toContainText('Sprouting');
+  await expect(garden).toContainText('Planted');
+  await shot('child-view', { full: false });
+  expect(errors).toEqual([]);
+});
+
+test('Grown-ups: set a PIN the first time, then it is required', async ({ page, api, gotoApp, shot }) => {
+  await gotoApp({ seed: {} });
+  await openChildView(page);
+  const view = childView(page);
+  await view.getByRole('button', { name: 'Back to the grown-up view' }).click();
+  await expect(view.getByRole('heading', { name: 'Set a grown-up PIN' })).toBeVisible();
+  await shot('set-pin', { full: false });
+
+  const pin = view.getByLabel('Grown-up PIN');
+  await pin.fill('12');
+  await view.getByRole('button', { name: 'Continue' }).click();
+  await expect(view.getByText('Please enter 4 digits.')).toBeVisible();
+  await pin.fill(TEST_PIN);
+  await view.getByRole('button', { name: 'Continue' }).click();
+  await expect(view.getByRole('heading', { name: 'Type it again' })).toBeVisible();
+  await pin.fill('1111');
+  await view.getByRole('button', { name: 'Continue' }).click();
+  await expect(view.getByText('Those did not match. Try again.')).toBeVisible();
+  await pin.fill(TEST_PIN);
+  await view.getByRole('button', { name: 'Continue' }).click();
+  await pin.fill(TEST_PIN);
+  await view.getByRole('button', { name: 'Continue' }).click();
+  await expect(childView(page)).toHaveCount(0);
+  await expect(page.locator('#app')).not.toHaveAttribute('inert', '');
+  await api.waitForState((s) => s.settings?.parentPin === TEST_PIN);
+
+  // Next time the PIN is asked for; a wrong one keeps the child view open.
+  await openChildView(page);
+  await view.getByRole('button', { name: 'Back to the grown-up view' }).click();
+  await expect(view.getByRole('heading', { name: 'Grown-ups only' })).toBeVisible();
+  await expect(view).toContainText('Forgot the PIN? Reload the page to return to the grown-up view.');
+  await pin.fill('0000');
+  await view.getByRole('button', { name: 'Continue' }).click();
+  await expect(view.getByText('That is not the PIN.')).toBeVisible();
+  await shot('wrong-pin', { full: false });
+  // Back returns to the garden.
+  await view.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(view.getByRole('heading', { name: 'Morning, Rowan Example!' })).toBeVisible();
+  await leaveChildView(page);
+  await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
+});
+
+test('a story-time pick opens the child topic card and shows on the dashboard', async ({ page, gotoApp, shot }) => {
+  await gotoApp({ seed: {} });
+  await openChildView(page);
+  const story = childView(page).getByRole('region', { name: 'Story time: pick one' });
+  await expect(story).toContainText('pick one');
+  const first = story.locator('button[aria-pressed]').first();
+  const pickName = (await first.locator('span.block').first().innerText()).trim();
+  await first.click();
+
+  const card = modal(page);
+  await expect(card.getByRole('heading', { name: pickName })).toBeVisible();
+  await expect(card.getByText(/^Can you /).first()).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Tell about it' })).toBeVisible();
+  expectScoreFree(await card.innerText());
+  await shot('child-topic-card', { full: false });
+  await card.getByRole('button', { name: 'Tell about it' }).click();
+  await expect(modal(page).getByRole('heading', { name: 'Record conversation' })).toBeVisible();
+  await expect(modal(page)).toContainText(`Linked to ${pickName}`);
+  await closeModal(page);
+
+  await expect(story).toContainText('great choice!');
+  await expect(story.locator('button[aria-pressed="true"]')).toContainText(pickName);
+  await leaveChildView(page);
+  const lane = page.getByRole('group', { name: 'Literacy: pick one' });
+  await expect(lane).toContainText('Rowan Example picked');
+  await expect(lane.locator('button[aria-pressed="true"]')).toContainText(pickName);
+});
+
+test('big buttons without progress: challenge locked, collection, tell about my day', async ({ page, gotoApp, shot }) => {
+  await gotoApp({ seed: {} });
+  await openChildView(page);
+  const view = childView(page);
+
+  await view.getByRole('button', { name: /Beat the clock/ }).click();
+  await expectToast(page, 'Grow a bloom to unlock challenges!');
+
+  await view.getByRole('button', { name: /My collection/ }).click();
+  await expect(view.getByText('My collection', { exact: true })).toBeVisible();
+  // HAR-15 hides the two level badges.
+  await expect(view).toContainText('0 of 10 found — collect them all!');
+  await shot('child-view-collection', { full: false });
+  await view.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(view.getByRole('heading', { name: 'Morning, Rowan Example!' })).toBeVisible();
+
+  await view.getByRole('button', { name: 'Tell about my day' }).click();
+  await expect(modal(page).getByRole('heading', { name: 'Record conversation' })).toBeVisible();
+  await expect(modal(page)).toContainText('Capture a lesson discussion, then link it to a topic.');
+  await shot('child-view-tell-about-my-day', { full: false });
+  await closeModal(page);
+});
+
+test('activities launched from the child view stay score-free; results still reach the parent', async ({ page, api, gotoApp, mockAi, shot }) => {
+  await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'mastered' } } });
+  await openChildView(page);
+  const view = childView(page);
+
+  // Plant something new opens the child topic card, not a test.
+  await view.getByRole('button', { name: /Plant something new/ }).click();
+  await expect(modal(page).getByRole('button', { name: 'Tell about it' })).toBeVisible();
+  expectScoreFree(await modal(page).innerText());
+  await closeModal(page);
+
+  // Beat the clock: no live tally, no X/Y result, no popup.
+  await mockAi.clear();
+  await view.getByRole('button', { name: /Beat the clock/ }).click();
+  const ch = modal(page);
+  await expect(ch).toContainText('You already know this one');
+  await ch.getByRole('button', { name: 'Start challenge' }).click();
+  for (const q of CHALLENGE_QUESTIONS) {
+    await expect(ch.getByText(q.q)).toBeVisible();
+    expectScoreFree(await ch.innerText());
+    await ch.getByRole('button', { name: q.answerText, exact: true }).click();
+  }
+  await expect(ch.getByText('All done, well tried!')).toBeVisible();
+  expectScoreFree(await ch.innerText());
+  await page.waitForTimeout(1200);
+  await expect(page.getByText(/Badge unlocked!|Level up!|\+\d+ XP/)).toHaveCount(0);
+  await shot('child-challenge-result', { full: false });
+  await ch.getByRole('button', { name: 'Close' }).click();
+
+  // Memory walk: recall without counts.
+  await view.getByRole('button', { name: /Memory walk/ }).click();
+  const recall = modal(page);
+  for (let i = 0; i < 3; i += 1) {
+    await recall.getByRole('button', { name: 'Show answer' }).click();
+    await recall.getByRole('button', { name: 'Got it' }).click();
+  }
+  await expect(recall.getByText('All done, well tried!')).toBeVisible();
+  expectScoreFree(await recall.innerText());
+  await recall.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByText(/Badge unlocked!|Level up!|\+\d+ XP/)).toHaveCount(0);
+
+  // The parent still gets the numbers.
+  const state = await api.waitForState((s) => s.challenges?.[ROWAN]?.length === 1 && (s.game?.[ROWAN]?.xp || 0) > 0);
+  expect(state.challenges[ROWAN][0]).toMatchObject({ correct: 8, total: 8 });
+  expect(state.game[ROWAN].xp).toBeGreaterThan(0);
+  await leaveChildView(page);
+});
+
+test('"Plant something new" offers a topic already in progress (finding F18)', async ({ page, gotoApp }) => {
+  await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'practicing' } } });
+  await openChildView(page);
+  const plant = childView(page).getByRole('button', { name: /Plant something new/ });
+  // The child is already practicing this one; "new" points straight back at it.
+  await expect(plant).toContainText(TOPICS.oneToOne.name);
+  await plant.click();
+  await expect(modal(page).getByRole('heading', { name: TOPICS.oneToOne.name })).toBeVisible();
+});
