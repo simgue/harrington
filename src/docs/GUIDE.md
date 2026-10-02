@@ -24,8 +24,10 @@ written version.
 1. **Start Harrington.** Run `npm start` and open `http://127.0.0.1:4173`.
    There is no account and no sign-in. The first start downloads the
    curriculum, so it needs the internet once.
-2. **Add a learner.** Enter a name and birth year. Harrington uses the birth
-   year to suggest age-appropriate topics and to build the calendar.
+2. **Add a learner.** Enter a name, birth year and, optionally, birth month.
+   Harrington uses the age to suggest age-appropriate topics and to build the
+   calendar; with the month the age is exact. Edit a learner's name, birthday
+   or color later with the pencil button in the learner selector.
 3. **Look around.** The sidebar (or the bottom bar on a phone) has
    **Dashboard, Calendar, Map, Records** and **Insights**. **Guide** is in the
    sidebar, or behind the book icon on a phone. The **child view** opens from
