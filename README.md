@@ -33,7 +33,8 @@ and an age band only.
 Out of the box, with no AI provider configured, Harrington runs on this
 computer only and these work:
 
-- **Learners** — add and switch learners (name and birth year).
+- **Learners** — add, edit and switch learners (name, birth month and year,
+  color).
 - **Dashboard** — Today's path with the daily literacy and numeracy choices,
   stepping stones to try next, subject progress, recent growth and evidence.
 - **Child view** — the garden, story time and number time picks, and "Tell
