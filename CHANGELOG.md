@@ -68,6 +68,10 @@ tagged a release yet; everything below is on `main`.
   Homestead (HAR-2).
 
 ### Fixed
+- The server replaces every learner name in the family document with “the
+  child” in each message it forwards to the AI provider, with the same rules
+  as the browser, so a prompt that missed the browser-side redaction still
+  carries no name; `/api/health` reports `redaction: "server+client"`.
 - The Calendar page rendered blank without an AI provider (`gateAi` was
   called but not imported); a source test now checks every file that uses an
   `ai-status.js` helper imports it (HAR-18, HAR-20).

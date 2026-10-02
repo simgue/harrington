@@ -19,7 +19,8 @@ your report and work on a fix as quickly as we reasonably can.
   `HARRINGTON_AI_MODEL` are set. When they are set, topic text (never a child's
   name) is sent only to that configured OpenAI-compatible endpoint. Names of
   learners in this app are replaced with “the child” in the browser before any
-  request is built. What still leaves the machine: topic text and the topic's
+  request is built, and again by the server in every message it forwards to
+  the provider, with the same matching rules. What still leaves the machine: topic text and the topic's
   age from the curriculum, the learner's exact age for whole-subject tests,
   discussion analyses and progress reviews, mastery percentages, topic
   statuses, record counts and the average confidence rating, a discussion

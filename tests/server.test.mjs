@@ -64,6 +64,7 @@ test('serves Harrington and reports self-hosted health', async () => {
     ok: true,
     mode: 'self-hosted',
     aiConfigured: false,
+    redaction: 'server+client',
     taxonomyCached: false,
     stateVersion: 0,
     stateBytes: 0,
@@ -566,6 +567,79 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
         assert.equal(response.status, 200);
       }
       assert.ok(captured.slice(1).every((entry) => entry.body.model === 'llama3.2'));
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+  });
+
+  test('replaces every learner name in the family document before forwarding', async () => {
+    const captured = [];
+    const upstream = createServer(async (req, res) => {
+      captured.push(JSON.parse(await readRequestBody(req)));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }));
+    });
+    await listen(upstream);
+    const harrington = await spawnHarrington({
+      HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`,
+      HARRINGTON_AI_MODEL: 'llama3.2',
+    });
+    const ask = async (messages) => {
+      const response = await fetch(`${harrington.url}/api/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      });
+      assert.equal(response.status, 200);
+      return captured.at(-1).messages;
+    };
+
+    try {
+      // No family document yet: messages pass through unchanged.
+      assert.deepEqual(await ask([{ role: 'user', content: 'Mary Jane counted' }]), [{ role: 'user', content: 'Mary Jane counted' }]);
+
+      // The variants from tests/ai.test.mjs, plus short parts.
+      const students = ['Mary-Jane Smith', "Mia O'Neil", 'Zoë Park', 'José Ruiz', 'An Nguyen', 'Leo Little']
+        .map((name, i) => ({ id: `s${i}`, name }));
+      const put = await fetch(`${harrington.url}/api/state`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'If-Match': '"v0"' },
+        body: JSON.stringify({ students }),
+      });
+      assert.equal(put.status, 204);
+
+      for (const [said, expected] of [
+        ['Say it again, Mary Jane.', 'Say it again, the child.'],
+        ['MaryJane and mary-jane', 'the child and the child'],
+        ['Mary, then Jane.', 'the child, then the child.'],
+        ['And Zoe? Zoe Park: nine!', 'And the child? the child: nine!'],
+        ['Thank you Jose.', 'Thank you the child.'],
+        ['Zoe\u0308 waved.', 'the child waved.'],
+        ['Zoë’s café', 'the child’s café'],
+        ['and O’Neil too. Mia O’Neil laughed', 'and the child too. the child laughed'],
+        ["Mia O'Neil's turn", "the child's turn"],
+        ['ONeil', 'the child'],
+        ['He said an apple; An and AN came', 'He said an apple; the child and the child came'],
+        ['leo and LEO, little Leo', 'the child and the child, the child the child'],
+        ['Ask the Leo', 'Ask the child'],
+      ]) {
+        const [message] = await ask([{ role: 'user', content: said }]);
+        assert.equal(message.content, expected, said);
+      }
+
+      // Every message and every text part; other fields are left alone.
+      const forwarded = await ask([
+        { role: 'system', content: 'You help Zoe Park.' },
+        { role: 'user', content: [{ type: 'text', text: 'José and Leo' }, 'Mia', { type: 'image_url', image_url: { url: 'x' } }] },
+        { role: 'assistant', content: null },
+      ]);
+      assert.deepEqual(forwarded, [
+        { role: 'system', content: 'You help the child.' },
+        { role: 'user', content: [{ type: 'text', text: 'the child and the child' }, 'the child', { type: 'image_url', image_url: { url: 'x' } }] },
+        { role: 'assistant', content: null },
+      ]);
+      assert.doesNotMatch(JSON.stringify(captured.slice(1)).normalize('NFD').replace(/\p{M}/gu, ''), /\b(mary|jane|zoe|jose|o.?neil|smith|ruiz|nguyen|leo|little)\b/i);
     } finally {
       await harrington.stop();
       upstream.close();

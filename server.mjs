@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promis
 import { createServer } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { redactNames } from './src/js/redact.js';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(repoRoot, 'src');
@@ -257,6 +258,36 @@ function completionContent(payload) {
   return content == null ? '' : String(content);
 }
 
+// Defense in depth: the browser already redacts learner names from the text
+// it puts in a prompt (src/js/ai.js); the server replaces every learner name
+// in the family document with "the child" in every message string as well,
+// with the same matching rules (src/js/redact.js).
+async function learnerNames() {
+  const { students } = await readStateDocument();
+  return (Array.isArray(students) ? students : []).map((s) => s?.name).filter((n) => typeof n === 'string' && n.trim());
+}
+
+function redactMessages(messages, names) {
+  if (!names.length) return messages;
+  const redact = (text) => redactNames(text, names);
+  return messages.map((message) => {
+    if (!message || typeof message !== 'object' || Array.isArray(message)) return message;
+    const { content } = message;
+    if (typeof content === 'string') return { ...message, content: redact(content) };
+    if (Array.isArray(content)) {
+      return {
+        ...message,
+        content: content.map((part) => {
+          if (typeof part === 'string') return redact(part);
+          if (part && typeof part.text === 'string') return { ...part, text: redact(part.text) };
+          return part;
+        }),
+      };
+    }
+    return message;
+  });
+}
+
 async function handleAiChat(req, res) {
   const settings = aiSettings();
   if (!settings.configured) {
@@ -268,6 +299,8 @@ async function handleAiChat(req, res) {
   if (!Array.isArray(body.messages)) {
     throw Object.assign(new Error('Request body must include a messages array'), { statusCode: 400 });
   }
+
+  const messages = redactMessages(body.messages, await learnerNames());
 
   const headers = { 'Content-Type': 'application/json' };
   if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
@@ -281,7 +314,7 @@ async function handleAiChat(req, res) {
       headers,
       body: JSON.stringify({
         model: settings.model,
-        messages: body.messages,
+        messages,
       }),
       signal: controller.signal,
     });
@@ -352,6 +385,7 @@ async function handleApi(req, res, url) {
       ok: true,
       mode: 'self-hosted',
       aiConfigured: aiSettings().configured,
+      redaction: 'server+client',
       taxonomyCached: await taxonomyCached(),
       ...(await stateHealth()),
     });

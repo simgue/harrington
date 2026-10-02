@@ -28,6 +28,9 @@ authentication, encrypted backups, and private remote access are implemented.
 Never send a real child's name into a model prompt. Generators say “your child”,
 and names of learners in this app are replaced with “the child” in the browser
 before a request is built (accents, hyphens and apostrophe variants included).
+The server does the same again on every message it forwards, with the same
+rules, for every learner in the family document (`/api/health` reports
+`redaction: "server+client"`).
 When an AI provider is configured, this is what still leaves the machine:
 
 - topic names, descriptions and statuses, and mastery percentages;
