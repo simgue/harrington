@@ -1,10 +1,11 @@
 import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
-import { openRecorder, audioPlayer, fmtDur } from '../recorder.js';
+import { openRecorder, audioPlayer, fmtDur, coverageCandidates, coverageClaimField } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
 import { aiErrorBlock, gateAi } from '../ai-status.js';
-import { savedAnalysis, regenerateButton } from './recordings.js';
+import { savedAnalysis, regenerateButton, analysisOptIn, notesIncludedLine } from './recordings.js';
+import { coverageFields } from '../daily.js';
 
 const TYPES = {
   observation: { icon: 'eye', label: 'Observation', color: '#2f6285', hint: 'What you noticed as they worked' },
@@ -71,6 +72,13 @@ export function renderRecords(params, { navigate }) {
   return root;
 }
 
+// Names of the topics a record claims as coverage, skipping malformed entries.
+function coverageNames(r) {
+  return (Array.isArray(r.coverage) ? r.coverage : [])
+    .filter(c => c && typeof c === 'object' && (c.topicName || c.topicId))
+    .map(c => String(c.topicName || c.topicId));
+}
+
 function recordCard(r, student, d, navigate) {
   const tm = TYPES[r.type] || { icon: 'sticky-note', label: 'Note', color: '#6f665a' };
   const topic = r.topicId ? d.byId.get(r.topicId) : null;
@@ -82,6 +90,7 @@ function recordCard(r, student, d, navigate) {
       <button class="del text-ink-faint hover:text-[#a4473a] p-0.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
     </div>
     ${r.title ? `<p class="font-600">${esc(r.title)}</p>` : ''}
+    ${coverageNames(r).length ? `<p class="text-xs font-600 text-brand-dark mb-1 flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>Coverage: ${coverageNames(r).map(esc).join(' · ')}</p>` : ''}
     ${r.note ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
     ${r.transcript ? `<details class="mt-2 group"><summary class="text-xs text-ink-faint cursor-pointer select-none flex items-center gap-1 list-none"><i data-lucide="chevron-right" class="w-3.5 h-3.5 transition-transform group-open:rotate-90"></i>Transcript</summary><p class="text-sm text-ink-soft mt-1.5 leading-relaxed whitespace-pre-wrap bg-paper border border-paper-line rounded-lg p-2.5">${esc(r.transcript)}</p></details>` : ''}
     ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${SUBJECTS[topic.subject].icon}" class="w-3.5 h-3.5"></i>${esc(topic.name)}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
@@ -92,17 +101,19 @@ function recordCard(r, student, d, navigate) {
   const analyzable = r.type === 'recording' || r.type === 'discussion';
   if (analyzable || r.analysis) {
     const analyzeWrap = el(`<div class="mt-2.5 pt-2.5 border-t border-paper-line"></div>`);
+    const run = includeNotes => openAnalysis(r, student, topic, includeNotes);
     if (r.analysis) {
       analyzeWrap.appendChild(savedAnalysis(r.analysis));
       const redo = regenerateButton(); // null without an AI provider
       if (redo) {
-        redo.onclick = () => openAnalysis(r, student, topic);
         analyzeWrap.appendChild(redo);
+        analyzeWrap.appendChild(analysisOptIn(redo, r, run));
       }
     } else {
       const btn = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyze &amp; get advice</button>`);
-      btn.onclick = () => openAnalysis(r, student, topic);
-      analyzeWrap.appendChild(gateAi(btn));
+      const gated = gateAi(btn);
+      analyzeWrap.appendChild(gated);
+      if (gated === btn) analyzeWrap.appendChild(analysisOptIn(btn, r, run));
     }
     card.appendChild(analyzeWrap);
   }
@@ -138,7 +149,7 @@ function placementUndo(r, student) {
   return wrap;
 }
 
-function openAnalysis(record, student, topic) {
+function openAnalysis(record, student, topic, includeNotes = false) {
   const body = el(`<div class="p-5">
     <div class="flex items-start gap-3 mb-4">
       <span class="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0"><i data-lucide="sparkles" class="w-5 h-5 text-brand-dark"></i></span>
@@ -152,26 +163,26 @@ function openAnalysis(record, student, topic) {
   const stage = body.querySelector('#stage');
   const m = openModal(body, { wide: true });
 
-  const hasContent = (record.transcript && record.transcript.trim()) || (record.note && record.note.trim());
+  const hasContent = (record.transcript && record.transcript.trim()) || (includeNotes && record.note && record.note.trim());
   if (!hasContent) {
-    stage.appendChild(el(`<p class="text-sm text-ink-soft py-4">There's no transcript or notes to analyze for this record. Record a discussion with the live transcript on, or add notes, then try again.</p>`));
+    stage.appendChild(el(`<p class="text-sm text-ink-soft py-4">There's no transcript or shared notes to analyze for this record. Record a discussion with the live transcript on, or tick “Include my notes in this request”, then try again.</p>`));
     refreshIcons();
     return;
   }
 
   stage.appendChild(el(`<div class="text-center py-8">
     <div class="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-    <p class="text-sm font-600">Analyzing the discussion\u2026</p>
+    <p class="text-sm font-600">Analyzing the discussion${includeNotes ? ' (notes included)' : ''}\u2026</p>
     <p class="text-xs text-ink-faint mt-1">Looking at what ${esc(student.name)} understands and where they're stuck.</p>
   </div>`));
   refreshIcons();
 
   aiDiscussionAnalysis({
-    studentName: student.name,
     age: store.studentAge(student),
     topic: topic || null,
     transcript: record.transcript || '',
     note: record.note || '',
+    includeNotes,
   }).then(html => {
     // Persist onto the record, as the Recordings folder does, so the card shows it.
     store.updateRecord(student.id, record.id, { analysis: html, analyzedAt: Date.now() });
@@ -194,13 +205,18 @@ function openAnalysis(record, student, topic) {
     refreshIcons();
   }).catch((e) => {
     stage.innerHTML = '';
-    stage.appendChild(aiErrorBlock(e, () => { m.close(); openAnalysis(record, student, topic); }));
+    if (includeNotes) stage.appendChild(notesIncludedLine());
+    stage.appendChild(aiErrorBlock(e, () => { m.close(); openAnalysis(record, student, topic, includeNotes); }));
   });
 }
 
-export function openRecordForm(studentId, topic = null) {
+// options: { coverageTopicIds, source } — topics the record may claim as
+// curriculum coverage (opt-in checkbox), and what the record is evidence for
+// ({ kind: 'daily-pick' | 'invitation', key }).
+export function openRecordForm(studentId, topic = null, options = {}) {
   if (!studentId) { toast('Add a student first', 'error'); return; }
   const d = getData();
+  const coverageTopics = coverageCandidates(d, options.coverageTopicIds);
   const body = el(`<div class="p-5">
     <h3 class="font-display text-lg font-600 mb-4">${esc(topic ? 'Record for ' + topic.name : 'New record')}</h3>
     <form id="f" class="space-y-4">
@@ -222,6 +238,7 @@ export function openRecordForm(studentId, topic = null) {
         <label class="text-sm font-medium block mb-1.5">Notes</label>
         <textarea name="note" rows="4" placeholder="What happened? What did they say or ask?" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none"></textarea>
       </div>
+      ${coverageClaimField(coverageTopics)}
       <div>
         <label class="text-sm font-medium block mb-1.5">Confidence <span class="text-ink-faint font-normal">(optional)</span></label>
         <div id="stars" class="flex gap-1"></div>
@@ -286,6 +303,7 @@ export function openRecordForm(studentId, topic = null) {
     if (!note && !title) { toast('Add a title or note', 'error'); return; }
     const rec = { type: selType, title, note, rating: rating || null, topicId: fd.get('topicId') || null };
     if (rec.topicId) rec.topicName = d.byId.get(rec.topicId)?.name || null;
+    Object.assign(rec, coverageFields(coverageTopics, !!fd.get('claimCoverage'), options.source));
     store.addRecord(studentId, rec);
     toast('Record saved', 'success');
     m.close();

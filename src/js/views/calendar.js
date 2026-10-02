@@ -1,16 +1,17 @@
 import { SUBJECTS, getData } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
-import { keyOf, parseKey, isWeekend, buildPlan, topicsOn, dailyExtras, planStartKey, invalidatePlan } from '../scheduler.js';
+import { keyOf, parseKey, buildPlan, dailyExtras, planStartKey, invalidatePlan, familyCalendar, normalizeCalendar, restInfo, nextHomeDayKey } from '../scheduler.js';
 import { openLesson } from './lesson.js';
 import { openPrintables } from './printables.js';
 import { openActivityDetail } from './lesson.js';
 import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';
 import { openDueRecall } from './recall.js';
-import { gateAi, aiUnavailableChip } from '../ai-status.js';
+import { openDuePractice } from './practice.js';
+import { aiUnavailableChip } from '../ai-status.js';
 import { activityIdeas, gameIdeas } from '../resources.js';
-import { MASTERY } from '../mastery.js';
+import { MASTERY, isUnlocked } from '../mastery.js';
 import { growthIcon, stageForStatus } from '../meadow.js';
 
 let viewMonth = null;   // Date on the 1st of the shown month
@@ -40,16 +41,24 @@ export function renderCalendar(params, { navigate }) {
       <i data-lucide="pencil" class="w-3.5 h-3.5"></i>Change
     </button>
     <input type="date" value="${startKey}" id="startpick" class="absolute opacity-0 w-0 h-0 pointer-events-none" />
+    <button id="calsettings" type="button" class="sm:ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-paper-line text-sm font-medium hover:border-brand/40 transition-colors">
+      <i data-lucide="calendar-cog" class="w-4 h-4"></i>Home days &amp; breaks
+    </button>
   </div>`);
   const picker = startBar.querySelector('#startpick');
   const applyStart = (val) => {
-    if (!val) return;
-    store.updateStudent(active.id, { startDate: val });
-    invalidatePlan(active.id);
-    viewMonth = new Date(parseKey(val).getFullYear(), parseKey(val).getMonth(), 1);
-    selectedKey = val;
-    toast('Start date updated — track rescheduled', 'success');
-    navigate('calendar');
+    if (!val || val === startKey) return;
+    const commit = (clearMoves) => {
+      store.setStartDate(active.id, val, { clearMoves });
+      invalidatePlan(active.id);
+      viewMonth = new Date(parseKey(val).getFullYear(), parseKey(val).getMonth(), 1);
+      selectedKey = val;
+      toast(clearMoves ? 'Start date updated — track rescheduled and moves cleared' : 'Start date updated — track rescheduled', 'success');
+      navigate('calendar');
+    };
+    const moved = Object.keys(store.planOverrides(active.id).moves || {}).length;
+    if (moved) openStartMoves(moved, commit, () => { picker.value = startKey; });
+    else commit(false);
   };
   picker.onchange = () => applyStart(picker.value);
   startBar.querySelector('#changebtn').onclick = () => {
@@ -62,9 +71,9 @@ export function renderCalendar(params, { navigate }) {
       if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) applyStart(val);
     }
   };
+  startBar.querySelector('#calsettings').onclick = () => openCalendarSettings(active, navigate);
   root.appendChild(startBar);
 
-  const plan = buildPlan(active);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   if (!viewMonth) viewMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   if (!selectedKey) selectedKey = keyOf(today);
@@ -81,6 +90,8 @@ export function renderCalendar(params, { navigate }) {
 function monthPanel(active, today, navigate) {
   const wrap = el(`<div class="lg:col-span-2 min-w-0"></div>`);
   const plan = buildPlan(active);
+  const calendar = familyCalendar();
+  const byId = getData().byId;
 
   const header = el(`<div class="flex items-center justify-between mb-4">
     <h2 class="font-display text-xl font-600">${MONTHS[viewMonth.getMonth()]} ${viewMonth.getFullYear()}</h2>
@@ -111,13 +122,13 @@ function monthPanel(active, today, navigate) {
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day);
     const k = keyOf(date);
-    const weekend = isWeekend(date);
+    const rest = restInfo(k, calendar);
     const topics = plan.byDate.get(k) || [];
     const inTrack = plan.firstKey && k >= plan.firstKey && k <= plan.lastKey;
     const isToday = k === keyOf(today);
     const isSel = k === selectedKey;
     const dayDone = store.isDayDone(active.id, k);
-    const extraCount = store.extrasOn(active.id, k).length;
+    const extraCount = store.extrasOn(active.id, k).filter(x => x.topicId && byId.has(x.topicId)).length;
 
     // subject dots + a small topic list (desktop)
     const subs = [...new Set(topics.map(t => t.subject))].slice(0, 4);
@@ -125,16 +136,16 @@ function monthPanel(active, today, navigate) {
     const topicList = topics.slice(0, 3).map(t => `<span class="hidden sm:flex items-center gap-1 text-[10px] leading-tight text-ink-soft truncate"><span class="w-1 h-1 rounded-full shrink-0" style="background:${SUBJECTS[t.subject].color}"></span><span class="truncate">${esc(t.name)}</span></span>`).join('');
     const moreCount = topics.length - 3;
 
-    const cell = el(`<button class="relative min-h-[64px] sm:min-h-[104px] rounded-xl border p-1.5 sm:p-2 flex flex-col text-left transition-colors ${isSel ? 'border-brand bg-brand-light/50' : 'border-paper-line hover:border-ink-faint/40'} ${dayDone ? 'bg-brand-light/40' : weekend ? 'bg-paper/60' : 'bg-paper-card'}">
+    const cell = el(`<button class="relative min-h-[64px] sm:min-h-[104px] rounded-xl border p-1.5 sm:p-2 flex flex-col text-left transition-colors ${isSel ? 'border-brand bg-brand-light/50' : 'border-paper-line hover:border-ink-faint/40'} ${dayDone ? 'bg-brand-light/40' : rest ? 'bg-paper/60' : 'bg-paper-card'}" ${rest ? `data-rest="${rest.kind}"` : ''}>
       <span class="flex items-center justify-between">
-        <span class="text-xs font-600 shrink-0 ${isToday ? 'w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center' : (weekend ? 'text-ink-faint' : 'text-ink')}">${day}</span>
+        <span class="text-xs font-600 shrink-0 ${isToday ? 'w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center' : (rest ? 'text-ink-faint' : 'text-ink')}">${day}</span>
         <span class="flex items-center gap-1">
           ${extraCount ? `<span class="text-[9px] font-600 text-[#8a6412]">+${extraCount}</span>` : ''}
           ${dayDone ? '<i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-brand-dark"></i>' : ''}
         </span>
       </span>
       <span class="flex-1 min-h-0 flex flex-col gap-0.5 mt-1 overflow-hidden">
-        ${topics.length ? `<span class="sm:hidden flex items-center gap-0.5 flex-wrap">${dots}</span>${topicList}${moreCount > 0 ? `<span class="hidden sm:block text-[10px] text-ink-faint">+${moreCount} more</span>` : ''}` : (weekend ? '' : (inTrack ? '<span class="hidden sm:block text-[10px] text-ink-faint/70 mt-auto">Review day</span>' : ''))}
+        ${topics.length ? `<span class="sm:hidden flex items-center gap-0.5 flex-wrap">${dots}</span>${topicList}${moreCount > 0 ? `<span class="hidden sm:block text-[10px] text-ink-faint">+${moreCount} more</span>` : ''}` : (rest ? (rest.kind === 'break' ? `<span class="hidden sm:block text-[10px] text-ink-faint/70 mt-auto truncate">${esc(rest.label || 'Break')}</span>` : '') : (inTrack ? '<span class="hidden sm:block text-[10px] text-ink-faint/70 mt-auto">Review day</span>' : ''))}
       </span>
     </button>`);
     cell.onclick = () => { selectedKey = k; navigate('calendar'); };
@@ -155,28 +166,37 @@ function dayPanel(active, navigate) {
   const date = parseKey(selectedKey);
   const plan = buildPlan(active);
   const topics = plan.byDate.get(selectedKey) || [];
-  const weekend = isWeekend(date);
+  const rest = restInfo(selectedKey, familyCalendar());
   const inTrack = plan.firstKey && selectedKey >= plan.firstKey && selectedKey <= plan.lastKey;
   const dateLabel = date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   const done = store.isDayDone(active.id, selectedKey);
-  const extras = store.extrasOn(active.id, selectedKey);
+  // Extras whose topic is gone (e.g. after a taxonomy update) are dropped.
+  const byId = getData().byId;
+  const allExtras = store.extrasOn(active.id, selectedKey);
+  const extras = allExtras.filter(x => x.topicId && byId.has(x.topicId));
+  if (extras.length < allExtras.length) {
+    const gone = allExtras.filter(x => !extras.includes(x)).map(x => x.id);
+    const [sid, key] = [active.id, selectedKey];
+    queueMicrotask(() => store.pruneExtras(sid, key, gone));
+  }
 
   const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 space-y-5"></div>`);
   const head = el(`<div class="flex items-start justify-between gap-2">
     <div>
-      <p class="text-xs text-ink-faint">${weekend ? 'Weekend' : inTrack ? 'School day' : 'Outside the track'}</p>
+      <p class="text-xs text-ink-faint">${rest ? (rest.kind === 'break' ? `Break${rest.label ? ' · ' + esc(rest.label) : ''}` : 'Rest day') : inTrack ? 'Home learning day' : 'Outside the track'}</p>
       <h2 class="font-display text-xl font-600">${dateLabel}</h2>
     </div>
-    <button id="donebtn" class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${done ? 'bg-brand text-white border-transparent' : 'border-paper-line text-ink-soft hover:border-brand/40'}"><i data-lucide="${done ? 'check-circle-2' : 'circle'}" class="w-3.5 h-3.5"></i>${done ? 'Done' : 'Mark done'}</button>
+    ${rest ? '' : `<button id="donebtn" class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${done ? 'bg-brand text-white border-transparent' : 'border-paper-line text-ink-soft hover:border-brand/40'}"><i data-lucide="${done ? 'check-circle-2' : 'circle'}" class="w-3.5 h-3.5"></i>${done ? 'Done' : 'Mark done'}</button>`}
   </div>`);
-  head.querySelector('#donebtn').onclick = () => { store.toggleDayDone(active.id, selectedKey); toast(done ? 'Day reopened' : 'Day marked complete', done ? 'default' : 'success'); navigate('calendar'); };
+  const doneBtn = head.querySelector('#donebtn');
+  if (doneBtn) doneBtn.onclick = () => { store.toggleDayDone(active.id, selectedKey); toast(done ? 'Day reopened' : 'Day marked complete', done ? 'default' : 'success'); navigate('calendar'); };
   card.appendChild(head);
 
   // New topics for the day
   const newBlock = el(`<div><p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-2 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i>New today</p><div class="space-y-2"></div></div>`);
   const list = newBlock.querySelector('div');
   if (topics.length === 0) {
-    list.appendChild(el(`<p class="text-sm text-ink-faint">${weekend ? 'A day off — perfect for a refresher below.' : inTrack ? 'No new topics scheduled — a review day. Try the refreshers below.' : 'This date is outside the 5–13 track.'}</p>`));
+    list.appendChild(el(`<p class="text-sm text-ink-faint">${rest ? 'A rest day — nothing is scheduled.' : inTrack ? 'No new topics scheduled — a review day. Try the refreshers below.' : 'This date is outside the 5–13 track.'}</p>`));
   } else {
     topics.forEach(t => list.appendChild(dayTopicRow(t, active, navigate)));
   }
@@ -199,8 +219,8 @@ function dayPanel(active, navigate) {
   exBlock.querySelector('#addextra').onclick = () => openAddExtra(active, selectedKey, navigate);
   card.appendChild(exBlock);
 
-  // Daily extras / refreshers
-  card.appendChild(extrasBlock(active, navigate));
+  // Daily extras / refreshers (none on rest days)
+  if (!rest) card.appendChild(extrasBlock(active, navigate));
 
   wrap.appendChild(card);
   return wrap;
@@ -225,20 +245,30 @@ function extraRow(x, active, navigate) {
     <button class="del text-ink-faint hover:text-[#a4473a] p-1 shrink-0"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
   </div>`);
   row.querySelector('.go').onclick = () => {
+    if (x.kind === 'practice') { openDuePractice(); return; }
     const topic = x.topicId ? d.byId.get(x.topicId) : null;
-    if (!topic) { navigate('topic', {}); return; }
-    if (x.kind === 'lesson' || x.kind === 'practice') openLesson(topic);
+    if (!topic) { toast('That topic is no longer in the curriculum', 'error'); return; }
+    if (x.kind === 'lesson') openLesson(topic);
     else if (x.kind === 'retest') openMasteryTest(topic.subject, null, topic);
     else if (x.kind === 'challenge') openChallenge(topic);
     else navigate('topic', { id: topic.id });
   };
   row.querySelector('.del').onclick = () => { store.removeExtra(active.id, selectedKey, x.id); navigate('calendar'); };
-  if (!store.aiAvailable()) {
+  // Spaced practice needs no AI provider; the other kinds do.
+  if (x.kind !== 'practice' && !store.aiAvailable()) {
     // Keep the title and kind readable; the chip goes on its own line under them.
-    row.querySelector('.go').remove();
+    const go = row.querySelector('.go');
+    const slot = el('<span class="hidden"></span>');
+    go.replaceWith(slot);
     const chip = aiUnavailableChip();
     chip.classList.add('mt-1.5');
     row.querySelector('.flex-1.min-w-0').appendChild(chip);
+    // A lesson already in the cache still opens.
+    if (x.topicId && (x.kind === 'lesson' || x.kind === 'practice')) {
+      store.hasCachedLesson('topic:' + x.topicId).then(found => {
+        if (found && slot.parentNode) { slot.replaceWith(go); chip.remove(); }
+      });
+    }
   }
   return row;
 }
@@ -322,7 +352,7 @@ function dayTopicRow(t, active, navigate) {
         <span class="block text-sm font-600 leading-snug">${esc(t.name)}</span>
         <span class="block text-xs text-ink-faint">${esc(t.subject)} · ${esc(t.domain)}</span>
       </span>
-      <span title="${MASTERY[status].label}">${growthIcon(stageForStatus(status, true), 22)}</span>
+      <span title="${MASTERY[status].label}">${growthIcon(stageForStatus(status, isUnlocked(active.id, t.id)), 22)}</span>
     </button>
     <div class="flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-paper-line">
       <button class="lesson text-xs font-medium text-brand-dark flex items-center gap-1"><i data-lucide="notebook-text" class="w-3.5 h-3.5"></i>Lesson</button>
@@ -336,19 +366,21 @@ function dayTopicRow(t, active, navigate) {
   row.querySelector('.push').onclick = () => openMoveTopic(t, active, navigate);
   if (!store.aiAvailable()) {
     row.querySelector('.test').remove();
-    row.querySelector('.lesson').replaceWith(aiUnavailableChip());
+    const lesson = row.querySelector('.lesson');
+    lesson.replaceWith(gateAi(lesson, { cachedKey: 'topic:' + t.id }));
   }
   return row;
 }
 
 function openMoveTopic(topic, active, navigate) {
   const currentKey = selectedKey;
-  const nextDay = nextWeekdayKey(currentKey);
+  const calendar = familyCalendar();
+  const nextDay = nextHomeDayKey(currentKey, calendar, { after: true });
   const body = el(`<div class="p-5">
     <h3 class="font-display text-lg font-600 mb-1">Move “${esc(topic.name)}”</h3>
     <p class="text-xs text-ink-faint mb-4">Stuck on it, or want to get ahead? Move this topic to another day. Its section order still applies.</p>
     <div class="space-y-2 mb-4">
-      <button id="tomorrow" class="w-full text-left px-4 py-3 rounded-xl border border-paper-line hover:border-brand/40 transition-colors flex items-center gap-2.5"><i data-lucide="calendar-arrow-down" class="w-4 h-4 text-brand-dark"></i><span class="text-sm font-medium">Push to next school day</span></button>
+      <button id="tomorrow" class="w-full text-left px-4 py-3 rounded-xl border border-paper-line hover:border-brand/40 transition-colors flex items-center gap-2.5"><i data-lucide="calendar-arrow-down" class="w-4 h-4 text-brand-dark"></i><span class="text-sm font-medium">Push to next home day</span></button>
     </div>
     <form id="f" class="space-y-3">
       <label class="text-sm font-medium block">Or pick a date</label>
@@ -356,10 +388,12 @@ function openMoveTopic(topic, active, navigate) {
       <button class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Move topic</button>
     </form>
   </div>`);
-  const doMove = (dayKey) => {
+  const doMove = (picked) => {
+    // Rest days schedule nothing: a rest day moves to the next home day.
+    const dayKey = nextHomeDayKey(picked, calendar);
     store.moveTopic(active.id, topic.id, dayKey);
     invalidatePlan(active.id);
-    toast(`Moved to ${dayKey}`, 'success');
+    toast(dayKey === picked ? `Moved to ${dayKey}` : `${picked} is a rest day — moved to ${dayKey}`, 'success');
     m.close();
     selectedKey = dayKey;
     navigate('calendar');
@@ -369,11 +403,6 @@ function openMoveTopic(topic, active, navigate) {
   const m = openModal(body);
 }
 
-function nextWeekdayKey(dateKey) {
-  const d = parseKey(dateKey);
-  do { d.setDate(d.getDate() + 1); } while (isWeekend(d));
-  return keyOf(d);
-}
 
 // Swap a refresher card's launch button for the chip when there is no AI provider.
 function gateCardButton(card) {
@@ -421,6 +450,10 @@ function extrasBlock(active, navigate) {
     list.appendChild(el1);
   }
 
+  if (!extras.refresher) {
+    list.appendChild(el(`<p class="text-sm text-ink-faint">Refresher quizzes and activities start once ${esc(active.name)} has mastered a topic.</p>`));
+  }
+
   // Featured activity/game
   const at = extras.refresher2 || extras.refresher;
   if (at) {
@@ -462,8 +495,103 @@ function extrasBlock(active, navigate) {
     list.appendChild(el3);
   }
 
-  block.querySelector('div').classList.add('space-y-2');
-  const foot = el(`<button class="mt-1 text-xs text-ink-faint hover:text-ink-soft flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3 h-3"></i>Refreshers change each day automatically</button>`);
-  block.appendChild(foot);
   return block;
+}
+
+// A new start date reschedules the track; topics moved by hand keep their
+// chosen dates unless the parent clears them here.
+function openStartMoves(count, commit, cancel) {
+  let chosen = false;
+  const body = el(`<div class="p-5">
+    <h3 class="font-display text-lg font-600 mb-1">Clear moved topics too?</h3>
+    <p class="text-sm text-ink-soft mb-4">You moved ${count} topic${count > 1 ? 's' : ''} by hand. Clear ${count > 1 ? 'them' : 'it'} so ${count > 1 ? 'they follow' : 'it follows'} the new start date, or keep the dates you chose.</p>
+    <div class="flex flex-col sm:flex-row gap-2">
+      <button id="clear" class="flex-1 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Clear moves</button>
+      <button id="keep" class="flex-1 px-4 py-2.5 rounded-xl border border-paper-line font-medium hover:border-brand/40 transition-colors">Keep moves</button>
+    </div>
+  </div>`);
+  // Escape or the backdrop leaves the start date as it was.
+  const m = openModal(body, { beforeClose: () => { if (!chosen) cancel(); } });
+  const choose = (clearMoves) => { chosen = true; m.close(); commit(clearMoves); };
+  body.querySelector('#clear').onclick = () => choose(true);
+  body.querySelector('#keep').onclick = () => choose(false);
+}
+
+// Family calendar settings: home days of the week and break ranges.
+const WEEK = [[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri'], [6, 'Sat'], [0, 'Sun']];
+function openCalendarSettings(active, navigate) {
+  const draft = familyCalendar();
+  const inputCls = 'w-full px-3 py-2 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand';
+  const body = el(`<div class="p-5">
+    <h3 class="font-display text-lg font-600 mb-1">Home days &amp; breaks</h3>
+    <p class="text-xs text-ink-faint mb-4">New topics go only on home days. Other days and breaks are rest days, and the track picks up after them.</p>
+    <fieldset class="mb-5">
+      <legend class="text-sm font-medium mb-1.5">Home days</legend>
+      <div id="days" class="grid grid-cols-7 gap-1"></div>
+    </fieldset>
+    <div class="mb-5">
+      <p class="text-sm font-medium mb-1.5">Breaks</p>
+      <div id="breaks" class="space-y-1.5"></div>
+    </div>
+    <form id="addbreak" class="rounded-xl border border-paper-line p-3 space-y-2 mb-5">
+      <p class="text-xs font-600 uppercase tracking-wide text-ink-faint">Add a break</p>
+      <label class="block text-xs text-ink-soft">Name <input name="label" maxlength="60" placeholder="Winter break" class="${inputCls} mt-0.5" /></label>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="block text-xs text-ink-soft min-w-0">From <input type="date" name="start" required class="${inputCls} mt-0.5" /></label>
+        <label class="block text-xs text-ink-soft min-w-0">To <input type="date" name="end" required class="${inputCls} mt-0.5" /></label>
+      </div>
+      <button class="w-full px-3 py-2 rounded-lg border border-paper-line text-sm font-medium hover:border-brand/40 transition-colors flex items-center justify-center gap-1.5"><i data-lucide="plus" class="w-4 h-4"></i>Add break</button>
+    </form>
+    <button id="save" class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Save</button>
+  </div>`);
+
+  const daysWrap = body.querySelector('#days');
+  const renderDays = () => {
+    daysWrap.innerHTML = '';
+    WEEK.forEach(([n, label]) => {
+      const on = draft.homeDays.includes(n);
+      const b = el(`<button type="button" aria-pressed="${on}" class="py-2 rounded-lg border text-xs font-medium transition-colors ${on ? 'bg-brand text-white border-transparent' : 'bg-paper text-ink-soft border-paper-line'}">${label}</button>`);
+      b.onclick = () => {
+        draft.homeDays = on ? draft.homeDays.filter(d => d !== n) : [...draft.homeDays, n];
+        renderDays();
+      };
+      daysWrap.appendChild(b);
+    });
+  };
+  const breaksWrap = body.querySelector('#breaks');
+  const fmt = (k) => parseKey(k).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const renderBreaks = () => {
+    breaksWrap.innerHTML = '';
+    if (!draft.breaks.length) breaksWrap.appendChild(el(`<p class="text-sm text-ink-faint">No breaks yet.</p>`));
+    draft.breaks.forEach((b, i) => {
+      const row = el(`<div class="flex items-center gap-2 rounded-lg border border-paper-line bg-paper px-3 py-2">
+        <span class="flex-1 min-w-0"><span class="block text-sm font-600 truncate">${esc(b.label || 'Break')}</span><span class="block text-xs text-ink-faint">${fmt(b.start)} – ${fmt(b.end)}</span></span>
+        <button type="button" class="del text-ink-faint hover:text-[#a4473a] p-1 shrink-0" aria-label="Remove ${esc(b.label || 'break')}"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+      </div>`);
+      row.querySelector('.del').onclick = () => { draft.breaks.splice(i, 1); renderBreaks(); };
+      breaksWrap.appendChild(row);
+    });
+    refreshIcons();
+  };
+  renderDays();
+  renderBreaks();
+
+  body.querySelector('#addbreak').onsubmit = e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const next = normalizeCalendar({ ...draft, breaks: [...draft.breaks, { start: fd.get('start'), end: fd.get('end'), label: fd.get('label') || '' }] });
+    if (next.breaks.length === draft.breaks.length) { toast('Pick a start and end date', 'error'); return; }
+    draft.breaks = next.breaks;
+    e.target.reset();
+    renderBreaks();
+  };
+  body.querySelector('#save').onclick = () => {
+    if (!draft.homeDays.length) { toast('Pick at least one home day', 'error'); return; }
+    store.setCalendarSettings(normalizeCalendar(draft));
+    invalidatePlan(active.id);
+    m.close();
+    toast('Calendar updated — track rescheduled', 'success');
+    navigate('calendar');
+  };
+  const m = openModal(body);
 }

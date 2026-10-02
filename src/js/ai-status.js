@@ -38,9 +38,79 @@ export function aiUnavailableChip(href = AI_HELP_HREF) {
   return el(`<a href="${esc(href)}" target="_blank" rel="noopener" title="Set up a local AI provider to use this" class="ai-unavailable inline-flex max-w-full items-center gap-1.5 px-2.5 py-1 rounded-full border border-paper-line bg-paper text-xs font-medium text-ink-faint hover:text-ink-soft hover:border-ink-faint/40 transition-colors"><i data-lucide="plug-zap" class="w-3.5 h-3.5"></i>${AI_UNAVAILABLE_LABEL}</a>`);
 }
 
-// The control itself when the provider is set up, otherwise the chip.
-export function gateAi(control, href = AI_HELP_HREF) {
-  return store.aiAvailable() ? control : aiUnavailableChip(href);
+// The control itself when the provider is set up, otherwise the chip (or
+// `fallback`). With `cachedKey`, a control that only opens content already in
+// the lesson cache replaces the placeholder once the cache confirms it.
+export function gateAi(control, options = {}) {
+  const { href = AI_HELP_HREF, cachedKey = null, fallback = null } = typeof options === 'string' ? { href: options } : options;
+  if (store.aiAvailable()) return control;
+  const placeholder = fallback || aiUnavailableChip(href);
+  if (cachedKey) {
+    store.hasCachedLesson(cachedKey).then(found => {
+      if (!found || !placeholder.parentNode) return;
+      placeholder.replaceWith(control);
+      refreshIcons();
+    });
+  }
+  return placeholder;
+}
+
+// The "Generate a different version" action, or the chip without a provider.
+export function generateAnotherButton(onRegen) {
+  const btn = el(`<button class="ai-regen flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink"><i data-lucide="refresh-cw" class="w-4 h-4"></i>Generate a different version</button>`);
+  btn.onclick = onRegen;
+  return gateAi(btn);
+}
+
+// `render(value)` returns a detached node and may throw. Both helpers render
+// before anything is shown or saved; `onShow(value)` runs once it is on screen.
+
+// "Generate a different version": shows `loading`, then the new version. On
+// any failure (provider, shape, render or save) the previous content comes
+// back with an inline error and Retry above it, and the cache keeps it too.
+export async function regenerateInto(stage, opts) {
+  const { key, generate, render, loading, onShow = null } = opts;
+  const previous = [...stage.childNodes].filter(n => !n.classList?.contains('ai-regen-error'));
+  stage.replaceChildren(loading);
+  refreshIcons();
+  try {
+    const fresh = await store.generateCached(key, generate, { force: true, accept: render });
+    stage.replaceChildren(render(fresh));
+    refreshIcons();
+    onShow?.(fresh);
+    return fresh;
+  } catch (err) {
+    const block = aiErrorBlock(err, () => regenerateInto(stage, opts), { compact: true });
+    block.classList.add('ai-regen-error');
+    stage.replaceChildren(block, ...previous);
+    refreshIcons();
+    return null;
+  }
+}
+
+// Opens cached or freshly generated content. A failure to generate shows the
+// error with `retry`; a cached value that no longer renders offers a fresh
+// version instead of reading the same cache again.
+export async function showGenerated(stage, { key, generate, render, loading, retry, onShow = null }) {
+  let value;
+  try {
+    value = await store.generateCached(key, generate, { accept: render });
+  } catch (err) {
+    stage.replaceChildren(aiErrorBlock(err, retry));
+    return null;
+  }
+  try {
+    stage.replaceChildren(render(value));
+    refreshIcons();
+    onShow?.(value);
+    return value;
+  } catch (err) {
+    console.error(err);
+    const block = aiErrorBlock(store.invalidResult(), () => regenerateInto(stage, { key, generate, render, loading, onShow }));
+    block.classList.add('ai-regen-error');
+    stage.replaceChildren(block);
+    return null;
+  }
 }
 
 // Replaces every "Couldn't … right now" message. `retry` re-runs the action;

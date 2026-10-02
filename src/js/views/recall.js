@@ -2,19 +2,24 @@ import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiRecallCards } from '../ai.js';
-import { aiErrorBlock, gateAi } from '../ai-status.js';
+import { aiErrorBlock, gateAi, generateAnotherButton, regenerateInto } from '../ai-status.js';
 import { award, XP } from '../game.js';
 
-// Cards are cached per topic (shared, like lessons) so retrieval practice is instant.
-async function cardsForTopic(topic) {
-  const cacheId = 'recall:' + topic.id;
-  let cards = await store.getCachedLesson(cacheId);
-  if (!cards || !Array.isArray(cards) || !cards.length) {
-    const age = topic.ageRangeStart || 8;
-    cards = await aiRecallCards(topic, age);
-    if (cards && cards.length) await store.saveCachedLesson(cacheId, cards);
-  }
-  return cards || [];
+// Cards are cached per topic (shared, like lessons) so retrieval practice is
+// instant. Stored as { cards }; generateCached also reads the older bare arrays.
+function recallKey(topic) { return 'recall:' + topic.id; }
+function generateCards(topic) {
+  return () => aiRecallCards(topic, topic.ageRangeStart || 8).then(cards => ({ cards }));
+}
+const usableCards = (data) => (Array.isArray(data?.cards) ? data.cards : []).filter(c => c && c.front && c.back);
+export async function cardsForTopic(topic) {
+  return usableCards(await store.generateCached(recallKey(topic), generateCards(topic)));
+}
+
+// The child view never shows provider wording (HAR-15), so failures read neutrally there.
+function failureBlock(e, retry) {
+  if (!store.isChildViewOpen()) return aiErrorBlock(e, retry);
+  return el(`<p class="text-sm text-ink-soft py-6 text-center">These cards aren’t ready yet. Try again later.</p>`);
 }
 
 // Study a single topic's recall cards.
@@ -27,15 +32,33 @@ export async function openRecall(topic) {
   stage.appendChild(loading('Preparing recall cards…', 'Made once, then saved for reuse.'));
   refreshIcons();
 
+  let cards;
   try {
-    const cards = await cardsForTopic(topic);
-    if (!cards.length) { stage.innerHTML = ''; stage.appendChild(el(`<p class="text-sm text-ink-soft py-6 text-center">No recall cards for this topic.</p>`)); return; }
-    cards.forEach(c => store.ensureRecallCard(student.id, c.id, topic.id));
-    runSession(stage, m, student, meta, cards.map(c => ({ ...c, topicId: topic.id })), () => openRecall(topic));
+    cards = await cardsForTopic(topic);
   } catch (e) {
-    stage.innerHTML = '';
-    stage.appendChild(aiErrorBlock(e, () => { m.close(); openRecall(topic); }));
+    stage.replaceChildren(failureBlock(e, () => { m.close(); openRecall(topic); }));
+    return;
   }
+  if (!cards.length) { stage.replaceChildren(el(`<p class="text-sm text-ink-soft py-6 text-center">No recall cards for this topic.</p>`)); return; }
+
+  // Each session renders into its own node, so a regenerate can be tried off-screen.
+  const session = (list) => {
+    const box = el(`<div></div>`);
+    runSession(box, m, student, meta, list.map(c => ({ ...c, topicId: topic.id })), () => openRecall(topic), false, onRegen);
+    return box;
+  };
+  const track = (list) => list.forEach(c => store.ensureRecallCard(student.id, c.id, topic.id));
+  // No regenerate in the child view.
+  const onRegen = store.isChildViewOpen() ? null : () => regenerateInto(stage, {
+    key: recallKey(topic), generate: generateCards(topic),
+    render: (fresh) => session(usableCards(fresh)),
+    loading: loading('Writing a fresh set of cards\u2026', ''),
+    // New cards reuse positional ids, so the old schedule is dropped for every learner.
+    onShow: (fresh) => { store.resetRecallTopic(topic.id); track(usableCards(fresh)); },
+  });
+  track(cards);
+  stage.replaceChildren(session(cards));
+  refreshIcons();
 }
 
 // Study everything due today across all topics (mixed retrieval practice).
@@ -47,11 +70,7 @@ export async function openDueRecall() {
 
   const due = store.dueRecallCards(student.id);
   if (!due.length) {
-    stage.appendChild(el(`<div class="text-center py-10">
-      <div class="w-16 h-16 rounded-full bg-brand-light flex items-center justify-center mx-auto mb-4"><i data-lucide="check-check" class="w-8 h-8 text-brand-dark"></i></div>
-      <p class="font-600 text-lg">All caught up!</p>
-      <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto">Nothing is due for review right now. Recall cards appear here after you study a topic — come back tomorrow to keep it fresh.</p>
-    </div>`));
+    stage.appendChild(caughtUp());
     refreshIcons();
     return;
   }
@@ -69,19 +88,30 @@ export async function openDueRecall() {
       const topic = d.byId.get(topicId);
       if (!topic) continue;
       const cards = await cardsForTopic(topic);
+      const known = new Set(cards.map(c => c.id));
+      // Due entries whose card no longer exists (an older, longer card set) are dropped.
+      store.dropRecallCards(student.id, ids.filter(id => !known.has(id)));
       cards.filter(c => ids.includes(c.id)).forEach(c => allCards.push({ ...c, subject: topic.subject, topicId: topic.id }));
     }
+    if (!allCards.length) { stage.replaceChildren(caughtUp()); refreshIcons(); return; }
     // shuffle for interleaving
     for (let i = allCards.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [allCards[i], allCards[j]] = [allCards[j], allCards[i]]; }
     stage.innerHTML = '';
     runSession(stage, m, student, SUBJECTS.Mathematics, allCards, () => openDueRecall(), true);
   } catch (e) {
-    stage.innerHTML = '';
-    stage.appendChild(aiErrorBlock(e, () => { m.close(); openDueRecall(); }));
+    stage.replaceChildren(failureBlock(e, () => { m.close(); openDueRecall(); }));
   }
 }
 
-function runSession(stage, m, student, meta, cards, restart, mixed = false) {
+function caughtUp() {
+  return el(`<div class="text-center py-10">
+    <div class="w-16 h-16 rounded-full bg-brand-light flex items-center justify-center mx-auto mb-4"><i data-lucide="check-check" class="w-8 h-8 text-brand-dark"></i></div>
+    <p class="font-600 text-lg">All caught up!</p>
+    <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto">Nothing is due for review right now. Recall cards appear here after you study a topic — come back tomorrow to keep it fresh.</p>
+  </div>`);
+}
+
+function runSession(stage, m, student, meta, cards, restart, mixed = false, onRegen = null) {
   let i = 0, revealed = false;
   const results = { again: 0, good: 0, easy: 0 };
 
@@ -135,6 +165,7 @@ function runSession(stage, m, student, meta, cards, restart, mixed = false) {
       refreshIcons();
     };
     controls.appendChild(reveal);
+    if (onRegen) wrap.appendChild(el(`<div class="mt-5 pt-2 border-t border-paper-line"></div>`)).appendChild(generateAnotherButton(onRegen));
     refreshIcons();
   };
 
@@ -204,7 +235,7 @@ export function recallSectionCard(topic, student) {
   body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-3">Retrieval practice: ${esc(student.name)} answers short questions <span class="font-600">from memory</span>, then reviews on a spaced schedule so it sticks.</p>`));
   const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium text-sm transition-colors"><i data-lucide="brain" class="w-4 h-4"></i>Practice recall</button>`);
   btn.onclick = () => openRecall(topic);
-  body.appendChild(gateAi(btn));
+  body.appendChild(gateAi(btn, { cachedKey: recallKey(topic) }));
   return sectionWrap(body);
 }
 function sectionWrap(body) {

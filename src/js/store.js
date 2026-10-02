@@ -14,7 +14,8 @@ let state = {
   students: [],       // {id, name, birthYear, birthMonth?, avatar, color}
   activeStudentId: null,
   progress: {},       // studentId -> { topicId -> { status, updatedAt } }
-  records: {},        // studentId -> [ {id, topicId, type, title, note, rating, questions, createdAt} ]
+  records: {},        // studentId -> [ {id, topicId, type, title, note, rating, questions, createdAt,
+                      //   coverage?: [{topicId, topicName}], source?: {kind: 'daily-pick'|'invitation', key}} ]
   tests: {},          // studentId -> [ {id, subject, mode, score, total, pct, passed, createdAt} ]
   plan: {},           // studentId -> { moves:{topicId:dateKey}, done:{dateKey:true}, extras:{dateKey:[items]} }
   challenges: {},     // studentId -> [ {id, topicId, subject, domain, correct, total, seconds, createdAt} ]
@@ -27,8 +28,9 @@ let state = {
   activity: {},       // studentId -> { 'yyyy-mm-dd': true }  (days with recall/lesson/mastery activity)
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
   daily: {},          // studentId -> { 'yyyy-mm-dd': { offers: {literacy:[topicId], numeracy:[topicId]}, picks: {literacy, numeracy} } }
+  interests: {},      // studentId -> { chips: [label], text: '' }  (what the learner is into, parent-entered)
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
-  settings: {},       // family-wide: { parentPin }
+  settings: {},       // family-wide: { parentPin, calendar: { homeDays:[0-6], breaks:[{start, end, label}] } }
 };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -71,7 +73,7 @@ let pendingAudioDeletes = [];
 
 // Per-learner maps keyed by student id. removeStudent clears every one of them.
 const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
-  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily'];
+  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests'];
 
 // Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'failed', error? }
 export function onSaveStatus(fn) { saveListeners.add(fn); return () => saveListeners.delete(fn); }
@@ -120,6 +122,7 @@ function snapshotData() {
     activity: state.activity,
     game: state.game,
     daily: state.daily,
+    interests: state.interests,
     graphView: state.graphView === 'list' ? 'list' : 'atlas',
     settings: state.settings,
   };
@@ -433,9 +436,12 @@ export function progressFor(studentId) { return state.progress[studentId] || {};
 export function statusOf(studentId, topicId) {
   return (state.progress[studentId] && state.progress[studentId][topicId]?.status) || 'none';
 }
+// Setting the status a topic already has (a passed retake or refresher on a
+// mastered topic) keeps its entry, so its source (e.g. placement) and the
+// date it reached that status survive; the calendar plans around both.
 export function setStatus(studentId, topicId, status) {
-  state.progress[studentId] = state.progress[studentId] || {};
-  state.progress[studentId][topicId] = { status, updatedAt: Date.now() };
+  const p = state.progress[studentId] = state.progress[studentId] || {};
+  if (p[topicId]?.status !== status) p[topicId] = { status, updatedAt: Date.now() };
   markActivity(studentId);
   persist(); emit();
 }
@@ -606,6 +612,24 @@ export function removeExtra(studentId, dateKey, itemId) {
   persist(); emit();
 }
 export function extrasOn(studentId, dateKey) { return planOf(studentId).extras[dateKey] || []; }
+// Drop extras on a day whose topic is gone (e.g. after a taxonomy update).
+export function pruneExtras(studentId, dateKey, itemIds) {
+  const p = planOf(studentId);
+  const before = (p.extras[dateKey] || []).length;
+  p.extras[dateKey] = (p.extras[dateKey] || []).filter(x => !itemIds.includes(x.id));
+  if (p.extras[dateKey].length === before) return;
+  if (!p.extras[dateKey].length) delete p.extras[dateKey];
+  persist(); emit();
+}
+// Change where a learner's track starts; `clearMoves` also drops topics the
+// parent moved by hand, so they follow the new track. One persist + emit.
+export function setStartDate(studentId, dateKey, { clearMoves = false } = {}) {
+  const s = state.students.find(s => s.id === studentId);
+  if (!s || !validDateKey(dateKey)) return;
+  s.startDate = dateKey;
+  if (clearMoves) planOf(studentId).moves = {};
+  persist(); emit();
+}
 
 // ---- Challenge (timed "hard" quiz) results ----
 export function addChallenge(studentId, result) {
@@ -721,6 +745,25 @@ export function recallStatsForTopic(studentId, cardIds) {
 export function recallDueCount(studentId) {
   return dueRecallCards(studentId).length;
 }
+// A regenerated card set replaces a topic's cards for every learner. Card ids
+// are positional, so old scheduling state would attach to different questions
+// (or to cards that no longer exist); drop it and start the new set fresh.
+export function resetRecallTopic(topicId) {
+  let changed = false;
+  for (const r of Object.values(state.recall || {})) {
+    for (const [id, c] of Object.entries(r || {})) {
+      if ((c?.topicId || String(id).split('::')[0]) === topicId) { delete r[id]; changed = true; }
+    }
+  }
+  if (changed) { persist(); emit(); }
+}
+// Removes a learner's scheduling records for cards that no longer exist.
+export function dropRecallCards(studentId, cardIds) {
+  const r = recallOf(studentId);
+  const gone = cardIds.filter(id => id in r);
+  gone.forEach(id => { delete r[id]; });
+  if (gone.length) { persist(); emit(); }
+}
 
 // ---- Spaced practice for missed mastery-test questions ----
 // Extends the same expanding-interval ladder to problem-solving, not just facts.
@@ -826,6 +869,39 @@ export function pickDaily(studentId, dateKey, lane, topicId) {
   if (!day) return;
   day.picks[lane] = topicId || null;
   persist(); emit();
+}
+
+// ---- Interests (what the learner is into) ----
+export const INTEREST_CHIPS_MAX = 12;
+const INTEREST_CHIP_LEN = 40;
+const INTEREST_TEXT_LEN = 500;
+// Tolerates anything an import or an older document might hold (null, arrays,
+// non-string values), so the dashboard never trips over a bad entry.
+function cleanInterests(value) {
+  const { chips, text } = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const seen = new Set();
+  const list = [];
+  for (const raw of Array.isArray(chips) ? chips : []) {
+    if (typeof raw !== 'string') continue;
+    const chip = raw.trim().replace(/\s+/g, ' ').slice(0, INTEREST_CHIP_LEN);
+    if (!chip || seen.has(chip.toLowerCase())) continue;
+    seen.add(chip.toLowerCase());
+    list.push(chip);
+    if (list.length >= INTEREST_CHIPS_MAX) break;
+  }
+  return { chips: list, text: typeof text === 'string' ? text.trim().slice(0, INTEREST_TEXT_LEN) : '' };
+}
+// Always { chips, text }; a copy, so callers can't mutate state by accident.
+export function interestsFor(studentId) {
+  return cleanInterests(state.interests[studentId]);
+}
+// quiet: save without re-rendering, for the card's own free-text edits (a
+// re-render mid-typing would drop focus and swallow the next tap).
+export function setInterests(studentId, interests, { quiet = false } = {}) {
+  state.interests[studentId] = cleanInterests(interests);
+  persist();
+  if (!quiet) emit();
+  return interestsFor(studentId);
 }
 
 // Whether the student was active on each of the last `days` days, oldest first.
@@ -940,25 +1016,169 @@ export function setParentPin(pin) {
   return true;
 }
 
-// ---- Lesson cache (shared by this family) ----
-// Lessons are reusable teaching material keyed by topic/activity.
-const lessonCache = new Map();
+// Family calendar: home days of the week (Date#getDay numbers) and break
+// ranges. Anything malformed is dropped or repaired; no home days at all
+// falls back to Mon–Fri. Returns { homeDays: [0-6, …], breaks: [{ start, end, label }, …] }.
+export const DEFAULT_HOME_DAYS = [1, 2, 3, 4, 5];
+const realDateKey = k => {
+  if (!validDateKey(k)) return false;
+  const [y, m, d] = k.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+};
+export function normalizeCalendar(raw) {
+  const cal = objectOr(raw, {});
+  let homeDays = Array.isArray(cal.homeDays)
+    ? [...new Set(cal.homeDays.map(n => (typeof n === 'string' && n.trim() !== '' ? Number(n) : n))
+      .filter(n => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b)
+    : [];
+  if (!homeDays.length) homeDays = [...DEFAULT_HOME_DAYS];
+  const breaks = (Array.isArray(cal.breaks) ? cal.breaks : [])
+    .filter(b => b && realDateKey(b.start) && realDateKey(b.end))
+    .map(b => {
+      const [start, end] = b.start <= b.end ? [b.start, b.end] : [b.end, b.start];
+      return { start, end, label: typeof b.label === 'string' ? b.label.trim().slice(0, 60) : '' };
+    })
+    .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+  return { homeDays, breaks };
+}
+// The stored settings, or null until the family sets them.
+export function calendarSettings() {
+  return objectOr(state.settings?.calendar, null);
+}
+export function setCalendarSettings(calendar) {
+  state.settings = { ...state.settings, calendar: normalizeCalendar(calendar) };
+  persist(); emit();
+}
 
+// ---- Lesson cache (shared by this family) ----
+// Lessons are reusable teaching material keyed by topic/activity. Each key
+// prefix names a kind with a minimal shape; nothing that fails it is cached.
+const CACHE_KINDS = { 'topic:': 'lesson', 'print:': 'printables', 'act:': 'activity', 'recall:': 'recall' };
+const lessonCache = new Map();
+const existsMemo = new Map(); // key -> Promise<boolean>, for the no-provider "Open" upgrade
+const inflight = new Map();   // key -> Promise of a generation in progress
+
+export function cacheKind(key) {
+  const prefix = Object.keys(CACHE_KINDS).find(p => String(key).startsWith(p));
+  return prefix ? CACHE_KINDS[prefix] : null;
+}
+
+const text = (v) => typeof v === 'string' && v.trim() !== '';
+const hasContent = (v) => text(v) || (Array.isArray(v) ? v.some(hasContent)
+  : !!v && typeof v === 'object' && Object.values(v).some(hasContent));
+
+// Recall cards used to be saved as a bare array, which the server rejects;
+// they are stored as { cards } now and old arrays still read.
+export function normalizeCached(kind, value) {
+  if (kind === 'recall' && Array.isArray(value)) return { cards: value };
+  return value;
+}
+
+// Optional list fields must be arrays when present; the renderers map over them.
+const listsOrAbsent = (v, keys) => keys.every(k => v[k] == null || Array.isArray(v[k]));
+const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+
+export function isValidCached(kind, value) {
+  const v = normalizeCached(kind, value);
+  if (!isObject(v)) return false;
+  switch (kind) {
+    case 'lesson':
+      return text(v.objective) && Array.isArray(v.teach) && v.teach.some(s => isObject(s) && hasContent(s))
+        && listsOrAbsent(v, ['materials', 'guidedPractice', 'questions', 'commonMistakes'])
+        && (v.parentTips == null || isObject(v.parentTips))
+        && (v.independentActivity == null || (isObject(v.independentActivity) && listsOrAbsent(v.independentActivity, ['steps'])));
+    case 'printables': return Array.isArray(v.printables) && v.printables.some(p => isObject(p) && isObject(p.content) && hasContent(p.content));
+    case 'activity': return Array.isArray(v.steps) && v.steps.some(hasContent) && listsOrAbsent(v, ['materials']);
+    case 'recall': return Array.isArray(v.cards) && v.cards.some(c => isObject(c) && text(c.front) && text(c.back));
+    default: return true;
+  }
+}
+
+export function invalidResult() {
+  // Reads as a provider failure in explainAiError.
+  return new Error('The AI provider returned an invalid response');
+}
+
+// The cached value for `id`, or null when missing or no longer a valid shape.
 export async function getCachedLesson(id) {
+  const kind = cacheKind(id);
   if (lessonCache.has(id)) return lessonCache.get(id);
   try {
-    const data = await backend.loadLesson(id);
-    if (data) {
+    const data = normalizeCached(kind, await backend.loadLesson(id));
+    if (data && isValidCached(kind, data)) {
       lessonCache.set(id, data);
+      existsMemo.set(id, Promise.resolve(true));
       return data;
     }
   } catch {}
   return null;
 }
 
+// Returns false, and keeps the previous value, when `data` fails its kind's
+// shape or the server does not store it.
 export async function saveCachedLesson(id, data) {
-  lessonCache.set(id, data);
-  try { await backend.saveLesson(id, data); } catch {}
+  const kind = cacheKind(id);
+  const value = normalizeCached(kind, data);
+  if (!isValidCached(kind, value)) return false;
+  try { await backend.saveLesson(id, value); }
+  catch (e) { console.warn('Could not save to the lesson cache', e); return false; }
+  lessonCache.set(id, value);
+  existsMemo.set(id, Promise.resolve(true));
+  return true;
+}
+
+// Test-only: drops this tab's copies, as a fresh session would start.
+export function forgetCachedLessons() {
+  lessonCache.clear();
+  existsMemo.clear();
+}
+
+// Whether a valid cached value exists, memoized for the session. Only a
+// definite answer is remembered; a failed request is tried again next time.
+export function hasCachedLesson(id) {
+  if (existsMemo.has(id)) return existsMemo.get(id);
+  const kind = cacheKind(id);
+  const check = (async () => {
+    if (lessonCache.has(id)) return true;
+    try {
+      const data = normalizeCached(kind, await backend.loadLesson(id));
+      if (data && isValidCached(kind, data)) { lessonCache.set(id, data); return true; }
+      return false;
+    } catch {
+      existsMemo.delete(id);
+      return false;
+    }
+  })();
+  existsMemo.set(id, check);
+  return check;
+}
+
+// The cached value, or a freshly generated one that is validated and saved.
+// `force` skips the cache (regenerate). `accept(fresh)` runs before saving
+// (views pass a trial render) and a throw there leaves the cache untouched.
+// Concurrent calls for one key share a single generation. Without a provider
+// a cache miss rejects as "not configured".
+export function generateCached(id, generate, { force = false, accept = null } = {}) {
+  if (inflight.has(id)) return inflight.get(id);
+  const kind = cacheKind(id);
+  const run = (async () => {
+    if (!force) {
+      const cached = await getCachedLesson(id);
+      if (cached) return cached;
+    }
+    if (!aiAvailable()) throw new Error('AI is not configured');
+    const fresh = normalizeCached(kind, await generate());
+    if (!isValidCached(kind, fresh)) throw invalidResult();
+    if (accept) {
+      try { accept(fresh); } catch (e) { console.error(e); throw invalidResult(); }
+    }
+    if (!(await saveCachedLesson(id, fresh))) throw new Error('Harrington could not save the result');
+    return fresh;
+  })();
+  inflight.set(id, run);
+  run.then(() => inflight.delete(id), () => inflight.delete(id));
+  return run;
 }
 
 export { emit };

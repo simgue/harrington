@@ -7,10 +7,24 @@ tagged a release yet; everything below is on `main`.
 ## [Unreleased]
 
 ### Changed
+- Calendar follows the family's home days and breaks (set under Home days &
+  breaks); rest days schedule nothing. Unmastered literacy and numeracy topics
+  below the learner's age come first, after their prerequisites. Refreshers
+  come only from mastered topics, Extra practice opens spaced practice, and
+  changing the start date offers to clear moved topics (HAR-18).
 - Learners can be edited (name, birth month and year, color) from the learner
   selector, and onboarding and Add student take an optional birth month. Age
   counts whole years when the month is known; the map, daily choices,
   placement and calendar follow an edited age (HAR-22).
+- Selecting a skill in the skill tree keeps the page and the tree where they
+  are, and "Back to graph" from a topic page returns to the same skill,
+  selected, at the same scroll. The selection is in the address
+  (`?skill=`) and resets when the learner changes (HAR-21).
+- Generated lessons, print sheets, activity instructions and recall cards are
+  never cached empty or malformed, open once for rapid repeat clicks, and each
+  has "Generate a different version" that keeps the previous version if it
+  fails. Recall cards now persist, printed sheets show topic, subject and age,
+  and cached content opens without an AI provider (HAR-20).
 - Welcome tour, in-app Guide, printable guide and `src/docs/GUIDE.md` describe
   only what works today. AI-backed features carry one line: "Needs a local AI
   provider; see the README." The curriculum auto-update claim is gone, and the
@@ -20,6 +34,12 @@ tagged a release yet; everything below is on `main`.
   plain, accurate wording (HAR-12).
 
 ### Added
+- Today's pick-one stops record evidence for the pick: the note and voice
+  forms offer an opt-in "Mark curriculum coverage" checkbox, and a pick shows
+  "Evidence recorded" only once a linked record claims coverage. Each stop
+  also shows a parent-only "Not yet: <topic> needs <prerequisite> first" line,
+  and the dashboard captures each learner's interests as chips and free text
+  (HAR-17, salvaged from PR #5).
 - Platform audit of 27 September 2026 (`docs/audits/`).
 - Daily literacy and numeracy pick-one choices on Today's path and in the
   child view, drawn from the POC focus domains (HAR-4, PR #7).

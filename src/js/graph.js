@@ -435,12 +435,53 @@ export function buildSectionGraph(section, data, { neighborCap = MAX_SECTION_HOP
   };
 }
 
+// The selected skill rides along as a `?skill=` suffix so "Back to graph" and
+// the browser history restore it. Selection is view state, never family data.
 export function graphHash(params = {}) {
   const parts = ['graph'];
   if (params.subject) parts.push(encodeURIComponent(params.subject));
   if (params.domain) parts.push(encodeURIComponent(params.domain));
   if (params.age != null && params.age !== '') parts.push(encodeURIComponent(String(params.age)));
-  return parts.join('/');
+  const path = parts.join('/');
+  return params.skill ? `${path}?skill=${encodeURIComponent(params.skill)}` : path;
+}
+
+// Inverse of graphHash: takes the hash without its leading '#'. Returns null
+// when the hash is not a graph route.
+export function parseGraphHash(hash = '') {
+  const raw = String(hash).replace(/^#/, '');
+  const q = raw.indexOf('?');
+  const path = q === -1 ? raw : raw.slice(0, q);
+  const query = q === -1 ? '' : raw.slice(q + 1);
+  const decode = (part) => {
+    try { return decodeURIComponent(part); }
+    catch { return part; }
+  };
+  const [name, ...rest] = path.split('/').map(decode);
+  if (name !== 'graph') return null;
+  const params = {};
+  if (rest[0]) params.subject = rest[0];
+  if (rest[1]) params.domain = rest[1];
+  if (rest[2]) params.age = rest[2];
+  for (const pair of query.split('&')) {
+    const eq = pair.indexOf('=');
+    if (eq === -1) continue;
+    if (decode(pair.slice(0, eq)) === 'skill') {
+      const skill = decode(pair.slice(eq + 1));
+      if (skill) params.skill = skill;
+    }
+  }
+  return params;
+}
+
+// Selection is per learner: when the active learner changes between two
+// renders, the skill in the route is dropped. `previous` is undefined before
+// the first render so a deep link or reload keeps its skill.
+export function selectionForLearner(params = {}, previous, current) {
+  const switched = previous !== undefined && previous !== current;
+  if (!switched || !params.skill) return { params, switched, dropped: false };
+  const { skill, ...rest } = params;
+  return { params: rest, switched, dropped: true };
 }
 
 export const MAX_DOMAIN_GATEWAYS = 8;

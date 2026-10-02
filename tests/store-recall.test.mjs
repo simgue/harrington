@@ -138,3 +138,31 @@ test('addRecord marks the day active and emits once', () => {
   assert.equal(store.activeToday(sid), true);
   assert.equal(store.activityStreak(sid), 1);
 });
+
+test('resetRecallTopic drops every learner\'s schedule for a regenerated card set', () => {
+  for (const sid of ['s-reset-a', 's-reset-b']) {
+    for (let i = 0; i < 7; i++) store.ensureRecallCard(sid, `topic-r::${i}`, 'topic-r');
+    store.ensureRecallCard(sid, 'topic-other::0', 'topic-other');
+  }
+  store.gradeRecall('s-reset-a', 'topic-r::0', 'topic-r', 'again');
+  assert.equal(store.recallState('s-reset-a', 'topic-r::0').lapses, 1);
+  store.resetRecallTopic('topic-r');
+  for (const sid of ['s-reset-a', 's-reset-b']) {
+    assert.equal(store.dueRecallCards(sid, { topicId: 'topic-r' }).length, 0);
+    assert.ok(store.recallState(sid, 'topic-other::0'), 'other topics are kept');
+  }
+  // The new two-card set starts fresh; nothing is inherited.
+  store.ensureRecallCard('s-reset-a', 'topic-r::0', 'topic-r');
+  store.ensureRecallCard('s-reset-a', 'topic-r::1', 'topic-r');
+  assert.equal(store.recallState('s-reset-a', 'topic-r::0').lapses, 0);
+  assert.equal(store.dueRecallCards('s-reset-a', { topicId: 'topic-r' }).length, 2);
+});
+
+test('dropRecallCards removes due entries whose card no longer exists', () => {
+  const sid = 's-orphan';
+  for (let i = 0; i < 3; i++) store.ensureRecallCard(sid, `topic-o::${i}`, 'topic-o');
+  const before = store.recallDueCount(sid);
+  store.dropRecallCards(sid, ['topic-o::2', 'topic-o::9']);
+  assert.equal(store.recallDueCount(sid), before - 1);
+  assert.equal(store.recallState(sid, 'topic-o::2'), null);
+});

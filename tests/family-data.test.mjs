@@ -173,10 +173,11 @@ describe('family data safety in the store', { concurrency: false }, () => {
     store.enqueuePracticeItem(id, { topicId: 'count-to-5', q: '2 + 3?' });
     store.awardXp(id, 10);
     store.saveDailyOffers(id, '2026-09-27', { literacy: ['rhymes'], numeracy: ['count-to-5'] });
+    store.setInterests(id, { chips: ['Animals'], text: 'bridges' });
     await store.flushSaves();
 
     const before = await serverState();
-    const keys = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations', 'suggestions', 'recall', 'practice', 'activity', 'game', 'daily'];
+    const keys = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations', 'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests'];
     for (const key of keys) assert.ok(before[key][id], `${key} was populated`);
 
     store.removeStudent(id);
@@ -484,7 +485,12 @@ describe('family data safety in the store', { concurrency: false }, () => {
   });
 
   test('export then import restores the family document', async () => {
+    const calendar = { homeDays: [1, 2, 3, 4], breaks: [{ start: '2026-12-21', end: '2027-01-01', label: 'Winter break' }] };
+    store.setCalendarSettings(calendar);
+    await store.flushSaves();
+    assert.deepEqual((await serverState()).settings.calendar, calendar);
     const exported = JSON.parse(JSON.stringify(await store.exportDocument()));
+    assert.deepEqual(exported.settings.calendar, calendar);
     assert.equal(typeof exported.exportedAt, 'string');
     assert.equal(exported.taxonomyVersion, 'v1-test');
     const check = store.inspectImport(exported);
@@ -492,6 +498,7 @@ describe('family data safety in the store', { concurrency: false }, () => {
     assert.deepEqual(check.learners.map((l) => l.name), exported.students.map((s) => s.name));
 
     store.addStudent('Added After Export', 2020);
+    store.setCalendarSettings({ homeDays: [0, 6], breaks: [] });
     await store.flushSaves();
 
     assert.equal(await store.importDocument(exported), true);
@@ -499,6 +506,7 @@ describe('family data safety in the store', { concurrency: false }, () => {
     const strip = ({ version, updatedAt, writeId, exportedAt, taxonomyVersion, ...rest }) => rest;
     assert.deepEqual(strip(restored), strip(exported));
     assert.deepEqual(store.get().students, exported.students);
+    assert.deepEqual(store.calendarSettings(), calendar);
 
     assert.equal(store.inspectImport({ students: 'nope' }).ok, false);
     assert.equal(store.inspectImport({ students: [{ id: 'x' }] }).ok, false);
