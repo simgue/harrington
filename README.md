@@ -51,7 +51,8 @@ computer only and these work:
 Lessons, print & go sheets, mastery tests, challenges, recall cards, activity
 instructions, discussion analysis, progress reviews and adaptive suggestions
 need a local AI provider (see [Optional local model](#optional-local-model-ollama)).
-Without one, those buttons show an error. The curriculum is downloaded once on
+Without one, those buttons are replaced by a quiet "Needs a local AI provider"
+link (and left out of the child view). The curriculum is downloaded once on
 first start and does not update on its own.
 
 ## Highlights

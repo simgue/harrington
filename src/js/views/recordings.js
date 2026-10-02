@@ -3,6 +3,7 @@ import { getData, SUBJECTS } from '../data.js';
 import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { audioPlayer, openRecorder } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
+import { aiErrorBlock, gateAi } from '../ai-status.js';
 
 // The general recordings folder — all voice recordings, grouped by section or topic.
 export function openRecordingsLibrary() {
@@ -122,13 +123,15 @@ export function renderAnalysis(container, r, student, topic) {
   if (r.analysis) {
     container.appendChild(savedAnalysis(r.analysis));
     const redo = regenerateButton();
-    if (hasContent) redo.onclick = () => runAnalysis(container, r, student, topic);
-    container.appendChild(redo);
+    if (redo) {
+      if (hasContent) redo.onclick = () => runAnalysis(container, r, student, topic);
+      container.appendChild(redo);
+    }
   } else {
     const analyze = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyze &amp; get advice</button>`);
     if (hasContent) analyze.onclick = () => runAnalysis(container, r, student, topic);
     else { analyze.disabled = true; analyze.classList.add('opacity-50', 'cursor-not-allowed'); analyze.title = 'Add a transcript or notes to analyze'; }
-    container.appendChild(analyze);
+    container.appendChild(gateAi(analyze));
   }
   refreshIcons();
 }
@@ -143,7 +146,9 @@ export function savedAnalysis(html) {
     <div class="ai-prose text-sm text-ink-soft">${html}</div>
   </div>`);
 }
+// Null without an AI provider, so both the Recordings and Records cards hide it.
 export function regenerateButton() {
+  if (!store.aiAvailable()) return null;
   return el(`<button class="mt-2 flex items-center gap-1.5 text-xs font-medium text-ink-faint hover:text-ink-soft"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>Regenerate</button>`);
 }
 
@@ -160,5 +165,8 @@ export function runAnalysis(container, r, student, topic) {
     r.analysis = html; r.analyzedAt = Date.now();
     renderAnalysis(container, r, student, topic);
     toast('Analysis saved to this recording', 'success');
-  }).catch(() => { container.innerHTML = `<p class="text-sm text-[#a4473a]">Couldn't analyze right now.</p>`; });
+  }).catch((e) => {
+    container.innerHTML = '';
+    container.appendChild(aiErrorBlock(e, () => runAnalysis(container, r, student, topic), { compact: true }));
+  });
 }
