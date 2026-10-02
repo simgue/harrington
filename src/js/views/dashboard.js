@@ -308,7 +308,7 @@ function todayCard(active, navigate) {
     const t = extras.refresher;
     const ref = el(`<button class="relative w-full min-w-0 text-left flex items-center gap-3 p-4 rounded-3xl border-2 border-dashed border-butter card-hover bg-paper-card">
       ${stop(++stopNo, { fill: '#f2c14e', deep: '#2e2a24' }, 'dumbbell')}
-      <span class="flex-1 min-w-0"><span class="block font-600 truncate">Refresher quiz · ${esc(t.name)}</span><span class="block text-xs text-butter-deep truncate">Keep an earlier ${t.subject} skill sharp</span></span>
+      <span class="flex-1 min-w-0"><span class="block font-600 truncate">Refresher quiz · ${esc(t.name)}</span><span class="block text-xs text-butter-deep truncate">Keep an earlier ${esc(t.subject)} skill sharp</span></span>
       <i data-lucide="file-check-2" class="w-4 h-4 shrink-0 text-butter-deep"></i>
     </button>`);
     ref.onclick = () => openMasteryTest(t.subject, null, t);

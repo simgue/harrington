@@ -28,7 +28,7 @@ let state = {
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
   daily: {},          // studentId -> { 'yyyy-mm-dd': { offers: {literacy:[topicId], numeracy:[topicId]}, picks: {literacy, numeracy} } }
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
-  settings: {},       // family-wide: { parentPin }
+  settings: {},       // family-wide: { parentPin, calendar: { homeDays:[0-6], breaks:[{start, end, label}] } }
 };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -577,6 +577,24 @@ export function removeExtra(studentId, dateKey, itemId) {
   persist(); emit();
 }
 export function extrasOn(studentId, dateKey) { return planOf(studentId).extras[dateKey] || []; }
+// Drop extras on a day whose topic is gone (e.g. after a taxonomy update).
+export function pruneExtras(studentId, dateKey, itemIds) {
+  const p = planOf(studentId);
+  const before = (p.extras[dateKey] || []).length;
+  p.extras[dateKey] = (p.extras[dateKey] || []).filter(x => !itemIds.includes(x.id));
+  if (p.extras[dateKey].length === before) return;
+  if (!p.extras[dateKey].length) delete p.extras[dateKey];
+  persist(); emit();
+}
+// Change where a learner's track starts; `clearMoves` also drops topics the
+// parent moved by hand, so they follow the new track. One persist + emit.
+export function setStartDate(studentId, dateKey, { clearMoves = false } = {}) {
+  const s = state.students.find(s => s.id === studentId);
+  if (!s) return;
+  s.startDate = dateKey;
+  if (clearMoves) planOf(studentId).moves = {};
+  persist(); emit();
+}
 
 // ---- Challenge (timed "hard" quiz) results ----
 export function addChallenge(studentId, result) {
@@ -909,6 +927,22 @@ export function setParentPin(pin) {
   state.settings = { ...state.settings, parentPin: String(pin) };
   persist();
   return true;
+}
+
+// Family calendar: home days of the week and break ranges. Stored as given
+// (the scheduler normalizes it); null until the family sets it.
+export function calendarSettings() {
+  return objectOr(state.settings?.calendar, null);
+}
+export function setCalendarSettings(calendar) {
+  const c = objectOr(calendar, {});
+  const homeDays = Array.isArray(c.homeDays) ? c.homeDays.filter(n => Number.isInteger(n) && n >= 0 && n <= 6) : [];
+  const breaks = Array.isArray(c.breaks)
+    ? c.breaks.filter(b => b && typeof b.start === 'string' && typeof b.end === 'string')
+      .map(b => ({ start: b.start, end: b.end, label: typeof b.label === 'string' ? b.label : '' }))
+    : [];
+  state.settings = { ...state.settings, calendar: { homeDays, breaks } };
+  persist(); emit();
 }
 
 // ---- Lesson cache (shared by this family) ----
