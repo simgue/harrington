@@ -17,6 +17,7 @@ import {
   MAX_DOMAIN_GATEWAYS,
   MAX_SECTION_HOPS,
   normalizeGraphView,
+  learnerAfterEmit,
   parseGraphHash,
   quietMasteryFill,
   resolveSkillNodeState,
@@ -363,6 +364,25 @@ test('selection is per learner: a switch drops the skill, a re-render or deep li
   const plain = { subject: 'Mathematics' };
   assert.deepEqual(selectionForLearner(plain, 'learner-a', 'learner-b'), { params: plain, switched: true, dropped: false });
   assert.equal(params.skill, 'count-5', 'input params are not mutated');
+});
+
+test('a learner switch away from the graph is recorded, so the new learner keeps a fresh selection', () => {
+  const params = { subject: 'Mathematics', domain: 'Counting', skill: 'count-5' };
+  // Same learner: kept.
+  assert.equal(learnerAfterEmit('learner-a', 'learner-a', true), 'learner-a');
+  assert.equal(selectionForLearner(params, learnerAfterEmit('learner-a', 'learner-a', false), 'learner-a').dropped, false);
+  // Switched on the graph: the emit leaves the switch for the render, which drops the skill.
+  const onGraph = learnerAfterEmit('learner-a', 'learner-b', true);
+  assert.equal(onGraph, 'learner-a');
+  assert.deepEqual(selectionForLearner(params, onGraph, 'learner-b'), {
+    params: { subject: 'Mathematics', domain: 'Counting' }, switched: true, dropped: true,
+  });
+  // Switched on the dashboard, then "Back to graph" with the new learner's skill: kept.
+  const offGraph = learnerAfterEmit('learner-a', 'learner-b', false);
+  assert.equal(offGraph, 'learner-b');
+  assert.deepEqual(selectionForLearner(params, offGraph, 'learner-b'), { params, switched: false, dropped: false });
+  // Before any render, an emit records the learner so a deep link keeps its skill.
+  assert.equal(selectionForLearner(params, learnerAfterEmit(undefined, 'learner-a', false), 'learner-a').dropped, false);
 });
 
 function fakeWindow({ x = 0, y = 0, hash = '' } = {}) {
