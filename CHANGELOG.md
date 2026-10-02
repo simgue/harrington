@@ -24,6 +24,12 @@ tagged a release yet; everything below is on `main`.
   plain, accurate wording (HAR-12).
 
 ### Added
+- Today's pick-one stops record evidence for the pick: the note and voice
+  forms offer an opt-in "Mark curriculum coverage" checkbox, and a pick shows
+  "Evidence recorded" only once a linked record claims coverage. Each stop
+  also shows a parent-only "Not yet: <topic> needs <prerequisite> first" line,
+  and the dashboard captures each learner's interests as chips and free text
+  (HAR-17, salvaged from PR #5).
 - Platform audit of 27 September 2026 (`docs/audits/`).
 - Daily literacy and numeracy pick-one choices on Today's path and in the
   child view, drawn from the POC focus domains (HAR-4, PR #7).
