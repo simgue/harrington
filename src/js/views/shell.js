@@ -109,7 +109,7 @@ function studentSwitcher(navigate, compact = false) {
   const active = store.activeStudent();
   const btn = el(`
     <button class="w-full flex items-center gap-2.5 ${compact ? 'p-1 pr-2' : 'p-1.5 pr-3'} rounded-full bg-paper-card shadow-[0_0_0_2px_#f2c14e] hover:shadow-[0_0_0_3px_#f2c14e] transition-shadow" aria-label="Switch learner">
-      <span class="${compact ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'} rounded-full flex items-center justify-center text-white font-display font-600 shrink-0" style="background:${active?.color || '#6f665a'}">${esc(active ? initials(active.name) : '?')}</span>
+      <span class="${compact ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'} rounded-full flex items-center justify-center text-white font-display font-600 shrink-0" style="background:${esc(active?.color || '#6f665a')}">${esc(active ? initials(active.name) : '?')}</span>
       ${compact ? '' : `<span class="flex-1 text-left min-w-0"><span class="block text-sm font-600 truncate">${esc(active ? active.name : 'No student')}</span><span class="block text-xs text-ink-faint">${active ? 'Age ' + store.studentAge(active) : 'Add a student'}</span></span>`}
       <i data-lucide="chevrons-up-down" class="w-4 h-4 text-ink-faint shrink-0"></i>
     </button>`);
@@ -131,16 +131,18 @@ function openStudentMenu(navigate) {
     const age = store.studentAge(s);
     const isActive = s.id === state.activeStudentId;
     const row = el(`<div class="flex items-center gap-3 p-2 pr-3 rounded-full ${isActive ? 'bg-brand-light shadow-[0_0_0_2px_#f2c14e]' : 'bg-paper'}">
-      <span class="w-10 h-10 rounded-full flex items-center justify-center text-white font-display text-base font-600" style="background:${s.color}">${esc(initials(s.name))}</span>
+      <span class="w-10 h-10 rounded-full flex items-center justify-center text-white font-display text-base font-600" style="background:${esc(s.color)}">${esc(initials(s.name))}</span>
       <div class="flex-1 min-w-0">
         <p class="font-600 text-sm truncate">${esc(s.name)}</p>
-        <p class="text-xs text-ink-faint">Age ${age} · born ${s.birthYear}</p>
+        <p class="text-xs text-ink-faint">Age ${age} · born ${bornLabel(s)}</p>
       </div>
       ${isActive ? '<span class="text-xs font-medium text-brand-dark px-2 py-0.5 rounded-full bg-brand/10">Active</span>' : '<button class="select text-xs font-medium text-brand px-3 py-1.5 rounded-full bg-paper-card hover:bg-brand-light">Switch</button>'}
       <button class="place text-ink-faint hover:text-brand-dark p-1" title="Placement: mark earlier topics mastered" aria-label="Placement for ${esc(s.name)}"><i data-lucide="list-checks" class="w-4 h-4"></i></button>
+      <button class="edit text-ink-faint hover:text-brand-dark p-1" title="Edit learner" aria-label="Edit ${esc(s.name)}"><i data-lucide="pencil" class="w-4 h-4"></i></button>
       <button class="del text-ink-faint hover:text-[#a4473a] p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
     </div>`);
     row.querySelector('.place').addEventListener('click', () => { m.close(); openPlacement(s); });
+    row.querySelector('.edit').addEventListener('click', () => { m.close(); openEditStudent(s); });
     row.querySelector('.select')?.addEventListener('click', () => { store.setActiveStudent(s.id); m.close(); toast('Switched to ' + s.name); });
     row.querySelector('.del').addEventListener('click', () => {
       if (confirm(`Remove ${s.name}? This deletes their progress and records.`)) { store.removeStudent(s.id); m.close(); }
@@ -151,29 +153,99 @@ function openStudentMenu(navigate) {
   const m = openModal(body);
 }
 
+function bornLabel(s) {
+  const month = store.MONTHS[s.birthMonth - 1];
+  return Number.isInteger(s.birthMonth) && month ? `${month} ${s.birthYear}` : String(s.birthYear);
+}
+
+const inputCls = 'w-full px-3.5 py-2.5 rounded-full border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand';
+
+// Name, birth month and year, and (when editing) avatar color. Shared by the
+// Add and Edit forms; read back with readStudentForm().
+function studentFields(s = null) {
+  const year = new Date().getFullYear();
+  const months = store.MONTHS.map((label, i) =>
+    `<option value="${i + 1}" ${s?.birthMonth === i + 1 ? 'selected' : ''}>${label}</option>`).join('');
+  const colors = s ? `<fieldset>
+      <legend class="text-sm font-medium block mb-1.5">Color</legend>
+      <div class="flex flex-wrap gap-2.5">${store.PALETTE.map((c, i) => `
+        <label class="cursor-pointer">
+          <input type="radio" name="color" value="${c}" class="sr-only peer" ${c === s.color ? 'checked' : ''} />
+          <span class="block w-9 h-9 rounded-full peer-checked:shadow-[0_0_0_3px_#fffdf8,0_0_0_5px_#f2c14e] peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40" style="background:${c}" title="Color ${i + 1}"></span>
+          <span class="sr-only">Color ${i + 1}</span>
+        </label>`).join('')}
+      </div>
+    </fieldset>` : '';
+  return `
+      <div>
+        <label for="sf-name" class="text-sm font-medium block mb-1.5">Name</label>
+        <input id="sf-name" name="name" required maxlength="60" value="${esc(s?.name || '')}" class="${inputCls}" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="sf-month" class="text-sm font-medium block mb-1.5">Birth month <span class="text-ink-faint font-normal">(optional)</span></label>
+          <select id="sf-month" name="birthMonth" class="${inputCls}"><option value="">Not set</option>${months}</select>
+        </div>
+        <div>
+          <label for="sf-year" class="text-sm font-medium block mb-1.5">Birth year</label>
+          <input id="sf-year" name="birthYear" type="number" min="${store.MIN_BIRTH_YEAR}" max="${year}" required value="${s?.birthYear ?? ''}" class="${inputCls}" />
+        </div>
+      </div>
+      <p class="text-xs text-ink-faint -mt-2">The month makes the age exact; without it, age counts from January.</p>
+      ${colors}`;
+}
+
+function readStudentForm(form) {
+  const fd = new FormData(form);
+  return {
+    name: String(fd.get('name') || '').trim(),
+    birthYear: parseInt(fd.get('birthYear'), 10),
+    birthMonth: parseInt(fd.get('birthMonth'), 10) || null,
+    color: fd.get('color') || undefined,
+  };
+}
+
 function openAddStudent() {
   const body = el(`<div class="p-5">
     <h3 class="font-display text-lg font-600 mb-4">Add a student</h3>
     <form id="f" class="space-y-4">
-      <div>
-        <label class="text-sm font-medium block mb-1.5">Name</label>
-        <input name="name" required class="w-full px-3.5 py-2.5 rounded-full border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
-      </div>
-      <div>
-        <label class="text-sm font-medium block mb-1.5">Birth year</label>
-        <input name="birthYear" type="number" min="2005" max="2024" required class="w-full px-3.5 py-2.5 rounded-full border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
-      </div>
+      ${studentFields()}
       <button class="w-full px-4 h-12 rounded-full bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Add student</button>
     </form>
   </div>`);
   body.querySelector('#f').onsubmit = e => {
     e.preventDefault();
-    const fd = new FormData(e.target);
-    store.addStudent(fd.get('name').trim(), parseInt(fd.get('birthYear'), 10));
+    const v = readStudentForm(e.target);
+    if (!v.name || !v.birthYear) return;
+    store.addStudent(v.name, v.birthYear, v.birthMonth);
     toast('Student added', 'success');
     m.close();
   };
   const m = openModal(body);
+}
+
+function openEditStudent(s) {
+  const body = el(`<div class="p-5">
+    <h3 class="font-display text-lg font-600 mb-4">Edit learner</h3>
+    <form id="f" class="space-y-4">
+      ${studentFields(s)}
+      <div class="flex gap-2 justify-end pt-1">
+        <button type="button" id="cancel" class="px-4 h-11 rounded-full bg-paper text-sm font-medium">Cancel</button>
+        <button class="px-5 h-11 rounded-full bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors">Save changes</button>
+      </div>
+    </form>
+  </div>`);
+  body.querySelector('#cancel').onclick = () => m.dismiss();
+  body.querySelector('#f').onsubmit = e => {
+    e.preventDefault();
+    const v = readStudentForm(e.target);
+    if (!v.name || !v.birthYear) return;
+    m.close();
+    if (store.updateStudent(s.id, v)) toast('Learner updated', 'success');
+    else toast('That learner is no longer here', 'error');
+  };
+  const m = openModal(body);
+  body.querySelector('#sf-name').focus();
 }
 
 function accountBox() {
