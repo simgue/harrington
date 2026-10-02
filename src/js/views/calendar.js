@@ -3,7 +3,6 @@ import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { keyOf, parseKey, buildPlan, dailyExtras, planStartKey, invalidatePlan, familyCalendar, normalizeCalendar, restInfo, nextHomeDayKey } from '../scheduler.js';
 import { openLesson } from './lesson.js';
-import { openPrintables } from './printables.js';
 import { openActivityDetail } from './lesson.js';
 import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';

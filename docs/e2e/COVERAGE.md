@@ -23,7 +23,7 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 | Feature | Status | Spec | Notes |
 | --- | --- | --- | --- |
 | Self-hosted server (static, state, lessons, audio, taxonomy, AI proxy) | covered | `api` | Health, taxonomy files and 404, state round trip and bad bodies, lessons, audio put/get/delete, static files, traversal, 405. Every browser spec also runs against it. |
-| OpenAI-compatible AI adapter | covered with mock AI | `api`, `topic`, `records`, `insights`, `no-ai`, `ai-unreachable` | 400 without messages, 200 through the mock, 502 on provider failure (no detail leaked), 502 "unreachable" when nothing listens at the provider URL, 503 with no provider. Model aliases are sent (`small`, `gpt-4o`) and the mock receives `mock`. |
+| OpenAI-compatible AI adapter | covered with mock AI | `api`, `topic`, `records`, `insights`, `no-ai`, `ai-unreachable` | 400 without messages, 200 through the mock, 502 on provider failure (no detail leaked), 502 "unreachable" when nothing listens at the provider URL, 503 with no provider. The browser sends no model field (HAR-23); the server uses `HARRINGTON_AI_MODEL`, so the mock receives `mock`. |
 | Honest no-AI mode (HAR-13) | covered | `no-ai`, `ai-unreachable`, `topic` | No provider: every AI control on the topic page, quest log, calendar, insights and records is a "Needs a local AI provider" chip linking to `README.md#optional-local-model-ollama` (new tab, `rel="noopener"`); the dashboard hides the refresher and disables recall with an explanation; the child view hides Memory walk and Beat the clock with no provider wording. Provider down: controls stay, failures say "Harrington couldn’t reach the AI provider…" with Try again (helper, lesson, activity instructions). Provider error: lesson regenerate shows the error block and Try again recovers. Timeout and offline copy are not exercised (covered by `tests/ai-status.test.mjs`). |
 | Taxonomy fetch and cache | covered | `start-app.mjs`, `api` | The launcher fetches once (falling back from jsDelivr to GitHub raw) and seeds each data dir; `/api/health` reports `taxonomyCached: true`. Revalidation does not exist, so it is not tested. |
 | Persistence | partly covered | `data-safety`, `api`, every spec via `api.waitForState` | HAR-10 versioning: 428 without If-Match, 412 when stale, 403 cross-site, two-tab conflict reload with toast (F17). The unload beacon's server side over HTTP: JSON POST with `version` in the body → 204 and the state advances, stale → 412, no version → 428, `text/plain` → 415, cross-site → 403; malformed `If-Match` → 400. The browser actually sending a beacon on close mid-debounce is not exercised. |
@@ -126,6 +126,6 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 
 | Feature | Status | Spec | Notes |
 | --- | --- | --- | --- |
-| Commune | not covered | | Not routed; nothing to reach from the UI. |
-| Printable Day Sheet | not covered | | Only reachable from Commune. |
-| Harrington Helper chat | not covered | | Never mounted. The mock still answers its prompt (`chat`) for when it is. |
+| Commune | removed (HAR-23) | | Unrouted views deleted; only the fail-closed `src/js/coop.js` stub remains, covered by `tests/isolation.test.mjs`. |
+| Printable Day Sheet | removed (HAR-23) | | Deleted with the Commune views. |
+| Harrington Helper chat | removed (HAR-23) | | Never mounted; the view, its prompt builder and the mock's `chat` responder are deleted. |

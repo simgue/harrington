@@ -5,7 +5,7 @@ import { el, esc, refreshIcons, toast } from './ui.js';
 
 // The README section that walks a family through setting up a local model.
 export const AI_HELP_HREF = 'https://github.com/simgue/harrington/blob/main/README.md#optional-local-model-ollama';
-export const AI_UNAVAILABLE_LABEL = 'Needs a local AI provider';
+const AI_UNAVAILABLE_LABEL = 'Needs a local AI provider';
 
 const MESSAGES = {
   unconfigured: 'This needs a local AI provider, and none is set up on this Harrington server yet. Everything else keeps working.',
@@ -27,10 +27,6 @@ export function explainAiError(err) {
   else if (/AI provider (failed|returned)/i.test(text) || err?.name === 'SyntaxError') kind = 'provider';
   else if (err?.name === 'TypeError' && /fetch|network|load failed/i.test(text)) kind = 'offline';
   return { kind, message: MESSAGES[kind] };
-}
-
-export function aiNotConfiguredError() {
-  return new Error('AI is not configured');
 }
 
 // A quiet, disabled-looking chip that links to the setup instructions.

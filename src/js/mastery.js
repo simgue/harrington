@@ -17,7 +17,7 @@ export function blockingPrereqs(studentId, topicId) {
 }
 
 // Topics for a subject grouped by age band, in learning order.
-export function subjectByAge(subject) {
+function subjectByAge(subject) {
   const d = getData();
   const list = orderTopics(d.bySubject[subject] || []);
   const byAge = {};
@@ -130,11 +130,11 @@ export function recentActivity(studentId, limit = 8) {
 }
 
 // ---- Sections (a teachable unit = subject + domain within one age band) ----
-export function sectionId(subject, domain, age) { return `${subject}|${domain}|${age}`; }
+function sectionId(subject, domain, age) { return `${subject}|${domain}|${age}`; }
 
 // Ordered sections for a subject: grouped by (domain, age band), ordered by age
 // then by the domain's centrality — the order a learner should move through them.
-export function subjectSections(subject) {
+function subjectSections(subject) {
   const d = getData();
   const byAge = subjectByAge(subject); // age -> ordered topics
   const sections = [];
@@ -171,15 +171,6 @@ export function topicsMasteryStats(studentId, topics) {
 
 // ---- The mastery ladder: topic test -> section test -> subject test ----
 
-// A section is unlocked (its topics can be worked on) when the PREVIOUS section
-// in the subject sequence has been passed. The first section is always open.
-export function sectionUnlocked(studentId, subject, sectionIdx) {
-  if (sectionIdx <= 0) return true;
-  const sections = subjectSections(subject);
-  const prev = sections[sectionIdx - 1];
-  return prev ? store.sectionPassed(studentId, prev.id) : true;
-}
-
 // The section TEST is available once every topic in the section is mastered
 // (i.e. every topic test passed).
 export function sectionTestReady(studentId, section) {
@@ -190,11 +181,6 @@ export function sectionTestReady(studentId, section) {
 export function subjectTestReady(studentId, subject) {
   const sections = subjectSections(subject);
   return sections.length > 0 && sections.every(s => store.sectionPassed(studentId, s.id));
-}
-
-// How many topics in a section still need their topic test passed.
-export function topicsRemaining(studentId, section) {
-  return section.topics.filter(t => store.statusOf(studentId, t.id) !== 'mastered').length;
 }
 
 export { MASTERY };

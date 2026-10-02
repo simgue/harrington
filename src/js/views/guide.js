@@ -1,5 +1,4 @@
 import { el, refreshIcons, openModal, toast } from '../ui.js';
-import * as store from '../store.js';
 
 // ---- Content shared by the welcome tour and the full guide ----
 // One line for every feature that calls the AI adapter, so the copy never
@@ -80,7 +79,7 @@ export function maybeShowWelcome() {
   openWelcomeTour();
 }
 
-export function openWelcomeTour() {
+function openWelcomeTour() {
   let i = 0;
   const body = el(`<div class="p-0">
     <div id="slide" class="px-6 pt-8 pb-5 text-center"></div>

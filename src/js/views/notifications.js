@@ -21,7 +21,7 @@ export function notificationBell(compact = false) {
   return btn;
 }
 
-export function openNotificationCenter() {
+function openNotificationCenter() {
   const body = el(`<div class="p-0">
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-center gap-3 z-10">
       <span class="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0"><i data-lucide="bell" class="w-5 h-5 text-brand-dark"></i></span>

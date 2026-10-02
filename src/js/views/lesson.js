@@ -1,5 +1,4 @@
 import { SUBJECTS } from '../data.js';
-import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiLesson, aiActivityDetail } from '../ai.js';
 import { openPrintables } from './printables.js';

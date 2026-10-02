@@ -20,8 +20,9 @@ The browser app is plain HTML + CSS + vanilla JavaScript (ES modules), served
 by Harrington's dependency-free Node server. A small asset build compiles the
 local Tailwind stylesheet and copies Lucide into `src/vendor/`; it does not
 bundle the application code.
-Family state, lesson caches, and recordings are stored on that server. AI and
-shared-family features are disabled until self-hosted adapters are added.
+Family state, lesson caches, and recordings are stored on that server. AI is
+optional, through a local OpenAI-compatible provider; there are no
+shared-family features.
 
 Run it with Node:
 
@@ -47,13 +48,13 @@ src/js/
   scheduler.js        The day-by-day calendar plan
   adapt.js            Adaptivity engine (difficulty suggestions)
   curriculum-sync.js  Detects upstream curriculum changes -> notifications
-  ai.js               All AI helpers (lessons, tests, recall, chat, etc.)
+  ai.js               All AI helpers (lessons, tests, recall, feedback, etc.)
   recorder.js         Voice recording + live transcript
   ui.js               DOM helpers, modals, toasts, icons
-  views/              One module per screen (dashboard, graph, timeline,
-                      topic, calendar, records, insights, recall, challenge,
+  views/              One module per screen (dashboard, graph, topic,
+                      calendar, records, insights, recall, challenge,
                       masterytest, lesson, printables, recordings, guide,
-                      assistant, notifications, shell)
+                      notifications, kidmode, shell, and their helpers)
 src/docs/GUIDE.md     The full written feature guide
 ```
 
