@@ -12,6 +12,7 @@ import { openDuePractice } from './practice.js';
 import { BADGES } from '../game.js';
 import { meadowScene, petalRing, weekFlower, growthIcon, growthChip, stageForStatus, stageForArea, GROWTH } from '../meadow.js';
 import { openKidMode } from './kidmode.js';
+import { openPlacement } from './placement.js';
 
 // Pastel stop colours for the day's path, cycled per topic.
 const STOPS = [
@@ -149,7 +150,8 @@ export function renderDashboard(params, { navigate }) {
   Object.keys(SUBJECTS).forEach(sub => {
     const meta = SUBJECTS[sub];
     const s = stats.per[sub];
-    const card = el(`<button class="text-left bg-paper-card shadow-soft rounded-3xl p-4 card-hover flex items-center gap-3.5">
+    const cell = el(`<div class="relative"></div>`);
+    const card = el(`<button class="w-full h-full text-left bg-paper-card shadow-soft rounded-3xl p-4 pr-10 card-hover flex items-center gap-3.5">
       ${petalRing(s.pct, meta.color, { icon: meta.icon })}
       <span class="flex-1 min-w-0">
         <span class="block text-sm font-600 truncate">${sub}</span>
@@ -159,7 +161,11 @@ export function renderDashboard(params, { navigate }) {
       </span>
     </button>`);
     card.onclick = () => navigate('graph', { subject: sub });
-    grid.appendChild(card);
+    const place = el(`<button class="absolute top-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-brand-dark hover:bg-paper" title="Placement: mark earlier ${esc(sub)} topics mastered" aria-label="Placement for ${esc(sub)}"><i data-lucide="list-checks" class="w-4 h-4"></i></button>`);
+    place.onclick = () => openPlacement(active, { subject: sub });
+    cell.appendChild(card);
+    cell.appendChild(place);
+    grid.appendChild(cell);
   });
   root.appendChild(grid);
 
@@ -171,7 +177,7 @@ export function renderDashboard(params, { navigate }) {
     <span class="w-12 h-12 rounded-full bg-rose flex items-center justify-center shrink-0"><i data-lucide="folder" class="w-5.5 h-5.5 text-rose-deep"></i></span>
     <span class="flex-1 min-w-0">
       <span class="block font-600">Recordings folder</span>
-      <span class="block text-sm text-ink-soft">${recCount ? `${recCount} voice recording${recCount > 1 ? 's' : ''}, grouped by section` : 'Capture and revisit lesson conversations, organized by section'}</span>
+      <span class="block text-sm text-ink-soft">${recCount ? `${recCount} voice recording${recCount > 1 ? 's' : ''}, grouped by section or topic` : 'Capture and revisit lesson conversations, organized by section or topic'}</span>
     </span>
     <span class="shrink-0 flex items-center gap-1 text-sm font-600 text-rose-deep">Open<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
   </button>`);
