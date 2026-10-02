@@ -175,7 +175,7 @@ const GUIDE_SECTIONS = [
   ]},
   { h: 'Getting started', items: [
     ['Start Harrington', 'Run the Harrington server and open its local address. There is no account and no sign-in.'],
-    ['Add a learner', 'Enter a name and birth year. Harrington uses the birth year to suggest age-appropriate topics and to build the calendar. Add more learners, or switch between them, from the selector at the top of the sidebar (or the round button at the top right on a phone).'],
+    ['Add a learner', 'Enter a name, birth year and, if you like, birth month. Harrington uses the age to suggest age-appropriate topics and to build the calendar; with the month the age is exact. Add more learners, switch between them, or edit a name, birthday or color with the pencil button, from the selector at the top of the sidebar (or the round button at the top right on a phone).'],
     ['Navigate', 'The sidebar (or the bottom bar on a phone) has Dashboard, Calendar, Map, Records and Insights. Guide is in the sidebar, or behind the book icon at the top of the screen on a phone. The child view opens from the dashboard.'],
   ]},
   { h: 'Dashboard', items: [
