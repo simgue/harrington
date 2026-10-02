@@ -68,6 +68,20 @@ tagged a release yet; everything below is on `main`.
   Homestead (HAR-2).
 
 ### Fixed
+- A tab that loses a save to another tab or device reloads once and shows
+  one toast naming what it did not keep (a status change, a record, a note),
+  with "Try again" when the change can be applied again on the fresh copy.
+  A tab's own boot writes (curriculum snapshot, welcome notification) no
+  longer raise a conflict with a sibling tab (e2e finding F17).
+- The preview banner reads the provider status from `/api/health`: "Local AI
+  provider connected" or "No AI provider; everything else works" (F4).
+- A learner younger than the taxonomy's youngest band (a 3-year-old) gets
+  that band's daily choices and stepping stones, and "Everything available
+  is mastered" shows only when it is true (F3).
+- The child view's "Plant something new" offers a topic not yet started; the
+  one in progress comes back only when nothing else is open, as "Keep
+  growing" (F18).
+- Recent growth leaves out topics set back to "Not started" (F12).
 - The Calendar page rendered blank without an AI provider (`gateAi` was
   called but not imported); a source test now checks every file that uses an
   `ai-status.js` helper imports it (HAR-18, HAR-20).

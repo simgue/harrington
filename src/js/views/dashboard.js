@@ -1,7 +1,7 @@
 import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, fmtDateTime, toast } from '../ui.js';
-import { studentStats, recommendedNext, recentActivity, todaysChoices, isUnlocked, MASTERY } from '../mastery.js';
+import { studentStats, recommendedNext, recentActivity, todaysChoices, isUnlocked, allReachableMastered, MASTERY } from '../mastery.js';
 import { openRecordForm } from './records.js';
 import { openRecorder } from '../recorder.js';
 import { keyOf, topicsOn, dailyExtras, restInfo, familyCalendar } from '../scheduler.js';
@@ -98,7 +98,10 @@ export function renderDashboard(params, { navigate }) {
   const nextWrap = nextCard.querySelector('#next');
   const nexts = recommendedNext(active.id, 4);
   if (nexts.length === 0) {
-    nextWrap.appendChild(el(`<p class="text-sm text-ink-faint sm:col-span-2 lg:col-span-4">Everything available is mastered — explore the map to go further.</p>`));
+    const empty = allReachableMastered(active.id)
+      ? 'Everything available is mastered — explore the map to go further.'
+      : 'Nothing is ready to start yet — explore the map to choose a topic.';
+    nextWrap.appendChild(el(`<p class="text-sm text-ink-faint sm:col-span-2 lg:col-span-4">${empty}</p>`));
   } else {
     nexts.forEach(n => {
       const meta = SUBJECTS[n.topic.subject];

@@ -2,7 +2,7 @@
 import { getData, hardPrereqs, orderTopics, topicAge, SUBJECTS } from './data.js';
 import * as store from './store.js';
 import { MASTERY } from './store.js';
-import { buildDailyChoices, LANES } from './daily.js';
+import { ageCeiling, buildDailyChoices, LANES } from './daily.js';
 
 // A topic is "unlocked" when all its HARD prerequisites are mastered.
 export function isUnlocked(studentId, topicId) {
@@ -52,17 +52,22 @@ export function studentStats(studentId) {
 
 // The next best topics to work on for a student: unlocked, not mastered,
 // closest to their age, most central first.
+function learnerAge(studentId) {
+  const s = store.get().students.find(x => x.id === studentId);
+  return store.studentAge(s) || 5;
+}
+
 export function recommendedNext(studentId, limit = 6) {
   const d = getData();
-  const s = store.get().students.find(x => x.id === studentId);
-  const age = store.studentAge(s) || 5;
+  const age = learnerAge(studentId);
+  const ceiling = ageCeiling(age, d.topics, topicAge);
   const candidates = [];
   for (const t of d.topics) {
     const st = store.statusOf(studentId, t.id);
     if (st === 'mastered') continue;
     if (!isUnlocked(studentId, t.id)) continue;
     const ta = topicAge(t);
-    if (ta > age + 1) continue; // don't jump too far ahead
+    if (ta > ceiling) continue; // don't jump too far ahead
     const ageGap = Math.abs(ta - age);
     // prioritise things already started, then age fit, then centrality
     const startedBonus = st === 'practicing' ? 3 : st === 'learning' ? 2 : 0;
@@ -71,6 +76,27 @@ export function recommendedNext(studentId, limit = 6) {
   }
   candidates.sort((a, b) => b.score - a.score);
   return candidates.slice(0, limit);
+}
+
+// True when every topic within the learner's reach (the bands
+// recommendedNext looks at) is mastered: the only time the dashboard may say
+// "Everything available is mastered".
+export function allReachableMastered(studentId) {
+  const d = getData();
+  const ceiling = ageCeiling(learnerAge(studentId), d.topics, topicAge);
+  const reachable = d.topics.filter(t => topicAge(t) <= ceiling);
+  return reachable.length > 0 && reachable.every(t => store.statusOf(studentId, t.id) === 'mastered');
+}
+
+// The child view's "Plant something new": the best unlocked topic not yet
+// started; the one already growing only when nothing new is unlocked, flagged
+// so the button can say "Keep growing" instead. Returns { topic, keepGrowing }
+// or null.
+export function plantNext(studentId) {
+  const ranked = recommendedNext(studentId, Infinity);
+  const fresh = ranked.find(n => n.status === 'none');
+  if (fresh) return { topic: fresh.topic, keepGrowing: false };
+  return ranked[0] ? { topic: ranked[0].topic, keepGrowing: true } : null;
 }
 
 // Today's literacy and numeracy pick-one options for a student, as topics.
@@ -123,7 +149,9 @@ export function recentActivity(studentId, limit = 8) {
   const d = getData();
   const prog = store.progressFor(studentId);
   return Object.entries(prog)
-    .filter(([id, v]) => d.byId.has(id) && v.source !== 'placement')
+    // Placement marks are not growth (HAR-14), and a topic set back to "not
+    // started" has nothing to show.
+    .filter(([id, v]) => d.byId.has(id) && v.source !== 'placement' && v.status && v.status !== 'none')
     .map(([id, v]) => ({ topic: d.byId.get(id), status: v.status, updatedAt: v.updatedAt }))
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
     .slice(0, limit);

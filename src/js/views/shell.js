@@ -1,4 +1,5 @@
 import * as store from '../store.js';
+import { getData } from '../data.js';
 import { el, esc, initials, openModal, refreshIcons, toast } from '../ui.js';
 import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
@@ -92,8 +93,10 @@ export function renderShell({ route, navigate, content }) {
   const main = el(`<div class="flex-1 min-w-0 flex flex-col"></div>`);
   main.appendChild(top);
   const scroll = el(`<div class="flex-1 pb-24 lg:pb-0"></div>`);
+  // Reads the provider status from /api/health (store.aiAvailable), so it never claims what isn't so.
+  const aiLine = store.aiAvailable() ? 'Local AI provider connected' : 'No AI provider; everything else works';
   scroll.appendChild(el(`<div class="bg-butter-light px-4 py-2 text-center text-xs text-[#6b4d0e]">
-    Self-hosted preview · family data stays on this server · AI and shared-family features are not connected yet
+    Self-hosted preview · family data stays on this server · ${aiLine}
   </div>`));
   scroll.appendChild(content);
   main.appendChild(scroll);
@@ -348,10 +351,34 @@ function openImportPreview(doc, learners) {
 
 let tooLargeBanner = null;
 let retryToast = null;
+let conflictToast = null;
 
 function clearSaveProblems() {
   tooLargeBanner?.remove(); tooLargeBanner = null;
   retryToast?.remove(); retryToast = null;
+}
+
+function topicName(id) {
+  try { return getData().byId.get(id)?.name || null; } catch { return null; }
+}
+
+// One toast per conflict, naming what this tab lost, with "Try again" when
+// the change can be applied again on the fresh copy.
+function showConflict({ discarded = [], retry = null } = {}) {
+  const root = document.getElementById('toast-root');
+  if (!root) return;
+  conflictToast?.remove();
+  const lost = store.describeDiscarded(discarded, topicName);
+  const msg = lost ? `Another device saved changes first. Not kept here: ${lost}.` : 'Another device saved changes. Reloaded the latest.';
+  const node = el(`<div role="alert" class="px-4 py-2.5 rounded-lg text-sm font-medium bg-ink text-white shadow-lg flex items-center gap-3">
+    <span>${esc(msg)}</span>
+    ${retry ? '<button class="underline font-600 shrink-0">Try again</button>' : ''}
+  </div>`);
+  conflictToast = node;
+  const close = () => { node.remove(); if (conflictToast === node) conflictToast = null; };
+  node.querySelector('button')?.addEventListener('click', () => { close(); retry(); });
+  root.appendChild(node);
+  setTimeout(close, retry ? 12000 : 4000);
 }
 
 function showTooLarge() {
@@ -379,10 +406,11 @@ function showRetry() {
   root.appendChild(retryToast);
 }
 
-store.onSaveStatus(({ type }) => {
+store.onSaveStatus((event) => {
+  const { type } = event;
   if (typeof document === 'undefined') return;
   if (type === 'saved') clearSaveProblems();
-  else if (type === 'conflict') { clearSaveProblems(); toast('Another device saved changes. Reloaded the latest.'); }
+  else if (type === 'conflict') { clearSaveProblems(); showConflict(event); }
   else if (type === 'too-large') showTooLarge();
   else if (type === 'failed') showRetry();
 });

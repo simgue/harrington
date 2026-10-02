@@ -173,9 +173,6 @@ it go?"; a claimed note saves `coverage` and shows Evidence recorded;
 interest chips (suggested and custom) and the note are saved per learner.
 
 **Caveats.**
-- A 3-year-old gets no daily choices and no stepping stones, and the card
-  says "Everything available is mastered" (F3).
-- The yellow banner says AI is "not connected yet" even when it is (F4).
 - "0 of 1590 topics" is not formatted like the map's "1,590" (F15).
 
 ---
@@ -225,9 +222,7 @@ show on the dashboard. PIN: too short, mismatch, wrong PIN, Back, and the PIN
 saved to `settings.parentPin`. Beat the clock without a bloom shows "Grow a
 bloom to unlock challenges!".
 
-**Caveats.** The PIN is stored and exported in plain text (F16). A
-3-year-old's Plant something new says "Ask a grown-up to choose" (F3); for
-an older child it offers a topic already in progress (F18).
+**Caveats.** The PIN is stored and exported in plain text (F16).
 
 ---
 
@@ -315,7 +310,6 @@ count, the dashboard's hero count, Mathematics card and Recent growth; a
 record added here appears here and on the server with its rating; Record and
 Record for this section open the recorder linked to the topic or section.
 
-**Caveats.** A topic set back to "Not started" stays in Recent growth (F12).
 
 ---
 
@@ -578,9 +572,7 @@ write, `stateVersion`/`stateBytes` in health, and the unload beacon's POST
 (version in the body; 415 for `text/plain`, 403 cross-site, 412 stale).
 
 **Caveats.** Export and Import are not reachable on a phone (F6). The PIN
-travels in the export (F16). The losing tab first confirms the parent's
-change, then discards it, and a tab's own boot write can lose too: the
-screenshot shows the conflict toast twice (F17).
+travels in the export (F16).
 
 ---
 

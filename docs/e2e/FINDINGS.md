@@ -16,7 +16,8 @@ accessibility.
 Some findings were fixed by pull requests that merged while the suite was
 being written: three from the first run, F7 and F10 (HAR-13, #18), F2
 (HAR-19, #24), F1 (HAR-20, #26), F5, F8 and F9 (HAR-18, #25), F11 (HAR-21,
-#23), and F19, a regression from a merge that #29 fixed within the hour. They are listed under
+#23), and F19, a regression from a merge that #29 fixed within the hour.
+F3, F4, F12, F17 and F18 were fixed afterwards (e2e findings batch A). They are listed under
 [Fixed since the audit](#fixed-since-the-audit); their entries below are kept
 so the numbers stay stable.
 
@@ -26,8 +27,8 @@ so the numbers stay stable.
 | --- | --- | --- | --- | --- |
 | ~~F1~~ | ~~Recall cards are never cached: the server rejects them~~ | High | `topic` | Fixed by HAR-20 (`8311b03`) |
 | ~~F2~~ | ~~Discussion analysis and progress review send the learner's name to the AI provider~~ | High | `records`, `insights` | Fixed by HAR-19 (`cffc6ab`) |
-| F3 | A 3-year-old gets no daily choices and an "everything is mastered" message | Medium | `dashboard` | |
-| F4 | The preview banner says AI is not connected even when it is | Medium | `dashboard` | |
+| ~~F3~~ | ~~A 3-year-old gets no daily choices and an "everything is mastered" message~~ | Medium | `dashboard` | Fixed by e2e findings batch A |
+| ~~F4~~ | ~~The preview banner says AI is not connected even when it is~~ | Medium | `dashboard` | Fixed by e2e findings batch A |
 | ~~F5~~ | ~~Day one offers a refresher quiz on a topic never taught~~ | Medium | `dashboard`, `calendar` | Fixed by HAR-18 (`428e9ea`) |
 | F6 | Export and Import are not reachable on a phone | Medium | `mobile` | |
 | ~~F7~~ | ~~A failed "Generate a different version" leaves a spinner forever~~ | Medium | `topic` | Fixed by HAR-13 |
@@ -35,13 +36,13 @@ so the numbers stay stable.
 | ~~F9~~ | ~~"Refreshers change each day automatically" is a button that does nothing~~ | Low | `calendar` | Fixed by HAR-18 (`428e9ea`) |
 | ~~F10~~ | ~~Activity instructions failure says "Couldn't create the lesson"~~ | Low | `ai-unreachable` | Fixed by HAR-13 |
 | ~~F11~~ | ~~Selecting a skill scrolls the page to the top~~ | Low | `map` | Fixed by HAR-21 (`68a94c9`) |
-| F12 | Recent growth lists topics set back to "Not started" | Low | `topic` | |
+| ~~F12~~ | ~~Recent growth lists topics set back to "Not started"~~ | Low | `topic` | Fixed by e2e findings batch A |
 | F13 | Notification bell has no accessible name | Low | `notifications` | |
 | F14 | Icon-only delete and remove buttons have no accessible name | Low | `learners`, `records`, `calendar` | |
 | F15 | Dashboard says "1590 topics" where the map says "1,590" | Low | `dashboard` | |
 | F16 | The child-view PIN is stored and exported in plain text | Low | `data-safety` | |
-| F17 | A losing tab confirms a change, then discards it; a tab's own boot write can raise the conflict | Medium | `data-safety` | |
-| F18 | "Plant something new" in the child view offers a topic already in progress | Low | `child-view` | |
+| ~~F17~~ | ~~A losing tab confirms a change, then discards it; a tab's own boot write can raise the conflict~~ | Medium | `data-safety` | Fixed by e2e findings batch A |
+| ~~F18~~ | ~~"Plant something new" in the child view offers a topic already in progress~~ | Low | `child-view` | Fixed by e2e findings batch A |
 | ~~F19~~ | ~~Without an AI provider the Calendar does not render (`gateAi is not defined`)~~ | High | `no-ai` | Fixed by #29 (`8665fdc`) |
 
 Verified fixed since the 27 September audit (the suite now guards them):
@@ -104,7 +105,16 @@ It was pinned by the `records.spec.mjs` and `insights.spec.mjs` tests marked
 
 ## F3. A 3-year-old gets no daily choices and an "everything is mastered" message
 
-**Medium.** `recommendedNext` and the daily lanes skip topics more than one
+**Fixed by e2e findings batch A.** `ageCeiling` (`daily.js`) never lets the
+reach drop below the taxonomy's youngest band, so `recommendedNext` and the
+daily lanes offer that band to a learner younger than it. The empty
+stepping-stones copy says "Everything available is mastered" only when
+`allReachableMastered` is true, and "Nothing is ready to start yet" otherwise.
+`dashboard.spec.mjs` › "a 3-year-old gets the youngest band's daily choices
+and stepping stones (F3, fixed)"; unit tests in `growth.test.mjs` and
+`daily.test.mjs`.
+
+Original report: **Medium.** `recommendedNext` and the daily lanes skip topics more than one
 year above the learner's age (`mastery.js:65`); the taxonomy starts at 4–5,
 so a 3-year-old has nothing. The dashboard shows no literacy or numeracy
 choice and the stepping-stones card says "Everything available is mastered —
@@ -114,17 +124,21 @@ learner with nothing mastered. The child view's "Plant something new" says
 
 Repro: add a learner born 2023, open the dashboard.
 
-Shown by `dashboard.spec.mjs` › "a 3-year-old gets no daily choices and no
-stepping stones (finding F3)". Screenshot: `screenshots/dashboard/05-dashboard-three-year-old.jpg`.
+It was pinned by `dashboard.spec.mjs` (finding F3), now flipped. Screenshot: `screenshots/dashboard/05-dashboard-three-year-old.jpg`.
 
 ## F4. The preview banner says AI is not connected even when it is
 
-**Medium.** The shell banner (`shell.js:96`) always reads "AI and
+**Fixed by e2e findings batch A.** The banner reads `store.aiAvailable()`
+(from `/api/health`): "Local AI provider connected" or "No AI provider;
+everything else works". `dashboard.spec.mjs` › "the preview banner says the
+AI provider is connected… (F4, fixed)" and the no-provider line in
+`no-ai.spec.mjs`.
+
+Original report: **Medium.** The shell banner (`shell.js:96`) always reads "AI and
 shared-family features are not connected yet", even when `/api/health`
 reports `aiConfigured: true` and lessons work.
 
-Shown by `dashboard.spec.mjs` › "the preview banner says AI is not connected
-even when it is (finding F4)".
+It was pinned by `dashboard.spec.mjs` (finding F4), now flipped.
 
 ## F5. Day one offers a refresher quiz on a topic never taught
 
@@ -223,11 +237,16 @@ It was pinned by `map.spec.mjs`, now flipped.
 
 ## F12. Recent growth lists topics set back to "Not started"
 
-**Low.** `recentActivity` (`mastery.js:115`) lists every topic with a
+**Fixed by e2e findings batch A.** `recentActivity` drops entries whose
+status is not started (placement entries stay out, per HAR-14).
+`topic.spec.mjs` › "manual status… (F12, fixed)"; unit test in
+`growth.test.mjs`.
+
+Original report: **Low.** `recentActivity` (`mastery.js:115`) lists every topic with a
 progress entry, including one a parent marked "Not started" again, so the
 dashboard's Recent growth shows "One-to-one counting · Sprout · Not started".
 
-Shown by `topic.spec.mjs` › "manual status: every transition… (finding F12)".
+It was pinned by `topic.spec.mjs` (finding F12), now flipped.
 
 ## F13. Notification bell has no accessible name
 
@@ -271,7 +290,20 @@ as JSON, PIN included (finding F16)".
 
 ## F17. A losing tab confirms a change, then discards it; a tab's own boot write can raise the conflict
 
-**Medium.** Two problems around HAR-10's conflict reload, both visible in
+**Fixed by e2e findings batch A.** The store keeps the document as last
+agreed with the server; on a 412, `reloadFromServer` compares it with the
+tab's state (`diffDocuments`), reloads once and emits one `conflict` event
+listing what was discarded. The shell shows one toast naming it ("Not kept
+here: How Many in Total? marked practicing.") with **Try again** when the
+change can simply be applied again (status changes, added records and
+notes). The tab's own boot writes (curriculum snapshot, welcome or
+curriculum notification) are put back only where the fresh document lacks
+them, silently, so two tabs opened together no longer conflict.
+`data-safety.spec.mjs` › "two tabs: the losing tab says which change it
+discarded, once, and Try again re-applies it (F17, fixed)"; unit tests in
+`store-conflict.test.mjs`.
+
+Original report: **Medium.** Two problems around HAR-10's conflict reload, both visible in
 `screenshots/data-safety/03-conflict-toast.jpg`, where the losing tab shows
 "Another device saved changes. Reloaded the latest." twice with "Marked as
 practicing" between them.
@@ -297,12 +329,17 @@ Repro: open Harrington in two windows side by side on a family without a
 saved curriculum snapshot (or within a second of each other). Mark a topic in
 window A, then mark a different topic in window B without reloading it.
 
-Shown by `data-safety.spec.mjs` › "two tabs: the second save loses and
-reloads the first one's data, after a success toast (finding F17)".
+It was pinned by `data-safety.spec.mjs` (finding F17), now flipped.
 
 ## F18. "Plant something new" in the child view offers a topic already in progress
 
-**Low.** The child view's **Plant something new** button takes the first
+**Fixed by e2e findings batch A.** `plantNext` (`mastery.js`) offers the
+best unlocked topic not yet started; the one in progress comes back only
+when nothing else is open, and the button then reads "Keep growing".
+`child-view.spec.mjs` › "\"Plant something new\" offers a topic not yet
+started… (F18, fixed)"; unit tests in `growth.test.mjs`.
+
+Original report: **Low.** The child view's **Plant something new** button takes the first
 result of `recommendedNext()` (`kidmode.js:190`), which ranks topics the
 learner is already learning or practicing first (`mastery.js:68`). A child
 practicing "One-to-one counting" is offered "One-to-one counting" as
@@ -311,8 +348,7 @@ something new.
 Repro: set a topic to Practicing for a learner, open their child view and
 read the Plant something new button.
 
-Shown by `child-view.spec.mjs` › "\"Plant something new\" offers a topic
-already in progress (finding F18)".
+It was pinned by `child-view.spec.mjs` (finding F18), now flipped.
 
 ## F19. Without an AI provider the Calendar does not render (`gateAi is not defined`)
 
@@ -347,7 +383,7 @@ The suite confirms these audit items now behave, and fails if they regress:
 | Audit item | Now | Spec |
 | --- | --- | --- |
 | Removing a learner orphaned their tests, plan, game, etc. | HAR-10 clears every per-learner key | `data-safety` |
-| Two tabs silently overwrote each other | The losing tab reloads and says "Another device saved changes. Reloaded the latest." | `data-safety` |
+| Two tabs silently overwrote each other | The losing tab reloads and names the change it did not keep, with Try again (F17) | `data-safety` |
 | No export or restore | Export and Import with a preview (desktop only, see F6) | `data-safety` |
 | Recall grading dropped the card's `topicId`, so due cards could not load | Every graded card keeps its `topicId`; "Review" opens the due card | `topic` |
 | "Review answers → Back to result" re-saved the test and re-awarded XP | One test record per attempt | `topic` |
@@ -360,6 +396,11 @@ The suite confirms these audit items now behave, and fails if they regress:
 | Selecting a skill scrolled the page to the top (F11) | HAR-21: scroll and selection kept, also on return from the topic page | `map` |
 | No calendar without a provider after a merge (F19) | #29 restored the import | `no-ai` |
 | Discussion analysis and progress review sent the learner's name (F2) | HAR-19: names become "the child" before sending; notes need an opt-in | `records`, `insights` |
+| A 3-year-old had no daily choices and "everything is mastered" (F3) | Batch A: the youngest band is offered; the mastered copy only when true | `dashboard` |
+| The banner said AI was not connected when it was (F4) | Batch A: reads `/api/health` | `dashboard`, `no-ai` |
+| Recent growth listed topics set back to "Not started" (F12) | Batch A: dropped | `topic` |
+| A losing tab confirmed, then silently discarded a change; boot writes raised conflicts (F17) | Batch A: one toast naming the discarded change, with Try again; boot writes never conflict | `data-safety` |
+| "Plant something new" offered the topic in progress (F18) | Batch A: a topic not yet started, or "Keep growing" when nothing else is open | `child-view` |
 | Day-one refresher on untaught material (F5) | HAR-18: refreshers and activities only from mastered topics | `dashboard`, `calendar` |
 | Calendar "Extra practice" opened a lesson (F8) | HAR-18: opens spaced practice | `calendar` |
 | Dead "Refreshers change each day automatically" button (F9) | HAR-18 removed it | `calendar` |

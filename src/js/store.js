@@ -83,16 +83,26 @@ function objectOr(value, fallback) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
 }
 
-function applyDocument(data) {
+// The family fields of a stored document, normalized as the state holds them.
+function documentFields(data) {
   const doc = objectOr(data, {});
-  state.students = Array.isArray(doc.students) ? doc.students : [];
-  state.activeStudentId = doc.activeStudentId || (state.students[0] && state.students[0].id) || null;
-  for (const key of LEARNER_KEYS) state[key] = objectOr(doc[key], {});
-  state.notifications = Array.isArray(doc.notifications) ? doc.notifications : [];
-  state.curriculumSnapshot = doc.curriculumSnapshot || null;
-  state.graphView = doc.graphView === 'list' ? 'list' : 'atlas';
-  state.settings = objectOr(doc.settings, {});
-  stateVersion = Number.isSafeInteger(doc.version) ? doc.version : 0;
+  const students = Array.isArray(doc.students) ? doc.students : [];
+  const fields = {
+    students,
+    activeStudentId: doc.activeStudentId || (students[0] && students[0].id) || null,
+    notifications: Array.isArray(doc.notifications) ? doc.notifications : [],
+    curriculumSnapshot: doc.curriculumSnapshot || null,
+    graphView: doc.graphView === 'list' ? 'list' : 'atlas',
+    settings: objectOr(doc.settings, {}),
+  };
+  for (const key of LEARNER_KEYS) fields[key] = objectOr(doc[key], {});
+  return fields;
+}
+
+function applyDocument(data) {
+  Object.assign(state, documentFields(data));
+  stateVersion = versionOf(data);
+  markSynced();
 }
 
 export async function loadAll() {
@@ -128,6 +138,135 @@ function snapshotData() {
   };
 }
 
+// The document as last agreed with the server (loaded, or accepted by a
+// save), as JSON. On a conflict it is compared with this tab's state to tell
+// what the reload discards.
+let syncedJson = null;
+function markSynced(data = snapshotData()) { syncedJson = typeof data === 'string' ? data : JSON.stringify(data); }
+
+// What changed between two family documents (`base`, the last synced copy,
+// and `local`, this tab's state), as a list of changes:
+//   { kind: 'status', studentId, topicId, entry }  a topic's progress entry set
+//   { kind: 'record', studentId, record }          a record added
+//   { kind: 'activity', studentId, day }           a day marked active
+//   { kind: 'notification', notification }         a notification added
+//   { kind: 'read', id }                           a notification marked read
+//   { kind: 'snapshot', snapshot }                 the curriculum snapshot saved
+//   { kind: 'other', key }                         anything else (not re-applied)
+// Pure, so it can be tested without a server.
+export function diffDocuments(base, local) {
+  const b = objectOr(base, {});
+  const l = objectOr(local, {});
+  const changes = [];
+  const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+  for (const key of Object.keys(l)) {
+    if (same(b[key], l[key])) continue;
+    if (key === 'progress') {
+      for (const [studentId, topics] of Object.entries(objectOr(l.progress, {}))) {
+        const before = objectOr(objectOr(b.progress, {})[studentId], {});
+        for (const [topicId, entry] of Object.entries(objectOr(topics, {}))) {
+          if (!same(before[topicId], entry)) changes.push({ kind: 'status', studentId, topicId, entry });
+        }
+        if (Object.keys(before).some(id => !(id in objectOr(topics, {})))) changes.push({ kind: 'other', key });
+      }
+    } else if (key === 'records') {
+      for (const [studentId, list] of Object.entries(objectOr(l.records, {}))) {
+        const before = new Map((objectOr(b.records, {})[studentId] || []).map(r => [r.id, r]));
+        const now = new Set();
+        for (const record of Array.isArray(list) ? list : []) {
+          now.add(record.id);
+          if (!before.has(record.id)) changes.push({ kind: 'record', studentId, record });
+          else if (!same(before.get(record.id), record)) changes.push({ kind: 'other', key });
+        }
+        if ([...before.keys()].some(id => !now.has(id))) changes.push({ kind: 'other', key });
+      }
+    } else if (key === 'activity') {
+      for (const [studentId, days] of Object.entries(objectOr(l.activity, {}))) {
+        const before = objectOr(objectOr(b.activity, {})[studentId], {});
+        for (const day of Object.keys(objectOr(days, {}))) if (!before[day]) changes.push({ kind: 'activity', studentId, day });
+      }
+    } else if (key === 'notifications') {
+      const before = new Map((Array.isArray(b.notifications) ? b.notifications : []).map(n => [n.id, n]));
+      for (const n of Array.isArray(l.notifications) ? l.notifications : []) {
+        const old = before.get(n.id);
+        if (!old) changes.push({ kind: 'notification', notification: n });
+        else if (n.read && !old.read) changes.push({ kind: 'read', id: n.id });
+      }
+    } else if (key === 'curriculumSnapshot') {
+      if (l.curriculumSnapshot) changes.push({ kind: 'snapshot', snapshot: l.curriculumSnapshot });
+    } else {
+      changes.push({ kind: 'other', key });
+    }
+  }
+  return changes;
+}
+
+// Changes a parent made and should hear were not kept. The curriculum
+// snapshot, its notifications and read marks are bookkeeping the tab redoes
+// on its own; activity days ride along with the status or record that set them.
+const BOOKKEEPING = new Set(['snapshot', 'notification', 'read', 'activity']);
+const isBookkeeping = c => BOOKKEEPING.has(c.kind) && !(c.kind === 'notification' && !['welcome', 'curriculum'].includes(c.notification?.type));
+
+// One line naming what a conflict discarded, for the toast. `nameOf(topicId)`
+// gives a topic's name. Returns '' when nothing a parent did was lost.
+export function describeDiscarded(changes, nameOf = id => id) {
+  const parts = [];
+  for (const c of changes || []) {
+    if (c.kind === 'status') {
+      const status = c.entry?.status || 'none';
+      parts.push(`${nameOf(c.topicId) || 'a topic'} marked ${status === 'none' ? 'not started' : status}`);
+    } else if (c.kind === 'record') {
+      const what = c.record?.type === 'note' ? 'the note' : 'the record';
+      parts.push(c.record?.title ? `${what} “${c.record.title}”` : what);
+    } else if (c.kind === 'notification' && !isBookkeeping(c)) {
+      parts.push('a notification');
+    } else if (c.kind === 'other') {
+      parts.push('other changes');
+    }
+  }
+  return [...new Set(parts)].join(', ');
+}
+
+// True when every change can be put back on a fresh document as it is.
+export function canReapply(changes) {
+  return (changes || []).every(c => c.kind !== 'other');
+}
+
+// Puts changes back on the current (fresh) document. Bookkeeping is applied
+// only where the document does not already carry it, so two tabs booting
+// together never fight over the snapshot or the welcome note. Returns true
+// when anything changed.
+function reapply(changes) {
+  let changed = false;
+  for (const c of changes) {
+    if (c.kind === 'status') {
+      const p = state.progress[c.studentId] = state.progress[c.studentId] || {};
+      p[c.topicId] = { ...c.entry };
+      changed = true;
+    } else if (c.kind === 'record') {
+      const list = state.records[c.studentId] = state.records[c.studentId] || [];
+      if (!list.some(r => r.id === c.record.id)) { list.unshift(c.record); changed = true; }
+    } else if (c.kind === 'activity') {
+      const days = state.activity[c.studentId] = state.activity[c.studentId] || {};
+      if (!days[c.day]) { days[c.day] = true; changed = true; }
+    } else if (c.kind === 'notification') {
+      const n = c.notification;
+      // As in syncCurriculum: the welcome note only into an empty list, one
+      // update note per curriculum version.
+      const dup = (n.type === 'welcome' && state.notifications.length > 0)
+        || state.notifications.some(x => x.id === n.id
+          || (n.type === 'curriculum' && x.type === 'curriculum' && x.meta?.version === n.meta?.version));
+      if (!dup) { state.notifications.unshift(n); changed = true; }
+    } else if (c.kind === 'read') {
+      const n = state.notifications.find(x => x.id === c.id);
+      if (n && !n.read) { n.read = true; changed = true; }
+    } else if (c.kind === 'snapshot') {
+      if (!state.curriculumSnapshot) { state.curriculumSnapshot = c.snapshot; changed = true; }
+    }
+  }
+  return changed;
+}
+
 function newWriteId() {
   const id = `w_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   ownWrites.push(id);
@@ -139,17 +278,32 @@ function versionOf(doc) {
   return Number.isSafeInteger(doc?.version) ? doc.version : 0;
 }
 
+// Another tab or device saved first: take its document. This tab's own
+// bookkeeping (curriculum snapshot, welcome note) is put back only where the
+// fresh document lacks it, silently. If the parent's changes were lost, one
+// 'conflict' event names them, with `retry` when they can simply be applied
+// again on the fresh document.
 function reloadFromServer(doc) {
   clearTimeout(saveTimer);
   saveTimer = null;
   dirty = false;
   // A pending beacon carried the version we are discarding, so it cannot land.
   unconfirmedBeacon = null;
+  let changes = [];
+  try { changes = diffDocuments(JSON.parse(syncedJson || 'null'), JSON.parse(JSON.stringify(snapshotData()))); }
+  catch (e) { console.warn('could not compare with the saved copy', e); }
   applyDocument(doc);
   const present = new Set(state.students.map(s => s.id));
   pendingAudioDeletes = pendingAudioDeletes.filter(item => !present.has(item.studentId));
+  const bookkeeping = changes.filter(isBookkeeping);
+  const discarded = changes.filter(c => !isBookkeeping(c));
+  if (reapply(bookkeeping.filter(c => c.kind !== 'activity'))) persist();
   emit();
-  saveStatus({ type: 'conflict' });
+  if (!discarded.length && changes.length) return; // only our own boot writes lost: nothing to tell
+  const retry = discarded.length && canReapply(discarded)
+    ? () => { if (reapply(changes)) { persist(); emit(); } }
+    : null;
+  saveStatus({ type: 'conflict', discarded, retry });
 }
 
 // Deletes recordings of learners whose removal the server has accepted.
@@ -169,12 +323,13 @@ function reconcile(doc) {
   const version = versionOf(doc);
   if (beaconId && doc.writeId === beaconId) {
     stateVersion = version;
+    markSynced(documentFields(doc));
     deleteRemovedAudio();
     return true;
   }
   if (version === stateVersion || ownWrites.includes(doc.writeId)) {
     stateVersion = Math.max(stateVersion, version);
-    if (ownWrites.includes(doc.writeId)) deleteRemovedAudio();
+    if (ownWrites.includes(doc.writeId)) { markSynced(documentFields(doc)); deleteRemovedAudio(); }
     // Our beacon did not land; send its changes again.
     if (beaconId) persist();
     return true;
@@ -205,8 +360,11 @@ async function saveWith(makeData) {
       data = makeData() ?? data;
       if (data === null) return true;
       try {
+        // Frozen before sending: edits made while the save is in flight are not on the server yet.
+        const sent = JSON.stringify(data);
         const next = await backend.saveState(data, stateVersion, newWriteId());
         stateVersion = Math.max(stateVersion, next);
+        markSynced(sent);
         deleteRemovedAudio();
         saveStatus({ type: 'saved' });
         return true;
@@ -216,6 +374,7 @@ async function saveWith(makeData) {
         if (!ownWrites.includes(doc.writeId)) { reloadFromServer(doc); return false; }
         if (doc.writeId === unconfirmedBeacon) unconfirmedBeacon = null;
         stateVersion = versionOf(doc);
+        markSynced(documentFields(doc));
         deleteRemovedAudio();
       }
     }
