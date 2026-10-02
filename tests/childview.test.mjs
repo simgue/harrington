@@ -14,7 +14,7 @@ globalThis.fetch = async (path, options = {}) => {
 
 const store = await import('../src/js/store.js');
 const game = await import('../src/js/game.js');
-const { canYouPrompt } = await import('../src/js/views/childtopic.js');
+const { canYouPrompt } = await import('../src/js/phrasing.js');
 
 test('the child view never launches a mastery test', async () => {
   const kidmode = await source('src/js/views/kidmode.js');

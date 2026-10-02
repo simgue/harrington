@@ -37,6 +37,12 @@ tagged a release yet; everything below is on `main`.
   plain, accurate wording (HAR-12).
 
 ### Added
+- "Check mastery by observation" on every topic page works without AI: tick
+  the topic's evidence items as you watch (with its suggested question and an
+  optional typed or voice note). A full tick marks the topic mastered like a
+  passed quiz; mastering a section's last topic this way passes the section,
+  and its subject's last section passes the subject. Records and Insights
+  label these checks "observed"; the child view never shows them (HAR-24).
 - Today's pick-one stops record evidence for the pick: the note and voice
   forms offer an opt-in "Mark curriculum coverage" checkbox, and a pick shows
   "Evidence recorded" only once a linked record claims coverage. Each stop

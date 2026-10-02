@@ -113,6 +113,16 @@ Open a topic from the map, the dashboard or a record.
 prompt, how the topic connects (comes before / leads to), records for the
 topic, activity and game ideas, reference links, and manual status.
 
+**Check mastery by observation** works without AI. Press it under the topic
+mastery test, ask the suggested question or just watch your child at work,
+and tick each piece of evidence you see. Add a note if you like, typed or as a
+voice note. When every item is ticked, the topic is marked mastered, just as
+passing a quiz would. Fewer ticks are still saved in Records, and nothing
+changes. When the last topic of a section is mastered this way, the section
+counts as passed; when the last section of a subject is, the subject does
+too. Records and Insights label these checks "observed". Your child's view
+never shows them; their topic card asks the same things as "Can you…?"
+
 **Reference links** are searches on Khan Academy, BBC Bitesize, Wikipedia and
 YouTube. YouTube results are not filtered for children, so the link reads
 "YouTube search (supervise)".
@@ -162,6 +172,8 @@ A day-by-day plan from your start date, on the home days you choose.
 - **Subject summary.** How many topics are mastered, practicing, learning or
   not started in each subject.
 - **Recommended next.** The best unlocked topics in that subject.
+- **Observation checks.** The topics, sections and subjects you checked by
+  watching, each labelled "observed".
 - **Progress review, subject test and adaptive suggestions.** Needs a local AI
   provider; see the README.
 
@@ -193,7 +205,9 @@ Everything below stays off until `HARRINGTON_AI_BASE_URL` and
 `HARRINGTON_AI_MODEL` are set (see the README):
 
 - Ready-to-teach lessons and print & go materials
-- Topic, section and subject mastery tests, and certificates
+- Topic, section and subject mastery tests (quizzes), and certificates. The
+  observation check on a topic page needs no AI and can master topics,
+  sections and subjects on its own.
 - Timed challenges and adaptive (parent-approved) difficulty suggestions
 - Recall cards and memory review
 - Activity instructions, "Explain simply" and "Make a mini-quiz"

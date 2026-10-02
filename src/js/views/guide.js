@@ -202,6 +202,7 @@ const GUIDE_SECTIONS = [
   ]},
   { h: 'Topic page', items: [
     ['Works today', 'Description, what mastery looks like, a quick-check prompt, how the topic connects, records for the topic, activity ideas, reference links and manual status.'],
+    ['Check by observation', 'Works without AI. Ask the suggested question or watch your child at work, then tick each piece of evidence you see; add a typed or voice note if you like. Every item ticked marks the topic mastered, just like passing a quiz. Fewer ticks are kept in Records and change nothing. Mastering the last topic of a section this way passes the section, and the last section passes the subject. Records and Insights label these “observed”; your child’s view never shows them.'],
     ['Reference links', 'Khan Academy, BBC Bitesize and Wikipedia searches, plus YouTube searches. YouTube results are not filtered for children, so supervise.'],
     ['Needs AI', `Full lesson, print & go, the topic mastery test, challenge, recall cards, “Explain simply”, “Make a mini-quiz”, and step-by-step activity instructions. ${NEEDS_AI}`],
   ]},
@@ -223,6 +224,7 @@ const GUIDE_SECTIONS = [
   { h: 'Insights', items: [
     ['Subject summary', 'How many topics are mastered, practicing, learning or not started in each subject.'],
     ['Recommended next', 'The best unlocked topics to work on in that subject.'],
+    ['Observation checks', 'Topics, sections and subjects you checked by watching, each labelled “observed”.'],
     ['Needs AI', `Progress reviews, subject tests and adaptive suggestions. ${NEEDS_AI}`],
   ]},
   { h: 'Notifications', items: [
