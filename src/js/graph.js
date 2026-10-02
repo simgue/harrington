@@ -77,45 +77,6 @@ export function localEdges(topics, prereqsOf) {
   return edges;
 }
 
-export const GRAPH_VIEW_ATLAS = 'atlas';
-export const GRAPH_VIEW_LIST = 'list';
-export const MAX_SECTION_HOPS = 6;
-
-export function normalizeGraphView(mode) {
-  return mode === GRAPH_VIEW_LIST ? GRAPH_VIEW_LIST : GRAPH_VIEW_ATLAS;
-}
-
-export function sectionKey(subject, domain, age) {
-  return `${subject}|${domain}|${Number(age)}`;
-}
-
-export function topicSectionKey(topic) {
-  return sectionKey(topic.subject, topic.domain, topicAge(topic));
-}
-
-export function hopNodeId(key) {
-  return `hop:${key}`;
-}
-
-export function defaultSectionAge(domainNode, preferredAge = null) {
-  const ages = (domainNode?.sections || []).map((section) => section.age);
-  if (!ages.length) return null;
-  if (preferredAge == null || Number.isNaN(Number(preferredAge))) return ages[0];
-  const target = Number(preferredAge);
-  return ages.reduce((best, age) => (
-    Math.abs(age - target) < Math.abs(best - target) ? age : best
-  ));
-}
-
-export function atlasIslandSpan(topicCount, maxCount) {
-  if (!maxCount) return 3;
-  const ratio = topicCount / maxCount;
-  if (ratio >= 0.55) return 6;
-  if (ratio >= 0.3) return 4;
-  if (ratio >= 0.14) return 3;
-  return 2;
-}
-
 function hexToRgb(hex) {
   const raw = String(hex || '').replace('#', '');
   const full = raw.length === 3 ? raw.split('').map((ch) => ch + ch).join('') : raw;
@@ -140,116 +101,7 @@ export function quietMasteryFill(hex, pct, paper = '#fbf6ec') {
   );
 }
 
-function hopSide(hop, homeAge) {
-  if (hop.in && !hop.out) return 'in';
-  if (hop.out && !hop.in) return 'out';
-  if (hop.age < homeAge) return 'in';
-  return 'out';
-}
-
-export function collectSectionHops(homeTopics, data, { cap = MAX_SECTION_HOPS, siblingAges = [] } = {}) {
-  const homeIds = new Set(homeTopics.map((topic) => topic.id));
-  const home = homeTopics[0];
-  const homeKey = home ? topicSectionKey(home) : '';
-  const homeAge = home ? topicAge(home) : 0;
-  const hopMap = new Map();
-
-  const ensure = (topic) => {
-    if (!topic || homeIds.has(topic.id)) return null;
-    const key = topicSectionKey(topic);
-    if (key === homeKey) return null;
-    if (!hopMap.has(key)) {
-      hopMap.set(key, {
-        key,
-        subject: topic.subject,
-        domain: topic.domain,
-        age: topicAge(topic),
-        edgeCount: 0,
-        hardCount: 0,
-        in: 0,
-        out: 0,
-        sibling: false,
-      });
-    }
-    return hopMap.get(key);
-  };
-
-  for (const topic of homeTopics) {
-    for (const prereq of data.prereqsOf.get(topic.id) || []) {
-      const hop = ensure(data.byId.get(prereq.id));
-      if (!hop) continue;
-      hop.edgeCount += 1;
-      if (prereq.strength === 'hard') hop.hardCount += 1;
-      hop.in += 1;
-    }
-    for (const unlock of data.unlocksOf.get(topic.id) || []) {
-      const hop = ensure(data.byId.get(unlock.id));
-      if (!hop) continue;
-      hop.edgeCount += 1;
-      if (unlock.strength === 'hard') hop.hardCount += 1;
-      hop.out += 1;
-    }
-  }
-
-  for (const age of siblingAges) {
-    if (age === homeAge) continue;
-    const key = sectionKey(home.subject, home.domain, age);
-    if (!hopMap.has(key)) {
-      hopMap.set(key, {
-        key,
-        subject: home.subject,
-        domain: home.domain,
-        age,
-        edgeCount: 0,
-        hardCount: 0,
-        in: 0,
-        out: 0,
-        sibling: true,
-      });
-    } else {
-      hopMap.get(key).sibling = true;
-    }
-  }
-
-  const all = [...hopMap.values()].map((hop) => ({ ...hop, side: hopSide(hop, homeAge) }));
-  const siblings = all.filter((hop) => hop.sibling)
-    .sort((a, b) => a.age - b.age);
-  const room = Math.max(0, cap - siblings.length);
-  const cross = all.filter((hop) => !hop.sibling)
-    .sort((a, b) => b.hardCount - a.hardCount || b.edgeCount - a.edgeCount || a.domain.localeCompare(b.domain));
-  const hops = [...siblings, ...cross.slice(0, room)];
-  return { hops, truncated: hops.length < all.length, total: all.length };
-}
-
-function hopEdgesFor(homeTopics, hops, data) {
-  const hopByKey = new Map(hops.map((hop) => [hop.key, hop]));
-  const edges = [];
-  const seen = new Set();
-  const add = (from, to, strength) => {
-    const id = `${from}|${to}|${strength}`;
-    if (seen.has(id)) return;
-    seen.add(id);
-    edges.push({ from, to, strength });
-  };
-
-  for (const topic of homeTopics) {
-    for (const prereq of data.prereqsOf.get(topic.id) || []) {
-      const other = data.byId.get(prereq.id);
-      if (!other) continue;
-      const hop = hopByKey.get(topicSectionKey(other));
-      if (hop) add(hopNodeId(hop.key), topic.id, prereq.strength);
-    }
-    for (const unlock of data.unlocksOf.get(topic.id) || []) {
-      const other = data.byId.get(unlock.id);
-      if (!other) continue;
-      const hop = hopByKey.get(topicSectionKey(other));
-      if (hop) add(topic.id, hopNodeId(hop.key), unlock.strength);
-    }
-  }
-  return edges;
-}
-
-export function longestPathColumns(ids, edges) {
+function longestPathColumns(ids, edges) {
   const idSet = new Set(ids);
   const preds = new Map(ids.map((id) => [id, []]));
   for (const edge of edges) {
@@ -273,7 +125,7 @@ export function longestPathColumns(ids, edges) {
   return columns;
 }
 
-export const SKILL_TREE_LAYOUT = {
+const SKILL_TREE_LAYOUT = {
   colWidth: 128,
   rowHeight: 108,
   paddingX: 36,
@@ -400,41 +252,6 @@ export function layeredDagLayout(nodes, edges, opts = {}) {
   return { nodes: placed, width, height, edges };
 }
 
-export function buildSectionGraph(section, data, { neighborCap = MAX_SECTION_HOPS, siblingAges = [] } = {}) {
-  const homeTopics = section.topics || [];
-  const local = localEdges(homeTopics, data.prereqsOf);
-  const { hops, truncated, total } = collectSectionHops(homeTopics, data, {
-    cap: neighborCap,
-    siblingAges,
-  });
-  const nodes = [
-    ...homeTopics.map((topic) => ({
-      id: topic.id,
-      kind: 'topic',
-      label: topic.name,
-      topic,
-    })),
-    ...hops.map((hop) => ({
-      id: hopNodeId(hop.key),
-      kind: 'hop',
-      side: hop.side,
-      label: hop.domain,
-      sublabel: `Age ${hop.age}`,
-      hop,
-    })),
-  ];
-  const edges = [...local, ...hopEdgesFor(homeTopics, hops, data)];
-  return {
-    homeTopics,
-    hops,
-    nodes,
-    edges,
-    truncated,
-    totalHops: total,
-    layout: layeredDagLayout(nodes, edges),
-  };
-}
-
 // The selected skill rides along as a `?skill=` suffix so "Back to graph" and
 // the browser history restore it. Selection is view state, never family data.
 export function graphHash(params = {}) {
@@ -499,11 +316,11 @@ const REALM_PLACES = {
   'Learning to Learn': { cx: 200, cy: 120, rx: 128, ry: 86, rotate: 4 },
 };
 
-export function realmPlace(subject) {
+function realmPlace(subject) {
   return REALM_PLACES[subject] || { cx: 550, cy: 320, rx: 110, ry: 80, rotate: 0 };
 }
 
-export function realmBlobPath(cx, cy, rx, ry, rotate = 0) {
+function realmBlobPath(cx, cy, rx, ry, rotate = 0) {
   const rad = (rotate * Math.PI) / 180;
   const count = 8;
   const pts = [];
@@ -526,7 +343,7 @@ export function realmBlobPath(cx, cy, rx, ry, rotate = 0) {
   return `${d} Z`;
 }
 
-export function domainClusterPoints(cx, cy, rx, ry, count) {
+function domainClusterPoints(cx, cy, rx, ry, count) {
   if (count <= 0) return [];
   const innerRx = rx * 0.4;
   const innerRy = ry * 0.34;
@@ -570,10 +387,6 @@ export function buildWorldMap(tree) {
   };
 }
 
-export function worldMapDrawnTopicCount(scene) {
-  return (scene?.topicNodes || []).length;
-}
-
 export function defaultDomain(subjectNode, preferredAge = null) {
   const domains = subjectNode?.domains || [];
   if (!domains.length) return null;
@@ -591,11 +404,11 @@ export function defaultDomain(subjectNode, preferredAge = null) {
   ));
 }
 
-export function domainKey(subject, domain) {
+function domainKey(subject, domain) {
   return `${subject}|${domain}`;
 }
 
-export function topicDomainKey(topic) {
+function topicDomainKey(topic) {
   return domainKey(topic.subject, topic.domain);
 }
 
@@ -610,7 +423,7 @@ function gatewaySide(hop) {
   return 'out';
 }
 
-export function collectDomainGateways(homeTopics, home, data, { cap = MAX_DOMAIN_GATEWAYS, siblingDomains = [] } = {}) {
+function collectDomainGateways(homeTopics, home, data, { cap = MAX_DOMAIN_GATEWAYS, siblingDomains = [] } = {}) {
   const homeIds = new Set(homeTopics.map((topic) => topic.id));
   const homeKey = home ? domainKey(home.subject, home.domain) : '';
   const hopMap = new Map();

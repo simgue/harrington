@@ -91,9 +91,9 @@ test('views escape learner, record and taxonomy strings with the shared esc()', 
   const sharedImport = /import \{[^}]*\besc\b[^}]*\} from '\.\.\/ui\.js';/;
   const localCopy = /function esc\(/;
   const views = [
-    'topic', 'timeline', 'calendar', 'graph',
-    'records', 'insights', 'recordings', 'assistant', 'masterytest', 'challenge', 'recall',
-    'notifications', 'coop', 'daysheet', 'shell',
+    'topic', 'calendar', 'graph',
+    'records', 'insights', 'recordings', 'masterytest', 'challenge', 'recall',
+    'notifications', 'shell',
   ];
   for (const name of views) {
     const code = await source(`src/js/views/${name}.js`);

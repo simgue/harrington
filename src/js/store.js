@@ -247,7 +247,7 @@ export function flushSaves() {
   return saveQueue;
 }
 
-export function persist() {
+function persist() {
   dirty = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSaves, 400);
@@ -566,10 +566,6 @@ export function lastTopicTest(studentId, topicId) {
   return (state.tests[studentId] || []).filter(t => t.scope === 'topic' && t.topicId === topicId)
     .sort((a, b) => b.createdAt - a.createdAt)[0] || null;
 }
-export function topicTestPassed(studentId, topicId) {
-  const t = lastTopicTest(studentId, topicId);
-  return !!(t && t.passed);
-}
 export function addTestResult(studentId, result) {
   state.tests[studentId] = state.tests[studentId] || [];
   const full = { id: 't_' + Math.random().toString(36).slice(2, 9), createdAt: Date.now(), scope: 'subject', ...result };
@@ -646,7 +642,7 @@ export function challengesFor(studentId, topicId = null) {
 }
 
 // ---- Adaptations: difficulty level per (subject|domain) ----
-export function adaptationKey(subject, domain) { return `${subject}|${domain}`; }
+function adaptationKey(subject, domain) { return `${subject}|${domain}`; }
 export function adaptationLevel(studentId, subject, domain) {
   const a = (state.adaptations[studentId] || {})[adaptationKey(subject, domain)];
   return a ? a.level : 'standard';
@@ -728,19 +724,6 @@ export function dueRecallCards(studentId, { cardIds = null, topicId = null } = {
       && (!cardIds || cardIds.includes(id))
       && (!topicId || c.topicId === topicId))
     .map(([id, c]) => ({ id, ...c }));
-}
-export function recallStatsForTopic(studentId, cardIds) {
-  const r = recallOf(studentId);
-  const today = dayStart(Date.now());
-  let started = 0, due = 0, learned = 0;
-  cardIds.forEach(id => {
-    const c = r[id];
-    if (!c) return;
-    started++;
-    if (c.due <= today) due++;
-    if ((c.box || 0) >= 3) learned++;
-  });
-  return { total: cardIds.length, started, due, learned };
 }
 export function recallDueCount(studentId) {
   return dueRecallCards(studentId).length;
@@ -831,7 +814,7 @@ function dateKeyLocal(ts) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 // Record that the student did something today (recall, a lesson test, mastery, etc.).
-export function markActivity(studentId) {
+function markActivity(studentId) {
   if (!studentId) return;
   const a = activityOf(studentId);
   const k = dateKeyLocal(Date.now());
@@ -928,7 +911,7 @@ function gameOf(studentId) {
   return g;
 }
 // Level curve: level N needs a growing amount of XP (gentle early on).
-export function levelForXp(xp) {
+function levelForXp(xp) {
   let level = 1, need = 100, total = 0;
   while (xp >= total + need) { total += need; level++; need = Math.round(need * 1.35); }
   return { level, into: xp - total, need, floor: total };
@@ -977,7 +960,6 @@ export function markAllNotificationsRead() {
   state.notifications.forEach(n => { n.read = true; });
   persist(); emit();
 }
-export function clearNotifications() { state.notifications = []; persist(); emit(); }
 
 // ---- Curriculum snapshot (for detecting repo updates) ----
 export function getCurriculumSnapshot() { return state.curriculumSnapshot; }
@@ -1019,7 +1001,7 @@ export function setParentPin(pin) {
 // Family calendar: home days of the week (Date#getDay numbers) and break
 // ranges. Anything malformed is dropped or repaired; no home days at all
 // falls back to Mon–Fri. Returns { homeDays: [0-6, …], breaks: [{ start, end, label }, …] }.
-export const DEFAULT_HOME_DAYS = [1, 2, 3, 4, 5];
+const DEFAULT_HOME_DAYS = [1, 2, 3, 4, 5];
 const realDateKey = k => {
   if (!validDateKey(k)) return false;
   const [y, m, d] = k.split('-').map(Number);
@@ -1181,4 +1163,3 @@ export function generateCached(id, generate, { force = false, accept = null } = 
   return run;
 }
 
-export { emit };

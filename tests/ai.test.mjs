@@ -93,10 +93,6 @@ const PROMPT_CALLS = {
     await ai.aiFeedback({ studentName: LEARNER, age: 6, subject: 'Mathematics', stats, recentTopics: [], records });
     await ai.aiFeedback({ studentName: LEARNER, age: 6, subject: 'Mathematics', stats, recentTopics: [], records, includeNotes: true });
   },
-  aiParentChat: () => ai.aiParentChat(
-    [{ role: 'user', content: 'Zebulon keeps mixing up 4 and 5.' }, { role: 'assistant', content: '' }, { role: 'user', content: "What should Quixote's next step be?" }],
-    `Student: ${LEARNER}, age 6.`,
-  ),
 };
 // Exports that neither build nor send a prompt.
 const NOT_PROMPTS = new Set(['promptLearnerLabel', 'promptAge', 'safeCalc', 'normalizeTest', 'redactNames', 'redactLearnerNames', 'summarizeRecords']);
@@ -255,28 +251,13 @@ test('redactLearnerNames covers every learner in state, not only the active one'
   assert.equal(ai.redactLearnerNames('Zebulon and Sample Nine and Nine-pins'), 'the child and the child and the child-pins');
 });
 
-test('the assistant context carries no name and no parent notes', async () => {
-  await loadTaxonomy();
-  store.setStatus(sid, 'count-to-5', 'learning');
-  store.addRecord(sid, { type: 'observation', note, title: 'Zebulon at the table', topicId: 'count-to-5', topicName: 'Count to 5' });
-  const { buildContext } = await import('../src/js/views/assistant.js');
-  const context = buildContext();
-  assert.doesNotMatch(context, LEAK);
-  assert.doesNotMatch(context, new RegExp(NOTE_MARKER));
-  assert.match(context, /your child, age \d+/);
-  assert.match(context, /Currently working on: Count to 5/);
-  assert.match(context, /1 record \(1 observation\)/);
-});
-
 test('views stop passing the learner name into prompt builders', async () => {
-  const [records, recordings, insights, assistant] = await Promise.all([
+  const [records, recordings, insights] = await Promise.all([
     source('src/js/views/records.js'),
     source('src/js/views/recordings.js'),
     source('src/js/views/insights.js'),
-    source('src/js/views/assistant.js'),
   ]);
   for (const src of [records, recordings, insights]) assert.doesNotMatch(src, /studentName/);
-  assert.doesNotMatch(assistant, /\$\{s\.name\}/);
   // The opt-in is per request: both analysis views and the review read the box.
   assert.match(recordings, /Include my notes in this request/);
   assert.match(recordings, /Names of learners in this app are replaced with/);
@@ -304,11 +285,10 @@ test('lesson and explain prompts use a generic learner and age band, never a chi
 });
 
 test('lesson generators and callers do not interpolate learner names into prompts', async () => {
-  const [ai, lesson, printables, daysheet, topicView] = await Promise.all([
+  const [ai, lesson, printables, topicView] = await Promise.all([
     source('src/js/ai.js'),
     source('src/js/views/lesson.js'),
     source('src/js/views/printables.js'),
-    source('src/js/views/daysheet.js'),
     source('src/js/views/topic.js'),
   ]);
 
@@ -318,7 +298,6 @@ test('lesson generators and callers do not interpolate learner names into prompt
   assert.doesNotMatch(ai, /studentName/);
   assert.doesNotMatch(lesson, /childName \|\| student\?\.name/);
   assert.doesNotMatch(printables, /aiPrintables\(topic, student\?\.name\)/);
-  assert.doesNotMatch(daysheet, /aiLesson\(topic, childName\)/);
   assert.doesNotMatch(topicView, /fn\(t, student\?\.name\)/);
   // Generation is gated in store.generateCached, which showGenerated wraps (see lesson-cache.test.mjs).
   assert.match(lesson, /showGenerated\(/);

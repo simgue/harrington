@@ -5,19 +5,18 @@
 import { getData, SUBJECTS, orderTopics, topicAge, hardPrereqs } from './data.js';
 import { LANES } from './daily.js';
 import * as store from './store.js';
-import { normalizeCalendar, DEFAULT_HOME_DAYS } from './store.js';
+import { normalizeCalendar } from './store.js';
 
 const SCHOOL_DAYS_PER_YEAR = 180;   // home days of new-topic teaching per year
 
 function pad(n) { return String(n).padStart(2, '0'); }
 export function keyOf(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 export function parseKey(k) { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); }
-export function isWeekend(d) { const g = d.getDay(); return g === 0 || g === 6; }
 
 const validKey = (k) => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k) && keyOf(parseKey(k)) === k;
 
 // Calendar normalization lives with the store, which validates what it saves.
-export { normalizeCalendar, DEFAULT_HOME_DAYS };
+export { normalizeCalendar };
 
 // Why a day is a rest day: null on a home day, else
 // { kind: 'break', label } inside a break or { kind: 'off' } on a non-home weekday.
@@ -257,15 +256,6 @@ export function invalidatePlan(studentId) {
 
 export function topicsOn(student, dateKey) {
   return buildPlan(student).byDate.get(dateKey) || [];
-}
-
-// The date the school track is "up to" — clamped into the track window.
-export function trackDayFor(student, dateKey) {
-  const plan = buildPlan(student);
-  if (!plan.firstKey) return dateKey;
-  if (dateKey < plan.firstKey) return plan.firstKey;
-  if (dateKey > plan.lastKey) return plan.lastKey;
-  return dateKey;
 }
 
 // Deterministic daily extras: refresher topics + a suggested activity/quiz.

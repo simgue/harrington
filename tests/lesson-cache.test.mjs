@@ -362,8 +362,8 @@ test('every cached view generates through store.generateCached', async () => {
     assert.match(code, /showGenerated\(/, `${name}.js opens through showGenerated`);
     assert.match(code, /regenerateInto\(/, `${name}.js regenerates through regenerateInto`);
   }
-  for (const name of ['recall', 'daysheet']) assert.match(await read(`views/${name}.js`), /store\.generateCached\(/, `${name}.js`);
-  for (const name of ['lesson', 'printables', 'recall', 'daysheet']) {
+  assert.match(await read('views/recall.js'), /store\.generateCached\(/, 'recall.js');
+  for (const name of ['lesson', 'printables', 'recall']) {
     assert.doesNotMatch(await read(`views/${name}.js`), /store\.(saveCachedLesson|getCachedLesson)\(/, `${name}.js reads or saves the cache by hand`);
   }
 });
