@@ -7,6 +7,14 @@ tagged a release yet; everything below is on `main`.
 ## [Unreleased]
 
 ### Changed
+- Harrington can be shared with the family's other devices: `HARRINGTON_HOST`
+  chooses the bind address, `HARRINGTON_ACCESS_TOKEN` makes `/api/*` require a
+  sign-in cookie set once per device at `/login?token=...`, and `/api/health`
+  reports `host` and `authEnabled`. The onboarding banner, sidebar and Guide
+  say "Shared on your home network" when the server is not loopback-only.
+  `docs/DEPLOYMENT.md` covers a Tailscale mesh with HTTPS (recommended), a
+  Caddy proxy with an internal CA, the token, nightly backups and upgrades
+  (HAR-25).
 - Calendar follows the family's home days and breaks (set under Home days &
   breaks); rest days schedule nothing. Unmastered literacy and numeracy topics
   below the learner's age come first, after their prerequisites. Refreshers

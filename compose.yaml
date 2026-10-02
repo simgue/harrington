@@ -4,6 +4,11 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:4173:4173"
+    environment:
+      # Matches the loopback port mapping above. To share Harrington on your
+      # network, follow docs/DEPLOYMENT.md and change both together.
+      HARRINGTON_PUBLISHED_HOST: 127.0.0.1
+      # HARRINGTON_ACCESS_TOKEN: ${HARRINGTON_ACCESS_TOKEN}   # from .env, never committed
     volumes:
       - harrington-data:/data
 

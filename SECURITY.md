@@ -12,9 +12,16 @@ your report and work on a fix as quickly as we reasonably can.
 - Harrington includes a small local server. It binds to `127.0.0.1` by default
   and stores family state, lesson caches, and recordings under
   `data/private/` (or `HARRINGTON_DATA_DIR`).
-- The preview does not yet include application authentication. Do not bind it to
-  a public interface or expose it to the internet without a trusted
-  authentication reverse proxy.
+- `HARRINGTON_HOST` changes the bind address. When Harrington is shared with
+  other devices, set `HARRINGTON_ACCESS_TOKEN`: every `/api/*` request then
+  needs an HttpOnly, SameSite=Strict cookie that a one-time
+  `GET /login?token=...` sets (compared in constant time; the cookie is
+  derived from the token, never the token itself). Harrington does not
+  terminate TLS; put a WireGuard mesh with HTTPS (such as Tailscale) or a
+  local reverse proxy with an internal certificate authority in front of it.
+  [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) has the steps. There are no user
+  accounts, and the token is a single family secret: do not expose Harrington
+  to the public internet.
 - AI generation is disabled until `HARRINGTON_AI_BASE_URL` and
   `HARRINGTON_AI_MODEL` are set. When they are set, topic text (never a child's
   name) is sent only to that configured OpenAI-compatible endpoint. Names of

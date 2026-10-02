@@ -8,6 +8,8 @@ export const PORTS = {
   appAi: base + 2,
   appNoAi: base + 3,
   appAiUnreachable: base + 4,
+  // No AI, HARRINGTON_ACCESS_TOKEN set (HAR-25).
+  appToken: base + 5,
   // Nothing ever listens here: the app on appAiUnreachable points its AI
   // provider at this port to exercise "couldn't reach the AI provider".
   deadAi: base + 9,
@@ -18,8 +20,12 @@ export const URLS = {
   appAi: `http://127.0.0.1:${PORTS.appAi}`,
   appNoAi: `http://127.0.0.1:${PORTS.appNoAi}`,
   appAiUnreachable: `http://127.0.0.1:${PORTS.appAiUnreachable}`,
+  appToken: `http://127.0.0.1:${PORTS.appToken}`,
   deadAi: `http://127.0.0.1:${PORTS.deadAi}`,
 };
+
+// The family access token of the appToken server. Fictional, test-only.
+export const ACCESS_TOKEN = 'e2e-family-access-token-0001';
 
 // Every browser test runs with the clock pinned to this moment (UTC), so
 // greetings, dates, the weekday plan and screenshots are the same on every run.

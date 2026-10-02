@@ -1,4 +1,5 @@
 import { el, refreshIcons, openModal, toast } from '../ui.js';
+import { authEnabled, isShared, storedOn, whereItRuns } from '../hosting.js';
 
 // ---- Content shared by the welcome tour and the full guide ----
 // One line for every feature that calls the AI adapter, so the copy never
@@ -8,12 +9,14 @@ const NEEDS_AI = 'Needs a local AI provider; see the README.';
 // the parent can actually do instead.
 const SPEECH_NOTE = `Live transcript uses your browser's speech service, which may send audio to the browser vendor. There is no switch for it in Harrington yet; if you prefer, write a note instead of recording.`;
 
-const FEATURES = [
+// Built when the tour or guide opens: where Harrington runs is known only
+// after /api/health answers.
+const features = () => [
   {
     icon: 'compass', color: '#3f6b3b',
     title: 'Welcome to Harrington',
     tagline: 'A quiet map for your family',
-    body: `Harrington helps you see where your child is in a connected curriculum and keep a record of what really happened each day. It runs on this computer only. This short tour shows what works today.`,
+    body: `Harrington helps you see where your child is in a connected curriculum and keep a record of what really happened each day. ${whereItRuns()} This short tour shows what works today.`,
   },
   {
     icon: 'layout-dashboard', color: '#2f6285',
@@ -49,7 +52,7 @@ const FEATURES = [
     icon: 'mic', color: '#5b4a86',
     title: 'Records & recordings',
     tagline: 'Keep the evidence',
-    body: `Log observations, questions, discussions and assessments, optionally linked to a topic, or <b>record a conversation</b>. Recordings are kept on this computer in a recordings folder. ${SPEECH_NOTE} AI discussion analysis: ${NEEDS_AI}`,
+    body: `Log observations, questions, discussions and assessments, optionally linked to a topic, or <b>record a conversation</b>. Recordings are kept ${storedOn()} in a recordings folder. ${SPEECH_NOTE} AI discussion analysis: ${NEEDS_AI}`,
   },
   {
     icon: 'sparkles', color: '#2f6285',
@@ -97,10 +100,11 @@ function openWelcomeTour() {
   const backBtn = body.querySelector('#back');
   const nextBtn = body.querySelector('#next');
 
+  const slides = features();
   const markSeen = () => { try { localStorage.setItem(SEEN_KEY, '1'); } catch {} };
 
   const render = () => {
-    const f = FEATURES[i];
+    const f = slides[i];
     slide.innerHTML = `
       <div class="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style="background:${f.color}18">
         <i data-lucide="${f.icon}" class="w-8 h-8" style="color:${f.color}"></i>
@@ -108,14 +112,14 @@ function openWelcomeTour() {
       <p class="text-xs font-600 uppercase tracking-wide mb-1" style="color:${f.color}">${f.tagline}</p>
       <h3 class="font-display text-2xl font-600 mb-2">${f.title}</h3>
       <p class="text-sm text-ink-soft leading-relaxed max-w-sm mx-auto">${f.body}</p>`;
-    dots.innerHTML = FEATURES.map((_, n) => `<span class="h-1.5 rounded-full transition-all ${n === i ? 'w-5' : 'w-1.5'}" style="background:${n === i ? f.color : '#d9ccb0'}"></span>`).join('');
+    dots.innerHTML = slides.map((_, n) => `<span class="h-1.5 rounded-full transition-all ${n === i ? 'w-5' : 'w-1.5'}" style="background:${n === i ? f.color : '#d9ccb0'}"></span>`).join('');
     backBtn.classList.toggle('hidden', i === 0);
-    nextBtn.textContent = i === FEATURES.length - 1 ? 'Start learning' : 'Next';
+    nextBtn.textContent = i === slides.length - 1 ? 'Start learning' : 'Next';
     refreshIcons();
   };
 
   backBtn.onclick = () => { if (i > 0) { i--; render(); } };
-  nextBtn.onclick = () => { if (i < FEATURES.length - 1) { i++; render(); } else { markSeen(); m.close(); } };
+  nextBtn.onclick = () => { if (i < slides.length - 1) { i++; render(); } else { markSeen(); m.close(); } };
   body.querySelector('#skip').onclick = () => { markSeen(); m.close(); };
 
   const m = openModal(body);
@@ -142,7 +146,7 @@ export function openGuide() {
     <div id="list" class="px-5 py-4 space-y-3"></div>
   </div>`);
   const list = body.querySelector('#list');
-  FEATURES.forEach(f => {
+  features().forEach(f => {
     list.appendChild(el(`<div class="flex gap-3 rounded-xl border border-paper-line bg-paper p-3.5">
       <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${f.color}18"><i data-lucide="${f.icon}" class="w-4.5 h-4.5" style="color:${f.color}"></i></span>
       <div>
@@ -158,9 +162,10 @@ export function openGuide() {
 }
 
 // ---- Full, detailed, printable/downloadable guide ----
-const GUIDE_SECTIONS = [
+// Built when the guide opens, so it reflects how this server is shared.
+const guideSections = () => [
   { h: 'What Harrington is', items: [
-    ['Overview', 'A self-hosted family learning platform. It shows a connected curriculum as a map, offers small daily choices, and keeps a record of what your child actually did. It runs on this computer only.'],
+    ['Overview', `A self-hosted family learning platform. It shows a connected curriculum as a map, offers small daily choices, and keeps a record of what your child actually did. ${whereItRuns()}`],
     ['Who it’s for', 'A parent teaching one or more children at home. You are the teacher: Harrington helps you see foundations and next steps and keep evidence. It does not script the day.'],
     ['What needs AI', `Lessons, print & go sheets, mastery tests, challenges, recall cards, activity instructions, “Explain simply”, discussion analysis, progress reviews and adaptive suggestions are written by an AI model. ${NEEDS_AI} Without one, those buttons show an error and nothing else happens.`],
   ]},
@@ -169,11 +174,13 @@ const GUIDE_SECTIONS = [
     ['Scale', 'About 1,590 topics joined by about 3,221 prerequisite links, across 8 subjects: Mathematics, English, Science, History, Personal & Social Development, Life Skills, Computing, and Learning to Learn.'],
     ['Each topic includes', 'A plain-language description, an approximate age range, “evidence of mastery” criteria, a quick-check prompt, and links to the curriculum standards it aligns to.'],
     ['Prerequisites', 'Topics are linked by “depends on” connections, each tagged required or helpful. Harrington shows these exactly as the source data has them.'],
-    ['Downloaded once', 'The Harrington server downloads the curriculum the first time it starts (this needs the internet) and keeps it on this computer. It does not update on its own.'],
+    ['Downloaded once', `The Harrington server downloads the curriculum the first time it starts (this needs the internet) and keeps it ${storedOn()}. It does not update on its own.`],
     ['Licensing', 'Marble Skill Taxonomy (v1) © Generative Spark, Inc., licensed under ODbL 1.0 (database) and CC BY-SA 4.0 (content).'],
   ]},
   { h: 'Getting started', items: [
-    ['Start Harrington', 'Run the Harrington server and open its local address. There is no account and no sign-in.'],
+    ['Start Harrington', authEnabled()
+      ? 'Run the Harrington server on one computer and open its address in a browser. There is no account; each device signs in once with the family access token (see docs/DEPLOYMENT.md).'
+      : `Run the Harrington server and open its ${isShared() ? 'address' : 'local address'}. There is no account and no sign-in.`],
     ['Add a learner', 'Enter a name, birth year and, if you like, birth month. Harrington uses the age to suggest age-appropriate topics and to build the calendar; with the month the age is exact. Add more learners, switch between them, or edit a name, birthday or color with the pencil button, from the selector at the top of the sidebar (or the round button at the top right on a phone).'],
     ['Navigate', 'The sidebar (or the bottom bar on a phone) has Dashboard, Calendar, Map, Records and Insights. Guide is in the sidebar, or behind the book icon at the top of the screen on a phone. The child view opens from the dashboard.'],
   ]},
@@ -215,7 +222,7 @@ const GUIDE_SECTIONS = [
   ]},
   { h: 'Records and recordings', items: [
     ['Records', 'Log observations, questions, discussions or assessments, optionally linked to a topic, with notes and a confidence rating. Filter by type.'],
-    ['Voice recording', 'Record a conversation from the dashboard, a topic page, or the child view. Audio is saved on this computer and plays back inline.'],
+    ['Voice recording', `Record a conversation from the dashboard, a topic page, or the child view. Audio is saved ${storedOn()} and plays back inline.`],
     ['Live transcript', SPEECH_NOTE],
     ['Recordings folder', 'Every recording, grouped by section or topic, with playback and transcript. Recordings without either sit under "Not linked to a section".'],
     ['Discussion analysis', `Advice based on a transcript or your notes. ${NEEDS_AI}`],
@@ -229,9 +236,11 @@ const GUIDE_SECTIONS = [
     ['The bell', 'Shows a welcome note on first run. It does not report curriculum changes, because the curriculum does not update on its own.'],
   ]},
   { h: 'Privacy', items: [
-    ['Where data lives', 'Learners, progress, records, recordings and settings are stored in the private data folder on this computer. The server listens only on this computer by default.'],
+    ['Where data lives', isShared()
+      ? `Learners, progress, records, recordings and settings are stored in the private data folder ${storedOn()}. It is shared on your home network; other devices only show it in a browser. ${authEnabled() ? 'Each device signs in once with the family access token.' : 'No access token is set, so anyone on the network can open it.'}`
+      : 'Learners, progress, records, recordings and settings are stored in the private data folder on this computer. The server listens only on this computer by default.'],
     ['What leaves your home', `Nothing, unless you configure an AI provider. If you do, lessons, tests, challenges and cards send it topic text and the topic’s age from the curriculum; whole-subject tests, discussion analyses and progress reviews send your child’s exact age instead. A discussion analysis sends the transcript; analyses and progress reviews send your notes only when you tick “Include my notes in this request”. Learner names are replaced with “the child” before any request is built. ${SPEECH_NOTE}`],
-    ['Not for the internet', 'There is no sign-in or encryption yet. Do not expose Harrington to the public internet.'],
+    ['Not for the internet', `${authEnabled() ? 'The access token is the only sign-in, and Harrington does not encrypt traffic itself; use HTTPS from your network mesh or a local proxy (docs/DEPLOYMENT.md).' : 'There is no sign-in or encryption yet.'} Do not expose Harrington to the public internet.`],
   ]},
 ];
 
@@ -240,7 +249,7 @@ function downloadGuide() {
   if (!w) { toast('Allow pop-ups to download the guide', 'error'); return; }
   const date = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
   const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-  const sections = GUIDE_SECTIONS.map(sec => `
+  const sections = guideSections().map(sec => `
     <section>
       <h2>${esc(sec.h)}</h2>
       ${sec.items.map(([t, b]) => `<div class="row"><div class="t">${esc(t)}</div><div class="b">${esc(b)}</div></div>`).join('')}

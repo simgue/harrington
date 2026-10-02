@@ -3,6 +3,7 @@ import { el, esc, initials, openModal, refreshIcons, toast } from '../ui.js';
 import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
 import { openPlacement } from './placement.js';
+import { sidebarLine } from '../hosting.js';
 
 // Storybook Meadow mark: a sun rising over a hill.
 function meadowLogo(size = 34) {
@@ -256,7 +257,7 @@ function accountBox() {
       </div>
       <div class="flex-1 min-w-0">
         <p class="text-xs font-600 truncate">Private family space</p>
-        <p class="text-xs text-ink-faint">Saved by Harrington</p>
+        <p class="text-xs text-ink-faint">${sidebarLine()}</p>
       </div>
     </div>
     <div class="mt-2.5 grid grid-cols-2 gap-1.5">

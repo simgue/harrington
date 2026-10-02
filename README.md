@@ -23,8 +23,10 @@ directory. Lesson generation is optional: it stays fail-closed until you point
 Harrington at a local OpenAI-compatible endpoint (Ollama is the documented
 example).
 
-This preview binds to the local computer only. Use synthetic learner names until
-authentication, encrypted backups, and private remote access are implemented.
+This preview binds to the local computer only by default. To use it from the
+family's other devices, follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): one
+host runs the server, every other device is a browser. Use synthetic learner
+names until encrypted backups are implemented.
 Never send a real child's name into a model prompt. Generators say “your child”,
 and names of learners in this app are replaced with “the child” in the browser
 before a request is built (accents, hyphens and apostrophe variants included).
@@ -264,10 +266,22 @@ copy, marked `unsavedChanges: true`.
 
 ## Deployment
 
+**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** is the runbook for using
+Harrington from tablets, phones and other computers. The short version: one
+always-on host runs `node server.mjs` with one data directory; every other
+device is a browser; never run two servers against a synced folder.
+
+- `HARRINGTON_HOST` (default `127.0.0.1`) chooses the bind address.
+- `HARRINGTON_ACCESS_TOKEN` makes every `/api/*` request need a sign-in
+  cookie; each device signs in once at `/login?token=...`.
+- The microphone needs HTTPS on every device other than the host. The
+  recommended setup is a WireGuard mesh such as Tailscale with its HTTPS
+  certificates; a local reverse proxy with its own certificate authority
+  (Caddy `tls internal`) also works. Harrington does not terminate TLS itself.
+
 The included container stores private data in the `harrington-data` volume and
-publishes only to `127.0.0.1:4173`. This is safe for a local preview, but it is
-not a production internet deployment: authentication, TLS, encrypted backups,
-and restore testing must be added before remote access.
+publishes only to `127.0.0.1:4173`. Do not expose Harrington to the public
+internet.
 
 ## The curriculum data
 

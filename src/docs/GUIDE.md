@@ -6,8 +6,10 @@ Harrington is a self-hosted family learning platform. It shows the open
 daily literacy and numeracy choices, and keeps a record of what your child
 actually did.
 
-It runs on this computer only. Nothing leaves your home unless you configure an
-AI provider.
+By default it runs on this computer only. It can also be shared on your home
+network from one host computer, so tablets and phones open it in a browser;
+[DEPLOYMENT.md](https://github.com/simgue/harrington/blob/main/docs/DEPLOYMENT.md)
+has the steps. Nothing leaves your home unless you configure an AI provider.
 
 The in-app **Guide** (sidebar on a computer, book icon at the top of the screen
 on a phone) covers the same ground in short form. This file is the longer
@@ -147,7 +149,8 @@ A day-by-day plan from your start date, on the home days you choose.
   optionally linked to a topic, with a title, notes and a confidence rating.
   Filter by type and open the linked topic from any record.
 - **Voice recording.** Record a conversation from the dashboard, a topic page
-  or the child view. Audio is saved on this computer and plays back inline.
+  or the child view. Audio is saved on the computer that runs Harrington and
+  plays back inline.
 - **Live transcript.** Live transcript uses your browser's speech service,
   which may send audio to the browser vendor. There is no switch for it in
   Harrington yet; if you prefer, write a note instead of recording. Firefox
@@ -168,14 +171,16 @@ A day-by-day plan from your start date, on the home days you choose.
 ## Notifications
 
 The bell shows a welcome note on first run. The curriculum is downloaded once
-and kept on this computer; it does not update on its own, so the bell does not
-report curriculum changes.
+and kept on the computer that runs Harrington; it does not update on its own,
+so the bell does not report curriculum changes.
 
 ## Privacy and data
 
 - Learners, progress, records, recordings and settings are stored in the
-  private data folder (`data/private/`) on this computer. The server listens
-  only on this computer by default.
+  private data folder (`data/private/`) on the computer that runs Harrington.
+  The server listens only on that computer by default. When it is shared on
+  your home network, each device can be asked to sign in once with the family
+  access token, and the in-app Guide says which applies.
 - Nothing leaves your home unless you configure an AI provider. If you do,
   lessons, tests, challenges and cards send it topic text and the topic's age
   from the curriculum; whole-subject tests, discussion analyses and progress
