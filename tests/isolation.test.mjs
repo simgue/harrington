@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
+import { unescapedInterpolations } from './support/templates.mjs';
 
 const repoRoot = new URL('..', import.meta.url);
 const source = (path) => readFile(new URL(path, repoRoot), 'utf8');
@@ -109,6 +110,43 @@ test('esc() neutralizes markup and attribute breakouts', async () => {
   assert.equal(esc(null), '');
   assert.equal(esc(undefined), '');
   assert.equal(esc(7), '7');
+});
+
+// Markup templates in these files interpolate only escaped values (HAR-11):
+// esc(), analysisHtml(), a ternary or .map().join() of literal templates, or
+// an entry below. A new `${t.name}` in markup fails here.
+const ESCAPED_MARKUP = {
+  'src/js/recorder.js': [
+    'coverageClaimField(coverageTopics)', // escapes each name; tested in daily.test.mjs
+  ],
+  'src/js/views/records.js': [
+    "coverageNames(r).map(esc).join(' · ')",
+    'coverageClaimField(coverageTopics)',
+  ],
+  'src/js/views/recordings.js': [],
+};
+
+test('record and recording markup interpolates only escaped values', async () => {
+  for (const [path, allowed] of Object.entries(ESCAPED_MARKUP)) {
+    const unescaped = unescapedInterpolations(await source(path), new Set(allowed));
+    assert.deepEqual(unescaped, [], `${path} interpolates unescaped values into markup (line: expression)`);
+  }
+});
+
+test('the markup escaping check flags what it should and nothing else', () => {
+  const flagged = (code) => unescapedInterpolations(code).map((hit) => hit.replace(/^\d+: /, ''));
+  // Flagged: raw values, values next to an esc() call, values in nested markup.
+  assert.deepEqual(flagged('el(`<span>${t.name}</span>`)'), ['t.name']);
+  assert.deepEqual(flagged('el(`<b title="${esc(a) + b}">`)'), ['esc(a) + b']);
+  assert.deepEqual(flagged('el(`<i>${on ? `x ${t.subject}` : \'\'}</i>`)'), ['t.subject']);
+  assert.deepEqual(flagged('el(`<i>${on ? t.subject : \'\'}</i>`)'), ["on ? t.subject : ''"]);
+  assert.deepEqual(flagged('el(`<i>${xs.map(x => x.name).join(\'\')}</i>`)'), ['xs.map(x => x.name).join(\'\')']);
+  // Not flagged: escaped values, literal choices, non-markup templates.
+  assert.deepEqual(flagged('el(`<span title="${esc(t.id)}">${esc(t.name)}</span>`)'), []);
+  assert.deepEqual(flagged('el(`<i class="${on ? \'a\' : \'b\'}">${xs.map(x => `<b>${esc(x)}</b>`).join(\' \')}</i>`)'), []);
+  assert.deepEqual(flagged('const key = `${t.subject}|${t.domain}`;'), []);
+  // Comments, regex literals and strings with backticks or braces do not derail the scan.
+  assert.deepEqual(flagged('// a `quoted` word\nconst re = /`{/g; const s = \'`}\';\nel(`<p>${t.name}</p>`)'), ['t.name']);
 });
 
 test('stored analysis HTML keeps only the tags toHtml() writes', async () => {

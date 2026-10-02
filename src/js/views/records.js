@@ -46,7 +46,7 @@ export function renderRecords(params, { navigate }) {
   const chips = el(`<div class="flex gap-2 overflow-x-auto pb-2 mb-4"></div>`);
   const addChip = (key, label) => {
     const on = recFilter === key;
-    const c = el(`<button class="shrink-0 px-3 py-1.5 rounded-full text-sm font-medium border ${on ? 'bg-ink text-white border-transparent' : 'bg-paper-card text-ink-soft border-paper-line'}">${label}</button>`);
+    const c = el(`<button class="shrink-0 px-3 py-1.5 rounded-full text-sm font-medium border ${on ? 'bg-ink text-white border-transparent' : 'bg-paper-card text-ink-soft border-paper-line'}">${esc(label)}</button>`);
     c.onclick = () => { recFilter = key; navigate('records'); };
     chips.appendChild(c);
   };
@@ -84,16 +84,16 @@ function recordCard(r, student, d, navigate) {
   const topic = r.topicId ? d.byId.get(r.topicId) : null;
   const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-4">
     <div class="flex items-center gap-2 text-xs mb-1.5">
-      <span class="flex items-center gap-1 font-600 px-2 py-0.5 rounded-full" style="color:${tm.color};background:${tm.color}14"><i data-lucide="${tm.icon}" class="w-3.5 h-3.5"></i>${tm.label}</span>
-      ${r.rating ? `<span class="text-[#8a6412]">${'\u2605'.repeat(r.rating)}${'\u2606'.repeat(5-r.rating)}</span>` : ''}
-      <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
+      <span class="flex items-center gap-1 font-600 px-2 py-0.5 rounded-full" style="color:${esc(tm.color)};background:${esc(tm.color)}14"><i data-lucide="${esc(tm.icon)}" class="w-3.5 h-3.5"></i>${esc(tm.label)}</span>
+      ${r.rating ? `<span class="text-[#8a6412]">${esc('\u2605'.repeat(r.rating) + '\u2606'.repeat(5 - r.rating))}</span>` : ''}
+      <span class="text-ink-faint ml-auto">${esc(fmtDateTime(r.createdAt))}</span>
       <button class="del text-ink-faint hover:text-[#a4473a] p-0.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
     </div>
     ${r.title ? `<p class="font-600">${esc(r.title)}</p>` : ''}
     ${coverageNames(r).length ? `<p class="text-xs font-600 text-brand-dark mb-1 flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>Coverage: ${coverageNames(r).map(esc).join(' · ')}</p>` : ''}
     ${r.note ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
     ${r.transcript ? `<details class="mt-2 group"><summary class="text-xs text-ink-faint cursor-pointer select-none flex items-center gap-1 list-none"><i data-lucide="chevron-right" class="w-3.5 h-3.5 transition-transform group-open:rotate-90"></i>Transcript</summary><p class="text-sm text-ink-soft mt-1.5 leading-relaxed whitespace-pre-wrap bg-paper border border-paper-line rounded-lg p-2.5">${esc(r.transcript)}</p></details>` : ''}
-    ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${SUBJECTS[topic.subject].icon}" class="w-3.5 h-3.5"></i>${esc(topic.name)}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
+    ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${esc(SUBJECTS[topic.subject]?.icon)}" class="w-3.5 h-3.5"></i>${esc(topic.name)}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
   </div>`);
   if (r.audioPath) card.appendChild(audioPlayer(r.audioPath, r.duration));
 
@@ -132,7 +132,7 @@ function recordCard(r, student, d, navigate) {
 function placementUndo(r, student) {
   const wrap = el(`<div class="mt-2.5 pt-2.5 border-t border-paper-line"></div>`);
   if (r.placement.undoneAt) {
-    wrap.appendChild(el(`<p class="text-xs text-ink-faint flex items-center gap-1.5"><i data-lucide="undo-2" class="w-3.5 h-3.5"></i>Placement undone ${fmtDateTime(r.placement.undoneAt)}</p>`));
+    wrap.appendChild(el(`<p class="text-xs text-ink-faint flex items-center gap-1.5"><i data-lucide="undo-2" class="w-3.5 h-3.5"></i>Placement undone ${esc(fmtDateTime(r.placement.undoneAt))}</p>`));
     return wrap;
   }
   const n = r.placement.topicIds.length;
@@ -255,8 +255,8 @@ export function openRecordForm(studentId, topic = null, options = {}) {
     // Recordings come only from the recorder, never from this form.
     Object.entries(TYPES).filter(([k]) => k !== 'recording').forEach(([k, v]) => {
       const on = selType === k;
-      const b = el(`<button type="button" class="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${on ? 'border-transparent text-white' : 'bg-paper text-ink-soft border-paper-line'}" ${on ? `style="background:${v.color}"` : ''}>
-        <i data-lucide="${v.icon}" class="w-4 h-4"></i>${v.label}</button>`);
+      const b = el(`<button type="button" class="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${on ? 'border-transparent text-white' : 'bg-paper text-ink-soft border-paper-line'}" ${on ? `style="background:${esc(v.color)}"` : ''}>
+        <i data-lucide="${esc(v.icon)}" class="w-4 h-4"></i>${esc(v.label)}</button>`);
       b.onclick = () => { selType = k; renderTypes(); };
       typesWrap.appendChild(b);
     });
@@ -288,7 +288,7 @@ export function openRecordForm(studentId, topic = null, options = {}) {
       if (q.length < 2) return;
       const matches = d.topics.filter(t => t.name.toLowerCase().includes(q)).slice(0, 6);
       matches.forEach(t => {
-        const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
+        const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${esc(SUBJECTS[t.subject]?.color)}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
         r.onclick = () => { hidden.value = t.id; search.value = t.name; results.innerHTML = ''; };
         results.appendChild(r);
       });
