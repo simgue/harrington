@@ -254,7 +254,15 @@ In the app, **Export** in the sidebar's family box downloads
 `harrington-family-<date>.json`: the full family document plus `exportedAt`
 and `taxonomyVersion`. **Import** checks a file, previews its learners and
 record counts, and after you confirm replaces the family data on this server.
+The check refuses a file whose learners or per-learner data are malformed
+(a name over 100 characters, a birth year or month out of range, an unknown
+progress status, a PIN that is not four digits, and so on) and says why.
 The JSON file does not contain recordings, so keep a `data/private/` backup too.
+
+The family document carries `schemaVersion`, its data format (currently 1).
+Older documents and exports are migrated when they are loaded or imported
+(`src/js/schema.js`); a file from a newer version of Harrington is refused
+until this server is updated.
 
 Saves are versioned: if another tab or device saved first, Harrington reloads
 the latest data and says so instead of overwriting it. Changes still pending

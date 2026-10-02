@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "version": 12,
+  "updatedAt": 1700000400000,
+  "students": [
+    {
+      "id": "s_older1",
+      "name": "Sample Twelve",
+      "birthYear": 2016,
+      "color": "#3f6b3b",
+      "createdAt": 1700000000000,
+      "startDate": "2023-11-14"
+    }
+  ],
+  "activeStudentId": "s_older1",
+  "progress": {
+    "s_older1": {
+      "count-to-5": {
+        "status": "mastered",
+        "updatedAt": 1700000200000
+      }
+    }
+  },
+  "records": {
+    "s_older1": [
+      {
+        "id": "r1",
+        "type": "observation",
+        "title": "Counted",
+        "note": "",
+        "createdAt": 1700000300000
+      }
+    ]
+  },
+  "tests": {},
+  "notifications": [],
+  "graphView": "atlas"
+}

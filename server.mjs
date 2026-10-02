@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { redactNames } from './src/js/redact.js';
+import { SCHEMA_VERSION } from './src/js/schema.js';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(repoRoot, 'src');
@@ -123,12 +124,15 @@ function atomicWrite(path, data) {
 // ---- Versioned family state ----
 // The stored document is the family data plus a top-level integer `version`
 // and `updatedAt`. A legacy document without a version is treated as version 0.
+// Before the first save there is no file, and the document is a new one at the
+// current data format (`schemaVersion`, see src/js/schema.js); the browser
+// migrates older documents when it loads them.
 function stateVersionOf(doc) {
   return Number.isSafeInteger(doc?.version) && doc.version >= 0 ? doc.version : 0;
 }
 
 async function readStateDocument() {
-  const doc = await readJsonFile(stateFile, {});
+  const doc = await readJsonFile(stateFile, { schemaVersion: SCHEMA_VERSION });
   const value = doc && typeof doc === 'object' && !Array.isArray(doc) ? doc : {};
   return { ...value, version: stateVersionOf(value) };
 }

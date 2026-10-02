@@ -37,6 +37,10 @@ tagged a release yet; everything below is on `main`.
   plain, accurate wording (HAR-12).
 
 ### Added
+- The family document and exports carry `schemaVersion: 1`. Ordered
+  migrations in `src/js/schema.js` run when a document is loaded or
+  imported (documents from before the field gain it), and importing a file
+  from a newer data format is refused with a message to update Harrington.
 - Today's pick-one stops record evidence for the pick: the note and voice
   forms offer an opt-in "Mark curriculum coverage" checkbox, and a pick shows
   "Evidence recorded" only once a linked record claims coverage. Each stop

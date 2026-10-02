@@ -1,5 +1,6 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
+import { SCHEMA_VERSION, isNewerSchema, migrateDocument, schemaVersionOf } from './schema.js';
 
 export const MASTERY = {
   none:       { label: 'Not started', rank: 0, color: '#d2c6ad' },
@@ -84,7 +85,7 @@ function objectOr(value, fallback) {
 }
 
 function applyDocument(data) {
-  const doc = objectOr(data, {});
+  const doc = migrateDocument(objectOr(data, {}));
   state.students = Array.isArray(doc.students) ? doc.students : [];
   state.activeStudentId = doc.activeStudentId || (state.students[0] && state.students[0].id) || null;
   for (const key of LEARNER_KEYS) state[key] = objectOr(doc[key], {});
@@ -104,8 +105,10 @@ export async function loadAll() {
   }
 }
 
+// Saves are always in the format this code writes (see schema.js).
 function snapshotData() {
   return {
+    schemaVersion: SCHEMA_VERSION,
     students: state.students,
     activeStudentId: state.activeStudentId,
     progress: state.progress,
@@ -311,7 +314,7 @@ export async function exportDocument() {
   await flushSaves();
   const meta = { exportedAt: new Date().toISOString(), taxonomyVersion: state.curriculumSnapshot?.version || null };
   if (dirty) return { ...snapshotData(), version: stateVersion, ...meta, unsavedChanges: true };
-  return { ...(await backend.loadState()), ...meta };
+  return { ...migrateDocument(await backend.loadState()), ...meta };
 }
 
 // Checks an export (or a raw family-state.json) before import. Returns
@@ -322,6 +325,10 @@ export async function exportDocument() {
 export function inspectImport(doc) {
   const fail = (error) => ({ ok: false, error, learners: [] });
   if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return fail('The file is not a Harrington family export.');
+  if (schemaVersionOf(doc) === null) return fail('The file\'s data format version is not a number.');
+  if (isNewerSchema(doc)) {
+    return fail(`The file comes from a newer version of Harrington (data format ${doc.schemaVersion}; this one reads up to ${SCHEMA_VERSION}). Update Harrington, then import it.`);
+  }
   if (!Array.isArray(doc.students)) return fail('The file has no learner list.');
   const ids = new Set();
   for (const [index, s] of doc.students.entries()) {
@@ -409,7 +416,7 @@ function settingsProblem(settings) {
 export function importDocument(doc) {
   const check = inspectImport(doc);
   if (!check.ok) return Promise.reject(new Error(check.error));
-  const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = doc;
+  const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = migrateDocument(doc);
   // Colors end up in style attributes, so only palette colors are imported;
   // inspectImport refused anything but a hex color, and an older palette's
   // colors become the first palette color.

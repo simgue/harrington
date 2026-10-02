@@ -89,7 +89,8 @@ test('persists versioned family state on the Harrington server', async () => {
   const empty = await fetch(`${baseUrl}/api/state`);
   assert.equal(empty.status, 200);
   assert.equal(empty.headers.get('etag'), '"v0"');
-  assert.deepEqual(await empty.json(), { version: 0 });
+  // A new document is at the current data format (src/js/schema.js).
+  assert.deepEqual(await empty.json(), { schemaVersion: 1, version: 0 });
 
   const state = {
     students: [{ id: 'student-1', name: 'Sample Learner', birthYear: 2018 }],
