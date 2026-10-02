@@ -17,10 +17,13 @@ import {
   MAX_DOMAIN_GATEWAYS,
   MAX_SECTION_HOPS,
   normalizeGraphView,
+  parseGraphHash,
   quietMasteryFill,
   resolveSkillNodeState,
+  selectionForLearner,
   worldMapDrawnTopicCount,
 } from '../src/js/graph.js';
+import { commitNavigation } from '../src/js/navigation.js';
 
 const subjects = {
   Mathematics: { color: '#3f7d5e', icon: 'calculator' },
@@ -311,4 +314,116 @@ test('picks a default domain near the student age', () => {
   assert.equal(defaultDomain(subject).domain, 'Counting');
   assert.equal(defaultDomain(subject, 12).domain, 'Algebra');
   assert.equal(defaultDomain({ domains: [] }), null);
+});
+
+test('graph hash carries the selected skill and decodes back to the same params', () => {
+  assert.equal(graphHash({ subject: 'Mathematics', domain: 'Counting' }), 'graph/Mathematics/Counting');
+  assert.equal(
+    graphHash({ subject: 'Mathematics', domain: 'Counting', skill: 'count-5' }),
+    'graph/Mathematics/Counting?skill=count-5',
+  );
+  assert.equal(
+    graphHash({ subject: 'Mathematics', domain: 'Counting', age: 5, skill: 'count-5' }),
+    'graph/Mathematics/Counting/5?skill=count-5',
+  );
+  assert.equal(graphHash({ skill: null, subject: 'English' }), 'graph/English');
+
+  const awkward = { subject: 'Science & Nature', domain: 'Plants/Animals?', age: '7', skill: 'id with/slash?&=#' };
+  assert.deepEqual(parseGraphHash(graphHash(awkward)), awkward);
+  assert.deepEqual(parseGraphHash('#' + graphHash(awkward)), awkward);
+  for (const params of [
+    {},
+    { subject: 'Mathematics' },
+    { subject: 'Mathematics', domain: 'Counting' },
+    { subject: 'Mathematics', domain: 'Counting', skill: 'count-10' },
+    { subject: 'Mathematics', domain: 'Counting', age: '5' },
+  ]) {
+    assert.deepEqual(parseGraphHash(graphHash(params)), params);
+  }
+});
+
+test('graph hash parsing ignores other routes, unknown keys and bad escapes', () => {
+  assert.equal(parseGraphHash('topic/count-5'), null);
+  assert.equal(parseGraphHash(''), null);
+  assert.deepEqual(parseGraphHash('graph/Mathematics/Counting?view=list&skill=count-5'), {
+    subject: 'Mathematics', domain: 'Counting', skill: 'count-5',
+  });
+  assert.deepEqual(parseGraphHash('graph/Mathematics?skill='), { subject: 'Mathematics' });
+  assert.deepEqual(parseGraphHash('graph/Math%E0?skill=a%E0'), { subject: 'Math%E0', skill: 'a%E0' });
+});
+
+test('selection is per learner: a switch drops the skill, a re-render or deep link keeps it', () => {
+  const params = { subject: 'Mathematics', domain: 'Counting', skill: 'count-5' };
+  assert.deepEqual(selectionForLearner(params, undefined, 'learner-a'), { params, switched: false, dropped: false });
+  assert.deepEqual(selectionForLearner(params, 'learner-a', 'learner-a'), { params, switched: false, dropped: false });
+  assert.deepEqual(selectionForLearner(params, 'learner-a', 'learner-b'), {
+    params: { subject: 'Mathematics', domain: 'Counting' }, switched: true, dropped: true,
+  });
+  assert.deepEqual(selectionForLearner(params, 'learner-a', null).params, { subject: 'Mathematics', domain: 'Counting' });
+  const plain = { subject: 'Mathematics' };
+  assert.deepEqual(selectionForLearner(plain, 'learner-a', 'learner-b'), { params: plain, switched: true, dropped: false });
+  assert.equal(params.skill, 'count-5', 'input params are not mutated');
+});
+
+function fakeWindow({ x = 0, y = 0, hash = '' } = {}) {
+  const calls = [];
+  const win = {
+    scrollX: x,
+    scrollY: y,
+    location: {
+      get hash() { return hash; },
+      set hash(value) { hash = '#' + value; calls.push(['push', hash]); },
+    },
+    history: {
+      state: { kept: true },
+      replaceState(state, title, url) { hash = url; calls.push(['replace', url, state]); },
+    },
+    scrollTo(opts) { calls.push(['scrollTo', opts]); },
+  };
+  return { win, calls };
+}
+
+test('navigation pushes and scrolls to the top by default', () => {
+  const { win, calls } = fakeWindow({ x: 0, y: 640 });
+  let renders = 0;
+  commitNavigation(win, 'topic/count-5', () => { renders += 1; calls.push(['render']); });
+  assert.equal(renders, 1);
+  assert.deepEqual(calls, [
+    ['push', '#topic/count-5'],
+    ['render'],
+    ['scrollTo', { top: 0, behavior: 'instant' }],
+  ]);
+});
+
+test('navigation with replace and preserveScroll rewrites the entry and keeps the window where it was', () => {
+  const { win, calls } = fakeWindow({ x: 12, y: 640 });
+  commitNavigation(win, 'graph/Mathematics/Counting?skill=count-5', () => {
+    // A render that moves the window (content swapped) must not win.
+    win.scrollY = 0;
+    calls.push(['render']);
+  }, { preserveScroll: true, replace: true });
+  assert.deepEqual(calls, [
+    ['replace', '#graph/Mathematics/Counting?skill=count-5', { kept: true }],
+    ['render'],
+    ['scrollTo', { left: 12, top: 640, behavior: 'instant' }],
+  ]);
+  assert.equal(win.location.hash, '#graph/Mathematics/Counting?skill=count-5');
+});
+
+test('navigation with render: false only syncs the hash', () => {
+  const { win, calls } = fakeWindow({ y: 300 });
+  commitNavigation(win, 'graph/Mathematics', () => assert.fail('must not render'), { replace: true, render: false });
+  assert.deepEqual(calls, [['replace', '#graph/Mathematics', { kept: true }]]);
+});
+
+test('the graph view selects in place and the topic page links back with its skill', async () => {
+  const app = await readFile(new URL('../src/js/app.js', import.meta.url), 'utf8');
+  const view = await readFile(new URL('../src/js/views/graph.js', import.meta.url), 'utf8');
+  const topic = await readFile(new URL('../src/js/views/topic.js', import.meta.url), 'utf8');
+  assert.match(app, /commitNavigation\(window, hashFor\(name, params\), render, options\)/);
+  assert.match(app, /parseGraphHash\(h\)/);
+  assert.match(view, /\{ preserveScroll: true, replace: true \}/);
+  assert.doesNotMatch(view, /let selectedSkillId/, 'selection lives in the hash, not module state');
+  assert.match(view, /skill: topic\.id/, 'the topic page links back with its skill selected');
+  assert.match(topic, /navigate\('graph', graphParamsForTopic\(t\)\)/);
 });

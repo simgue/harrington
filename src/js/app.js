@@ -4,7 +4,8 @@ import { syncCurriculum } from './curriculum-sync.js';
 import { maybeShowWelcome } from './views/guide.js';
 import { el, refreshIcons, toast } from './ui.js';
 import { renderShell } from './views/shell.js';
-import { graphHash } from './graph.js';
+import { graphHash, parseGraphHash } from './graph.js';
+import { commitNavigation } from './navigation.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderCalendar } from './views/calendar.js';
 import { renderTopic } from './views/topic.js';
@@ -16,12 +17,10 @@ const app = document.getElementById('app');
 
 const route = { name: 'dashboard', params: {} };
 
-export function navigate(name, params = {}) {
+export function navigate(name, params = {}, options = {}) {
   route.name = name;
   route.params = params;
-  window.location.hash = hashFor(name, params);
-  render();
-  window.scrollTo({ top: 0, behavior: 'instant' });
+  commitNavigation(window, hashFor(name, params), render, options);
 }
 
 function hashFor(name, params = {}) {
@@ -32,14 +31,13 @@ function hashFor(name, params = {}) {
 function parseHash() {
   const h = window.location.hash.replace(/^#/, '');
   if (!h) return { name: 'dashboard', params: {} };
+  const graph = parseGraphHash(h);
+  if (graph) return { name: 'graph', params: graph };
   const parts = h.split('/').map((part) => {
     try { return decodeURIComponent(part); }
     catch { return part; }
   });
   const [name, ...rest] = parts;
-  if (name === 'graph') {
-    return { name, params: { subject: rest[0], domain: rest[1], age: rest[2] } };
-  }
   return { name, params: rest[0] ? { id: rest[0] } : {} };
 }
 

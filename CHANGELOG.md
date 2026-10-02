@@ -16,6 +16,10 @@ tagged a release yet; everything below is on `main`.
   selector, and onboarding and Add student take an optional birth month. Age
   counts whole years when the month is known; the map, daily choices,
   placement and calendar follow an edited age (HAR-22).
+- Selecting a skill in the skill tree keeps the page and the tree where they
+  are, and "Back to graph" from a topic page returns to the same skill,
+  selected, at the same scroll. The selection is in the address
+  (`?skill=`) and resets when the learner changes (HAR-21).
 - Generated lessons, print sheets, activity instructions and recall cards are
   never cached empty or malformed, open once for rapid repeat clicks, and each
   has "Generate a different version" that keeps the previous version if it
