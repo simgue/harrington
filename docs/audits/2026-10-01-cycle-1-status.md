@@ -30,17 +30,17 @@ implementing session as change lists and fixed before merge. Status as of main a
   Every one went through an independent review, a change list and a re-verification
   before merge. The unit suite is at 215 tests.
 - **Two pull requests remain open from the cycle.** The end-to-end Playwright harness
-  (PR #20, 97 browser tests, screenshots and recorded walkthroughs) is being re-synced to
-  the final main and lands last; the dead-code prune (HAR-23) started from the final main
-  at 13:42 UTC. A tiny HAR-18 follow-up (bulk "mark mastered" must keep the placement
-  source) is also in flight.
+  (PR #20, 100 browser tests, screenshots and recorded walkthroughs) is being re-synced to
+  the final main and lands last, and PR #27 is a tiny HAR-18 follow-up (bulk "mark
+  mastered" must keep the placement source). The dead-code prune (HAR-23) started from the
+  final main at 13:42 UTC and has no pull request yet.
 - **Three decisions and one command are owed by the family** (section 5): the AI
   provider, the device topology, the placement workbook questions, and deleting the
   upstream telemetry shim from `src/index.html`.
 
-| Audit question | 27 September | 1 October |
+| Audit question | 27 September | 2 October |
 | --- | --- | --- |
-| Tests | 40 | 215 unit tests on main, plus 97 end-to-end browser tests in PR #20 |
+| Tests | 40 | 215 unit tests on main, plus 100 end-to-end browser tests in PR #20 |
 | Microphone left on after Escape or backdrop | Broken | Fixed (HAR-8) |
 | Challenge timer runs on after dismissal, phantom result | Broken | Fixed (HAR-8) |
 | "Review answers → Back" re-saves and re-awards | Broken | Fixed (HAR-9) |
@@ -60,7 +60,7 @@ implementing session as change lists and fixed before merge. Status as of main a
 
 ### Report card delta
 
-| Layer | 27 September | 1 October | Why |
+| Layer | 27 September | 2 October | Why |
 | --- | --- | --- | --- |
 | Platform & operations | Bud | **Bud+** | Versioned state, export/import, backup script, CSRF check on the beacon path, 215 unit tests and a browser suite. Still no auth or LAN story (HAR-25). |
 | Curriculum & navigation | Bloom | **Bloom+** | Skill-tree selection and scroll survive clicks and the topic round trip (HAR-21). |
@@ -104,7 +104,7 @@ self-hosting work merged on 5 September).
 | HAR-15 Child view containment | [#16](https://github.com/simgue/harrington/pull/16) | **Merged** (838b958) | MERGE. Containment survived Tab, Shift+Tab, programmatic focus, hit-tests, keys, hash changes and history navigation; the parent shell is inert while the child view is open; recall, challenge and test end score-free. |
 | HAR-14 Placement and manual status | [#17](https://github.com/simgue/harrington/pull/17) | **Merged** (add6a04) | FIX-FIRST on stale daily choices after a placement, fixed and re-verified, then MERGE. The prerequisite closure matched an independent implementation across a 72-case subject and age sweep; placement no longer counts as a learning day. |
 | HAR-13 Honest no-AI mode | [#18](https://github.com/simgue/harrington/pull/18) | **Merged** (c23d6fb) | FIX-FIRST on a calendar layout defect (extra-practice rows lost their title when the chip replaced the button), fixed; two ungated recall paths and the stray `#timeline` route closed; re-verified on the merged head with the child-view and Regenerate resolutions, then MERGE. |
-| End-to-end harness and walkthrough | [#20](https://github.com/simgue/harrington/pull/20) | Open; re-syncing to the final main | FIX-FIRST twice (a child-view screenshot that showed parent scores; the beacon path counted as covered but untested), both fixed and re-verified: 97 tests pass on its own head. It then drifted as wave 3 landed under it (birth-year bounds, new dashboard cards, calendar breaks), so it merges last after one more pass. Playwright 1.56 against the real server with a deterministic mock AI provider; api, desktop, no-ai, mobile and walkthrough projects; JPEG screenshots committed; videos as CI artifacts; `docs/e2e/` README, WALKTHROUGH, COVERAGE and FINDINGS (18 findings; F1, F5 and F11 are now fixed on main). |
+| End-to-end harness and walkthrough | [#20](https://github.com/simgue/harrington/pull/20) | Open; re-syncing to the final main | FIX-FIRST twice (a child-view screenshot that showed parent scores; the beacon path counted as covered but untested), both fixed and re-verified: 100 tests pass on its own head after the HAR-17 and HAR-22 re-sync. It then drifted as wave 3 landed under it (birth-year bounds, new dashboard cards, calendar breaks), so it merges last after one more pass. Playwright 1.56 against the real server with a deterministic mock AI provider; api, desktop, no-ai, mobile and walkthrough projects; JPEG screenshots committed; videos as CI artifacts; `docs/e2e/` README, WALKTHROUGH, COVERAGE and FINDINGS (18 findings; F1, F5 and F11 are now fixed on main). |
 
 Merge order was HAR-16, HAR-15, HAR-14, then HAR-13, because HAR-13 overlaps the
 other three in the child view and the Records card. Each merge was preceded by a

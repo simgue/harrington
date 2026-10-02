@@ -68,10 +68,13 @@ topic to the child.**
 4. **Cite or drop.** Every generated paragraph must point at a source we hold locally; a
    paragraph that cannot is removed, not kept.
 5. **Lazy, cached, replayable.** Outline now, first lesson now, the rest in the background;
-   everything through the existing lesson cache and the HAR-20 validators; the child's
-   session never waits on a model.
-6. **Privacy posture unchanged.** No learner names (HAR-19), age band only, no external
-   calls during a child session, local provider by default.
+   everything through the existing lesson cache, with a dedicated cache kind and
+   validator for each new artifact (quest proposal, replay log), because `isValidCached`
+   accepts any kind it does not know; the child's session never waits on a model.
+6. **Privacy posture kept, and tightened in one place.** No learner names (HAR-19), no
+   external calls during a child session, local provider by default; and, as a change from
+   HAR-19's current list, the age band instead of the exact age, so README and SECURITY
+   must be updated when this ships.
 
 ### The flow
 

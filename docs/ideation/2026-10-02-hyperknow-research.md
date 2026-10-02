@@ -9,9 +9,9 @@ _Research report, 2026-10-02. Evidence caveat: the sandbox proxy blocked direct 
 - Timeline: 2024 hackathon prototype, Aug 2025 "world's first AI teacher to turn any hard topic into a 1:1 AI course", Nov 2025 "Hyperknow Agent", ~Feb 2026 "Hyperknow 3.0" proactive agent; Forbes 30 Under 30 Asia 2026 [11][16][18][27].
 - Course generation is a staged, research-first WebSocket pipeline: boot → up to 5 rounds of web research with citation ids → initial syllabus → 4 profile questions (`prerequisite | course_specific | target_level | course_scale`) → editable structure the learner must confirm → per-session outlines with key points → practice/exam/project [30-RE].
 - Structure is a tree, not a graph: course → units → (lectures) → sessions with `key_points[]`; progress is four flat tables (exam scores per unit, practice stats per session, project stage states, exam started) [30-RE].
-- No knowledge-graph visualisation, cross-course nodes or inferred prerequisites were found; "prerequisite" is a question the learner answers, plus a clone prompt asking the model to emit unit-level prerequisite ids as a DAG [30-RE][32-RE].
+- No knowledge-graph visualization, cross-course nodes or inferred prerequisites were found; "prerequisite" is a question the learner answers, plus a clone prompt asking the model to emit unit-level prerequisite ids as a DAG [30-RE][32-RE].
 - Delivery is multimodal: an Excalidraw-style whiteboard driven by action groups (`board | speak | image_generation | highlight | animation | ask | done`) with TTS and voice interjection, Manim+Remotion videos, Gemini-generated diagrams, sandboxed HTML animations [4][15][30-RE].
-- Personalisation is a typed server-side memory (`preference | knowledge | logistics | other`) marketed as the "Learner's Persona", used to target weak concepts [16][26][30-RE].
+- Personalization is a typed server-side memory (`preference | knowledge | logistics | other`) marketed as the "Learner's Persona", used to target weak concepts [16][26][30-RE].
 - Back-end fingerprints: FastAPI-shaped API, Supabase auth, S3 (us-east-2), Stripe, Dub, Microsoft Clarity, Canvas LMS and Google Calendar connectors; `gemini-3-flash-preview` seen in tool-selection frames; no public API, GitHub org, job posts or engineering blog [8][10][30-RE][36].
 - For a taxonomy-first self-hosted app, borrow the confirmation-gated stage machine, research-with-citation-ids, question-driven scoping, per-session key points and typed memory; do not borrow the tree-only structure, free-form prerequisite emission, credit economy or opaque model routing.
 
@@ -62,7 +62,7 @@ Officially: "turns a topic, textbook, or stuck concept into a 1:1 course with un
  whiteboard WS (board/speak/image/animation/ask + TTS, interjection) · Deep Learn plan · practice/exam/project REST
 ```
 
-**Research and grounding.** Progress frames read "Researching the web (round n/5)", "Round n fetched N page(s)", "Round n summary ready", "Selected N web source(s)" with `reference_ids`, and course text references sources as `[refId]` [30-RE]. A clone author summarises the live behaviour as "the agent researches university syllabi, asks 4 profile questions (prior knowledge / lens / mastery / scale), then streams a full course unit-by-unit" [31-RE]. Uploads enter via `attachment_paths` (S3-backed, with conversion, summary and thumbnail jobs scheduled on upload) and Canvas via `canvas_selection` [30-RE]. Official grounding claims: page-level citation for uploads [5] and "10+ citations per response" in Deep Learn [3].
+**Research and grounding.** Progress frames read "Researching the web (round n/5)", "Round n fetched N page(s)", "Round n summary ready", "Selected N web source(s)" with `reference_ids`, and course text references sources as `[refId]` [30-RE]. A clone author summarizes the live behavior as "the agent researches university syllabi, asks 4 profile questions (prior knowledge / lens / mastery / scale), then streams a full course unit-by-unit" [31-RE]. Uploads enter via `attachment_paths` (S3-backed, with conversion, summary and thumbnail jobs scheduled on upload) and Canvas via `canvas_selection` [30-RE]. Official grounding claims: page-level citation for uploads [5] and "10+ citations per response" in Deep Learn [3].
 
 **Outline first, then lessons.** `GET .../structure` returns `{courseTitle, courseDescription, targetLearner, units[...]}`; each session later carries model-generated `key_points[]` that persist with the course and drive the whiteboard outline panel (a `-live` marker shows the point being taught) [30-RE]. A clone mirroring the UI encodes Unit → Lecture → Session with `sessionTime` (10-45 min), depth tags (`intuition, definition, derivation, application, advanced`), unit `objectives`/`completionCriteria` and `prerequisites: [unitId]` "strictly acyclic (DAG)" [32-RE]; since server prompts are invisible to a client, treat that schema as reconstruction **[inference]**.
 
@@ -80,11 +80,11 @@ Officially: "turns a topic, textbook, or stuck concept into a 1:1 course with un
 
 **Decomposition.** An LLM decomposes the topic top-down after web research into a strict tree: course → units → (lectures) → sessions → key points/steps [30-RE][32-RE]. Scale follows the `course_scale` answer (clone prompt: overview 3-4 units, systematic 6-8, deep 8-12) [32-RE]. Deep Learn uses a two-level plan `session_task_plan[{unit_name, tasks[{task_id "1.1"}]}]` with `step_completion{requires_acknowledgment:true}` gating progress [30-RE].
 
-**Prerequisites.** Nothing observed infers prerequisites from content or a global concept graph. "Prerequisite" is one of the four question categories (the learner declares prior knowledge), and the clone's architect prompt asks the model to emit unit-level `prerequisites` as a DAG [30-RE][32-RE]. **[inference]** Ordering inside a course is an LLM judgement at generation time; no nodes are shared across courses.
+**Prerequisites.** Nothing observed infers prerequisites from content or a global concept graph. "Prerequisite" is one of the four question categories (the learner declares prior knowledge), and the clone's architect prompt asks the model to emit unit-level `prerequisites` as a DAG [30-RE][32-RE]. **[inference]** Ordering inside a course is an LLM judgment at generation time; no nodes are shared across courses.
 
 **Mastery and progress.** `progress-status` returns `{examScores{unitId}, practiceStats{sessionId:{started,finished,correct,total}}, projectStages{stageId:{touched,completed}}, examStarted{}}`; `generation-status` carries `practiceBySession{sessionId:"locked"|...}` [30-RE]. Practice mastery is binary. A third-party audit rates long-term memory "medium" ("learning style / Memory profile, cannot be opened as a map") and visual knowledge structure "medium" ("explainer videos, no concept map") [33].
 
-**Visualisation and scope.** No node-link or zoomable graph appears in protocol, CSS or reviews. What exists: a syllabus sidebar ("white minimal, Inter font, large central search box ... left syllabus directory, answer area with book page left and source cards right" [34]), a course "journey" page whose next-step pill is coloured by `session_type` (learn/practice/project/exam) [30-RE], the whiteboard key-point panel and inline diagrams. The manifesto's "reassembling [knowledge] into structures that can be understood, transferred, and reused" [6] is aspirational **[inference]**. Everything is per-user; only marketplace courses are shared [30-RE].
+**Visualization and scope.** No node-link or zoomable graph appears in protocol, CSS or reviews. What exists: a syllabus sidebar ("white minimal, Inter font, large central search box ... left syllabus directory, answer area with book page left and source cards right" [34]), a course "journey" page whose next-step pill is colored by `session_type` (learn/practice/project/exam) [30-RE], the whiteboard key-point panel and inline diagrams. The manifesto's "reassembling [knowledge] into structures that can be understood, transferred, and reused" [6] is aspirational **[inference]**. Everything is per-user; only marketplace courses are shared [30-RE].
 
 ## Back-end and architecture signals
 
@@ -94,13 +94,13 @@ Officially: "turns a topic, textbook, or stuck concept into a 1:1 course with un
 - **Storage and media.** Public S3 bucket `nutcracker-hyperknow-public` (us-east-2); diagrams, animations, videos and whiteboard audio are served from unauthenticated api.hyperknow.io URLs; the RE authors also report an unauthenticated shared-conversation endpoint [30-RE].
 - **Models and tooling.** `gemini-3-flash-preview`; `gemini_image` and `mermaid` diagram subtypes; Manim + Remotion; six branded TTS voices (`warm|calm|bright|gentle|firm|lively`, vendor undisclosed); Silero VAD v5 via onnxruntime-web [30-RE].
 - **Integrations.** Canvas LMS (`canvas_lms{}`, `canvas_selection`, 12-field `canvas-updates`), Google Calendar connector status, Drive-style knowledge base with "Add to calendar" [2][30-RE].
-- **People and process.** No job postings, engineering blog, docs, changelog or GitHub organisation; the `hyperknow-dev` account has no public repos [36]. Founder talks exist on Bilibili and in ZhenFund-syndicated interviews [25][26][27]. All protocol detail dates from 3-16 September 2026 and may be stale.
+- **People and process.** No job postings, engineering blog, docs, changelog or GitHub organization; the `hyperknow-dev` account has no public repos [36]. Founder talks exist on Bilibili and in ZhenFund-syndicated interviews [25][26][27]. All protocol detail dates from 3-16 September 2026 and may be stale.
 
 ## Comparable products table
 
 | Product | How it builds structure | Distinctive |
 |---|---|---|
-| Oboe [38][39] | Diagnostic conversation, then a "multi-agent architecture" with parallel agents for architecture, verification, scripts, images and audits | Closest commercial analogue; course in seconds, nine formats |
+| Oboe [38][39] | Diagnostic conversation, then a "multi-agent architecture" with parallel agents for architecture, verification, scripts, images and audits | Closest commercial analog; course in seconds, nine formats |
 | Khanmigo / Khan Academy [40][41][42] | Hand-built course → unit → lesson → skill with Attempted/Familiar/Proficient/Mastered; Khanmigo is given "a student's mastery of a skill and its prerequisites" | Curated prerequisite graph plus Socratic tutor; no generation |
 | Google Learn About / LearnLM [43][44] | Conversational answers with "Interactive Lists" drill-downs and quizzes; LearnLM fine-tuned for pedagogy | Navigational structure, no persistent learner graph |
 | OpenAI Study Mode [45] | "Custom system instructions" with pedagogy experts; scaffolded Socratic turns | Prompt-level only |
@@ -142,7 +142,7 @@ Officially: "turns a topic, textbook, or stuck concept into a 1:1 course with un
 - The tree-only course object with no cross-course nodes; new content should become graph nodes and edges, not a parallel tree.
 - Opaque per-tool model routing, credit metering and 12-hour resets.
 - Client-side exam timers and speed bonuses tuned to adults cramming.
-- Public unauthenticated artefact URLs and analytics pixels.
+- Public unauthenticated artifact URLs and analytics pixels.
 - Letting the LLM emit prerequisite ids freely (`prerequisites: ["unit-1"]`); edges must be validated against the taxonomy.
 
 **Hard problems.**
@@ -245,6 +245,6 @@ Officially: "turns a topic, textbook, or stuck concept into a 1:1 course with un
 79. https://www.aleks.com/about_aleks/knowledge_space_theory
 80. https://www.aleks.com/about_aleks/Science_Behind_ALEKS.pdf
 81. https://arxiv.org/pdf/1811.12640 (PREREQ, Roy et al.)
-82. https://ojs.aaai.org/index.php/AAAI/article/view/32156 (global knowledge relation optimisation, AAAI 2025)
+82. https://ojs.aaai.org/index.php/AAAI/article/view/32156 (global knowledge relation optimization, AAAI 2025)
 83. https://arxiv.org/pdf/2608.03006 (ProPRL)
 84. https://www.sohu.com/a/1081920028_413980 (VideoTutor / Kai Zhao, $11M seed — a different company, checked to avoid conflation)
