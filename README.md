@@ -246,6 +246,10 @@ which writes `backups/harrington-<timestamp>.tar.gz` (Git ignores `backups/`).
 To restore, stop Harrington, replace `data/private/` with the archive's
 contents (`tar -xzf backups/harrington-<timestamp>.tar.gz -C data`), and start
 it again. With Docker, back up the `harrington-data` volume instead.
+Set `HARRINGTON_BACKUP_DIR` to write somewhere else; the server reads the same
+variable, and the notification bell reminds you when the newest archive there
+is more than 7 days old (or there is none; under Docker, where the server cannot
+see host backups, dismiss the reminder and it returns a week later).
 
 In the app, **Export** in the sidebar's family box downloads
 `harrington-family-<date>.json`: the full family document plus `exportedAt`
@@ -278,7 +282,7 @@ the open-source **Marble Skill Taxonomy** once, caches it under
 - https://github.com/withmarbleapp/os-taxonomy
 
 The first launch needs the network for that download. Later launches use the
-on-disk cache. The app notifies you when topics are added or removed upstream.
+on-disk cache; it does not update on its own.
 
 ## Licensing
 

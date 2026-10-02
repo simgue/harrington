@@ -59,7 +59,7 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 | Topic page | covered with mock AI | `topic`, `no-ai`, `mobile` | Header chips and status row, evidence, quick check, connections both ways, records, section recordings, every AI tool; fits a 390 px screen. |
 | Timeline (mastery ladder) | removed | `map` | HAR-13 removed the route; `#timeline` now opens the dashboard without errors. |
 | Reference links | covered | `topic` | Five links, `target="_blank"` and `rel="noopener"`. The targets are external and not loaded. |
-| Curriculum-change notifications | covered | `notifications` | First-run welcome item; no new item on a second boot; an older saved snapshot raises "Curriculum updated — 5 new topics". In practice it cannot fire, because the cache never revalidates. |
+| Curriculum-change notifications | removed | `notifications` | HAR-27 removed the change detection (the cache never revalidates, so it could not fire). A family's old welcome item suppresses the new one. |
 
 ## 4.4 Planning
 
@@ -113,7 +113,7 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 | Dashboard | covered | `dashboard` | Every section listed in the audit, for ages 3, 6 and 9, with no console errors. Banner wording (F4), count formatting (F15). |
 | Insights: subject stats, recommended next | covered | `insights` | Subject chips, the four counts, recommendation opens its topic. |
 | Insights: progress review, final test, adaptive suggestions | covered with mock AI | `insights`, `no-ai` | Review generated; HAR-19: no learner name in the prompt, notes left out by default and sent (with names replaced) once the box is ticked (F2 fixed); final test locked and unlocked; suggestions approved and undone. |
-| Notifications bell | covered | `notifications` | Unread badge, mark all read, mark one read, empty state. Accessible name (F13). |
+| Notifications bell | covered | `notifications` | HAR-27: first-run welcome and "No backup yet", dismiss one and dismiss all (kept after reload), open picks after 3 pm per learner with the learner filter, picks made or before 3 pm, no evidence this week. Accessible name "Notifications, N new" (F13 fixed). Backup age is covered by `server.test.mjs`. |
 
 ## 4.10 Engagement
 

@@ -167,9 +167,22 @@ A day-by-day plan from your start date, on the home days you choose.
 
 ## Notifications
 
-The bell shows a welcome note on first run. The curriculum is downloaded once
-and kept on this computer; it does not update on its own, so the bell does not
-report curriculum changes.
+The bell lists things that need a parent, worked out on this computer from
+your own data (no AI is involved):
+
+- **Today's picks are still open.** On a home day (see Home days & breaks),
+  from 3 pm, for a learner with no literacy or numeracy pick yet.
+- **No evidence this week.** A learner with no record in the last 7 days.
+- **Backup older than 7 days** (or **No backup yet**). The newest archive
+  `npm run backup` wrote is more than a week old.
+
+Items carry the learner they are about; the bell opens on the active learner,
+and "All learners" shows everyone. The button reads "Notifications, 2 new" to
+a screen reader. Dismiss an item once it is handled: picks come back on the
+next home day, evidence after the next quiet week, and a backup reminder a week
+later. A welcome item appears once on first run. The curriculum is downloaded
+once and does not update on its own, so the bell does not report curriculum
+changes.
 
 ## Privacy and data
 
