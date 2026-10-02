@@ -31,7 +31,10 @@ before a request is built (accents, hyphens and apostrophe variants included).
 When an AI provider is configured, this is what still leaves the machine:
 
 - topic names, descriptions and statuses, and mastery percentages;
-- the learner's exact age (or “age unknown”);
+- the topic's age from the curriculum (lessons, explanations, quizzes,
+  printables, activities, recall cards, topic and section tests, challenges);
+- the learner's exact age (or “age unknown”) for whole-subject tests,
+  discussion analyses and progress reviews;
 - record counts by type, the topics they link to and the average confidence rating;
 - a discussion transcript, when the parent asks for an analysis;
 - the parent's notes, only when they tick “Include my notes in this request”
