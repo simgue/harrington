@@ -96,7 +96,7 @@ export function todaysChoices(studentId, dateKey) {
     lastTouched: (domain) => lastByDomain.get(domain) || 0,
     topicAge,
     blockingPrereqs: (id) => blockingPrereqs(studentId, id).map(p => d.byId.get(p.id)).filter(Boolean),
-  });
+  }, 2, 4);
   const saved = store.dailyFor(studentId, dateKey);
   let offers = saved && saved.offers;
   if (!offers) {
@@ -110,7 +110,9 @@ export function todaysChoices(studentId, dateKey) {
       lane,
       options: (offers[key] || []).map(id => d.byId.get(id)).filter(Boolean),
       pick: picks[key] || null,
-      blocked: built[key] ? built[key].blocked : [],
+      // A saved offer can lock again (a prerequisite set back to learning); it
+      // stays offered today, so it is never also listed as "Not yet".
+      blocked: (built[key] ? built[key].blocked : []).filter(b => !(offers[key] || []).includes(b.topic.id)).slice(0, 2),
     };
   }
   return out;

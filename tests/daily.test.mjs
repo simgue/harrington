@@ -1,6 +1,31 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { buildDailyChoices, coverageFields, invitationEvidenceSummary, laneOptions, LANES, pickKey } from '../src/js/daily.js';
+
+// A small taxonomy served to data.js, and quiet saves for store.js.
+const taxonomy = {
+  topics: [
+    { id: 'p1', name: 'Hear first sounds', subject: 'English', domain: 'Phonics & Word Reading', ageRangeStart: 6, centrality: 1 },
+    { id: 'p2', name: 'Blend three sounds', subject: 'English', domain: 'Phonics & Word Reading', ageRangeStart: 6, centrality: 1 },
+    { id: 'p3', name: 'Read short words', subject: 'English', domain: 'Phonics & Word Reading', ageRangeStart: 6, centrality: 1 },
+    { id: 'h1', name: 'Hold a pencil', subject: 'English', domain: 'Handwriting & Transcription', ageRangeStart: 6, centrality: 0 },
+  ],
+  dependencies: [
+    { topicId: 'p2', prerequisiteId: 'p1', strength: 'hard' },
+    { topicId: 'p3', prerequisiteId: 'p2', strength: 'hard' },
+  ],
+};
+const json = (body) => ({ ok: true, status: 200, headers: new Headers({ ETag: '"v1"' }), json: async () => body });
+globalThis.fetch = async (url) => {
+  const path = String(url);
+  if (path.endsWith('/topics.json')) return json({ topics: taxonomy.topics });
+  if (path.endsWith('/dependencies.json')) return json({ dependencies: taxonomy.dependencies });
+  if (path.endsWith('/clusters.json')) return json({ clusters: [] });
+  if (path.endsWith('/manifest.json')) return json(null);
+  return json({});
+};
+const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const topic = (id, subject, domain, ageRangeStart = 6, centrality = 0) => ({ id, name: id, subject, domain, ageRangeStart, centrality });
 
@@ -134,7 +159,71 @@ test('numeracy blocked entries follow the chain', () => {
   assert.deepEqual(blocked.map((b) => [b.topic.id, b.needs.id]), [['math-place', 'math-counting'], ['math-add', 'math-place']]);
 });
 
+test('blocked names the first unmet prerequisite and is capped at two of three candidates', () => {
+  const list = [
+    topic('open', 'English', 'Phonics & Word Reading', 6, 0),
+    topic('two-gates', 'English', 'Phonics & Word Reading', 6, 3),
+    topic('lock-b', 'English', 'Speaking & Listening', 6, 2),
+    topic('lock-c', 'English', 'Writing Composition', 6, 1),
+  ];
+  const prereqs = { 'two-gates': ['gate-1', 'gate-2'], 'lock-b': ['gate-2'], 'lock-c': ['gate-1'] };
+  const gates = new Map([['gate-1', { id: 'gate-1', name: 'gate-1' }], ['gate-2', { id: 'gate-2', name: 'gate-2' }]]);
+  const blockingPrereqs = (id) => (prereqs[id] || []).map((p) => gates.get(p));
+  const { blocked } = laneOptions(list, LANES.literacy, ctx({ isUnlocked: (id) => !prereqs[id], blockingPrereqs }));
+  assert.equal(blocked.length, 2, 'three locked candidates, two shown');
+  assert.deepEqual(blocked.map((b) => b.topic.id), ['two-gates', 'lock-b'], 'most central first');
+  assert.equal(blocked[0].needs.id, 'gate-1', 'the first unmet prerequisite, not the last');
+  assert.equal(laneOptions(list, LANES.literacy, ctx({ isUnlocked: (id) => !prereqs[id], blockingPrereqs }), 2, 3).blocked.length, 3);
+});
+
+// ---- todaysChoices (store + taxonomy) ----
+
+test('todaysChoices keeps saved offers and recomputes blocked, never listing an offer as blocked', async () => {
+  const { loadTaxonomy } = await import('../src/js/data.js');
+  await loadTaxonomy();
+  const store = await import('../src/js/store.js');
+  const { todaysChoices } = await import('../src/js/mastery.js');
+  const sid = store.addStudent('Sample Nine', new Date().getFullYear() - 6);
+  const day = '2026-09-26';
+  store.setStatus(sid, 'p1', 'mastered');
+
+  const first = todaysChoices(sid, day).literacy;
+  assert.deepEqual(first.options.map((t) => t.id).sort(), ['h1', 'p2']);
+  assert.deepEqual(store.dailyFor(sid, day).offers.literacy.sort(), ['h1', 'p2'], 'offers are saved');
+  assert.deepEqual(first.blocked.map((b) => [b.topic.id, b.needs.id]), [['p3', 'p2']]);
+
+  // p2 locks again: it stays offered today and is not also "Not yet".
+  store.setStatus(sid, 'p1', 'learning');
+  const relocked = todaysChoices(sid, day).literacy;
+  assert.deepEqual(relocked.options.map((t) => t.id).sort(), ['h1', 'p2']);
+  assert.ok(!relocked.blocked.some((b) => b.topic.id === 'p2'));
+  assert.deepEqual(relocked.blocked.map((b) => [b.topic.id, b.needs.id]), [['p3', 'p2']]);
+
+  // Mastering the prerequisite clears blocked at once, while offers stay put.
+  store.setStatus(sid, 'p1', 'mastered');
+  store.setStatus(sid, 'p2', 'mastered');
+  const opened = todaysChoices(sid, day).literacy;
+  assert.deepEqual(opened.blocked, []);
+  assert.deepEqual(store.dailyFor(sid, day).offers.literacy.sort(), ['h1', 'p2']);
+});
+
 // ---- Coverage-claim evidence ----
+
+test('the coverage checkbox is unchecked by default and escapes topic names', async () => {
+  const { coverageClaimField } = await import('../src/js/recorder.js');
+  const html = coverageClaimField([{ id: 'x', name: 'Count <b>to</b> ten' }]);
+  assert.match(html, /<input type="checkbox" name="claimCoverage"/);
+  assert.doesNotMatch(html, /\bchecked\b/);
+  assert.match(html, /Mark curriculum coverage for <strong[^>]*>Count &lt;b&gt;to&lt;\/b&gt; ten<\/strong>/);
+  assert.equal(coverageClaimField([]), '');
+  // Both forms use this field, and only a checked box adds coverage.
+  for (const path of ['src/js/recorder.js', 'src/js/views/records.js']) {
+    const src = await source(path);
+    assert.match(src, /\$\{coverageClaimField\(coverageTopics\)\}/, path);
+    assert.match(src, /coverageFields\(coverageTopics, !!fd\.get\('claimCoverage'\), options\.source\)/, path);
+  }
+});
+
 
 test('pick keys are deterministic', () => {
   assert.equal(pickKey('2026-09-26', 'literacy', 'eng-phonics'), '2026-09-26|literacy|eng-phonics');
@@ -160,8 +249,21 @@ test('one record can be evidence for both of the day\'s picks', () => {
   const a = pickKey('2026-09-26', 'literacy', 'eng-phonics');
   const b = pickKey('2026-09-26', 'numeracy', 'math-counting');
   const records = [{ source: { kind: 'daily-pick', key: `${a},${b}` }, coverage: [{ topicId: 'eng-phonics', topicName: 'x' }, { topicId: 'math-counting', topicName: 'y' }] }];
-  assert.equal(invitationEvidenceSummary(records, a).coverageCount, 1);
-  assert.equal(invitationEvidenceSummary(records, b).coverageCount, 1);
+  assert.deepEqual(invitationEvidenceSummary(records, a), { recordCount: 1, coverageCount: 1 });
+  assert.deepEqual(invitationEvidenceSummary(records, b), { recordCount: 1, coverageCount: 1 });
+  // Keys match whole, never as a prefix of a joined key.
+  assert.deepEqual(invitationEvidenceSummary(records, '2026-09-26|literacy|eng'), { recordCount: 0, coverageCount: 0 });
+});
+
+test('malformed coverage entries never count as evidence', () => {
+  const a = pickKey('2026-09-26', 'literacy', 'eng-phonics');
+  const records = [
+    { source: { kind: 'daily-pick', key: a }, coverage: [null] },
+    { source: { kind: 'daily-pick', key: a }, coverage: [{}] },
+    { source: { kind: 'daily-pick', key: a }, coverage: 'eng-phonics' },
+    { source: null, coverage: [{ topicId: 'eng-phonics' }] },
+  ];
+  assert.deepEqual(invitationEvidenceSummary(records, a), { recordCount: 3, coverageCount: 0 });
 });
 
 test('coverageFields only sets coverage when the claim is checked', () => {
@@ -176,7 +278,6 @@ test('coverageFields only sets coverage when the claim is checked', () => {
 // ---- Interests (store) ----
 
 test('interests are stored per learner under their own key, cleaned, with one emit per change', async () => {
-  globalThis.fetch ??= async () => ({ ok: true, status: 200, headers: new Headers({ ETag: '"v1"' }), json: async () => ({}) });
   const store = await import('../src/js/store.js');
   const sid = 's-interests';
   assert.deepEqual(store.interestsFor(sid), { chips: [], text: '' }, 'no default chips');
@@ -193,4 +294,25 @@ test('interests are stored per learner under their own key, cleaned, with one em
   store.setInterests(sid, { chips: Array.from({ length: 20 }, (_, i) => `c${i}`), text: 'x'.repeat(900) });
   assert.equal(store.interestsFor(sid).chips.length, 12);
   assert.equal(store.interestsFor(sid).text.length, 500);
+});
+
+test('bad interests entries (null, arrays, non-strings) read as empty', async () => {
+  const store = await import('../src/js/store.js');
+  for (const bad of [null, [], 'Animals', 7, { chips: null, text: 5 }, { chips: [null, 3, ' ok '], text: null }]) {
+    store.get().interests['s-bad'] = bad;
+    const got = store.interestsFor('s-bad');
+    assert.ok(Array.isArray(got.chips) && typeof got.text === 'string', JSON.stringify(bad));
+  }
+  assert.deepEqual(store.interestsFor('s-bad'), { chips: ['ok'], text: '' });
+  assert.equal(store.inspectImport({ students: [{ id: 's1', name: 'Sample Nine' }], interests: { s1: null } }).ok, true);
+});
+
+test('a quiet interests save persists without re-rendering', async () => {
+  const store = await import('../src/js/store.js');
+  let emits = 0;
+  const off = store.subscribe(() => { emits++; });
+  store.setInterests('s-quiet', { chips: [], text: 'typing' }, { quiet: true });
+  off();
+  assert.equal(emits, 0);
+  assert.equal(store.interestsFor('s-quiet').text, 'typing');
 });

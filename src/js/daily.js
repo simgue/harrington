@@ -119,9 +119,9 @@ export function laneOptions(topics, lane, ctx, count = 2, blockedCount = 2) {
 }
 
 // Both lanes at once: { literacy: { options, blocked }, numeracy: { options, blocked } }.
-export function buildDailyChoices(topics, ctx, count = 2) {
+export function buildDailyChoices(topics, ctx, count = 2, blockedCount = 2) {
   const out = {};
-  for (const [key, lane] of Object.entries(LANES)) out[key] = laneOptions(topics, lane, ctx, count);
+  for (const [key, lane] of Object.entries(LANES)) out[key] = laneOptions(topics, lane, ctx, count, blockedCount);
   return out;
 }
 
@@ -144,7 +144,8 @@ function sourceKeys(record) {
 // "Evidence recorded" only when coverageCount > 0.
 export function invitationEvidenceSummary(records, key) {
   const linked = (records || []).filter((record) => sourceKeys(record).includes(key));
-  const coverageCount = linked.filter((record) => Array.isArray(record.coverage) && record.coverage.length > 0).length;
+  const coverageCount = linked.filter((record) => Array.isArray(record.coverage)
+    && record.coverage.some((c) => c && typeof c === 'object' && c.topicId)).length;
   return { recordCount: linked.length, coverageCount };
 }
 

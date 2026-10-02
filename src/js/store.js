@@ -803,28 +803,35 @@ export function pickDaily(studentId, dateKey, lane, topicId) {
 }
 
 // ---- Interests (what the learner is into) ----
-const INTEREST_CHIPS_MAX = 12;
+export const INTEREST_CHIPS_MAX = 12;
 const INTEREST_CHIP_LEN = 40;
 const INTEREST_TEXT_LEN = 500;
-function cleanInterests({ chips = [], text = '' } = {}) {
+// Tolerates anything an import or an older document might hold (null, arrays,
+// non-string values), so the dashboard never trips over a bad entry.
+function cleanInterests(value) {
+  const { chips, text } = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const seen = new Set();
   const list = [];
   for (const raw of Array.isArray(chips) ? chips : []) {
-    const chip = String(raw ?? '').trim().replace(/\s+/g, ' ').slice(0, INTEREST_CHIP_LEN);
+    if (typeof raw !== 'string') continue;
+    const chip = raw.trim().replace(/\s+/g, ' ').slice(0, INTEREST_CHIP_LEN);
     if (!chip || seen.has(chip.toLowerCase())) continue;
     seen.add(chip.toLowerCase());
     list.push(chip);
     if (list.length >= INTEREST_CHIPS_MAX) break;
   }
-  return { chips: list, text: String(text ?? '').trim().slice(0, INTEREST_TEXT_LEN) };
+  return { chips: list, text: typeof text === 'string' ? text.trim().slice(0, INTEREST_TEXT_LEN) : '' };
 }
 // Always { chips, text }; a copy, so callers can't mutate state by accident.
 export function interestsFor(studentId) {
   return cleanInterests(state.interests[studentId]);
 }
-export function setInterests(studentId, interests) {
+// quiet: save without re-rendering, for the card's own free-text edits (a
+// re-render mid-typing would drop focus and swallow the next tap).
+export function setInterests(studentId, interests, { quiet = false } = {}) {
   state.interests[studentId] = cleanInterests(interests);
-  persist(); emit();
+  persist();
+  if (!quiet) emit();
   return interestsFor(studentId);
 }
 

@@ -1,6 +1,6 @@
 import { SUBJECTS } from '../data.js';
 import * as store from '../store.js';
-import { el, esc, refreshIcons, fmtDateTime } from '../ui.js';
+import { el, esc, refreshIcons, fmtDateTime, toast } from '../ui.js';
 import { studentStats, recommendedNext, recentActivity, todaysChoices, MASTERY } from '../mastery.js';
 import { openRecordForm } from './records.js';
 import { openRecorder } from '../recorder.js';
@@ -273,7 +273,19 @@ function todayCard(active, navigate) {
   const laneTone = { literacy: STOPS[0], numeracy: STOPS[1] };
   let anyOptions = false;
   for (const [key, c] of Object.entries(choices)) {
-    if (!c.options.length) continue;
+    if (!c.options.length) {
+      // Nothing open in this lane today: say why, which is when it matters most.
+      if (c.blocked.length) {
+        const tone = laneTone[key];
+        const empty = el(`<div class="relative rounded-3xl p-4" style="background:${tone.tint}">
+          ${stop(++stopNo, tone, c.lane.icon)}
+          <p class="font-600">${c.lane.label} <span class="font-400 text-sm text-ink-soft">· nothing open today</span></p>
+        </div>`);
+        empty.appendChild(whyLockedLine(c.blocked));
+        body.appendChild(empty);
+      }
+      continue;
+    }
     anyOptions = true;
     body.appendChild(choiceStop(active, todayKey, key, c, laneTone[key], stop(++stopNo, laneTone[key], c.lane.icon), navigate));
   }
@@ -391,11 +403,14 @@ function choiceStop(active, dateKey, laneKey, c, tone, stopHtml, navigate) {
   }
 
   // Parent-only: why the next topics in this lane aren't offered yet.
-  if (c.blocked && c.blocked.length) {
-    const parts = c.blocked.map(b => `<strong class="font-600 text-ink-soft">${esc(b.topic.name)}</strong> needs <strong class="font-600 text-ink-soft">${esc(b.needs.name)}</strong> first`);
-    wrap.appendChild(el(`<p class="why-locked text-xs text-ink-faint mt-3 flex items-start gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5 shrink-0 mt-px"></i><span>Not yet: ${parts.join(' · ')}</span></p>`));
-  }
+  if (c.blocked.length) wrap.appendChild(whyLockedLine(c.blocked));
   return wrap;
+}
+
+// One compact parent-only line: "Not yet: <topic> needs <prerequisite> first".
+function whyLockedLine(blocked) {
+  const parts = blocked.map(b => `<strong class="font-600 text-ink-soft">${esc(b.topic.name)}</strong> needs <strong class="font-600 text-ink-soft">${esc(b.needs.name)}</strong> first`);
+  return el(`<p class="why-locked text-xs text-ink-faint mt-3 flex items-start gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5 shrink-0 mt-px"></i><span>Not yet: ${parts.join(' · ')}</span></p>`);
 }
 
 // What the learner is into: suggestion chips, their own chips and a free-text
@@ -403,8 +418,11 @@ function choiceStop(active, dateKey, laneKey, c, tone, stopHtml, navigate) {
 const INTEREST_SUGGESTIONS = ['Animals', 'Building things', 'Gardening', 'Cooking', 'Music', 'Drawing', 'Space', 'Vehicles', 'Stories', 'Sports'];
 function interestsCard(student) {
   const current = store.interestsFor(student.id);
-  const chips = [...new Set([...INTEREST_SUGGESTIONS, ...current.chips])];
-  const on = new Set(current.chips);
+  // Chips compare ignoring case, as the store does: a custom "animals" shows
+  // as the "Animals" suggestion, selected.
+  const lower = (x) => x.toLowerCase();
+  const on = new Set(current.chips.map(lower));
+  const chips = [...INTEREST_SUGGESTIONS, ...current.chips.filter(c => !INTEREST_SUGGESTIONS.some(x => lower(x) === lower(c)))];
   const card = el(`<section class="meadow-card p-5" aria-labelledby="int-h">
     <h2 id="int-h" class="font-display text-lg font-600 flex items-center gap-2"><i data-lucide="sparkles" class="w-5 h-5 text-butter-deep"></i>${esc(student.name)}'s interests</h2>
     <p class="text-xs text-ink-faint mt-0.5 mb-3">What they're into lately. Tap to choose.</p>
@@ -416,24 +434,42 @@ function interestsCard(student) {
     <label class="block text-xs font-600 text-ink-soft mt-3 mb-1" for="int-text">Anything else?</label>
     <textarea id="int-text" name="text" rows="2" maxlength="500" placeholder="e.g. asks lots of questions about how bridges stay up" class="w-full px-3 py-2 rounded-2xl border border-paper-line bg-paper text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand/30">${esc(current.text)}</textarea>
   </section>`);
-  const save = (patch) => store.setInterests(student.id, { ...store.interestsFor(student.id), ...patch });
+  const text = card.querySelector('textarea');
+  let textTimer = null;
+  // Every save carries the box's current text, so a pending edit is never lost.
+  const save = (patch, opts) => {
+    clearTimeout(textTimer);
+    store.setInterests(student.id, { ...store.interestsFor(student.id), text: text.value, ...patch }, opts);
+  };
+  const addChip = (chip) => {
+    const list = store.interestsFor(student.id).chips;
+    if (list.some(x => lower(x) === lower(chip))) return;
+    if (list.length >= store.INTEREST_CHIPS_MAX) { toast(`Up to ${store.INTEREST_CHIPS_MAX} interests; tap one to remove it first`, 'error'); return; }
+    save({ chips: [...list, chip] });
+  };
   const wrap = card.querySelector('.chips');
   chips.forEach(chip => {
-    const sel = on.has(chip);
+    const sel = on.has(lower(chip));
     const b = el(`<button type="button" aria-pressed="${sel}" class="px-3 py-1 rounded-full text-xs font-600 transition-colors ${sel ? 'bg-butter text-ink' : 'bg-paper text-ink-soft hover:bg-butter-light'}">${esc(chip)}</button>`);
     b.onclick = () => {
-      const list = store.interestsFor(student.id).chips;
-      save({ chips: sel ? list.filter(x => x !== chip) : [...list, chip] });
+      if (sel) save({ chips: store.interestsFor(student.id).chips.filter(x => lower(x) !== lower(chip)) });
+      else addChip(chip);
     };
     wrap.appendChild(b);
   });
   card.querySelector('.add').onsubmit = (e) => {
     e.preventDefault();
     const value = e.target.chip.value.trim();
-    if (value) save({ chips: [...store.interestsFor(student.id).chips, value] });
+    if (value) addChip(value);
   };
-  const text = card.querySelector('textarea');
-  text.onchange = () => save({ text: text.value });
+  // Typing saves quietly (no re-render), so focus stays put and the next tap lands.
+  text.oninput = () => {
+    clearTimeout(textTimer);
+    textTimer = setTimeout(() => store.setInterests(student.id, { ...store.interestsFor(student.id), text: text.value }, { quiet: true }), 400);
+  };
+  text.onblur = () => {
+    if (textTimer) save({}, { quiet: true });
+  };
   return card;
 }
 

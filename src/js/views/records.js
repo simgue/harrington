@@ -72,6 +72,13 @@ export function renderRecords(params, { navigate }) {
   return root;
 }
 
+// Names of the topics a record claims as coverage, skipping malformed entries.
+function coverageNames(r) {
+  return (Array.isArray(r.coverage) ? r.coverage : [])
+    .filter(c => c && typeof c === 'object' && (c.topicName || c.topicId))
+    .map(c => String(c.topicName || c.topicId));
+}
+
 function recordCard(r, student, d, navigate) {
   const tm = TYPES[r.type] || { icon: 'sticky-note', label: 'Note', color: '#6f665a' };
   const topic = r.topicId ? d.byId.get(r.topicId) : null;
@@ -83,7 +90,7 @@ function recordCard(r, student, d, navigate) {
       <button class="del text-ink-faint hover:text-[#a4473a] p-0.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
     </div>
     ${r.title ? `<p class="font-600">${esc(r.title)}</p>` : ''}
-    ${Array.isArray(r.coverage) && r.coverage.length ? `<p class="text-xs font-600 text-brand-dark mb-1 flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>Coverage: ${r.coverage.map(c => esc(c.topicName || c.topicId)).join(' · ')}</p>` : ''}
+    ${coverageNames(r).length ? `<p class="text-xs font-600 text-brand-dark mb-1 flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>Coverage: ${coverageNames(r).map(esc).join(' · ')}</p>` : ''}
     ${r.note ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
     ${r.transcript ? `<details class="mt-2 group"><summary class="text-xs text-ink-faint cursor-pointer select-none flex items-center gap-1 list-none"><i data-lucide="chevron-right" class="w-3.5 h-3.5 transition-transform group-open:rotate-90"></i>Transcript</summary><p class="text-sm text-ink-soft mt-1.5 leading-relaxed whitespace-pre-wrap bg-paper border border-paper-line rounded-lg p-2.5">${esc(r.transcript)}</p></details>` : ''}
     ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${SUBJECTS[topic.subject].icon}" class="w-3.5 h-3.5"></i>${esc(topic.name)}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
