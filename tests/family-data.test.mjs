@@ -37,7 +37,7 @@ before(async () => {
   await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
   await writeFile(join(dataDir, 'taxonomy', 'topics.json'), JSON.stringify({ topics: [
     { id: 'count-to-5', name: 'Count to 5', subject: 'Mathematics', domain: 'Counting' },
-    { id: 'rhymes', name: 'Rhymes', subject: 'English', domain: 'Phonics' },
+    { id: 'rhymes', name: 'Rhymes', subject: 'English', domain: 'Phonics', ageRangeStart: 7 },
   ] }));
   await writeFile(join(dataDir, 'taxonomy', 'dependencies.json'), JSON.stringify({ dependencies: [] }));
   await writeFile(join(dataDir, 'taxonomy', 'clusters.json'), JSON.stringify({ clusters: [] }));
@@ -379,6 +379,97 @@ describe('family data safety in the store', { concurrency: false }, () => {
     }
     assert.deepEqual(statusEvents, ['conflict']);
     assert.ok(store.get().students.some((s) => s.id === 'garbled'));
+  });
+
+  test('updateStudent edits the profile in one save and survives export and import', async () => {
+    const id = store.addStudent('Sample Nine', 2017, 5);
+    await store.flushSaves();
+    assert.equal(store.get().students.find((s) => s.id === id).birthMonth, 5);
+    const before = (await serverState()).version;
+
+    let emitted = 0;
+    const unsubscribe = store.subscribe(() => { emitted += 1; });
+    assert.equal(store.updateStudent(id, { name: '  Sample Ten ', birthYear: 2016, birthMonth: 11, color: store.PALETTE[3] }), true);
+    unsubscribe();
+    assert.equal(emitted, 1);
+    await store.flushSaves();
+    const saved = await serverState();
+    assert.equal(saved.version, before + 1);
+    assert.deepEqual(
+      (({ name, birthYear, birthMonth, color }) => ({ name, birthYear, birthMonth, color }))(saved.students.find((s) => s.id === id)),
+      { name: 'Sample Ten', birthYear: 2016, birthMonth: 11, color: store.PALETTE[3] });
+
+    // Bad values are ignored; a null month clears it.
+    store.updateStudent(id, { name: '   ', birthYear: Number.NaN, color: 'red;background:url(x)', birthMonth: null });
+    const s = store.get().students.find((s) => s.id === id);
+    assert.equal(s.name, 'Sample Ten');
+    assert.equal(s.birthYear, 2016);
+    assert.equal(s.color, store.PALETTE[3]);
+    assert.equal('birthMonth' in s, false);
+    assert.equal(store.updateStudent('missing', { name: 'Nobody' }), false);
+
+    // An invalid month or year is ignored, not cleared; only profile fields change.
+    store.updateStudent(id, { birthMonth: 6 });
+    store.updateStudent(id, { birthMonth: 13 });
+    store.updateStudent(id, { birthMonth: '4', birthYear: 1989 });
+    store.updateStudent(id, { birthYear: new Date().getFullYear() + 1, startDate: 'soon' });
+    store.updateStudent(id, { id: 'hijacked', createdAt: 0, avatar: 'x', startDate: '2026-09-01' });
+    assert.equal(s.birthMonth, 6);
+    assert.equal(s.birthYear, 2016);
+    assert.equal(s.id, id);
+    assert.equal(s.createdAt > 0, true);
+    assert.equal('avatar' in s, false);
+    assert.equal(s.startDate, '2026-09-01');
+    store.updateStudent(id, { birthYear: 1990, birthMonth: null });
+    assert.equal(s.birthYear, 1990);
+    store.updateStudent(id, { birthYear: 2016 });
+
+    // An age change drops today's choices so they are rebuilt for the new age;
+    // a name or color change keeps them.
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    store.saveDailyOffers(id, todayKey, { literacy: ['rhymes'], numeracy: ['count-to-5'] });
+    store.updateStudent(id, { name: 'Sample Ten', color: store.PALETTE[1] });
+    assert.ok(store.dailyFor(id, todayKey));
+    store.updateStudent(id, { birthYear: 2015 });
+    assert.equal(store.dailyFor(id, todayKey), null);
+
+    store.updateStudent(id, { birthMonth: 2 });
+    const exported = JSON.parse(JSON.stringify(await store.exportDocument()));
+    store.updateStudent(id, { name: 'Changed After Export', birthMonth: null });
+    await store.flushSaves();
+    assert.equal(await store.importDocument(exported), true);
+    const restored = store.get().students.find((s) => s.id === id);
+    assert.equal(restored.name, 'Sample Ten');
+    assert.equal(restored.birthMonth, 2);
+    assert.equal((await serverState()).students.find((s) => s.id === id).birthMonth, 2);
+  });
+
+  test('the calendar plan follows an edited age', async () => {
+    const { buildPlan } = await import('../src/js/scheduler.js');
+    const year = new Date().getFullYear();
+    const id = store.addStudent('Sample Seven', year - 7);
+    const atSeven = buildPlan(store.get().students.find((s) => s.id === id));
+    assert.ok(atSeven.topicDate.has('rhymes'), 'an age-7 topic is planned for a 7-year-old');
+
+    store.updateStudent(id, { birthYear: year - 8 });
+    const atEight = buildPlan(store.get().students.find((s) => s.id === id));
+    assert.notEqual(atEight, atSeven);
+    assert.equal(atEight.topicDate.has('rhymes'), false, 'the age-7 band is behind an 8-year-old');
+    store.removeStudent(id);
+    await store.flushSaves();
+  });
+
+  test('import replaces a color outside the palette', async () => {
+    const exported = JSON.parse(JSON.stringify(await store.exportDocument()));
+    const target = exported.students[0];
+    target.color = 'red"><img src=x onerror=alert(1)>';
+    target.name = '<b>Sample "Eleven"</b>';
+    assert.equal(await store.importDocument(exported), true);
+    const imported = store.get().students.find((s) => s.id === target.id);
+    assert.equal(imported.color, store.PALETTE[0]);
+    assert.equal(imported.name, target.name);
+    assert.equal((await serverState()).students.find((s) => s.id === target.id).color, store.PALETTE[0]);
   });
 
   test('export while a save is failing downloads this tab\'s copy', async () => {

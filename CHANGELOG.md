@@ -7,6 +7,10 @@ tagged a release yet; everything below is on `main`.
 ## [Unreleased]
 
 ### Changed
+- Learners can be edited (name, birth month and year, color) from the learner
+  selector, and onboarding and Add student take an optional birth month. Age
+  counts whole years when the month is known; the map, daily choices,
+  placement and calendar follow an edited age (HAR-22).
 - Welcome tour, in-app Guide, printable guide and `src/docs/GUIDE.md` describe
   only what works today. AI-backed features carry one line: "Needs a local AI
   provider; see the README." The curriculum auto-update claim is gone, and the
