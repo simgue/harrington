@@ -216,7 +216,7 @@ const GUIDE_SECTIONS = [
     ['Records', 'Log observations, questions, discussions or assessments, optionally linked to a topic, with notes and a confidence rating. Filter by type.'],
     ['Voice recording', 'Record a conversation from the dashboard, a topic page, or the child view. Audio is saved on this computer and plays back inline.'],
     ['Live transcript', SPEECH_NOTE],
-    ['Recordings folder', 'Every recording, grouped by section, with playback and transcript.'],
+    ['Recordings folder', 'Every recording, grouped by section or topic, with playback and transcript. Recordings without either sit under "Not linked to a section".'],
     ['Discussion analysis', `Advice based on a transcript or your notes. ${NEEDS_AI}`],
   ]},
   { h: 'Insights', items: [

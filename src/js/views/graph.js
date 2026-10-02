@@ -506,7 +506,7 @@ function renderQuestLog(topic, { active, navigate, prereqsOf, unlocksOf, byId, s
     body.appendChild(box);
   }
 
-  body.appendChild(el(`<p class="text-[11px] text-ink-faint">Parent view only. Mastery is the existing 90% topic gate, not a new score.</p>`));
+  body.appendChild(el(`<p class="text-[11px] text-ink-faint">Parent view only. Mastery comes from the 90% topic test or your own judgment, not a new score.</p>`));
 
   const actions = el(`<div class="space-y-2"></div>`);
   const lesson = el(`<button type="button" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium text-sm"><i data-lucide="book-open-text" class="w-4 h-4"></i>Open full lesson</button>`);
@@ -526,12 +526,20 @@ function renderQuestLog(topic, { active, navigate, prereqsOf, unlocksOf, byId, s
       const blocked = el(`<button type="button" disabled class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper border border-paper-line text-ink-faint text-sm cursor-not-allowed"><i data-lucide="lock" class="w-4 h-4"></i>Not ready to mark as learning</button>`);
       actions.appendChild(blocked);
     } else if (!mastered) {
-      const mark = el(`<button type="button" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-brand/30 text-brand-dark font-medium text-sm hover:bg-brand-light/60"><i data-lucide="sprout" class="w-4 h-4"></i>${state === 'in-progress' ? 'Keep as learning' : 'Mark as learning'}</button>`);
+      const row = el(`<div class="grid grid-cols-2 gap-2"></div>`);
+      const mark = el(`<button type="button" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-brand/30 text-brand-dark font-medium text-sm hover:bg-brand-light/60"><i data-lucide="sprout" class="w-4 h-4"></i>${state === 'in-progress' ? 'Keep as learning' : 'Mark as learning'}</button>`);
       mark.onclick = () => {
         store.setStatus(active.id, topic.id, 'learning');
         toast(`Marked as learning`, 'success');
       };
-      actions.appendChild(mark);
+      row.appendChild(mark);
+      const master = el(`<button type="button" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-brand/30 text-brand-dark font-medium text-sm hover:bg-brand-light/60"><i data-lucide="badge-check" class="w-4 h-4"></i>Mark as mastered</button>`);
+      master.onclick = () => {
+        store.setStatus(active.id, topic.id, 'mastered');
+        toast(`Marked as mastered`, 'success');
+      };
+      row.appendChild(master);
+      actions.appendChild(row);
     }
   }
 

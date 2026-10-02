@@ -41,11 +41,13 @@ export function renderTopic(params, { navigate }) {
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">${esc(t.domain)}</span>
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">Ages ${esc(t.ageRangeStart)}–${esc(t.ageRangeEnd)}</span>
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-faint capitalize">${esc((t.type||'').toLowerCase())}</span>
-        ${active ? growthChip(stageForStatus(store.statusOf(active.id, t.id), unlocked), MASTERY[store.statusOf(active.id, t.id)].label) : ''}
       </div>
+      ${active ? '<div class="status-control"></div>' : ''}
       <h1 class="font-display text-2xl sm:text-3xl font-600 leading-tight">${esc(t.name)}</h1>
       <p class="text-ink-soft mt-2 leading-relaxed">${esc(t.description || '')}</p>
     </div>`));
+
+  root.querySelector('.status-control')?.replaceWith(statusControl(t, active, unlocked));
 
   // Locked banner
   if (!unlocked) {
@@ -176,21 +178,26 @@ function masterySection(t, student) {
   btn.onclick = () => openMasteryTest(t.subject, null, t);
   body.appendChild(gateAi(btn));
 
-  // Secondary: manual status (kept for flexibility / offline assessment)
-  const details = el(`<details class="mt-3 group">
-    <summary class="text-xs text-ink-faint cursor-pointer select-none flex items-center gap-1 list-none"><i data-lucide="chevron-right" class="w-3.5 h-3.5 transition-transform group-open:rotate-90"></i>Set status manually instead</summary>
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3"></div>
-  </details>`);
-  const opts = details.querySelector('div');
+  return section('target', 'Topic mastery test', body);
+}
+
+// Manual status: the growth-stage chip plus the four statuses, set directly
+// by the parent (e.g. after an offline check). Parent view only.
+function statusControl(t, student, unlocked) {
+  const status = store.statusOf(student.id, t.id);
+  const wrap = el(`<div class="flex flex-wrap items-center gap-2 mb-3">
+    ${growthChip(stageForStatus(status, unlocked), MASTERY[status].label)}
+    <span class="text-xs text-ink-faint">Set status:</span>
+    <div class="flex flex-wrap gap-1.5" role="group" aria-label="Set status"></div>
+  </div>`);
+  const opts = wrap.querySelector('[role="group"]');
   Object.entries(MASTERY).forEach(([k, v]) => {
     const on = status === k;
-    const b = el(`<button class="px-2 py-2 rounded-lg border text-xs font-medium transition-all ${on ? 'text-white border-transparent' : 'bg-paper text-ink-soft border-paper-line hover:border-ink-faint/40'}" ${on ? `style="background:${v.color}"` : ''}>${v.label}</button>`);
-    b.onclick = () => { store.setStatus(student.id, t.id, k); toast(`Marked as ${v.label.toLowerCase()}`, k === 'mastered' ? 'success' : 'default'); };
+    const b = el(`<button class="px-2.5 py-1 rounded-full border text-xs font-medium transition-all ${on ? 'text-white border-transparent' : 'bg-paper-card text-ink-soft border-paper-line hover:border-ink-faint/40'}" ${on ? `style="background:${v.color}" aria-pressed="true"` : 'aria-pressed="false"'} title="Set status to ${v.label.toLowerCase()}">${v.label}</button>`);
+    b.onclick = () => { if (on) return; store.setStatus(student.id, t.id, k); toast(`Marked as ${v.label.toLowerCase()}`, k === 'mastered' ? 'success' : 'default'); };
     opts.appendChild(b);
   });
-  body.appendChild(details);
-
-  return section('target', 'Topic mastery test', body);
+  return wrap;
 }
 
 function sectionCheckSection(t, student) {

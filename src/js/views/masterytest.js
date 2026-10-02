@@ -7,6 +7,7 @@ import { studentStats } from '../mastery.js';
 import { openChallenge } from './challenge.js';
 import { award } from '../game.js';
 import { isCorrect } from '../grading.js';
+import { GROWTH, stageForArea, stageForStatus } from '../meadow.js';
 
 const PASS = 90;
 
@@ -74,34 +75,41 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
   const recommended = DEFAULT_MODE[subject] || 'digital';
   const last = isTopic ? store.lastTopicTest(student.id, topic.id) : isSection ? store.lastSectionTest(student.id, section.id) : store.lastTest(student.id, subject);
   let mode = recommended;
+  // Child view: growth words instead of pass marks, percentages and scores.
+  const childSafe = store.isChildViewOpen();
+  const growthStage = isTopic ? stageForStatus(store.statusOf(student.id, topic.id), true)
+    : isSection ? stageForArea(secStats.total ? Math.round(secStats.mastered / secStats.total * 100) : 0, secStats.mastered > 0)
+    : stageForArea(stats.pct, stats.mastered + stats.inProgress > 0);
+  const growth = GROWTH[growthStage];
 
   stage.innerHTML = '';
   const wrap = el(`<div class="fade-up">
-    <p class="text-sm text-ink-soft leading-relaxed mb-4">${isTopic
+    ${childSafe ? `<p class="text-sm text-ink-soft leading-relaxed mb-4">A few questions about <span class="font-600 text-ink">${esc(isTopic ? topic.name : isSection ? section.domain : subject)}</span>. Right now it is <span class="font-600" style="color:${growth.color}">${growth.kid.toLowerCase()}</span>. Take your time and do your best.</p>
+    ${last ? `<p class="text-xs text-ink-faint mb-4">You tried this before on ${fmtDate(last.createdAt)}.</p>` : ''}` : `<p class="text-sm text-ink-soft leading-relaxed mb-4">${isTopic
       ? `A short check that ${esc(student.name)} has mastered <span class="font-600 text-ink">${esc(topic.name)}</span>. Passing marks this topic mastered. Needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`
       : isSection
       ? `A check that ${esc(student.name)} has mastered <span class="font-600 text-ink">${esc(section.domain)}</span> (age ${esc(section.age)}) before moving on. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`
-      : `A final check that ${esc(student.name)} has truly mastered <span class="font-600 text-ink">${subject}</span>. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`}</p>
+      : `A final check that ${esc(student.name)} has truly mastered <span class="font-600 text-ink">${subject}</span>. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`}</p>`}
 
     ${isTopic && topic.description ? `<div class="rounded-xl bg-brand-light/50 border border-brand/20 p-3 mb-4"><p class="text-xs text-ink-soft leading-relaxed">${esc(topic.description)}</p></div>` : ''}
     ${isSection && section.summary ? `<div class="rounded-xl bg-brand-light/50 border border-brand/20 p-3 mb-4"><p class="text-xs text-ink-soft leading-relaxed">${esc(section.summary)}</p></div>` : ''}
 
-    ${last ? `<div class="rounded-xl border ${last.passed ? 'border-brand/30 bg-brand-light/50' : 'border-[#f3b7a8] bg-[#fbecc4]'} p-3 mb-4 flex items-center gap-2.5 text-sm">
+    ${last && !childSafe ? `<div class="rounded-xl border ${last.passed ? 'border-brand/30 bg-brand-light/50' : 'border-[#f3b7a8] bg-[#fbecc4]'} p-3 mb-4 flex items-center gap-2.5 text-sm">
       <i data-lucide="${last.passed ? 'badge-check' : 'history'}" class="w-4 h-4 ${last.passed ? 'text-brand-dark' : 'text-[#a4473a]'}"></i>
       <span>Last attempt: <strong>${last.pct}%</strong> ${last.passed ? '· Passed' : '· Not yet mastered'} <span class="text-ink-faint">on ${fmtDate(last.createdAt)}</span></span>
     </div>` : ''}
 
-    ${!isTopic ? `<div class="rounded-xl border border-paper-line bg-paper p-3.5 mb-4">
+    ${!isTopic && !childSafe ? `<div class="rounded-xl border border-paper-line bg-paper p-3.5 mb-4">
       <p class="text-xs text-ink-soft"><span class="font-600">Progress so far:</span> ${isSection
         ? `${secStats.mastered} of ${secStats.total} topics in this section marked mastered.`
         : `${stats.mastered} of ${stats.total} topics marked mastered (${stats.pct}%).`}</p>
     </div>` : ''}
 
-    <p class="text-sm font-600 mb-2">How would you like to give the test?</p>
+    ${childSafe ? '' : `<p class="text-sm font-600 mb-2">How would you like to give the test?</p>
     <div id="modes" class="grid sm:grid-cols-2 gap-2.5 mb-2"></div>
-    <p class="text-xs text-ink-faint mb-5" id="modehint"></p>
+    <p class="text-xs text-ink-faint mb-5" id="modehint"></p>`}
 
-    <button id="start" class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="file-check-2" class="w-4 h-4"></i>Create the test</button>
+    <button id="start" class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="${childSafe ? 'sprout' : 'file-check-2'}" class="w-4 h-4"></i>${childSafe ? 'Let\u2019s begin' : 'Create the test'}</button>
   </div>`);
   stage.appendChild(wrap);
 
@@ -111,7 +119,9 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
     digital: { icon: 'monitor', label: 'On screen', desc: 'Auto-graded instantly', hint: 'Answered here in the app; results are calculated for you.' },
     physical: { icon: 'printer', label: 'On paper / hands-on', desc: 'Print or observe, then grade', hint: 'Print the test (or observe hands-on tasks), then tick what they got right and we\u2019ll score it.' },
   };
+  // Child view: no mode chooser (its copy is about grading); use the recommended mode.
   const renderModes = () => {
+    if (childSafe) return;
     modesWrap.innerHTML = '';
     ['digital', 'physical'].forEach(k => {
       const info = MODE_INFO[k];
@@ -131,7 +141,7 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
     refreshIcons();
   };
   renderModes();
-  hint.textContent = MODE_INFO[mode].hint;
+  if (hint) hint.textContent = MODE_INFO[mode].hint;
 
   wrap.querySelector('#start').onclick = async () => {
     stage.innerHTML = '';
@@ -184,7 +194,7 @@ function renderDigital(stage, subject, student, test, m) {
   const wrap = el(`<div class="fade-up">
     <div class="rounded-xl bg-paper border border-paper-line p-3.5 mb-4">
       <p class="text-sm font-600 mb-0.5">${esc(test.title || subject + ' Mastery Test')}</p>
-      <p class="text-xs text-ink-soft">${esc(test.instructions || 'Answer every question. You need 90% to pass.')}</p>
+      <p class="text-xs text-ink-soft">${store.isChildViewOpen() ? 'Answer every question. Take your time.' : esc(test.instructions || 'Answer every question. You need 90% to pass.')}</p>
     </div>
     <div id="qs" class="space-y-4"></div>
     <button id="submit" class="mt-5 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors disabled:opacity-50"><i data-lucide="check-check" class="w-4 h-4"></i>Submit &amp; grade</button>
@@ -252,20 +262,22 @@ function renderPhysical(stage, subject, student, test, m) {
   const meta = SUBJECTS[subject];
   const questions = test.questions || [];
   const marks = new Array(questions.length).fill(false);
+  // Child view: no answer key (on screen or printed) and no live score.
+  const childSafe = store.isChildViewOpen();
 
   stage.innerHTML = '';
   const wrap = el(`<div class="fade-up">
     <div class="rounded-xl bg-paper border border-paper-line p-3.5 mb-4 flex items-start gap-2.5">
       <i data-lucide="info" class="w-4 h-4 text-brand-dark shrink-0 mt-0.5"></i>
-      <p class="text-xs text-ink-soft leading-relaxed">${esc(test.instructions || 'Print the test for your child, or read the tasks aloud and observe. Then come back and tick each question they got right — we\u2019ll calculate the score.')}</p>
+      <p class="text-xs text-ink-soft leading-relaxed">${childSafe ? 'Try each one with a grown-up nearby, then check the ones you did.' : esc(test.instructions || 'Print the test for your child, or read the tasks aloud and observe. Then come back and tick each question they got right — we\u2019ll calculate the score.')}</p>
     </div>
-    <button id="print" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-ink hover:bg-ink-soft text-white font-medium transition-colors mb-5"><i data-lucide="printer" class="w-4 h-4"></i>Print the test &amp; answer key</button>
+    ${childSafe ? '' : `<button id="print" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-ink hover:bg-ink-soft text-white font-medium transition-colors mb-5"><i data-lucide="printer" class="w-4 h-4"></i>Print the test &amp; answer key</button>`}
 
-    <p class="text-sm font-600 mb-1">Grade it</p>
-    <p class="text-xs text-ink-faint mb-3">Tick every question ${esc(student.name)} answered correctly.</p>
+    <p class="text-sm font-600 mb-1">${childSafe ? 'What you tried' : 'Grade it'}</p>
+    <p class="text-xs text-ink-faint mb-3">${childSafe ? 'Check each one you did.' : `Tick every question ${esc(student.name)} answered correctly.`}</p>
     <div id="grade" class="space-y-2"></div>
 
-    <div class="mt-4 flex items-center justify-between px-1">
+    <div class="mt-4 flex items-center justify-between px-1 ${childSafe ? 'hidden' : ''}">
       <span class="text-sm text-ink-soft">Score</span>
       <span id="live" class="text-sm font-700" style="color:${meta.color}">0%</span>
     </div>
@@ -287,14 +299,14 @@ function renderPhysical(stage, subject, student, test, m) {
       <input type="checkbox" class="mt-0.5 w-4 h-4 accent-brand shrink-0" />
       <span class="flex-1 min-w-0">
         <span class="block text-sm"><span class="text-ink-faint mr-1.5">${i + 1}.</span>${esc(q.q)}</span>
-        <span class="block text-xs text-ink-faint mt-1"><span class="font-medium">Correct:</span> ${esc(formatAnswer(q))}</span>
+        ${childSafe ? '' : `<span class="block text-xs text-ink-faint mt-1"><span class="font-medium">Correct:</span> ${esc(formatAnswer(q))}</span>`}
       </span>
     </label>`);
     row.querySelector('input').onchange = e => { marks[i] = e.target.checked; updateLive(); };
     gradeWrap.appendChild(row);
   });
 
-  wrap.querySelector('#print').onclick = () => printTest(subject, student, test);
+  if (!childSafe) wrap.querySelector('#print').onclick = () => printTest(subject, student, test);
   wrap.querySelector('#finish').onclick = () => {
     const earned = questions.reduce((s, q, i) => s + (marks[i] ? pointsOf(q) : 0), 0);
     const graded = {
@@ -376,6 +388,7 @@ function renderResult(stage, subject, student, test, graded, m, digitalReview) {
   const isSection = !isTopic && !!section;
 
   stage.innerHTML = '';
+  if (store.isChildViewOpen()) { renderChildResult(stage, m); return; }
   const wrap = el(`<div class="fade-up text-center py-4">
     <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4" style="background:${passed ? '#e4eedf' : '#fbecc4'}">
       <i data-lucide="${passed ? 'party-popper' : 'refresh-cw'}" class="w-9 h-9" style="color:${passed ? '#3f6b3b' : '#a4473a'}"></i>
@@ -434,6 +447,22 @@ function renderResult(stage, subject, student, test, graded, m, digitalReview) {
   done.onclick = () => m.close();
   actions.appendChild(done);
 
+  stage.appendChild(wrap);
+  refreshIcons();
+}
+
+// Child view result: no score, no answer review. The parent sees the numbers
+// later on the topic page.
+function renderChildResult(stage, m) {
+  const wrap = el(`<div class="fade-up text-center py-4">
+    <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4" style="background:#e4eedf">
+      <i data-lucide="sprout" class="w-9 h-9" style="color:#3f6b3b"></i>
+    </div>
+    <p class="font-display text-2xl font-600">All done, well tried!</p>
+    <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">A grown-up will look at how it went with you.</p>
+    <button class="mt-6 w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Close</button>
+  </div>`);
+  wrap.querySelector('button').onclick = () => m.close();
   stage.appendChild(wrap);
   refreshIcons();
 }
