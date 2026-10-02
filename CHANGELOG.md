@@ -6,11 +6,6 @@ tagged a release yet; everything below is on `main`.
 
 ## [Unreleased]
 
-### Fixed
-- The Calendar page rendered blank without an AI provider (`gateAi` was
-  called but not imported); a source test now checks every file that uses an
-  `ai-status.js` helper imports it.
-
 ### Changed
 - Calendar follows the family's home days and breaks (set under Home days &
   breaks); rest days schedule nothing. Unmastered literacy and numeracy topics
@@ -25,6 +20,9 @@ tagged a release yet; everything below is on `main`.
   are, and "Back to graph" from a topic page returns to the same skill,
   selected, at the same scroll. The selection is in the address
   (`?skill=`) and resets when the learner changes (HAR-21).
+- A learner switched away from the map (from the dashboard, say) keeps the
+  skill they open next: "Back to graph" from their topic page selects it
+  instead of clearing it as the previous learner's (HAR-21 follow-up).
 - Generated lessons, print sheets, activity instructions and recall cards are
   never cached empty or malformed, open once for rapid repeat clicks, and each
   has "Generate a different version" that keeps the previous version if it
@@ -62,6 +60,14 @@ tagged a release yet; everything below is on `main`.
 ### Removed
 - Hosted sign-in, cloud storage and the hosted deploy workflow inherited from
   Homestead (HAR-2).
+
+### Fixed
+- The Calendar page rendered blank without an AI provider (`gateAi` was
+  called but not imported); a source test now checks every file that uses an
+  `ai-status.js` helper imports it (HAR-18, HAR-20).
+- The in-app Guide and `src/docs/GUIDE.md` no longer say the child's name is
+  sent to the AI provider; README, SECURITY and both guides state the same
+  data, including which requests carry the learner's exact age (HAR-19).
 
 ## Forked from Homestead (2026-08-11)
 
