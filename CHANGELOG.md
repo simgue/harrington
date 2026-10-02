@@ -11,6 +11,10 @@ tagged a release yet; everything below is on `main`.
   selector, and onboarding and Add student take an optional birth month. Age
   counts whole years when the month is known; the map, daily choices,
   placement and calendar follow an edited age (HAR-22).
+- Selecting a skill in the skill tree keeps the page and the tree where they
+  are, and "Back to graph" from a topic page returns to the same skill,
+  selected, at the same scroll. The selection is in the address
+  (`?skill=`) and resets when the learner changes (HAR-21).
 - Welcome tour, in-app Guide, printable guide and `src/docs/GUIDE.md` describe
   only what works today. AI-backed features carry one line: "Needs a local AI
   provider; see the README." The curriculum auto-update claim is gone, and the

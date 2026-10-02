@@ -23,11 +23,12 @@ import { gateAi } from '../ai-status.js';
 import { openRecordForm } from './records.js';
 import { GROWTH, growthChip, growthIcon, stageForSkillState, stageForStatus } from '../meadow.js';
 
-// The selected skill lives in the hash (params.skill). These two only make it
-// per learner and carry the tree's scroll across a trip to the topic page.
+// The selected skill lives in the hash (params.skill). The state below only
+// makes it per learner and carries scroll and focus across re-renders.
 let lastLearnerId; // undefined until the first render, so deep links keep their skill
-let savedTreeScroll = null; // { key, x, y, left, top }, consumed once
-const pendingScroll = new WeakMap(); // scroller -> scroll its next frame restores
+let savedTreeScroll = null; // { key, skill, x, y, left, top } for the return from a topic page, consumed once
+let afterSelect = null; // { key, focusId, reveal } set by a selection, applied by the next tree render
+const pendingRestore = new WeakMap(); // scroller -> { target, after } its next frame applies
 
 export function renderGraph(params, { navigate }) {
   const active = store.activeStudent();
@@ -72,21 +73,23 @@ function treeKey(active, domainNode) {
   return `${active ? active.id : ''}|${domainNode.subject}|${domainNode.domain}`;
 }
 
-// Scroll of the tree currently on screen, if it is the same tree. render()
-// builds the new view before it swaps out the old one, so this still reads
-// the live scroller on a selection change or a status write. A scroller whose
-// restore has not run yet (two renders in one frame) reports what it is about
-// to restore, not its momentary 0,0.
-function liveTreeScroll(key) {
+// What the tree currently on screen is showing, if it is the same tree.
+// render() builds the new view before it swaps out the old one, so this still
+// reads the live scroller on a selection change or a status write. A scroller
+// whose restore has not run yet (two renders in one frame, such as a store
+// emit right after a return) hands over that pending restore, window
+// position, focus and reveal included, instead of its momentary 0,0.
+function liveTree(key) {
   const scroller = document.querySelector('.skill-tree-scroller');
   if (!scroller || scroller.dataset.treeKey !== key) return null;
-  return pendingScroll.get(scroller) || { left: scroller.scrollLeft, top: scroller.scrollTop };
+  return pendingRestore.get(scroller) || { target: { left: scroller.scrollLeft, top: scroller.scrollTop }, after: null };
 }
 
-function rememberTreeForReturn(key) {
+function rememberTreeForReturn(key, skill) {
   const scroller = document.querySelector('.skill-tree-scroller');
   savedTreeScroll = {
     key,
+    skill,
     x: window.scrollX,
     y: window.scrollY,
     left: scroller ? scroller.scrollLeft : 0,
@@ -94,32 +97,35 @@ function rememberTreeForReturn(key) {
   };
 }
 
-function restoreTreeScroll(scroller, { live, saved, selectedId }) {
-  const target = live || saved;
-  if (target) pendingScroll.set(scroller, { left: target.left, top: target.top });
-  if (live) {
-    // Set before and after layout: the first keeps the browser from painting
-    // the tree at 0,0; the second wins once the new scroller has a size.
-    scroller.scrollLeft = live.left;
-    scroller.scrollTop = live.top;
-  }
+// target: { left, top } to keep the tree where it was, plus { x, y } to put
+// the window back too, or { centerOn } to bring a linked node into view.
+// The scroller is still detached here, so everything waits for the frame.
+function restoreTreeScroll(scroller, target, after) {
+  pendingRestore.set(scroller, { target, after });
   requestAnimationFrame(() => {
-    pendingScroll.delete(scroller);
-    if (!scroller.isConnected) return;
-    if (live) {
-      scroller.scrollLeft = live.left;
-      scroller.scrollTop = live.top;
-    } else if (saved) {
-      window.scrollTo({ left: saved.x, top: saved.y, behavior: 'instant' });
-      scroller.scrollLeft = saved.left;
-      scroller.scrollTop = saved.top;
-    } else if (selectedId) {
-      // Arrived by link (another tree's quest log, a reload): bring the node
-      // into the tree's view without moving the page.
-      const node = scroller.querySelector(`[data-skill-id="${CSS.escape(selectedId)}"]`);
-      if (!node) return;
-      scroller.scrollLeft = Math.max(0, node.offsetLeft - (scroller.clientWidth - node.offsetWidth) / 2);
-      scroller.scrollTop = Math.max(0, node.offsetTop - (scroller.clientHeight - node.offsetHeight) / 2);
+    pendingRestore.delete(scroller);
+    if (!scroller.isConnected) return; // a newer render took over the restore
+    if (target && target.centerOn) {
+      const node = scroller.querySelector(`[data-skill-id="${CSS.escape(target.centerOn)}"]`);
+      if (node) {
+        scroller.scrollLeft = Math.max(0, node.offsetLeft - (scroller.clientWidth - node.offsetWidth) / 2);
+        scroller.scrollTop = Math.max(0, node.offsetTop - (scroller.clientHeight - node.offsetHeight) / 2);
+      }
+    } else if (target) {
+      if (target.y != null) window.scrollTo({ left: target.x, top: target.y, behavior: 'instant' });
+      scroller.scrollLeft = target.left;
+      scroller.scrollTop = target.top;
+    }
+    if (!after) return;
+    // Keyboard users keep their place: the re-render replaced the button.
+    const node = after.focusId && scroller.querySelector(`[data-skill-id="${CSS.escape(after.focusId)}"]`);
+    if (node) node.focus({ preventScroll: true });
+    // A click low in a tall tree can leave the quest log off screen; bring it
+    // in only then, so a visible quest log never moves the page.
+    const log = after.reveal && document.querySelector('.quest-log');
+    if (log) {
+      const box = log.getBoundingClientRect();
+      if (box.bottom <= 0 || box.top >= window.innerHeight) log.scrollIntoView({ block: 'nearest' });
     }
   });
 }
@@ -316,12 +322,21 @@ function renderSkillTree(params, active, navigate) {
   const homeIds = new Set(graph.homeTopics.map((topic) => topic.id));
   const selectedSkillId = params.skill && homeIds.has(params.skill) ? params.skill : null;
   const key = treeKey(active, domainNode);
-  const live = liveTreeScroll(key);
-  const saved = !live && savedTreeScroll && savedTreeScroll.key === key ? savedTreeScroll : null;
+  const live = liveTree(key);
+  // The saved scroll belongs to one return trip: this tree with the skill
+  // that was open when the parent left. Any other arrival drops it.
+  const saved = !live && savedTreeScroll && savedTreeScroll.key === key && savedTreeScroll.skill === selectedSkillId
+    ? savedTreeScroll
+    : null;
   savedTreeScroll = null;
+  const after = (afterSelect && afterSelect.key === key ? afterSelect : null) || (live && live.after);
+  afterSelect = null;
   const here = { subject: domainNode.subject, domain: domainNode.domain };
   // Same tree, new selection: update in place, keep the page where it is.
-  const select = (skill) => navigate('graph', skill ? { ...here, skill } : here, { preserveScroll: true, replace: true });
+  const select = (skill) => {
+    afterSelect = { key, focusId: skill || selectedSkillId, reveal: !!skill };
+    navigate('graph', skill ? { ...here, skill } : here, { preserveScroll: true, replace: true });
+  };
 
   const selected = selectedSkillId ? d.byId.get(selectedSkillId) : null;
   const selectedState = selected ? skillStateFor(active, selected.id, d.prereqsOf) : null;
@@ -361,7 +376,8 @@ function renderSkillTree(params, active, navigate) {
   });
   scroller.dataset.treeKey = key;
   stage.appendChild(scroller);
-  restoreTreeScroll(scroller, { live, saved, selectedId: selectedSkillId });
+  const target = (live && live.target) || saved || (selectedSkillId ? { centerOn: selectedSkillId } : null);
+  restoreTreeScroll(scroller, target, after);
   if (selected) {
     stage.appendChild(renderQuestLog(selected, {
       active,
@@ -384,7 +400,7 @@ function renderSkillTree(params, active, navigate) {
         select(null);
       },
       onOpenTopic() {
-        rememberTreeForReturn(key);
+        rememberTreeForReturn(key, selected.id);
       },
     }));
   }

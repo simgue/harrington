@@ -5,6 +5,7 @@ import { maybeShowWelcome } from './views/guide.js';
 import { el, refreshIcons, toast } from './ui.js';
 import { renderShell } from './views/shell.js';
 import { graphHash, parseGraphHash } from './graph.js';
+import { commitNavigation } from './navigation.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderCalendar } from './views/calendar.js';
 import { renderTopic } from './views/topic.js';
@@ -16,23 +17,10 @@ const app = document.getElementById('app');
 
 const route = { name: 'dashboard', params: {} };
 
-// Options:
-// - preserveScroll: keep the window where it is (same-route updates such as
-//   selecting a skill in the tree) instead of jumping to the top.
-// - replace: rewrite the current history entry instead of pushing a new one.
-// - render: false only syncs the route and the hash; the caller is mid-render.
-export function navigate(name, params = {}, { preserveScroll = false, replace = false, render: rerender = true } = {}) {
-  const x = window.scrollX;
-  const y = window.scrollY;
+export function navigate(name, params = {}, options = {}) {
   route.name = name;
   route.params = params;
-  const hash = hashFor(name, params);
-  if (replace) history.replaceState(history.state, '', '#' + hash);
-  else window.location.hash = hash;
-  if (!rerender) return;
-  render();
-  if (preserveScroll) window.scrollTo({ left: x, top: y, behavior: 'instant' });
-  else window.scrollTo({ top: 0, behavior: 'instant' });
+  commitNavigation(window, hashFor(name, params), render, options);
 }
 
 function hashFor(name, params = {}) {
