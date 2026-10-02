@@ -1,5 +1,6 @@
 // AI helpers through Harrington's optional, self-hosted provider endpoint.
 import * as backend from './backend.js';
+import * as store from './store.js';
 
 function toHtml(text) {
   // Minimal markdown -> HTML (paragraphs, bold, bullet lists, headings).
@@ -32,6 +33,118 @@ const US_SPELLING = ' Always write in American English spelling (e.g. "practice"
 // Prompts describe a generic learner. Never interpolate a real child name.
 export function promptLearnerLabel() {
   return 'your child';
+}
+
+// Age as a prompt shows it; a learner without a birth year is "age unknown".
+export function promptAge(age) {
+  return `age ${Number.isFinite(age) ? age : 'unknown'}`;
+}
+
+// Accents are folded on both sides before matching, so "Zoë", "Zoe" and a
+// decomposed "Zoë" are the same name.
+const fold = s => s.normalize('NFD').replace(/\p{M}/gu, '');
+// Space, hyphen and apostrophes are interchangeable and optional inside a name:
+// "Mary-Jane" also matches "Mary Jane" and "MaryJane", "O'Neil" matches "O’Neil".
+const NAME_SEP = /[\s\-'‘’]+/;
+const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// The full name, each space-separated part and each half of a hyphenated part.
+// Parts of one or two letters ("An", "He", "Do") match only capitalized or in
+// capitals so they do not swallow function words; everything else, including
+// three-letter parts like "leo" or "mia", and the full name itself, matches in
+// any case. Longest first, so a full name goes
+// before its parts.
+function namePatterns(fullNames) {
+  const seen = new Map();
+  const add = (name, anyCase) => {
+    const tokens = fold(name).split(NAME_SEP).filter(Boolean);
+    const letters = tokens.join('');
+    if (letters.length < 2) return;
+    const key = tokens.join(' ').toLowerCase();
+    if (seen.has(key)) return;
+    const body = toks => toks.map(escapeRegExp).join(`${NAME_SEP.source.slice(0, -1)}*`);
+    const short = !anyCase && letters.length <= 2;
+    const source = short
+      ? [tokens.map(t => t[0].toUpperCase() + t.slice(1).toLowerCase()), tokens.map(t => t.toUpperCase())].map(body).join('|')
+      : body(tokens);
+    seen.set(key, { re: new RegExp(`(?<![\\p{L}\\p{N}_])(?:${source})(?![\\p{L}\\p{N}_])`, short ? 'gu' : 'giu'), len: letters.length });
+  };
+  for (const raw of fullNames) {
+    const full = String(raw || '').trim();
+    if (!full) continue;
+    add(full, true);
+    for (const part of full.split(/\s+/)) {
+      add(part, false);
+      for (const half of part.split('-')) add(half, false);
+    }
+  }
+  return [...seen.values()].sort((a, b) => b.len - a.len).map(p => p.re);
+}
+
+// Matches on accent-folded text but replaces in the original, keeping every
+// other accent as written. Returns [start, end) ranges in `text`.
+function foldedMatches(text, res) {
+  let folded = '';
+  const origin = [];
+  let i = 0;
+  for (const ch of text) {
+    const f = fold(ch);
+    for (let k = 0; k < f.length; k++) origin.push(i);
+    folded += f;
+    i += ch.length;
+  }
+  const ranges = [];
+  const taken = new Uint8Array(folded.length);
+  for (const re of res) {
+    for (const m of folded.matchAll(re)) {
+      const a = m.index, b = a + m[0].length;
+      if (taken.subarray(a, b).some(Boolean)) continue;
+      taken.fill(1, a, b);
+      ranges.push([origin[a], b < folded.length ? origin[b] : text.length]);
+    }
+  }
+  return ranges.sort((x, y) => x[0] - y[0]);
+}
+
+// Replaces each learner (given by full name) with "the child", whole words
+// only. A possessive keeps its apostrophe ("Sam's" -> "the child's"); a name
+// inside a longer word ("Will" in "willing") is left alone. Limitation: names
+// in scripts written without spaces (e.g. 李小龍) are not matched when they run
+// straight into other letters, because matching relies on word boundaries.
+export function redactNames(text, fullNames) {
+  const src = String(text ?? '');
+  const ranges = foldedMatches(src, namePatterns(fullNames));
+  let out = '', at = 0;
+  for (const [a, b] of ranges) {
+    out += src.slice(at, a);
+    // "the Child" for a learner named Child Harold reads "the child", not "the the child".
+    out += /(?:^|[^\p{L}\p{N}_])the\s+$/iu.test(out) ? 'child' : 'the child';
+    at = b;
+  }
+  return out + src.slice(at);
+}
+
+// Redacts every learner in `store.students` from parent- or child-written text
+// before it goes anywhere near a prompt.
+export function redactLearnerNames(text) {
+  return redactNames(text, (store.get().students || []).map(s => s?.name));
+}
+
+// Records as counts by type and the curriculum topics they touch; never the
+// parent's own words.
+export function summarizeRecords(records) {
+  if (!records.length) return '(no records yet)';
+  const byType = {};
+  for (const r of records) byType[r.type || 'note'] = (byType[r.type || 'note'] || 0) + 1;
+  const counts = Object.entries(byType).map(([t, n]) => `${n} ${t}${n === 1 ? '' : 's'}`).join(', ');
+  const topics = [...new Set(records.map(r => r.topicName).filter(Boolean))].slice(0, 12);
+  const rated = records.filter(r => r.rating);
+  const avg = rated.length ? (rated.reduce((a, r) => a + r.rating, 0) / rated.length).toFixed(1) : null;
+  return [
+    `${records.length} record${records.length === 1 ? '' : 's'} (${counts}).`,
+    topics.length ? `Topics they mention: ${topics.join('; ')}.` : 'No linked topics.',
+    avg ? `Average parent confidence rating: ${avg}/5.` : '',
+  ].filter(Boolean).join(' ');
 }
 
 function ageBand(topic) {
@@ -402,21 +515,25 @@ Use real, specific content — never placeholders.`;
 
 // Analyze a recorded/typed discussion and give the PARENT targeted coaching:
 // how to approach the topic, why the child may be misunderstanding, and advice.
-export function aiDiscussionAnalysis({ studentName, age, topic, transcript, note }) {
-  const name = studentName || 'the child';
+// The transcript is redacted before the prompt is built; the parent's notes are
+// sent (also redacted) only when they tick "Include my notes in this request".
+export function buildDiscussionPrompt({ age, topic, transcript, note, includeNotes = false }) {
+  const name = promptLearnerLabel();
   const topicLine = topic
     ? `Topic being discussed: "${topic.name}" (${topic.subject} > ${topic.domain}, ${ageBand(topic)}). Description: ${topic.description || ''}. Mastery evidence: ${(topic.evidence || []).join('; ') || 'n/a'}.`
     : 'No specific topic was linked to this discussion.';
-  const body = (transcript && transcript.trim())
-    ? `Transcript of the recorded discussion between parent and child:\n"""\n${transcript.trim().slice(0, 4000)}\n"""`
-    : `The parent did not capture a transcript. Their written notes about the discussion: "${(note || '').slice(0, 1500) || '(none)'}"`;
+  const said = redactLearnerNames((transcript || '').trim()).slice(0, 4000);
+  const notes = includeNotes ? redactLearnerNames((note || '').trim()).slice(0, 1500) : '';
+  const parts = [];
+  if (said) parts.push(`Transcript of the recorded discussion between parent and child:\n"""\n${said}\n"""`);
+  if (notes) parts.push(`The parent's written notes about the discussion:\n"""\n${notes}\n"""`);
+  if (!parts.length) parts.push('The parent did not share a transcript or notes for this discussion.');
 
-  return ask(
-`You are an expert learning coach helping a homeschooling parent. Analyze the following discussion between the parent and ${name} (age ${age}) and give the PARENT practical, encouraging guidance.
+  return `You are an expert learning coach helping a homeschooling parent. Analyze the following discussion between the parent and ${name} (${promptAge(age)}) and give the PARENT practical, encouraging guidance.
 
 ${topicLine}
 
-${body}
+${parts.join('\n\n')}
 
 Based ONLY on what the discussion actually shows, write a focused analysis with these bold headings:
 **What ${name} seems to understand** — 1-2 short bullets citing specific moments if possible.
@@ -424,7 +541,11 @@ Based ONLY on what the discussion actually shows, write a focused analysis with 
 **How to approach this topic next** — 3 concrete, doable moves for the parent (a way to re-explain, a concrete example/manipulative, a question to ask, or a smaller sub-skill to revisit first).
 **A phrase to try** — one short, warm sentence the parent could actually say to ${name} to unstick them.
 
-If the transcript is too short or unclear to judge, say so honestly and suggest what to record next time. Keep it under 230 words, warm and jargon-free.`);
+If the transcript is too short or unclear to judge, say so honestly and suggest what to record next time. Keep it under 230 words, warm and jargon-free.`;
+}
+
+export function aiDiscussionAnalysis(opts) {
+  return ask(buildDiscussionPrompt(opts));
 }
 
 // Parent assistant chatbot. Holds a short conversation, grounded in the active
@@ -434,26 +555,36 @@ export async function aiParentChat(messages, context) {
 `You are "Harrington Helper", a warm, practical AI teaching coach for a homeschooling PARENT (not the child). Give concrete, doable, encouraging advice — specific activities, ways to re-explain, everyday examples, manipulatives, small sub-skills to revisit, and signs of progress to look for. Keep answers focused and skimmable (short paragraphs or a few bullets), usually under 200 words unless asked for more. American English. You are advising the grown-up on how to teach; never talk down to them.
 
 Context about their setup:
-${context}
+${redactLearnerNames(context)}
 
 If they mention a struggling topic, suggest a clear plan: how to reteach it simply, one hands-on activity, a way to check understanding, and what usually trips kids up. Point them to Harrington features by name when relevant (a topic's Lesson, Print & go materials, Active recall cards, the timed Challenge, or recording a discussion for AI analysis). If you don't have enough info, ask one short clarifying question.`;
 
-  const convo = [{ role: 'system', content: sys }, ...messages];
+  // The parent may type a name into the chat; it is redacted like a transcript.
+  const turns = messages.map(m => ({ role: m.role, content: redactLearnerNames(m.content) }));
+  const convo = [{ role: 'system', content: sys }, ...turns];
   const res = await backend.chat(convo, 'strong');
   const text = res?.content || res?.text || String(res);
   return toHtml(text);
 }
 
-// Teacher feedback based on a student's real progress + records.
-export function aiFeedback({ studentName, age, subject, stats, recentTopics, records }) {
-  const recTxt = records.length
-    ? records.slice(0, 12).map(r => `- [${r.type}${r.rating ? ', '+r.rating+'/5' : ''}] ${r.topicName}: ${r.note || r.title || ''}`).join('\n')
-    : '(no written records yet)';
+// Teacher feedback based on a student's real progress + records. Records go
+// out as counts and topic names; the parent's own words only when they tick
+// "Include my notes in this request", and then redacted.
+export function buildFeedbackPrompt({ age, subject, stats, recentTopics, records, includeNotes = false }) {
+  const name = promptLearnerLabel();
+  let recTxt = summarizeRecords(records);
+  // Only notes are offered; record titles never leave, opted in or not.
+  const withNotes = includeNotes ? records.filter(r => (r.note || '').trim()).slice(0, 12) : [];
+  if (withNotes.length) {
+    const notes = withNotes
+      .map(r => `- [${r.type}${r.rating ? ', ' + r.rating + '/5' : ''}] ${r.topicName || 'no topic'}: ${redactLearnerNames(r.note).slice(0, 300)}`)
+      .join('\n');
+    recTxt += `\nThe parent chose to share these notes:\n${notes}`;
+  }
   const topicTxt = recentTopics.length
     ? recentTopics.map(t => `- ${t.name} — ${t.status}`).join('\n')
     : '(no topics started yet)';
-  return ask(
-`You are an experienced homeschool mentor giving a parent-teacher a supportive, practical progress review for ${studentName} (age ${age}) in ${subject}.
+  return `You are an experienced homeschool mentor giving a parent-teacher a supportive, practical progress review for ${name} (${promptAge(age)}) in ${subject}.
 
 Progress: ${stats.mastered} of ${stats.total} ${subject} topics mastered (${stats.pct}%), ${stats.inProgress} in progress.
 
@@ -467,5 +598,9 @@ Write a warm, specific review with these sections using bold headings:
 **Strengths** — 2 short bullets.
 **Watch areas** — 2 short bullets referencing the records/questions where possible.
 **What to do next** — 3 concrete, doable suggestions for the coming week (activities, revisit a topic, etc.).
-Keep the whole thing under 220 words, encouraging and jargon-free.`);
+Keep the whole thing under 220 words, encouraging and jargon-free.`;
+}
+
+export function aiFeedback(opts) {
+  return ask(buildFeedbackPrompt(opts));
 }

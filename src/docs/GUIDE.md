@@ -123,12 +123,20 @@ simply", "Make a mini-quiz", and step-by-step instructions for an activity.
 
 ## Calendar
 
-A weekday plan from your start date.
+A day-by-day plan from your start date, on the home days you choose.
 
 - **Start date.** Change it and the plan reschedules.
-- **Month grid and day panel.** Each weekday lists its topics. Weekends are
-  days off.
-- **Bend the plan.** **Mark done**, **move** a topic to the next school day or
+- **Home days and breaks.** Topics go on your home days (Monday to Friday
+  unless you change them under **Home days & breaks**). Other days and the
+  breaks you add are rest days: nothing is scheduled, and the plan picks up
+  after them.
+- **Month grid and day panel.** Each home day lists its topics.
+- **Younger topics first.** Literacy and numeracy topics below your child's
+  age that are not mastered yet come first, each after what it builds on.
+  Placement marks what they already know.
+- **Refreshers.** Refresher quizzes and activities come only from mastered
+  topics, so there are none until something is mastered.
+- **Bend the plan.** **Mark done**, **move** a topic to the next home day or
   any date, and **add extras** to any day.
 - Opening a lesson, test, challenge or recall review from a day needs a local
   AI provider; see the README.

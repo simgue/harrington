@@ -10,7 +10,7 @@ import { referenceLinks, videoLinks, activityIdeas, gameIdeas } from '../resourc
 import { openRecordForm } from './records.js';
 import { openRecorder, audioPlayer } from '../recorder.js';
 import { aiExplain, aiQuiz } from '../ai.js';
-import { openLesson, openActivityDetail } from './lesson.js';
+import { openLesson, openActivityDetail, activityCacheKey } from './lesson.js';
 import { openPrintables } from './printables.js';
 import { recallSectionCard } from './recall.js';
 import { aiErrorBlock, aiUnavailableChip, gateAi } from '../ai-status.js';
@@ -72,9 +72,15 @@ export function renderTopic(params, { navigate }) {
       <button id="openprint" class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper-card border border-brand/30 text-brand-dark font-medium hover:border-brand transition-colors"><i data-lucide="printer" class="w-4 h-4"></i>Print &amp; go</button>
     </div>
   </div>`);
-  lessonCta.querySelector('#openlesson').onclick = () => openLesson(t);
-  lessonCta.querySelector('#openprint').onclick = () => openPrintables(t);
-  if (!store.aiAvailable()) lessonCta.querySelector('#openlesson').parentElement.replaceWith(aiUnavailableChip());
+  const lessonBtn = lessonCta.querySelector('#openlesson');
+  const printBtn = lessonCta.querySelector('#openprint');
+  lessonBtn.onclick = () => openLesson(t);
+  printBtn.onclick = () => openPrintables(t);
+  if (!store.aiAvailable()) {
+    // Without a provider, show only what is already cached; one chip stands in for the rest.
+    lessonBtn.replaceWith(gateAi(lessonBtn, { cachedKey: 'topic:' + t.id }));
+    printBtn.replaceWith(gateAi(printBtn, { cachedKey: 'print:' + t.id, fallback: el('<span class="hidden"></span>') }));
+  }
   root.appendChild(lessonCta);
 
   // Two column layout
@@ -368,23 +374,21 @@ function activitiesSection(t) {
     const wrap = el(`<div><p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-2 flex items-center gap-1.5"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i>${title}</p><div class="grid sm:grid-cols-2 gap-2.5"></div></div>`);
     const g = wrap.querySelector('div.grid');
     items.forEach(a => {
-      if (!ai) {
-        // Without a provider the idea itself still helps; only the instructions need AI.
-        const idea = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
-          <div class="flex items-center gap-2 mb-1"><i data-lucide="${a.icon}" class="w-4 h-4 text-brand-dark"></i><p class="font-600 text-sm flex-1">${esc(a.title)}</p></div>
-          <p class="text-xs text-ink-soft leading-relaxed mb-2">${esc(a.body)}</p>
-        </div>`);
-        idea.appendChild(aiUnavailableChip());
-        g.appendChild(idea);
-        return;
-      }
       const card = el(`<button class="text-left rounded-xl border border-paper-line bg-paper p-3 card-hover group">
         <div class="flex items-center gap-2 mb-1"><i data-lucide="${a.icon}" class="w-4 h-4 text-brand-dark"></i><p class="font-600 text-sm flex-1">${esc(a.title)}</p><i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-ink-faint group-hover:text-brand-dark"></i></div>
         <p class="text-xs text-ink-soft leading-relaxed clamp-3">${esc(a.body)}</p>
         <span class="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-brand-dark"><i data-lucide="list-ordered" class="w-3 h-3"></i>Get instructions</span>
       </button>`);
       card.onclick = () => openActivityDetail(t, a, kind);
-      g.appendChild(card);
+      if (ai) { g.appendChild(card); return; }
+      // Without a provider the idea itself still helps; only new instructions need AI,
+      // so instructions already in the cache still open.
+      const idea = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
+        <div class="flex items-center gap-2 mb-1"><i data-lucide="${esc(a.icon)}" class="w-4 h-4 text-brand-dark"></i><p class="font-600 text-sm flex-1">${esc(a.title)}</p></div>
+        <p class="text-xs text-ink-soft leading-relaxed mb-2">${esc(a.body)}</p>
+      </div>`);
+      idea.appendChild(aiUnavailableChip());
+      g.appendChild(gateAi(card, { cachedKey: activityCacheKey(t, a, kind), fallback: idea }));
     });
     return wrap;
   };

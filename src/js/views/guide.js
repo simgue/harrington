@@ -44,7 +44,7 @@ const FEATURES = [
     icon: 'calendar-days', color: '#a4473a',
     title: 'Calendar',
     tagline: 'A plan you can bend',
-    body: `A weekday plan from your start date. <b>Move</b> a topic to another day, <b>mark days done</b>, and <b>add extras</b>. The plan is yours to change. Opening a lesson, test, challenge or recall review from a day: ${NEEDS_AI}`,
+    body: `A day-by-day plan from your start date, on the home days you choose, with breaks as rest days. <b>Move</b> a topic to another day, <b>mark days done</b>, and <b>add extras</b>. The plan is yours to change. Opening a lesson, test, challenge or recall review from a day: ${NEEDS_AI}`,
   },
   {
     icon: 'mic', color: '#5b4a86',
@@ -208,7 +208,9 @@ const GUIDE_SECTIONS = [
   ]},
   { h: 'Calendar', items: [
     ['Start date', 'The plan begins on your start date; change it and the plan reschedules.'],
-    ['Daily plan', 'Topics are spread across weekdays. Weekends are days off.'],
+    ['Daily plan', 'Topics go on your home days (Monday to Friday unless you change them in Home days & breaks). Other days and breaks are rest days with nothing scheduled; the plan picks up after them.'],
+    ['Younger topics first', 'Literacy and numeracy topics below your child’s age that are not mastered yet come first, each after what it builds on. Placement marks what they already know.'],
+    ['Refreshers', 'Refresher quizzes and activities come only from mastered topics, so there are none until something is mastered.'],
     ['Bend the plan', 'Mark days done, move a topic to another day, and add extras to any day.'],
     ['Needs AI', `Opening a lesson, test, challenge or recall review from a day. ${NEEDS_AI}`],
   ]},
