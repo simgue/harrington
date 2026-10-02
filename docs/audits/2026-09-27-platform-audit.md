@@ -301,6 +301,9 @@ attachments. See Appendix A. No open issues cover any of the bugs or gaps in thi
 
 ## 7. Recommended next cycle: "ready for Monday"
 
+> **Superseded on 1 October 2026.** The re-ranked list, with what shipped and what is
+> in flight, is in [2026-10-01-cycle-1-status.md](2026-10-01-cycle-1-status.md) §6.
+
 ### Decisions to make first
 
 1. **AI provider for week one.** Run Ollama (or a vendor endpoint) now, or run without AI
