@@ -3,6 +3,7 @@ import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { openRecorder, audioPlayer, fmtDur, coverageCandidates, coverageClaimField } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
+import { aiErrorBlock, gateAi } from '../ai-status.js';
 import { savedAnalysis, regenerateButton } from './recordings.js';
 import { coverageFields } from '../daily.js';
 
@@ -93,15 +94,18 @@ function recordCard(r, student, d, navigate) {
   const analyzable = r.type === 'recording' || r.type === 'discussion';
   if (analyzable || r.analysis) {
     const analyzeWrap = el(`<div class="mt-2.5 pt-2.5 border-t border-paper-line"></div>`);
-    let btn;
     if (r.analysis) {
       analyzeWrap.appendChild(savedAnalysis(r.analysis));
-      btn = regenerateButton();
+      const redo = regenerateButton(); // null without an AI provider
+      if (redo) {
+        redo.onclick = () => openAnalysis(r, student, topic);
+        analyzeWrap.appendChild(redo);
+      }
     } else {
-      btn = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyze &amp; get advice</button>`);
+      const btn = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyze &amp; get advice</button>`);
+      btn.onclick = () => openAnalysis(r, student, topic);
+      analyzeWrap.appendChild(gateAi(btn));
     }
-    btn.onclick = () => openAnalysis(r, student, topic);
-    analyzeWrap.appendChild(btn);
     card.appendChild(analyzeWrap);
   }
 
@@ -190,9 +194,9 @@ function openAnalysis(record, student, topic) {
     };
     stage.appendChild(save);
     refreshIcons();
-  }).catch(() => {
+  }).catch((e) => {
     stage.innerHTML = '';
-    stage.appendChild(el(`<p class="text-sm text-[#a4473a] py-4">Couldn't analyze this right now. Please try again.</p>`));
+    stage.appendChild(aiErrorBlock(e, () => { m.close(); openAnalysis(record, student, topic); }));
   });
 }
 

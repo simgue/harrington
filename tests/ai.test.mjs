@@ -46,5 +46,5 @@ test('lesson generators and callers do not interpolate learner names into prompt
   assert.doesNotMatch(printables, /aiPrintables\(topic, student\?\.name\)/);
   assert.doesNotMatch(daysheet, /aiLesson\(topic, childName\)/);
   assert.doesNotMatch(topicView, /fn\(t, student\?\.name\)/);
-  assert.match(lesson, /AI is not configured/);
+  assert.match(lesson, /store\.aiAvailable\(\)/);
 });

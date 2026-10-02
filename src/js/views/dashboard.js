@@ -117,16 +117,23 @@ export function renderDashboard(params, { navigate }) {
 
   // Memory: active recall + spaced practice side by side.
   const memory = el(`<div class="grid md:grid-cols-2 gap-5 mb-5"></div>`);
-  const dueRecall = store.recallDueCount(active.id);
+  const ai = store.aiAvailable();
+  // Recall cards are written by the AI provider, so without one nothing is reviewable.
+  const dueRecall = ai ? store.recallDueCount(active.id) : 0;
+  const recallEmpty = ai ? 'Practice recall on any topic; reviews show up here when they’re due.'
+    : 'Recall cards need a local AI provider. Once one is set up, reviews show up here when they’re due.';
+  const practiceEmpty = ai ? 'Missed test questions come back here on a spaced schedule until they stick.'
+    : 'Missed mastery-test questions come back here. Mastery tests need a local AI provider.';
   const recallCard = el(`<button class="w-full text-left rounded-3xl ${dueRecall ? 'bg-lavender-light' : 'bg-paper-card shadow-soft'} p-5 flex items-center gap-4 card-hover">
     <span class="w-12 h-12 rounded-full bg-lavender flex items-center justify-center shrink-0"><i data-lucide="brain" class="w-5.5 h-5.5 text-lavender-deep"></i></span>
     <span class="flex-1 min-w-0">
       <span class="block font-600">Active recall${dueRecall ? ` · ${dueRecall} due` : ''}</span>
-      <span class="block text-sm text-ink-soft">${dueRecall ? 'Quick memory review keeps what they’ve learned from fading.' : 'Practice recall on any topic; reviews show up here when they’re due.'}</span>
+      <span class="block text-sm text-ink-soft">${dueRecall ? 'Quick memory review keeps what they’ve learned from fading.' : recallEmpty}</span>
     </span>
-    <span class="shrink-0 flex items-center gap-1 text-sm font-600 text-lavender-deep">${dueRecall ? 'Review' : 'Study'}<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
+    <span class="shrink-0 flex items-center gap-1 text-sm font-600 text-lavender-deep">${dueRecall ? 'Review' : ai ? 'Study' : ''}<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
   </button>`);
   recallCard.onclick = () => openDueRecall();
+  if (!ai) { recallCard.disabled = true; recallCard.classList.remove('card-hover'); }
   memory.appendChild(recallCard);
 
   // Spaced practice: missed mastery-test questions retried on an expanding schedule
@@ -135,7 +142,7 @@ export function renderDashboard(params, { navigate }) {
     <span class="w-12 h-12 rounded-full bg-sky flex items-center justify-center shrink-0"><i data-lucide="repeat" class="w-5.5 h-5.5 text-sky-deep"></i></span>
     <span class="flex-1 min-w-0">
       <span class="block font-600">Spaced practice${duePractice ? ` · ${duePractice} due` : ''}</span>
-      <span class="block text-sm text-ink-soft">${duePractice ? `Retry the mastery-test questions ${name} missed, before they fade.` : 'Missed test questions come back here on a spaced schedule until they stick.'}</span>
+      <span class="block text-sm text-ink-soft">${duePractice ? `Retry the mastery-test questions ${name} missed, before they fade.` : practiceEmpty}</span>
     </span>
     <span class="shrink-0 flex items-center gap-1 text-sm font-600 text-sky-deep">${duePractice ? 'Practice' : ''}<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
   </button>`);
@@ -298,8 +305,8 @@ function todayCard(active, navigate) {
     </div>`));
   }
 
-  // refresher quick action
-  if (extras.refresher) {
+  // refresher quick action (the quiz is written by the AI provider)
+  if (extras.refresher && store.aiAvailable()) {
     const t = extras.refresher;
     const ref = el(`<button class="relative w-full min-w-0 text-left flex items-center gap-3 p-4 rounded-3xl border-2 border-dashed border-butter card-hover bg-paper-card">
       ${stop(++stopNo, { fill: '#f2c14e', deep: '#2e2a24' }, 'dumbbell')}

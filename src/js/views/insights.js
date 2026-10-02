@@ -4,6 +4,7 @@ import { el, esc, refreshIcons, toast } from '../ui.js';
 import { studentStats, recentActivity, recommendedNext, subjectTestReady } from '../mastery.js';
 import { aiFeedback } from '../ai.js';
 import { openMasteryTest } from './masterytest.js';
+import { aiErrorBlock, gateAi } from '../ai-status.js';
 import { fmtDate } from '../ui.js';
 import { applySuggestion, dismissSuggestion } from '../adapt.js';
 
@@ -114,6 +115,8 @@ export function renderInsights(params, { navigate }) {
     </div>
   </div>`);
   if (canTake) testCard.querySelector('#test').onclick = () => openMasteryTest(selSubject);
+  const testBtn = testCard.querySelector('#test');
+  if (canTake) testBtn.replaceWith(gateAi(testBtn));
   root.appendChild(testCard);
 
   // AI feedback card
@@ -125,7 +128,8 @@ export function renderInsights(params, { navigate }) {
     <div id="out"><p class="text-sm text-ink-faint">Generate a personalized review of ${esc(active.name)}'s ${selSubject} progress, drawing on your records and their mastery so far.</p></div>
   </div>`);
   const out = fbCard.querySelector('#out');
-  fbCard.querySelector('#gen').onclick = async () => {
+  const gen = fbCard.querySelector('#gen');
+  gen.onclick = async () => {
     out.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-3"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Reviewing ${esc(active.name)}'s work\u2026</div>`;
     try {
       const d = getData();
@@ -141,10 +145,12 @@ export function renderInsights(params, { navigate }) {
       });
       out.innerHTML = `<div class="ai-prose text-sm text-ink-soft">${html}</div>`;
     } catch (e) {
-      out.innerHTML = `<p class="text-sm text-[#a4473a]">Couldn't generate feedback right now. Please try again.</p>`;
+      out.innerHTML = '';
+      out.appendChild(aiErrorBlock(e, () => gen.onclick(), { compact: true }));
     }
     refreshIcons();
   };
+  gen.replaceWith(gateAi(gen));
   root.appendChild(fbCard);
 
   // recommended next steps
