@@ -7,7 +7,7 @@ import { openMasteryTest } from './masterytest.js';
 import { aiErrorBlock, gateAi } from '../ai-status.js';
 import { fmtDate } from '../ui.js';
 import { applySuggestion, dismissSuggestion } from '../adapt.js';
-import { privacyControls } from './recordings.js';
+import { privacyControls, notesIncludedLine } from './recordings.js';
 
 let selSubject = 'Mathematics';
 
@@ -134,11 +134,12 @@ export function renderInsights(params, { navigate }) {
   const subjectRecords = () => store.recordsFor(active.id)
     .filter(r => !r.topicId || d.byId.get(r.topicId)?.subject === selSubject);
   // Records go out as counts and topic names unless the parent opts in here.
-  const privacy = privacyControls({ hasNotes: subjectRecords().some(r => (r.note || r.title || '').trim()) });
+  const privacy = privacyControls({ hasNotes: subjectRecords().some(r => (r.note || '').trim()) });
   privacy.classList.replace('mt-2', 'mb-3');
   if (store.aiAvailable()) out.before(privacy);
   gen.onclick = async () => {
-    out.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-3"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Reviewing ${esc(active.name)}'s work\u2026</div>`;
+    const includeNotes = !!privacy.querySelector('.include-notes')?.checked;
+    out.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-3"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Reviewing ${esc(active.name)}'s work${includeNotes ? ' (notes included)' : ''}\u2026</div>`;
     try {
       const recentTopics = recentActivity(active.id, 10)
         .filter(a => a.topic.subject === selSubject)
@@ -148,11 +149,12 @@ export function renderInsights(params, { navigate }) {
       const html = await aiFeedback({
         age: store.studentAge(active), subject: selSubject,
         stats: st, recentTopics, records,
-        includeNotes: !!privacy.querySelector('.include-notes')?.checked,
+        includeNotes,
       });
       out.innerHTML = `<div class="ai-prose text-sm text-ink-soft">${html}</div>`;
     } catch (e) {
       out.innerHTML = '';
+      if (includeNotes) out.appendChild(notesIncludedLine());
       out.appendChild(aiErrorBlock(e, () => gen.onclick(), { compact: true }));
     }
     refreshIcons();

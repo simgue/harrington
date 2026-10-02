@@ -35,39 +35,93 @@ export function promptLearnerLabel() {
   return 'your child';
 }
 
-// Every learner name in the family state, longest first, plus each part of a
-// multi-word name, so "Sample Nine" goes before "Sample" and the full name
-// never leaves a stray surname behind.
-function learnerNames() {
-  const names = new Set();
-  for (const s of store.get().students || []) {
-    const full = String(s?.name || '').trim();
-    if (!full) continue;
-    names.add(full);
-    for (const part of full.split(/\s+/)) if (part.length >= 2) names.add(part);
-  }
-  return [...names].sort((a, b) => b.length - a.length);
+// Age as a prompt shows it; a learner without a birth year is "age unknown".
+export function promptAge(age) {
+  return `age ${Number.isFinite(age) ? age : 'unknown'}`;
 }
 
+// Accents are folded on both sides before matching, so "Zoë", "Zoe" and a
+// decomposed "Zoë" are the same name.
+const fold = s => s.normalize('NFD').replace(/\p{M}/gu, '');
+// Space, hyphen and apostrophes are interchangeable and optional inside a name:
+// "Mary-Jane" also matches "Mary Jane" and "MaryJane", "O'Neil" matches "O’Neil".
+const NAME_SEP = /[\s\-'‘’]+/;
 const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Replaces each name in `names` with "the child", whole words only and in any
-// case. A possessive keeps its apostrophe ("Sam's" -> "the child's"); a name
-// inside a longer word ("Will" in "willing") is left alone.
-export function redactNames(text, names) {
-  let out = String(text ?? '');
-  for (const name of names) {
-    if (!name) continue;
-    const re = new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRegExp(name).replace(/\s+/g, '\\s+')}(?![\\p{L}\\p{N}_])`, 'giu');
-    out = out.replace(re, 'the child');
+// The full name, each space-separated part and each half of a hyphenated part.
+// Parts of three letters or fewer ("An", "Lin", "Do") match only capitalized or
+// in capitals so they do not swallow function words; everything else, and the
+// full name itself, matches in any case. Longest first, so a full name goes
+// before its parts.
+function namePatterns(fullNames) {
+  const seen = new Map();
+  const add = (name, anyCase) => {
+    const tokens = fold(name).split(NAME_SEP).filter(Boolean);
+    const letters = tokens.join('');
+    if (letters.length < 2) return;
+    const key = tokens.join(' ').toLowerCase();
+    if (seen.has(key)) return;
+    const body = toks => toks.map(escapeRegExp).join(`${NAME_SEP.source.slice(0, -1)}*`);
+    const short = !anyCase && letters.length <= 3;
+    const source = short
+      ? [tokens.map(t => t[0].toUpperCase() + t.slice(1).toLowerCase()), tokens.map(t => t.toUpperCase())].map(body).join('|')
+      : body(tokens);
+    seen.set(key, { re: new RegExp(`(?<![\\p{L}\\p{N}_])(?:${source})(?![\\p{L}\\p{N}_])`, short ? 'gu' : 'giu'), len: letters.length });
+  };
+  for (const raw of fullNames) {
+    const full = String(raw || '').trim();
+    if (!full) continue;
+    add(full, true);
+    for (const part of full.split(/\s+/)) {
+      add(part, false);
+      for (const half of part.split('-')) add(half, false);
+    }
   }
-  return out;
+  return [...seen.values()].sort((a, b) => b.len - a.len).map(p => p.re);
+}
+
+// Matches on accent-folded text but replaces in the original, keeping every
+// other accent as written. Returns [start, end) ranges in `text`.
+function foldedMatches(text, res) {
+  let folded = '';
+  const origin = [];
+  let i = 0;
+  for (const ch of text) {
+    const f = fold(ch);
+    for (let k = 0; k < f.length; k++) origin.push(i);
+    folded += f;
+    i += ch.length;
+  }
+  const ranges = [];
+  const taken = new Uint8Array(folded.length);
+  for (const re of res) {
+    for (const m of folded.matchAll(re)) {
+      const a = m.index, b = a + m[0].length;
+      if (taken.subarray(a, b).some(Boolean)) continue;
+      taken.fill(1, a, b);
+      ranges.push([origin[a], b < folded.length ? origin[b] : text.length]);
+    }
+  }
+  return ranges.sort((x, y) => x[0] - y[0]);
+}
+
+// Replaces each learner (given by full name) with "the child", whole words
+// only. A possessive keeps its apostrophe ("Sam's" -> "the child's"); a name
+// inside a longer word ("Will" in "willing") is left alone. Limitation: names
+// in scripts written without spaces (e.g. 李小龍) are not matched when they run
+// straight into other letters, because matching relies on word boundaries.
+export function redactNames(text, fullNames) {
+  const src = String(text ?? '');
+  const ranges = foldedMatches(src, namePatterns(fullNames));
+  let out = '', at = 0;
+  for (const [a, b] of ranges) { out += src.slice(at, a) + 'the child'; at = b; }
+  return out + src.slice(at);
 }
 
 // Redacts every learner in `store.students` from parent- or child-written text
 // before it goes anywhere near a prompt.
 export function redactLearnerNames(text) {
-  return redactNames(text, learnerNames());
+  return redactNames(text, (store.get().students || []).map(s => s?.name));
 }
 
 // Records as counts by type and the curriculum topics they touch; never the
@@ -469,7 +523,7 @@ export function buildDiscussionPrompt({ age, topic, transcript, note, includeNot
   if (notes) parts.push(`The parent's written notes about the discussion:\n"""\n${notes}\n"""`);
   if (!parts.length) parts.push('The parent did not share a transcript or notes for this discussion.');
 
-  return `You are an expert learning coach helping a homeschooling parent. Analyze the following discussion between the parent and ${name} (age ${age}) and give the PARENT practical, encouraging guidance.
+  return `You are an expert learning coach helping a homeschooling parent. Analyze the following discussion between the parent and ${name} (${promptAge(age)}) and give the PARENT practical, encouraging guidance.
 
 ${topicLine}
 
@@ -513,16 +567,18 @@ If they mention a struggling topic, suggest a clear plan: how to reteach it simp
 export function buildFeedbackPrompt({ age, subject, stats, recentTopics, records, includeNotes = false }) {
   const name = promptLearnerLabel();
   let recTxt = summarizeRecords(records);
-  if (includeNotes && records.length) {
-    const notes = records.slice(0, 12)
-      .map(r => `- [${r.type}${r.rating ? ', ' + r.rating + '/5' : ''}] ${r.topicName || 'no topic'}: ${redactLearnerNames(r.note || r.title || '').slice(0, 300)}`)
+  // Only notes are offered; record titles never leave, opted in or not.
+  const withNotes = includeNotes ? records.filter(r => (r.note || '').trim()).slice(0, 12) : [];
+  if (withNotes.length) {
+    const notes = withNotes
+      .map(r => `- [${r.type}${r.rating ? ', ' + r.rating + '/5' : ''}] ${r.topicName || 'no topic'}: ${redactLearnerNames(r.note).slice(0, 300)}`)
       .join('\n');
     recTxt += `\nThe parent chose to share these notes:\n${notes}`;
   }
   const topicTxt = recentTopics.length
     ? recentTopics.map(t => `- ${t.name} — ${t.status}`).join('\n')
     : '(no topics started yet)';
-  return `You are an experienced homeschool mentor giving a parent-teacher a supportive, practical progress review for ${name} (age ${age}) in ${subject}.
+  return `You are an experienced homeschool mentor giving a parent-teacher a supportive, practical progress review for ${name} (${promptAge(age)}) in ${subject}.
 
 Progress: ${stats.mastered} of ${stats.total} ${subject} topics mastered (${stats.pct}%), ${stats.inProgress} in progress.
 

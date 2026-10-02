@@ -4,7 +4,7 @@ import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { openRecorder, audioPlayer, fmtDur } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
 import { aiErrorBlock, gateAi } from '../ai-status.js';
-import { savedAnalysis, regenerateButton, analysisOptIn } from './recordings.js';
+import { savedAnalysis, regenerateButton, analysisOptIn, notesIncludedLine } from './recordings.js';
 
 const TYPES = {
   observation: { icon: 'eye', label: 'Observation', color: '#2f6285', hint: 'What you noticed as they worked' },
@@ -163,7 +163,7 @@ function openAnalysis(record, student, topic, includeNotes = false) {
 
   stage.appendChild(el(`<div class="text-center py-8">
     <div class="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-    <p class="text-sm font-600">Analyzing the discussion\u2026</p>
+    <p class="text-sm font-600">Analyzing the discussion${includeNotes ? ' (notes included)' : ''}\u2026</p>
     <p class="text-xs text-ink-faint mt-1">Looking at what ${esc(student.name)} understands and where they're stuck.</p>
   </div>`));
   refreshIcons();
@@ -196,6 +196,7 @@ function openAnalysis(record, student, topic, includeNotes = false) {
     refreshIcons();
   }).catch((e) => {
     stage.innerHTML = '';
+    if (includeNotes) stage.appendChild(notesIncludedLine());
     stage.appendChild(aiErrorBlock(e, () => { m.close(); openAnalysis(record, student, topic, includeNotes); }));
   });
 }

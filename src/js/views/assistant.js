@@ -2,7 +2,7 @@ import * as store from '../store.js';
 import { getData, SUBJECTS } from '../data.js';
 import { el, esc, refreshIcons, toast } from '../ui.js';
 import { studentStats } from '../mastery.js';
-import { aiParentChat, promptLearnerLabel, summarizeRecords } from '../ai.js';
+import { aiParentChat, promptAge, promptLearnerLabel, summarizeRecords } from '../ai.js';
 
 let panel = null, messages = [], busy = false;
 
@@ -27,7 +27,7 @@ export function buildContext() {
   const recentRecords = store.recordsFor(s.id).slice(0, 5);
 
   return [
-    `Learner: ${promptLearnerLabel()}, age ${age}.`,
+    `Learner: ${promptLearnerLabel()}, ${promptAge(age)}.`,
     `Overall mastery ${stats.pct}%. By subject: ${per}.`,
     inProgress.length ? `Currently working on: ${inProgress.join('; ')}.` : 'No topics currently in progress.',
     recentRecords.length ? `Recent parent records: ${summarizeRecords(recentRecords)}` : '',

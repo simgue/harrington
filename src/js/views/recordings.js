@@ -140,9 +140,15 @@ export function renderAnalysis(container, r, student, topic) {
 // are notes to share. Shown only beside a live AI action, never in the child view.
 export function privacyControls({ hasNotes = false } = {}) {
   return el(`<div class="mt-2 space-y-1">
-    <p class="text-[11px] text-ink-faint flex items-center gap-1.5"><i data-lucide="shield-check" class="w-3.5 h-3.5 shrink-0"></i>Learner names are replaced with “the child” before anything is sent.</p>
+    <p class="text-[11px] text-ink-faint flex items-center gap-1.5"><i data-lucide="shield-check" class="w-3.5 h-3.5 shrink-0"></i>Names of learners in this app are replaced with “the child” before this is sent.</p>
     ${hasNotes ? `<label class="flex items-center gap-2 text-xs text-ink-soft cursor-pointer select-none"><input type="checkbox" class="include-notes accent-brand" />Include my notes in this request</label>` : ''}
   </div>`);
+}
+
+// Shown beside a spinner's result or an error when this request carries the
+// parent's notes, since a retry re-sends with the same choice while the box is hidden.
+export function notesIncludedLine() {
+  return el(`<p class="text-[11px] text-ink-faint">This request includes your notes.</p>`);
 }
 
 // Wires an analyze/regenerate button to the privacy controls. Notes stay home
@@ -153,12 +159,17 @@ export function analysisOptIn(btn, r, run) {
   const hasNote = !!(r.note && r.note.trim());
   const controls = privacyControls({ hasNotes: hasNote });
   const box = controls.querySelector('.include-notes');
+  // Touch screens never show a title tooltip, so the reason is a visible line too.
+  const hint = el(`<p class="text-[11px] text-ink-soft"></p>`);
+  controls.appendChild(hint);
   const sync = () => {
     const ok = hasTranscript || !!box?.checked;
     btn.disabled = !ok;
     btn.classList.toggle('opacity-50', !ok);
     btn.classList.toggle('cursor-not-allowed', !ok);
     btn.title = ok ? '' : hasNote ? 'Tick “Include my notes” to analyze your notes' : 'Add a transcript or notes to analyze';
+    hint.textContent = ok ? '' : btn.title + '.';
+    hint.hidden = ok;
   };
   box?.addEventListener('change', sync);
   sync();
@@ -185,7 +196,7 @@ export function regenerateButton() {
 export function runAnalysis(container, r, student, topic, includeNotes = false) {
   const hasContent = (r.transcript && r.transcript.trim()) || (includeNotes && r.note && r.note.trim());
   if (!hasContent) { toast('No transcript or shared notes to analyze', 'error'); return; }
-  container.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-1"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Analyzing…</div>`;
+  container.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-1"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Analyzing${includeNotes ? ' (notes included)' : ''}…</div>`;
   aiDiscussionAnalysis({
     age: store.studentAge(student), topic: topic || null,
     transcript: r.transcript || '', note: r.note || '', includeNotes,
@@ -197,6 +208,7 @@ export function runAnalysis(container, r, student, topic, includeNotes = false) 
     toast('Analysis saved to this recording', 'success');
   }).catch((e) => {
     container.innerHTML = '';
+    if (includeNotes) container.appendChild(notesIncludedLine());
     container.appendChild(aiErrorBlock(e, () => runAnalysis(container, r, student, topic, includeNotes), { compact: true }));
   });
 }

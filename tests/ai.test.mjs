@@ -99,7 +99,7 @@ const PROMPT_CALLS = {
   ),
 };
 // Exports that neither build nor send a prompt.
-const NOT_PROMPTS = new Set(['promptLearnerLabel', 'safeCalc', 'normalizeTest', 'redactNames', 'redactLearnerNames', 'summarizeRecords']);
+const NOT_PROMPTS = new Set(['promptLearnerLabel', 'promptAge', 'safeCalc', 'normalizeTest', 'redactNames', 'redactLearnerNames', 'summarizeRecords']);
 
 test('every exported prompt function is covered by the name guard', () => {
   const exported = Object.entries(ai).filter(([, v]) => typeof v === 'function').map(([k]) => k);
@@ -164,7 +164,7 @@ test('progress review summarizes records as counts and topic names unless opted 
 });
 
 test('redactNames replaces whole names, possessives and any case', () => {
-  const names = ['Zebulon Quixote', 'Zebulon', 'Quixote'];
+  const names = ['Zebulon Quixote'];
   assert.equal(redactNames('Zebulon Quixote said hi', names), 'the child said hi');
   assert.equal(redactNames("zebulon's cup and QUIXOTE’s hat", names), "the child's cup and the child’s hat");
   assert.equal(redactNames('Zebulon\nQuixote', names), 'the child', 'a full name across a line break');
@@ -178,6 +178,65 @@ test('redactNames treats names that are common words as whole words only', () =>
   assert.equal(redactNames('Will is willing; rose roses arose. Will’s turn.', names), 'the child is willing; the child roses arose. the child’s turn.');
   assert.equal(redactNames('Alexander and Xander', ['Xander']), 'Alexander and the child');
   assert.equal(redactNames('Dr. O(Neil)', ['O(Neil)']), 'Dr. the child', 'regex characters in a name are literal');
+});
+
+// The independent review's stub transcript, row by row: spelling variants of a
+// profile name must not leak.
+const VARIANT_LEARNERS = ['Mary-Jane Smith', "Mia O'Neil", 'Zoë Park', 'José Ruiz'];
+for (const [label, said, expected] of [
+  ['hyphen spoken as a space', 'Say it again, Mary Jane.', 'Say it again, the child.'],
+  ['hyphen dropped', 'MaryJane and mary-jane', 'the child and the child'],
+  ['each half of a hyphenated name', 'Mary, then Jane.', 'the child, then the child.'],
+  ['accent dropped', 'And Zoe? Zoe Park: nine!', 'And the child? the child: nine!'],
+  ['accent dropped, first name only', 'Thank you Jose.', 'Thank you the child.'],
+  ['decomposed accent', 'Zoë waved.', 'the child waved.'],
+  ['precomposed accent kept elsewhere', 'Zoë’s café', 'the child’s café'],
+  ['curly apostrophe in the name', 'and O’Neil too. Mia O’Neil laughed', 'and the child too. the child laughed'],
+  ['straight apostrophe in the name', "Mia O'Neil's turn", "the child's turn"],
+  ['apostrophe dropped', 'ONeil', 'the child'],
+]) {
+  test(`redactNames: ${label}`, () => {
+    const out = redactNames(said, VARIANT_LEARNERS);
+    assert.equal(out, expected);
+    assert.doesNotMatch(out.normalize('NFD').replace(/\p{M}/gu, ''), /\b(mary|jane|zoe|jose|o.?neil|smith|ruiz)\b/i);
+  });
+}
+
+test('short name parts match only capitalized or in capitals', () => {
+  const names = ['An Nguyen', 'He Lin', 'Do Park'];
+  assert.equal(redactNames('He said he would do it with an apple.', names), 'the child said he would do it with an apple.');
+  assert.equal(redactNames('AN and LIN and Do', names), 'the child and the child and the child');
+  assert.equal(redactNames('an nguyen, nguyen', names), 'the child, the child', 'the full name and long parts stay any-case');
+});
+
+test('a name straddling the transcript and notes limits is redacted before the cut', () => {
+  for (const [cut, field] of [[4000, 'transcript'], [1500, 'note']]) {
+    const text = 'x'.repeat(cut - 3) + ' Zebulon Quixote and more';
+    const prompt = ai.buildDiscussionPrompt({ age: 6, topic, transcript: field === 'transcript' ? text : 'hi', note: field === 'note' ? text : '', includeNotes: true });
+    assert.doesNotMatch(prompt, /zeb|quix/i, `${field} leaked part of a name at the cut`);
+  }
+});
+
+test('summarizeRecords never sends a title, even without a topic', () => {
+  const summary = ai.summarizeRecords([{ type: 'observation', title: 'Zebulon at the park', note: '', topicName: null }]);
+  assert.equal(summary, '1 record (1 observation). No linked topics.');
+});
+
+test('record titles stay home even when notes are opted in', () => {
+  const prompt = ai.buildFeedbackPrompt({ age: 6, subject: 'Mathematics', stats, recentTopics: [], includeNotes: true,
+    records: [{ type: 'observation', title: 'secret-title-marker', note: '', topicName: 'Count to 5' }] });
+  assert.doesNotMatch(prompt, /secret-title-marker/);
+  assert.doesNotMatch(prompt, /chose to share/);
+});
+
+test('a missing birth year reads "age unknown", never "age null"', () => {
+  assert.equal(ai.promptAge(null), 'age unknown');
+  assert.equal(ai.promptAge(7), 'age 7');
+  const prompts = [
+    ai.buildDiscussionPrompt({ age: null, topic, transcript: 'hi' }),
+    ai.buildFeedbackPrompt({ age: null, subject: 'Mathematics', stats, recentTopics: [], records: [] }),
+  ];
+  for (const p of prompts) { assert.match(p, /age unknown/); assert.doesNotMatch(p, /age (null|undefined)/); }
 });
 
 test('redactLearnerNames covers every learner in state, not only the active one', () => {
@@ -208,9 +267,15 @@ test('views stop passing the learner name into prompt builders', async () => {
   assert.doesNotMatch(assistant, /\$\{s\.name\}/);
   // The opt-in is per request: both analysis views and the review read the box.
   assert.match(recordings, /Include my notes in this request/);
-  assert.match(recordings, /Learner names are replaced with/);
+  assert.match(recordings, /Names of learners in this app are replaced with/);
   assert.match(records, /analysisOptIn\(/);
-  assert.match(insights, /includeNotes: !!privacy\.querySelector\('\.include-notes'\)\?\.checked/);
+  assert.match(insights, /const includeNotes = !!privacy\.querySelector\('\.include-notes'\)\?\.checked/);
+  assert.match(insights, /hasNotes: subjectRecords\(\)\.some\(r => \(r\.note \|\| ''\)\.trim\(\)\)/, 'titles alone do not offer the box');
+  // A retry re-sends with the earlier choice, so the spinner and error say so.
+  for (const src of [records, recordings, insights]) {
+    assert.match(src, /\(notes included\)/);
+    assert.match(src, /if \(includeNotes\) \w+\.appendChild\(notesIncludedLine\(\)\)/);
+  }
 });
 
 test('lesson and explain prompts use a generic learner and age band, never a child name', () => {
