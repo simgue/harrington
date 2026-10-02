@@ -21,14 +21,13 @@ your report and work on a fix as quickly as we reasonably can.
   learners in this app are replaced with “the child” in the browser before any
   request is built. What still leaves the machine: topic text and the topic's
   age from the curriculum, the learner's exact age for whole-subject tests,
-  discussion analyses and progress reviews,
-  mastery percentages, topic statuses, record counts and the average confidence
-  rating, a discussion transcript when the parent asks for an analysis, and
-  parent notes only when the parent opts in for that request (record titles are
-  never sent). Nicknames and other people's names in a transcript are sent as
-  spoken, and names in scripts written without spaces (for example Chinese) are
-  not matched when they run straight into other text. There are no
-  shared-family features.
+  discussion analyses and progress reviews, mastery percentages, topic
+  statuses, record counts and the average confidence rating, a discussion
+  transcript when the parent asks for an analysis, and parent notes only when
+  the parent opts in for that request (record titles are never sent).
+  Nicknames and other people's names in a transcript are sent as spoken, and
+  names in scripts written without spaces (for example Chinese) are not matched
+  when they run straight into other text. There are no shared-family features.
 - Please never include real children's personal data in a report.
 
 Thank you for helping keep families using Harrington safe.
