@@ -4,7 +4,7 @@ import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { openRecorder, audioPlayer, fmtDur } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
 import { aiErrorBlock, gateAi } from '../ai-status.js';
-import { savedAnalysis, regenerateButton } from './recordings.js';
+import { savedAnalysis, regenerateButton, analysisOptIn } from './recordings.js';
 
 const TYPES = {
   observation: { icon: 'eye', label: 'Observation', color: '#2f6285', hint: 'What you noticed as they worked' },
@@ -92,17 +92,19 @@ function recordCard(r, student, d, navigate) {
   const analyzable = r.type === 'recording' || r.type === 'discussion';
   if (analyzable || r.analysis) {
     const analyzeWrap = el(`<div class="mt-2.5 pt-2.5 border-t border-paper-line"></div>`);
+    const run = includeNotes => openAnalysis(r, student, topic, includeNotes);
     if (r.analysis) {
       analyzeWrap.appendChild(savedAnalysis(r.analysis));
       const redo = regenerateButton(); // null without an AI provider
       if (redo) {
-        redo.onclick = () => openAnalysis(r, student, topic);
         analyzeWrap.appendChild(redo);
+        analyzeWrap.appendChild(analysisOptIn(redo, r, run));
       }
     } else {
       const btn = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyze &amp; get advice</button>`);
-      btn.onclick = () => openAnalysis(r, student, topic);
-      analyzeWrap.appendChild(gateAi(btn));
+      const gated = gateAi(btn);
+      analyzeWrap.appendChild(gated);
+      if (gated === btn) analyzeWrap.appendChild(analysisOptIn(btn, r, run));
     }
     card.appendChild(analyzeWrap);
   }
@@ -138,7 +140,7 @@ function placementUndo(r, student) {
   return wrap;
 }
 
-function openAnalysis(record, student, topic) {
+function openAnalysis(record, student, topic, includeNotes = false) {
   const body = el(`<div class="p-5">
     <div class="flex items-start gap-3 mb-4">
       <span class="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0"><i data-lucide="sparkles" class="w-5 h-5 text-brand-dark"></i></span>
@@ -152,9 +154,9 @@ function openAnalysis(record, student, topic) {
   const stage = body.querySelector('#stage');
   const m = openModal(body, { wide: true });
 
-  const hasContent = (record.transcript && record.transcript.trim()) || (record.note && record.note.trim());
+  const hasContent = (record.transcript && record.transcript.trim()) || (includeNotes && record.note && record.note.trim());
   if (!hasContent) {
-    stage.appendChild(el(`<p class="text-sm text-ink-soft py-4">There's no transcript or notes to analyze for this record. Record a discussion with the live transcript on, or add notes, then try again.</p>`));
+    stage.appendChild(el(`<p class="text-sm text-ink-soft py-4">There's no transcript or shared notes to analyze for this record. Record a discussion with the live transcript on, or tick “Include my notes in this request”, then try again.</p>`));
     refreshIcons();
     return;
   }
@@ -167,11 +169,11 @@ function openAnalysis(record, student, topic) {
   refreshIcons();
 
   aiDiscussionAnalysis({
-    studentName: student.name,
     age: store.studentAge(student),
     topic: topic || null,
     transcript: record.transcript || '',
     note: record.note || '',
+    includeNotes,
   }).then(html => {
     // Persist onto the record, as the Recordings folder does, so the card shows it.
     store.updateRecord(student.id, record.id, { analysis: html, analyzedAt: Date.now() });
@@ -194,7 +196,7 @@ function openAnalysis(record, student, topic) {
     refreshIcons();
   }).catch((e) => {
     stage.innerHTML = '';
-    stage.appendChild(aiErrorBlock(e, () => { m.close(); openAnalysis(record, student, topic); }));
+    stage.appendChild(aiErrorBlock(e, () => { m.close(); openAnalysis(record, student, topic, includeNotes); }));
   });
 }
 

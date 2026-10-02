@@ -2,12 +2,14 @@ import * as store from '../store.js';
 import { getData, SUBJECTS } from '../data.js';
 import { el, esc, refreshIcons, toast } from '../ui.js';
 import { studentStats } from '../mastery.js';
-import { aiParentChat } from '../ai.js';
+import { aiParentChat, promptLearnerLabel, summarizeRecords } from '../ai.js';
 
 let panel = null, messages = [], busy = false;
 
-// Build a compact context string from the active student's real data.
-function buildContext() {
+// Build a compact context string from the active student's real data. Like
+// every prompt, it carries no learner name and none of the parent's own words:
+// the age, mastery figures, curriculum topic names and record counts only.
+export function buildContext() {
   const s = store.activeStudent();
   if (!s) return 'No student is selected yet.';
   const d = getData();
@@ -22,14 +24,13 @@ function buildContext() {
     .filter(([id, v]) => d.byId.has(id) && (v.status === 'learning' || v.status === 'practicing'))
     .map(([id]) => d.byId.get(id).name).slice(0, 8);
 
-  const recentRecords = store.recordsFor(s.id).slice(0, 5)
-    .map(r => `${r.type}: ${(r.note || r.title || '').slice(0, 80)}`).filter(Boolean);
+  const recentRecords = store.recordsFor(s.id).slice(0, 5);
 
   return [
-    `Student: ${s.name}, age ${age}.`,
+    `Learner: ${promptLearnerLabel()}, age ${age}.`,
     `Overall mastery ${stats.pct}%. By subject: ${per}.`,
     inProgress.length ? `Currently working on: ${inProgress.join('; ')}.` : 'No topics currently in progress.',
-    recentRecords.length ? `Recent parent notes — ${recentRecords.join(' | ')}.` : '',
+    recentRecords.length ? `Recent parent records: ${summarizeRecords(recentRecords)}` : '',
   ].filter(Boolean).join('\n');
 }
 

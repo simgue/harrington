@@ -26,7 +26,10 @@ example). Commune is still disabled until it has an explicit self-hosted adapter
 This preview binds to the local computer only. Use synthetic learner names until
 authentication, encrypted backups, and private remote access are implemented.
 Never send a real child's name into a model prompt — generators use “your child”
-and an age band only.
+and an age band only. Transcripts sent for analysis are scrubbed locally first:
+every learner name (and its possessive) becomes “the child”. Parent notes and
+records go out as counts and topic names only, unless the parent ticks
+“Include my notes in this request” for that one request.
 
 ## What works without an AI provider
 

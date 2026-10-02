@@ -17,7 +17,10 @@ your report and work on a fix as quickly as we reasonably can.
   authentication reverse proxy.
 - AI generation is disabled until `HARRINGTON_AI_BASE_URL` and
   `HARRINGTON_AI_MODEL` are set. When they are set, topic text (never a child's
-  name) is sent only to that configured OpenAI-compatible endpoint. Shared-family
+  name) is sent only to that configured OpenAI-compatible endpoint. A
+  discussion transcript sent for analysis has every learner name replaced with
+  “the child” before it leaves the browser; parent notes are sent only when the
+  parent opts in for that request, and are redacted the same way. Shared-family
   features remain disabled by default.
 - Please never include real children's personal data in a report.
 

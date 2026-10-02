@@ -118,22 +118,52 @@ function recordingCard(r, student, rerender) {
 // generate or refresh it. Once generated, it's stored on the recording.
 export function renderAnalysis(container, r, student, topic) {
   container.innerHTML = '';
-  const hasContent = (r.transcript && r.transcript.trim()) || (r.note && r.note.trim());
+  const run = includeNotes => runAnalysis(container, r, student, topic, includeNotes);
 
   if (r.analysis) {
     container.appendChild(savedAnalysis(r.analysis));
     const redo = regenerateButton();
     if (redo) {
-      if (hasContent) redo.onclick = () => runAnalysis(container, r, student, topic);
       container.appendChild(redo);
+      container.appendChild(analysisOptIn(redo, r, run));
     }
   } else {
     const analyze = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyze &amp; get advice</button>`);
-    if (hasContent) analyze.onclick = () => runAnalysis(container, r, student, topic);
-    else { analyze.disabled = true; analyze.classList.add('opacity-50', 'cursor-not-allowed'); analyze.title = 'Add a transcript or notes to analyze'; }
-    container.appendChild(gateAi(analyze));
+    const gated = gateAi(analyze);
+    container.appendChild(gated);
+    if (gated === analyze) container.appendChild(analysisOptIn(analyze, r, run));
   }
   refreshIcons();
+}
+
+// The one-line privacy notice, plus the per-request notes opt-in when there
+// are notes to share. Shown only beside a live AI action, never in the child view.
+export function privacyControls({ hasNotes = false } = {}) {
+  return el(`<div class="mt-2 space-y-1">
+    <p class="text-[11px] text-ink-faint flex items-center gap-1.5"><i data-lucide="shield-check" class="w-3.5 h-3.5 shrink-0"></i>Learner names are replaced with “the child” before anything is sent.</p>
+    ${hasNotes ? `<label class="flex items-center gap-2 text-xs text-ink-soft cursor-pointer select-none"><input type="checkbox" class="include-notes accent-brand" />Include my notes in this request</label>` : ''}
+  </div>`);
+}
+
+// Wires an analyze/regenerate button to the privacy controls. Notes stay home
+// unless the box is ticked, so without a transcript the button waits for it.
+// Returns the controls for the caller to append after `btn`.
+export function analysisOptIn(btn, r, run) {
+  const hasTranscript = !!(r.transcript && r.transcript.trim());
+  const hasNote = !!(r.note && r.note.trim());
+  const controls = privacyControls({ hasNotes: hasNote });
+  const box = controls.querySelector('.include-notes');
+  const sync = () => {
+    const ok = hasTranscript || !!box?.checked;
+    btn.disabled = !ok;
+    btn.classList.toggle('opacity-50', !ok);
+    btn.classList.toggle('cursor-not-allowed', !ok);
+    btn.title = ok ? '' : hasNote ? 'Tick “Include my notes” to analyze your notes' : 'Add a transcript or notes to analyze';
+  };
+  box?.addEventListener('change', sync);
+  sync();
+  btn.onclick = () => run(!!box?.checked);
+  return controls;
 }
 
 // The saved AI summary block, shared with the Records page so both cards render it alike.
@@ -152,13 +182,13 @@ export function regenerateButton() {
   return el(`<button class="mt-2 flex items-center gap-1.5 text-xs font-medium text-ink-faint hover:text-ink-soft"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>Regenerate</button>`);
 }
 
-export function runAnalysis(container, r, student, topic) {
-  const hasContent = (r.transcript && r.transcript.trim()) || (r.note && r.note.trim());
-  if (!hasContent) { toast('No transcript or notes to analyze', 'error'); return; }
+export function runAnalysis(container, r, student, topic, includeNotes = false) {
+  const hasContent = (r.transcript && r.transcript.trim()) || (includeNotes && r.note && r.note.trim());
+  if (!hasContent) { toast('No transcript or shared notes to analyze', 'error'); return; }
   container.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-1"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Analyzing…</div>`;
   aiDiscussionAnalysis({
-    studentName: student.name, age: store.studentAge(student),
-    topic: topic || null, transcript: r.transcript || '', note: r.note || '',
+    age: store.studentAge(student), topic: topic || null,
+    transcript: r.transcript || '', note: r.note || '', includeNotes,
   }).then(html => {
     // Persist the analysis onto the recording so it stays with it.
     store.updateRecord(student.id, r.id, { analysis: html, analyzedAt: Date.now() });
@@ -167,6 +197,6 @@ export function runAnalysis(container, r, student, topic) {
     toast('Analysis saved to this recording', 'success');
   }).catch((e) => {
     container.innerHTML = '';
-    container.appendChild(aiErrorBlock(e, () => runAnalysis(container, r, student, topic), { compact: true }));
+    container.appendChild(aiErrorBlock(e, () => runAnalysis(container, r, student, topic, includeNotes), { compact: true }));
   });
 }
