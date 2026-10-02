@@ -20,8 +20,9 @@ The browser app is plain HTML + CSS + vanilla JavaScript (ES modules), served
 by Harrington's dependency-free Node server. A small asset build compiles the
 local Tailwind stylesheet and copies Lucide into `src/vendor/`; it does not
 bundle the application code.
-Family state, lesson caches, and recordings are stored on that server. AI and
-shared-family features are disabled until self-hosted adapters are added.
+Family state, lesson caches, and recordings are stored on that server. AI is
+optional, through a local OpenAI-compatible provider; there are no
+shared-family features.
 
 Run it with Node:
 

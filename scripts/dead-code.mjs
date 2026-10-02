@@ -2,7 +2,8 @@
 // Dead-code report for src/js: modules the app never loads, named exports no
 // other module imports, imports never referenced, and uses of another
 // module's named export that the module forgot to import (heuristic: string
-// and template text are blanked, local declarations and parameters excluded).
+// and template text are blanked, local declarations and parameters excluded;
+// a removed namespace import, `import * as x`, is not detected).
 // Tests and scripts count as importers; exports only tests import are listed
 // for information.
 // Usage: node scripts/dead-code.mjs   (exit code 1 when anything is found)
