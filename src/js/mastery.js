@@ -75,28 +75,32 @@ export function recommendedNext(studentId, limit = 6) {
 
 // Today's literacy and numeracy pick-one options for a student, as topics.
 // Offers are chosen once per day and remembered; picks come from the store.
+// `blocked` (locked topics with their first unmet prerequisite) is worked out
+// fresh each time, since it changes as soon as a prerequisite is mastered.
+// Returns { [lane]: { lane, options, pick, blocked: [{ topic, needs }] } }.
 export function todaysChoices(studentId, dateKey) {
   const d = getData();
+  const s = store.get().students.find(x => x.id === studentId);
+  const prog = store.progressFor(studentId);
+  const lastByDomain = new Map();
+  for (const [id, v] of Object.entries(prog)) {
+    const t = d.byId.get(id);
+    if (t && (v.updatedAt || 0) > (lastByDomain.get(t.domain) || 0)) lastByDomain.set(t.domain, v.updatedAt || 0);
+  }
+  const built = buildDailyChoices(d.topics, {
+    age: store.studentAge(s) || 5,
+    dateKey,
+    now: Date.now(),
+    statusOf: (id) => store.statusOf(studentId, id),
+    isUnlocked: (id) => isUnlocked(studentId, id),
+    lastTouched: (domain) => lastByDomain.get(domain) || 0,
+    topicAge,
+    blockingPrereqs: (id) => blockingPrereqs(studentId, id).map(p => d.byId.get(p.id)).filter(Boolean),
+  });
   const saved = store.dailyFor(studentId, dateKey);
   let offers = saved && saved.offers;
   if (!offers) {
-    const s = store.get().students.find(x => x.id === studentId);
-    const prog = store.progressFor(studentId);
-    const lastByDomain = new Map();
-    for (const [id, v] of Object.entries(prog)) {
-      const t = d.byId.get(id);
-      if (t && (v.updatedAt || 0) > (lastByDomain.get(t.domain) || 0)) lastByDomain.set(t.domain, v.updatedAt || 0);
-    }
-    const built = buildDailyChoices(d.topics, {
-      age: store.studentAge(s) || 5,
-      dateKey,
-      now: Date.now(),
-      statusOf: (id) => store.statusOf(studentId, id),
-      isUnlocked: (id) => isUnlocked(studentId, id),
-      lastTouched: (domain) => lastByDomain.get(domain) || 0,
-      topicAge,
-    });
-    offers = Object.fromEntries(Object.entries(built).map(([k, list]) => [k, list.map(t => t.id)]));
+    offers = Object.fromEntries(Object.entries(built).map(([k, lane]) => [k, lane.options.map(t => t.id)]));
     if (Object.values(offers).some(list => list.length)) store.saveDailyOffers(studentId, dateKey, offers);
   }
   const picks = (store.dailyFor(studentId, dateKey) || {}).picks || {};
@@ -106,6 +110,7 @@ export function todaysChoices(studentId, dateKey) {
       lane,
       options: (offers[key] || []).map(id => d.byId.get(id)).filter(Boolean),
       pick: picks[key] || null,
+      blocked: built[key] ? built[key].blocked : [],
     };
   }
   return out;

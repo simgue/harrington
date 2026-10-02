@@ -1,9 +1,10 @@
 import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
-import { openRecorder, audioPlayer, fmtDur } from '../recorder.js';
+import { openRecorder, audioPlayer, fmtDur, coverageCandidates, coverageClaimField } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
 import { savedAnalysis, regenerateButton } from './recordings.js';
+import { coverageFields } from '../daily.js';
 
 const TYPES = {
   observation: { icon: 'eye', label: 'Observation', color: '#2f6285', hint: 'What you noticed as they worked' },
@@ -81,6 +82,7 @@ function recordCard(r, student, d, navigate) {
       <button class="del text-ink-faint hover:text-[#a4473a] p-0.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
     </div>
     ${r.title ? `<p class="font-600">${esc(r.title)}</p>` : ''}
+    ${Array.isArray(r.coverage) && r.coverage.length ? `<p class="text-xs font-600 text-brand-dark mb-1 flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>Coverage: ${r.coverage.map(c => esc(c.topicName || c.topicId)).join(' · ')}</p>` : ''}
     ${r.note ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
     ${r.transcript ? `<details class="mt-2 group"><summary class="text-xs text-ink-faint cursor-pointer select-none flex items-center gap-1 list-none"><i data-lucide="chevron-right" class="w-3.5 h-3.5 transition-transform group-open:rotate-90"></i>Transcript</summary><p class="text-sm text-ink-soft mt-1.5 leading-relaxed whitespace-pre-wrap bg-paper border border-paper-line rounded-lg p-2.5">${esc(r.transcript)}</p></details>` : ''}
     ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${SUBJECTS[topic.subject].icon}" class="w-3.5 h-3.5"></i>${esc(topic.name)}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
@@ -194,9 +196,13 @@ function openAnalysis(record, student, topic) {
   });
 }
 
-export function openRecordForm(studentId, topic = null) {
+// options: { coverageTopicIds, source } — topics the record may claim as
+// curriculum coverage (opt-in checkbox), and what the record is evidence for
+// ({ kind: 'daily-pick' | 'invitation', key }).
+export function openRecordForm(studentId, topic = null, options = {}) {
   if (!studentId) { toast('Add a student first', 'error'); return; }
   const d = getData();
+  const coverageTopics = coverageCandidates(d, options.coverageTopicIds);
   const body = el(`<div class="p-5">
     <h3 class="font-display text-lg font-600 mb-4">${esc(topic ? 'Record for ' + topic.name : 'New record')}</h3>
     <form id="f" class="space-y-4">
@@ -218,6 +224,7 @@ export function openRecordForm(studentId, topic = null) {
         <label class="text-sm font-medium block mb-1.5">Notes</label>
         <textarea name="note" rows="4" placeholder="What happened? What did they say or ask?" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none"></textarea>
       </div>
+      ${coverageClaimField(coverageTopics)}
       <div>
         <label class="text-sm font-medium block mb-1.5">Confidence <span class="text-ink-faint font-normal">(optional)</span></label>
         <div id="stars" class="flex gap-1"></div>
@@ -282,6 +289,7 @@ export function openRecordForm(studentId, topic = null) {
     if (!note && !title) { toast('Add a title or note', 'error'); return; }
     const rec = { type: selType, title, note, rating: rating || null, topicId: fd.get('topicId') || null };
     if (rec.topicId) rec.topicName = d.byId.get(rec.topicId)?.name || null;
+    Object.assign(rec, coverageFields(coverageTopics, !!fd.get('claimCoverage'), options.source));
     store.addRecord(studentId, rec);
     toast('Record saved', 'success');
     m.close();

@@ -13,6 +13,7 @@ import { BADGES } from '../game.js';
 import { meadowScene, petalRing, weekFlower, growthIcon, growthChip, stageForStatus, stageForArea, GROWTH } from '../meadow.js';
 import { openKidMode } from './kidmode.js';
 import { openPlacement } from './placement.js';
+import { pickKey, invitationEvidenceSummary } from '../daily.js';
 
 // Pastel stop colours for the day's path, cycled per topic.
 const STOPS = [
@@ -82,6 +83,7 @@ export function renderDashboard(params, { navigate }) {
   const side = el(`<div class="flex flex-col gap-5 min-w-0"></div>`);
   side.appendChild(weekCard(active));
   side.appendChild(overallCard(stats));
+  side.appendChild(interestsCard(active));
   main.appendChild(side);
   root.appendChild(main);
 
@@ -317,8 +319,14 @@ function todayCard(active, navigate) {
       <button data-k="note" class="flex items-center gap-1.5 h-10 px-3.5 rounded-full bg-paper-card text-brand text-xs font-600 hover:bg-sage-light"><i data-lucide="pencil" class="w-4 h-4"></i>Note</button>
     </span>
   </div>`);
-  rec.querySelector('[data-k="voice"]').onclick = () => openRecorder(active.id);
-  rec.querySelector('[data-k="note"]').onclick = () => openRecordForm(active.id);
+  // The day's picks are the coverage candidates; one record can cover both.
+  const picked = Object.entries(choices).filter(([, c]) => c.pick && c.options.some(t => t.id === c.pick));
+  const recOptions = picked.length ? {
+    coverageTopicIds: picked.map(([, c]) => c.pick),
+    source: { kind: 'daily-pick', key: picked.map(([key, c]) => pickKey(todayKey, key, c.pick)).join(',') },
+  } : {};
+  rec.querySelector('[data-k="voice"]').onclick = () => openRecorder(active.id, null, null, recOptions);
+  rec.querySelector('[data-k="note"]').onclick = () => openRecordForm(active.id, null, recOptions);
   body.appendChild(rec);
 
   return card;
@@ -337,6 +345,7 @@ function choiceStop(active, dateKey, laneKey, c, tone, stopHtml, navigate) {
     <div class="grid sm:grid-cols-2 gap-2.5"></div>
   </div>`);
   const grid = wrap.querySelector('.grid');
+  const pickTopic = c.pick ? c.options.find(t => t.id === c.pick) : null;
   c.options.forEach(t => {
     const picked = c.pick === t.id;
     const dimmed = c.pick && !picked;
@@ -356,7 +365,69 @@ function choiceStop(active, dateKey, laneKey, c, tone, stopHtml, navigate) {
     card.querySelector('.open').onclick = () => navigate('topic', { id: t.id });
     grid.appendChild(card);
   });
+
+  // Evidence for the pick: shown as recorded only once a linked record claims coverage.
+  if (pickTopic) {
+    const key = pickKey(dateKey, laneKey, pickTopic.id);
+    const evidence = invitationEvidenceSummary(store.recordsFor(active.id), key);
+    const row = el(`<div class="flex flex-wrap items-center gap-2 mt-3">
+      ${evidence.coverageCount
+        ? `<span class="inline-flex items-center gap-1.5 text-xs font-600 px-2.5 py-1 rounded-full bg-sage-light text-brand-dark"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>Evidence recorded</span>`
+        : `<span class="text-xs text-ink-soft mr-auto">How did it go?</span>`}
+      <button data-k="voice" class="flex items-center gap-1.5 h-9 px-3 rounded-full bg-paper-card text-brand text-xs font-600 hover:bg-sage-light"><i data-lucide="mic" class="w-3.5 h-3.5"></i>Voice</button>
+      <button data-k="note" class="flex items-center gap-1.5 h-9 px-3 rounded-full bg-paper-card text-brand text-xs font-600 hover:bg-sage-light"><i data-lucide="pencil" class="w-3.5 h-3.5"></i>Note</button>
+    </div>`);
+    const opts = { coverageTopicIds: [pickTopic.id], source: { kind: 'daily-pick', key } };
+    row.querySelector('[data-k="voice"]').onclick = () => openRecorder(active.id, pickTopic, null, opts);
+    row.querySelector('[data-k="note"]').onclick = () => openRecordForm(active.id, pickTopic, opts);
+    wrap.appendChild(row);
+  }
+
+  // Parent-only: why the next topics in this lane aren't offered yet.
+  if (c.blocked && c.blocked.length) {
+    const parts = c.blocked.map(b => `<strong class="font-600 text-ink-soft">${esc(b.topic.name)}</strong> needs <strong class="font-600 text-ink-soft">${esc(b.needs.name)}</strong> first`);
+    wrap.appendChild(el(`<p class="why-locked text-xs text-ink-faint mt-3 flex items-start gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5 shrink-0 mt-px"></i><span>Not yet: ${parts.join(' · ')}</span></p>`));
+  }
   return wrap;
+}
+
+// What the learner is into: suggestion chips, their own chips and a free-text
+// note, stored per learner. Shown to the parent only; nothing uses it yet.
+const INTEREST_SUGGESTIONS = ['Animals', 'Building things', 'Gardening', 'Cooking', 'Music', 'Drawing', 'Space', 'Vehicles', 'Stories', 'Sports'];
+function interestsCard(student) {
+  const current = store.interestsFor(student.id);
+  const chips = [...new Set([...INTEREST_SUGGESTIONS, ...current.chips])];
+  const on = new Set(current.chips);
+  const card = el(`<section class="meadow-card p-5" aria-labelledby="int-h">
+    <h2 id="int-h" class="font-display text-lg font-600 flex items-center gap-2"><i data-lucide="sparkles" class="w-5 h-5 text-butter-deep"></i>${esc(student.name)}'s interests</h2>
+    <p class="text-xs text-ink-faint mt-0.5 mb-3">What they're into lately. Tap to choose.</p>
+    <div class="chips flex flex-wrap gap-1.5"></div>
+    <form class="add flex gap-1.5 mt-2.5">
+      <input name="chip" maxlength="40" placeholder="Add your own…" aria-label="Add an interest" class="flex-1 min-w-0 h-9 px-3 rounded-full border border-paper-line bg-paper text-sm focus:outline-none focus:ring-2 focus:ring-brand/30" />
+      <button class="h-9 px-3 rounded-full bg-brand-light text-brand text-xs font-600 hover:bg-sage-light">Add</button>
+    </form>
+    <label class="block text-xs font-600 text-ink-soft mt-3 mb-1" for="int-text">Anything else?</label>
+    <textarea id="int-text" name="text" rows="2" maxlength="500" placeholder="e.g. asks lots of questions about how bridges stay up" class="w-full px-3 py-2 rounded-2xl border border-paper-line bg-paper text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand/30">${esc(current.text)}</textarea>
+  </section>`);
+  const save = (patch) => store.setInterests(student.id, { ...store.interestsFor(student.id), ...patch });
+  const wrap = card.querySelector('.chips');
+  chips.forEach(chip => {
+    const sel = on.has(chip);
+    const b = el(`<button type="button" aria-pressed="${sel}" class="px-3 py-1 rounded-full text-xs font-600 transition-colors ${sel ? 'bg-butter text-ink' : 'bg-paper text-ink-soft hover:bg-butter-light'}">${esc(chip)}</button>`);
+    b.onclick = () => {
+      const list = store.interestsFor(student.id).chips;
+      save({ chips: sel ? list.filter(x => x !== chip) : [...list, chip] });
+    };
+    wrap.appendChild(b);
+  });
+  card.querySelector('.add').onsubmit = (e) => {
+    e.preventDefault();
+    const value = e.target.chip.value.trim();
+    if (value) save({ chips: [...store.interestsFor(student.id).chips, value] });
+  };
+  const text = card.querySelector('textarea');
+  text.onchange = () => save({ text: text.value });
+  return card;
 }
 
 // The week as seven little flowers: bloomed on days with learning activity.
