@@ -3,7 +3,7 @@
 // carrying all of them reaches the browser without those checks.
 import { test, expect, modal, expectToast, nav } from './fixtures.mjs';
 import { LEARNERS, TOPICS } from './support/family.mjs';
-import { HOSTILE_CHANGES, everyRenderPayload, hostileFamily } from './support/hostile-family.mjs';
+import { HOSTILE_CHANGES, PAYLOAD, everyRenderPayload, hostileFamily } from './support/hostile-family.mjs';
 
 const importButton = (page) => page.getByRole('button', { name: 'Import', exact: true });
 async function chooseImportFile(page, doc) {
@@ -63,5 +63,37 @@ test('every view escapes a hostile document that reaches the browser', async ({ 
   await expect(page.locator('img[src="x"]')).toHaveCount(0);
   expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
   expect(dialogs).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('a topic title with markup shows as text in both topic searches', async ({ page, gotoApp, errors }) => {
+  const title = `Count <b>bold</b> ${PAYLOAD}`;
+  // The taxonomy is upstream data: rename one topic as a hostile copy would.
+  await page.route('**/api/taxonomy/topics.json', async (route) => {
+    const body = await (await route.fetch()).json();
+    body.topics = body.topics.map((t) => (t.id === TOPICS.oneToOne.id ? { ...t, name: title } : t));
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  await gotoApp({ seed: {} });
+  await nav(page, 'Records').click();
+
+  // The note form's topic search (views/records.js).
+  await page.getByRole('button', { name: 'New record' }).click();
+  await modal(page).getByPlaceholder('Search topics…').fill('count <b>');
+  const noteResult = modal(page).locator('#results button').first();
+  await expect(noteResult).toContainText(title);
+  await expect(modal(page).locator('#results b, #results img')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  // The recorder's topic search (recorder.js).
+  await page.getByRole('button', { name: 'Record', exact: true }).click();
+  await modal(page).getByRole('button', { name: 'Start recording' }).click();
+  await expect(modal(page).getByText('Recording…')).toBeVisible();
+  await modal(page).getByRole('button', { name: 'Stop & review' }).click();
+  await modal(page).getByPlaceholder('Search topics…').fill('count <b>');
+  await expect(modal(page).locator('#results button').first()).toContainText(title);
+  await expect(modal(page).locator('#results b, #results img')).toHaveCount(0);
+
+  expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
   expect(errors).toEqual([]);
 });

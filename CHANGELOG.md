@@ -77,9 +77,20 @@ tagged a release yet; everything below is on `main`.
   those files (HAR-11 follow-up).
 - A stored AI analysis renders through an allowlist of the tags the app
   writes, so an imported file cannot inject markup through it.
-- Import checks every learner field (name, birth year and month, start
-  date, color) and the progress, interests, calendar and PIN data, and
-  refuses a malformed file with the reason (HAR-10 follow-up).
+- Import checks learner ids and fields, the active learner, progress,
+  records, test and challenge results, XP, interests, calendar settings, the
+  PIN and notifications (`src/js/document.js`), and refuses a malformed file
+  with the reason; a hostile file could run script on the Dashboard, a topic
+  page and Insights, or leave the app stuck loading (HAR-10 follow-up).
+- The server runs the same check on every save (422 with the reason) and
+  refuses a save in a data format newer than its own or older than the
+  stored document's (409); the app shows the reason instead of dropping the
+  change.
+- A document saved by a newer Harrington opens read-only, with a banner and
+  Import disabled, instead of being written back in the older format with
+  its new fields dropped.
+- The server removes stored parent notes from an AI request the parent did
+  not opt in to, and forwards only `{ role, content }` text messages.
 - The server replaces every learner name in the family document with “the
   child” in each message it forwards to the AI provider, with the same rules
   as the browser, so a prompt that missed the browser-side redaction still

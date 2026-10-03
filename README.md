@@ -30,7 +30,12 @@ and names of learners in this app are replaced with “the child” in the brows
 before a request is built (accents, hyphens and apostrophe variants included).
 The server does the same again on every message it forwards, with the same
 rules, for every learner in the family document (`/api/health` reports
-`redaction: "server+client"`).
+`redaction: "server+client"`), and removes any stored parent note from a
+request the parent did not opt in to. Because the server applies the name
+rules to the whole prompt, a learner whose name is also a common word pays
+for it: a learner called Will turns every “will” in the instructions and
+topic text into “the child” (“will” appears in about 40 of the taxonomy's
+topics), which can make answers worse. A nickname avoids it.
 When an AI provider is configured, this is what still leaves the machine:
 
 - topic names, descriptions and statuses, and mastery percentages;
@@ -254,15 +259,23 @@ In the app, **Export** in the sidebar's family box downloads
 `harrington-family-<date>.json`: the full family document plus `exportedAt`
 and `taxonomyVersion`. **Import** checks a file, previews its learners and
 record counts, and after you confirm replaces the family data on this server.
-The check refuses a file whose learners or per-learner data are malformed
-(a name over 100 characters, a birth year or month out of range, an unknown
-progress status, a PIN that is not four digits, and so on) and says why.
-The JSON file does not contain recordings, so keep a `data/private/` backup too.
+The check (`src/js/document.js`) covers learner fields (id, name, birth year
+and month, start date, a hex color), the active learner, progress statuses,
+records (type, rating, bounded text, numeric dates), test and challenge
+results (scores and counts as numbers), XP and badges, interests, calendar
+settings, the child-view PIN and notifications, and says what it refused.
+Other fields are not checked. A learner color outside the palette is moved to
+the nearest palette color, and the preview says how many were. The server
+applies the same check to every save and answers 422 with the reason. The
+JSON file does not contain recordings, so keep a `data/private/` backup too.
 
 The family document carries `schemaVersion`, its data format (currently 1).
 Older documents and exports are migrated when they are loaded or imported
-(`src/js/schema.js`); a file from a newer version of Harrington is refused
-until this server is updated.
+(`src/js/schema.js`), and a load that migrated saves the result once. A file
+from a newer version of Harrington is refused at import; a document from a
+newer version already on the server opens read-only, with a banner, and
+nothing is saved until this Harrington is updated. Top-level fields this
+version does not know are kept as they are.
 
 Saves are versioned: if another tab or device saved first, Harrington reloads
 the latest data and says so instead of overwriting it. Changes still pending
