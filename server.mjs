@@ -1,6 +1,8 @@
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { isIP } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,7 +13,17 @@ const lessonsDir = join(dataDir, 'lessons');
 const audioDir = join(dataDir, 'audio');
 const taxonomyDir = join(dataDir, 'taxonomy');
 const stateFile = join(dataDir, 'family-state.json');
-const host = process.env.HARRINGTON_HOST || '127.0.0.1';
+const host = (process.env.HARRINGTON_HOST || '').trim() || '127.0.0.1';
+// In a container the bind is 0.0.0.0, but compose may publish the port on
+// loopback only; this names the address other devices actually reach.
+const publishedHost = (process.env.HARRINGTON_PUBLISHED_HOST || '').trim() || host;
+const accessToken = (process.env.HARRINGTON_ACCESS_TOKEN || '').trim();
+const extraAllowedHosts = (process.env.HARRINGTON_ALLOWED_HOSTS || '')
+  .split(',').map((name) => name.trim().toLowerCase()).filter(Boolean);
+const MIN_TOKEN_LENGTH = 16;
+const SESSION_COOKIE = 'harrington_session';
+// Browsers cap a cookie's lifetime at 400 days; a tablet signs in once.
+const SESSION_MAX_AGE = 400 * 24 * 60 * 60;
 const configuredPort = Number.parseInt(process.env.HARRINGTON_PORT || process.env.PORT || '4173', 10);
 const port = Number.isInteger(configuredPort) && configuredPort >= 0 ? configuredPort : 4173;
 const JSON_LIMIT = 5 * 1024 * 1024;
@@ -346,15 +358,180 @@ async function loadTaxonomyFile(name) {
   return body;
 }
 
+// ---- Bind address and access token (HAR-25) ----
+// An IP address, `localhost`, or a plain DNS name (a mesh name such as
+// `family-host.tailnet-name.ts.net` resolves to the mesh interface).
+function validHost(value) {
+  if (isIP(value)) return true;
+  return value.length <= 253 && /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))*$/i.test(value);
+}
+
+function isLoopbackHost(value) {
+  const lower = value.toLowerCase();
+  if (lower === 'localhost' || lower === '::1') return true;
+  if (/^(::ffff:)?127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(lower)) return true;
+  return false;
+}
+
+const bindIsLoopback = isLoopbackHost(host);
+const hostIsLoopback = isLoopbackHost(publishedHost);
+// Shared: something other than this computer is meant to reach Harrington.
+const shared = !bindIsLoopback || !hostIsLoopback;
+
+// DNS rebinding: a web page on an attacker's domain can re-point that domain
+// at this server, and the browser then sends the attacker's name as Host. Once
+// Harrington is shared, it answers only to names the family uses. An IP
+// literal is always accepted: a rebinding attack never arrives as one.
+const allowedHosts = new Set(['localhost', publishedHost.toLowerCase(), host.toLowerCase(), ...extraAllowedHosts]);
+
+function hostHeaderName(req) {
+  const value = String(req.headers.host || '').trim().toLowerCase();
+  const bracketed = value.match(/^\[([^\]]+)\](?::\d+)?$/);
+  if (bracketed) return bracketed[1];
+  return value.replace(/:\d+$/, '').replace(/\.$/, '');
+}
+
+function hostAllowed(req) {
+  if (!shared) return true;
+  const name = hostHeaderName(req);
+  return isIP(name) !== 0 || allowedHosts.has(name);
+}
+
+const authEnabled = accessToken.length > 0;
+// The cookie holds a value derived from the token, never the token itself, so
+// changing HARRINGTON_ACCESS_TOKEN signs every device out.
+const sessionValue = authEnabled
+  ? createHmac('sha256', accessToken).update('harrington-session-v1').digest('base64url')
+  : '';
+
+// Hashing first gives both sides the same length, so timingSafeEqual never
+// throws and the comparison time does not depend on where they differ.
+function safeEqual(a, b) {
+  const left = createHash('sha256').update(String(a)).digest();
+  const right = createHash('sha256').update(String(b)).digest();
+  return timingSafeEqual(left, right);
+}
+
+function cookieValue(req, name) {
+  for (const part of String(req.headers.cookie || '').split(';')) {
+    const index = part.indexOf('=');
+    if (index > 0 && part.slice(0, index).trim() === name) return part.slice(index + 1).trim();
+  }
+  return null;
+}
+
+function isSignedIn(req) {
+  if (!authEnabled) return true;
+  const value = cookieValue(req, SESSION_COOKIE);
+  return value !== null && safeEqual(value, sessionValue);
+}
+
+// Harrington never terminates TLS itself; a mesh or reverse proxy in front of
+// it says the browser used HTTPS.
+function requestIsHttps(req) {
+  if (req.socket?.encrypted) return true;
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+  if (forwardedProto === 'https') return true;
+  return /(^|[;,\s])proto=https($|[;,\s])/i.test(String(req.headers.forwarded || ''));
+}
+
+function sendHtml(res, status, title, paragraphs, headers = {}) {
+  const body = `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title} · Harrington</title>
+<style>body{font-family:system-ui,sans-serif;max-width:36rem;margin:3rem auto;padding:0 1rem;line-height:1.5;color:#2b2a26;background:#faf6ee}code{background:#efe7d6;padding:0 .25rem;border-radius:.25rem}</style>
+</head>
+<body><h1>${title}</h1>${paragraphs.map((p) => `<p>${p}</p>`).join('')}</body>
+</html>
+`;
+  send(res, status, body, { 'Content-Type': 'text/html; charset=utf-8', 'Referrer-Policy': 'no-referrer', ...headers });
+}
+
+const SIGN_IN_FORM = `<form method="post" action="/login">
+<p><label for="token">Family access token</label><br>
+<input id="token" name="token" type="password" autocomplete="current-password" required autofocus style="font:inherit;padding:.4rem;width:100%;max-width:24rem"></p>
+<p><button type="submit" style="font:inherit;padding:.4rem 1rem">Sign in</button></p>
+</form>`;
+
+const SIGN_IN_HELP = [
+  'This Harrington server asks each device to sign in once with the family access token: the value of <code>HARRINGTON_ACCESS_TOKEN</code> on the computer that runs Harrington.',
+  SIGN_IN_FORM,
+  'After that this browser stays signed in. <code>docs/DEPLOYMENT.md</code> has the full steps.',
+];
+
+function sendUnauthorized(res) {
+  sendHtml(res, 401, 'Sign in to Harrington', ['Open <a href="/login">/login</a> on this device to sign in.', ...SIGN_IN_HELP]);
+}
+
+function signIn(req, res, token) {
+  if (!safeEqual(token, accessToken)) {
+    sendHtml(res, 401, 'That token did not work', [
+      'It does not match this Harrington server. Check it for typos, or ask whoever runs the host computer for the current token.',
+      ...SIGN_IN_HELP,
+    ]);
+    return;
+  }
+  const attributes = [
+    `${SESSION_COOKIE}=${sessionValue}`,
+    'Path=/',
+    `Max-Age=${SESSION_MAX_AGE}`,
+    'HttpOnly',
+    'SameSite=Strict',
+  ];
+  if (requestIsHttps(req)) attributes.push('Secure');
+  // The redirect clears the token from the address bar. A ?token= link still
+  // stays in the browser's history, which is why the form is the main path.
+  send(res, 303, '', { Location: '/', 'Set-Cookie': attributes.join('; '), 'Referrer-Policy': 'no-referrer' });
+}
+
+// GET /login shows the form; GET /login?token=... is the link convenience;
+// POST /login takes the form. All three use the same check and cookie.
+async function handleLogin(req, res, url) {
+  if (!authEnabled) {
+    send(res, 303, '', { Location: '/' });
+    return;
+  }
+  if (req.method === 'POST') {
+    const body = await readBody(req, 4096);
+    const token = new URLSearchParams(body.toString('utf8')).get('token');
+    signIn(req, res, token ?? '');
+    return;
+  }
+  const token = url.searchParams.get('token');
+  if (token === null) {
+    sendHtml(res, 200, 'Sign in to Harrington', SIGN_IN_HELP);
+    return;
+  }
+  signIn(req, res, token);
+}
+
 async function handleApi(req, res, url) {
   if (url.pathname === '/api/health' && req.method === 'GET') {
+    const signedIn = isSignedIn(req);
+    const deployment = {
+      host: hostIsLoopback ? 'loopback' : 'network',
+      authEnabled,
+      ...(authEnabled ? { signedIn } : {}),
+    };
+    // A device that has not signed in learns only enough to show how to sign in.
+    if (!signedIn) {
+      sendJson(res, 200, { ok: true, mode: 'self-hosted', ...deployment });
+      return true;
+    }
     sendJson(res, 200, {
       ok: true,
       mode: 'self-hosted',
+      ...deployment,
       aiConfigured: aiSettings().configured,
       taxonomyCached: await taxonomyCached(),
       ...(await stateHealth()),
     });
+    return true;
+  }
+
+  if (url.pathname.startsWith('/api/') && !isSignedIn(req)) {
+    sendUnauthorized(res);
     return true;
   }
 
@@ -485,12 +662,33 @@ async function serveStatic(req, res, url) {
   }
 }
 
+const hostSettings = [
+  ['HARRINGTON_HOST', host],
+  ['HARRINGTON_PUBLISHED_HOST', publishedHost],
+  ...extraAllowedHosts.map((name) => ['HARRINGTON_ALLOWED_HOSTS', name]),
+];
+for (const [name, value] of hostSettings) {
+  if (!validHost(value)) {
+    console.error(`${name} must be an IP address or a host name; got ${JSON.stringify(value)}`);
+    process.exit(1);
+  }
+}
+if (authEnabled && accessToken.length < MIN_TOKEN_LENGTH) {
+  console.error(`HARRINGTON_ACCESS_TOKEN must be at least ${MIN_TOKEN_LENGTH} characters; see docs/DEPLOYMENT.md`);
+  process.exit(1);
+}
+
 await mkdir(dataDir, { recursive: true });
 
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', 'http://harrington.local');
-    if (!(await handleApi(req, res, url))) await serveStatic(req, res, url);
+    if (!hostAllowed(req)) {
+      send(res, 421, 'Harrington does not answer to this host name; add it to HARRINGTON_ALLOWED_HOSTS.\n', { 'Content-Type': 'text/plain; charset=utf-8' });
+      return;
+    }
+    if (url.pathname === '/login' && ['GET', 'HEAD', 'POST'].includes(req.method)) await handleLogin(req, res, url);
+    else if (!(await handleApi(req, res, url))) await serveStatic(req, res, url);
   } catch (error) {
     console.error(error);
     sendJson(res, error.statusCode || 500, { error: error.statusCode ? error.message : 'Internal server error' });
@@ -500,8 +698,24 @@ const server = createServer(async (req, res) => {
 server.listen(port, host, () => {
   const address = server.address();
   const actualPort = typeof address === 'object' && address ? address.port : port;
-  console.log(`Harrington listening at http://${host}:${actualPort}`);
+  const shownHost = isIP(host) === 6 ? `[${host}]` : host;
+  console.log(`Harrington listening at http://${shownHost}:${actualPort}`);
   console.log(`Family data directory: ${dataDir}`);
+  console.log(bindIsLoopback
+    ? `Bind address ${host} is loopback: only this computer can connect to it directly.`
+    : `Bind address ${host} is not loopback: other devices can connect to it directly, unless a container or firewall stops them.`);
+  if (publishedHost !== host) {
+    console.log(hostIsLoopback
+      ? `Published address ${publishedHost} is loopback: the app tells people it runs on this computer only.`
+      : `Published address ${publishedHost}: other devices open Harrington there.`);
+  }
+  if (shared) {
+    console.log(`Answering to host names: ${[...allowedHosts].join(', ')}, and any IP address (HARRINGTON_ALLOWED_HOSTS adds more).`);
+    console.log('Other devices need HTTPS in front of Harrington for the microphone (docs/DEPLOYMENT.md).');
+  }
+  console.log(authEnabled
+    ? 'Access token is on: each device signs in once at /login.'
+    : `Access token is off${shared ? ': anyone who can reach this server can read and change family data' : ''}.`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

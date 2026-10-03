@@ -1,7 +1,12 @@
 // Harrington-owned persistence. All requests stay on the same self-hosted origin.
+import { SIGN_IN_MESSAGE } from './hosting.js';
 
 async function request(path, options = {}) {
   const response = await fetch(path, options);
+  if (response.status === 401) {
+    // The access token is on and this browser has no sign-in cookie.
+    throw Object.assign(new Error(SIGN_IN_MESSAGE), { status: 401, body: null });
+  }
   if (!response.ok) {
     let message = `Harrington request failed (${response.status})`;
     let body = null;

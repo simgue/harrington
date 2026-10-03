@@ -1,5 +1,6 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
+import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 
 export const MASTERY = {
   none:       { label: 'Not started', rank: 0, color: '#d2c6ad' },
@@ -41,6 +42,8 @@ export function get() { return state; }
 let aiConfigured = false; // from /api/health; kept out of the persisted state
 export async function connect() {
   const health = await backend.health();
+  setHosting(health);
+  if (health?.authEnabled === true && health.signedIn !== true) throw new Error(SIGN_IN_MESSAGE);
   aiConfigured = health?.aiConfigured === true;
   state.user = { username: 'Family' };
   return state.user;
