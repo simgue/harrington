@@ -4,7 +4,8 @@ import { createServer } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { redactNames } from './src/js/redact.js';
-import { SCHEMA_VERSION } from './src/js/schema.js';
+import { SCHEMA_VERSION, schemaVersionOf } from './src/js/schema.js';
+import { validateDocument } from './src/js/document.js';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(repoRoot, 'src');
@@ -131,10 +132,27 @@ function stateVersionOf(doc) {
   return Number.isSafeInteger(doc?.version) && doc.version >= 0 ? doc.version : 0;
 }
 
-async function readStateDocument() {
-  const doc = await readJsonFile(stateFile, { schemaVersion: SCHEMA_VERSION });
+function normalizeState(doc) {
   const value = doc && typeof doc === 'object' && !Array.isArray(doc) ? doc : {};
   return { ...value, version: stateVersionOf(value) };
+}
+
+async function readStateDocument() {
+  return normalizeState(await readJsonFile(stateFile, { schemaVersion: SCHEMA_VERSION }));
+}
+
+// Every save is checked with the rules the browser applies before an import
+// (src/js/document.js): 422 for a document the app could not render, 409 for
+// a data format this server does not know or older than the stored one.
+function saveProblem(data) {
+  const { version: _version, updatedAt: _updatedAt, writeId: _writeId, ...doc } = data;
+  const schema = schemaVersionOf(doc);
+  if (schema === null) return { status: 422, error: 'schemaVersion must be a whole number' };
+  if (schema > SCHEMA_VERSION) {
+    return { status: 409, error: `This server reads family data up to format ${SCHEMA_VERSION}; the save is format ${schema}. Update Harrington.` };
+  }
+  const problem = validateDocument(doc);
+  return problem ? { status: 422, error: problem } : null;
 }
 
 function stateEtag(version) {
@@ -153,8 +171,16 @@ function parseIfMatch(header) {
 // same version cannot both succeed.
 function writeStateIfMatch(expected, data) {
   return enqueueWrite(stateFile, async () => {
-    const current = await readStateDocument();
+    const stored = await readJsonFile(stateFile, null);
+    const current = stored === null ? await readStateDocument() : normalizeState(stored);
     if (current.version !== expected) return { ok: false, current };
+    // Only a document on disk sets the floor; the new one served before the
+    // first save does not.
+    const storedSchema = stored === null ? 0 : (schemaVersionOf(current) ?? 0);
+    const schema = schemaVersionOf(data) ?? 0;
+    if (schema < storedSchema) {
+      return { ok: false, refused: { status: 409, error: `The family data is format ${storedSchema}; this save is format ${schema}. Reload Harrington.` } };
+    }
     const { version: _version, updatedAt: _updatedAt, writeId, ...rest } = data;
     // An optional client-chosen id lets a tab recognise its own write later,
     // such as an unload beacon whose response it never saw. A body that merely
@@ -191,7 +217,16 @@ async function handleStateWrite(req, res) {
     sendJson(res, 428, { error: 'Saving family data requires If-Match with the current state version' });
     return;
   }
+  const problem = saveProblem(value);
+  if (problem) {
+    sendJson(res, problem.status, { error: problem.error });
+    return;
+  }
   const result = await writeStateIfMatch(expected, value);
+  if (result.refused) {
+    sendJson(res, result.refused.status, { error: result.refused.error });
+    return;
+  }
   if (!result.ok) {
     send(res, 412, JSON.stringify(result.current), {
       'Content-Type': 'application/json; charset=utf-8',

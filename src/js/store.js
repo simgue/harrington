@@ -1,6 +1,9 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
 import { SCHEMA_VERSION, isNewerSchema, migrateDocument, schemaVersionOf } from './schema.js';
+import { LEARNER_KEYS, MIN_BIRTH_YEAR, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
+
+export { MIN_BIRTH_YEAR };
 
 export const MASTERY = {
   none:       { label: 'Not started', rank: 0, color: '#d2c6ad' },
@@ -72,11 +75,8 @@ let unconfirmedBeacon = null;
 // Recordings of removed learners, deleted once the removal is saved.
 let pendingAudioDeletes = [];
 
-// Per-learner maps keyed by student id. removeStudent clears every one of them.
-const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
-  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests'];
 
-// Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'failed', error? }
+// Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'rejected' | 'failed', error? }
 export function onSaveStatus(fn) { saveListeners.add(fn); return () => saveListeners.delete(fn); }
 function saveStatus(event) { saveListeners.forEach(fn => { try { fn(event); } catch (e) { console.warn(e); } }); }
 
@@ -226,7 +226,10 @@ async function saveWith(makeData) {
   } catch (e) {
     dirty = true;
     console.warn('save failed', e);
-    saveStatus({ type: e.status === 413 ? 'too-large' : 'failed', error: e });
+    // 422 and 409: the server refused the document itself (document.js and
+    // the data format rules), so retrying the same data will not help.
+    const type = e.status === 413 ? 'too-large' : e.status === 422 || e.status === 409 ? 'rejected' : 'failed';
+    saveStatus({ type, error: e });
     return false;
   } finally {
     saving = false;
@@ -317,39 +320,18 @@ export async function exportDocument() {
   return { ...migrateDocument(await backend.loadState()), ...meta };
 }
 
-// Checks an export (or a raw family-state.json) before import. Returns
+// Checks an export (or a raw family-state.json) before import with the same
+// rules the server applies to every save (document.js). Returns
 // { ok, error?, learners: [{ name, topics, records, tests }] } for the preview.
-// Every learner field and the per-learner maps the app reads directly are
-// checked, so a hand-edited or hostile file is refused with a reason instead
-// of reaching the views. Fields an older export may lack are optional.
 export function inspectImport(doc) {
   const fail = (error) => ({ ok: false, error, learners: [] });
-  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return fail('The file is not a Harrington family export.');
+  if (!isObject(doc)) return fail('The file is not a Harrington family export.');
   if (schemaVersionOf(doc) === null) return fail('The file\'s data format version is not a number.');
   if (isNewerSchema(doc)) {
     return fail(`The file comes from a newer version of Harrington (data format ${doc.schemaVersion}; this one reads up to ${SCHEMA_VERSION}). Update Harrington, then import it.`);
   }
-  if (!Array.isArray(doc.students)) return fail('The file has no learner list.');
-  const ids = new Set();
-  for (const [index, s] of doc.students.entries()) {
-    if (!s || typeof s !== 'object' || typeof s.id !== 'string' || !s.id || typeof s.name !== 'string') {
-      return fail('A learner in the file is missing an id or name.');
-    }
-    const problem = learnerProblem(s);
-    if (problem) return fail(`Learner ${index + 1} in the file ${problem}.`);
-    if (ids.has(s.id)) return fail(`Learner ${index + 1} in the file has the same id as another learner.`);
-    ids.add(s.id);
-  }
-  for (const key of LEARNER_KEYS) {
-    if (doc[key] !== undefined && (!doc[key] || typeof doc[key] !== 'object' || Array.isArray(doc[key]))) {
-      return fail(`The file's "${key}" section is not in the expected shape.`);
-    }
-  }
-  if (doc.notifications !== undefined && !Array.isArray(doc.notifications)) {
-    return fail('The file\'s notifications are not in the expected shape.');
-  }
-  const mapProblem = progressProblem(doc.progress) || interestsProblem(doc.interests) || settingsProblem(doc.settings);
-  if (mapProblem) return fail(mapProblem);
+  const problem = validateDocument(doc);
+  if (problem) return fail(problem);
   const learners = doc.students.map(s => ({
     name: s.name,
     topics: countOf(doc.progress?.[s.id]),
@@ -357,57 +339,6 @@ export function inspectImport(doc) {
     tests: countOf(doc.tests?.[s.id]),
   }));
   return { ok: true, learners };
-}
-
-const NAME_MAX = 100;
-const absent = v => v === undefined || v === null;
-// What is wrong with one learner, as the end of "Learner 2 in the file …", or null.
-function learnerProblem(s) {
-  const name = s.name.trim();
-  if (!name) return 'has an empty name';
-  if (name.length > NAME_MAX) return `has a name longer than ${NAME_MAX} characters`;
-  if (!absent(s.birthYear) && !validYear(s.birthYear)) return `has a birth year outside ${MIN_BIRTH_YEAR} to this year`;
-  if (!absent(s.birthMonth) && !validMonth(s.birthMonth)) return 'has a birth month outside 1 to 12';
-  if (!absent(s.startDate) && !realDateKey(s.startDate)) return 'has a start date that is not a yyyy-mm-dd date';
-  // An older palette's colors are replaced on import; anything else is refused.
-  if (!absent(s.color) && !(typeof s.color === 'string' && /^#[0-9a-f]{6}$/i.test(s.color))) return 'has a color that is not a palette color';
-  return null;
-}
-function progressProblem(progress) {
-  for (const entries of Object.values(progress || {})) {
-    if (!isObject(entries)) return 'The file\'s "progress" section is not in the expected shape.';
-    for (const entry of Object.values(entries)) {
-      if (!isObject(entry) || !Object.hasOwn(MASTERY, entry.status)) {
-        return `The file's progress has a status other than ${Object.keys(MASTERY).join(', ')}.`;
-      }
-    }
-  }
-  return null;
-}
-function interestsProblem(interests) {
-  for (const value of Object.values(interests || {})) {
-    if (absent(value)) continue;
-    const ok = isObject(value)
-      && (absent(value.chips) || (Array.isArray(value.chips) && value.chips.every(c => typeof c === 'string')))
-      && (absent(value.text) || typeof value.text === 'string');
-    if (!ok) return 'The file\'s interests are not in the expected shape.';
-  }
-  return null;
-}
-function settingsProblem(settings) {
-  if (absent(settings)) return null;
-  if (!isObject(settings)) return 'The file\'s settings are not in the expected shape.';
-  const pin = settings.parentPin;
-  if (!absent(pin) && pin !== '' && !((typeof pin === 'string' || typeof pin === 'number') && /^\d{4}$/.test(String(pin)))) {
-    return 'The file\'s child-view PIN is not four digits.';
-  }
-  const cal = settings.calendar;
-  if (absent(cal)) return null;
-  const ok = isObject(cal)
-    && (absent(cal.homeDays) || (Array.isArray(cal.homeDays) && cal.homeDays.every(n => Number.isInteger(n) && n >= 0 && n <= 6)))
-    && (absent(cal.breaks) || (Array.isArray(cal.breaks) && cal.breaks.every(b => isObject(b)
-      && realDateKey(b.start) && realDateKey(b.end) && (absent(b.label) || typeof b.label === 'string'))));
-  return ok ? null : 'The file\'s calendar settings are not in the expected shape.';
 }
 
 // Replaces the family document on the server with `doc`, guarded by the
@@ -438,10 +369,6 @@ export function importDocument(doc) {
 // ---- Students ----
 export const PALETTE = ['#3f6b3b', '#a4473a', '#2f6285', '#5b4a86', '#8a6412', '#9a4a6e'];
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-export const MIN_BIRTH_YEAR = 1990;
-const validMonth = m => Number.isInteger(m) && m >= 1 && m <= 12;
-const validYear = y => Number.isInteger(y) && y >= MIN_BIRTH_YEAR && y <= new Date().getFullYear();
-const validDateKey = k => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
 export function addStudent(name, birthYear, birthMonth = null) {
   const id = 's_' + Math.random().toString(36).slice(2, 9);
   const color = PALETTE[state.students.length % PALETTE.length];
@@ -1077,12 +1004,6 @@ export function setParentPin(pin) {
 // ranges. Anything malformed is dropped or repaired; no home days at all
 // falls back to Mon–Fri. Returns { homeDays: [0-6, …], breaks: [{ start, end, label }, …] }.
 const DEFAULT_HOME_DAYS = [1, 2, 3, 4, 5];
-const realDateKey = k => {
-  if (!validDateKey(k)) return false;
-  const [y, m, d] = k.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
-};
 export function normalizeCalendar(raw) {
   const cal = objectOr(raw, {});
   let homeDays = Array.isArray(cal.homeDays)
@@ -1134,7 +1055,6 @@ export function normalizeCached(kind, value) {
 
 // Optional list fields must be arrays when present; the renderers map over them.
 const listsOrAbsent = (v, keys) => keys.every(k => v[k] == null || Array.isArray(v[k]));
-const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
 export function isValidCached(kind, value) {
   const v = normalizeCached(kind, value);

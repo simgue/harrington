@@ -364,12 +364,13 @@ function showTooLarge() {
   refreshIcons();
 }
 
-function showRetry() {
+// reason: the server's explanation when it refused the data itself (422, 409).
+function showRetry(reason = null) {
   if (retryToast) return;
   const root = document.getElementById('toast-root');
   if (!root) return;
   retryToast = el(`<div role="alert" class="px-4 py-2.5 rounded-lg text-sm font-medium bg-[#a4473a] text-white shadow-lg flex items-center gap-3">
-    <span>Could not save changes to Harrington.</span>
+    <span>${reason ? `Harrington refused these changes: ${esc(reason)}` : 'Could not save changes to Harrington.'}</span>
     <button class="underline font-600">Retry</button>
   </div>`);
   retryToast.querySelector('button').onclick = () => {
@@ -379,10 +380,11 @@ function showRetry() {
   root.appendChild(retryToast);
 }
 
-store.onSaveStatus(({ type }) => {
+store.onSaveStatus(({ type, error }) => {
   if (typeof document === 'undefined') return;
   if (type === 'saved') clearSaveProblems();
   else if (type === 'conflict') { clearSaveProblems(); toast('Another device saved changes. Reloaded the latest.'); }
   else if (type === 'too-large') showTooLarge();
   else if (type === 'failed') showRetry();
+  else if (type === 'rejected') showRetry(error?.message || null);
 });

@@ -234,7 +234,7 @@ test('stores a client writeId and returns it on reads and conflicts', async () =
   assert.equal((await stale.json()).writeId, 'tab-a-1');
 
   // Echoing the stored id back (read, modify, write) does not claim it.
-  const echoed = await putState({ ...loaded, students: [] }, `"v${loaded.version}"`);
+  const echoed = await putState({ ...loaded, students: [], activeStudentId: null }, `"v${loaded.version}"`);
   assert.equal(echoed.status, 204);
   const afterEcho = await (await fetch(`${baseUrl}/api/state`)).json();
   assert.equal(afterEcho.writeId, undefined);
@@ -242,6 +242,46 @@ test('stores a client writeId and returns it on reads and conflicts', async () =
   // Ids that are not short strings are not stored.
   assert.equal((await putState({ ...state, writeId: 'x'.repeat(65) }, `"v${afterEcho.version}"`)).status, 204);
   assert.equal((await (await fetch(`${baseUrl}/api/state`)).json()).writeId, undefined);
+});
+
+test('refuses a save the app could not render (422) or a data format it does not know (409)', async () => {
+  const current = async () => (await fetch(`${baseUrl}/api/state`)).json();
+  const before = await current();
+  const tag = `"v${before.version}"`;
+  const learner = { id: 'v1', name: 'Valid Learner', birthYear: 2019 };
+  for (const [body, error] of [
+    [{ students: [{ ...learner, id: 'constructor' }] }, 'Learner 1 in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
+    [{ students: [learner], records: { v1: [{ id: 'r', type: '<img src=x onerror=alert(1)>' }] } }, 'A record in the file (records item 1) has a type other than observation, question, discussion, assessment, recording, note.'],
+    [{ students: [learner], tests: { v1: [{ pct: '<b>' }] } }, 'A test result in the file (tests item 1) has a score outside 0 to 100%.'],
+    [{ students: [learner], game: { v1: { xp: '<b>' } } }, 'The file\'s XP is not a number of zero or more.'],
+    [{ students: 'nope' }, 'The file has no learner list.'],
+    [{ schemaVersion: 'one', students: [] }, 'schemaVersion must be a whole number'],
+  ]) {
+    const response = await putState(body, tag);
+    assert.equal(response.status, 422, error);
+    assert.deepEqual(await response.json(), { error });
+  }
+  // The unload beacon path is checked the same way.
+  const beacon = await fetch(`${baseUrl}/api/state`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ students: [{ ...learner, id: '__proto__' }], version: before.version }),
+  });
+  assert.equal(beacon.status, 422);
+
+  const newer = await putState({ schemaVersion: 2, students: [] }, tag);
+  assert.equal(newer.status, 409);
+  assert.match((await newer.json()).error, /reads family data up to format 1; the save is format 2/);
+
+  // Once the stored document is format 1, a save without the field (format 0) is refused.
+  assert.equal((await putState({ schemaVersion: 1, students: [learner] }, tag)).status, 204);
+  const stored = await current();
+  const older = await putState({ students: [learner] }, `"v${stored.version}"`);
+  assert.equal(older.status, 409);
+  assert.match((await older.json()).error, /family data is format 1; this save is format 0/);
+  assert.deepEqual(await current(), stored, 'nothing refused was written');
+  // Leave the store as later tests expect: back to a document without the field.
+  await writeFile(join(dataDir, 'family-state.json'), JSON.stringify({ ...before, version: stored.version }));
 });
 
 test('round-trips an export through import', async () => {
