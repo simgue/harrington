@@ -78,7 +78,7 @@ test('import refuses files that are not a family export', async ({ page, api, go
   await chooseImportFile(page, JSON.stringify({ hello: 'world' }));
   await expectToast(page, 'The file has no learner list.');
   await chooseImportFile(page, JSON.stringify({ students: [{ name: 'No id' }] }));
-  await expectToast(page, 'A learner in the file is missing an id or name.');
+  await expectToast(page, 'Learner 1 in the file is missing an id or name.');
   await expect(page.locator('#modal-root > div')).toHaveCount(0);
   expect((await api.getState()).state.students).toHaveLength(3);
 });

@@ -3,8 +3,9 @@
 // comments, regex literals and nested `${}` well enough for src/js.
 
 // Every template literal in `src`, nested ones included, as
-// { text, exprs, parent, line }: `text` is the static part (each `${}` becomes
-// \0), `exprs` the trimmed source of each interpolation.
+// { text, exprs, spans, parent, line }: `text` is the static part (each `${}`
+// becomes \0), `exprs` the trimmed source of each interpolation and `spans`
+// its [start, end) offsets in `src`.
 export function templateLiterals(src) {
   const out = [];
   let i = 0;
@@ -44,7 +45,7 @@ export function templateLiterals(src) {
     }
   };
   const template = (parent) => {
-    const t = { text: '', exprs: [], parent, line: lineAt(i) };
+    const t = { text: '', exprs: [], spans: [], parent, line: lineAt(i) };
     out.push(t);
     for (i++; i < src.length && src[i] !== '`';) {
       if (src[i] === '\\') { t.text += src.slice(i, i + 2); i += 2; continue; }
@@ -53,6 +54,7 @@ export function templateLiterals(src) {
         const start = i;
         code(t, true);
         t.exprs.push(src.slice(start, i).trim());
+        t.spans.push([start, i]);
         t.text += '\0';
         i++;
         continue;
@@ -96,13 +98,14 @@ function shape(expr) {
 }
 
 // Escaping helpers from src/js/ui.js: esc() for text and attributes,
-// analysisHtml() for stored AI analysis markup.
-const ESCAPERS = ['esc', 'analysisHtml'];
+// analysisHtml() for AI analysis markup, ratingStars() (only star characters).
+const ESCAPERS = ['esc', 'analysisHtml', 'ratingStars'];
 
-// Whether `expr` is one call to an escaper and nothing else ("esc(a) + b" is not).
-function wholeEscCall(expr) {
+// Whether `expr` is one call to a function in `names` and nothing else
+// ("esc(a) + b" is not).
+function wholeCall(expr, names) {
   const s = shape(expr);
-  const name = ESCAPERS.find(n => s.startsWith(`${n}(`));
+  const name = names.find(n => s.startsWith(`${n}(`));
   if (!name) return false;
   let depth = 0;
   for (let i = name.length; i < s.length; i++) {
@@ -112,19 +115,36 @@ function wholeEscCall(expr) {
   return false;
 }
 
-// An interpolation that cannot carry unescaped data into markup: an escaper call, a
-// ternary choosing between literals, a .map(x => `...`).join(...) of templates
-// (each checked on its own), or an entry of `allowed` (exact source).
-export function safeInterpolation(expr, allowed = new Set()) {
-  if (allowed.has(expr) || wholeEscCall(expr)) return true;
+// A ternary, possibly chained, whose every branch is a literal:
+// "a ? S : b ? S : S" folds to S.
+function literalChoice(s) {
+  let prev;
+  do { prev = s; s = s.replace(/(?:^|(?<=: ?))[^?:]+\? ?S ?: ?S$/, 'S'); } while (s !== prev);
+  return s === 'S';
+}
+
+// An interpolation that cannot carry unescaped data into markup: an escaper
+// call, a number literal, a (chained) ternary choosing between literals, a
+// .map(x => `...`).join(...) of templates (each checked on its own), a call
+// to one of `helpers` (functions that build their markup from constants and
+// escaped values), or an entry of `allowed` (exact source).
+export function safeInterpolation(expr, allowed = new Set(), helpers = []) {
+  if (allowed.has(expr) || wholeCall(expr, ESCAPERS) || wholeCall(expr, helpers) || /^\d+$/.test(expr)) return true;
   const s = shape(expr).replace(/\s+/g, ' ');
-  if (/^[^?]+\? ?S ?: ?S$/.test(s)) return true;
+  if (literalChoice(s)) return true;
   return /^[\w$.]+\.map\(\(?\w+\)? => S\)\.join\((?:S)?\)$/.test(s);
 }
 
-// Interpolations in markup templates of `src` that are not safe, as "line: expr".
-export function unescapedInterpolations(src, allowed) {
+// Interpolations in markup templates of `src` that are not safe, as
+// { line, expr, span }.
+export function unsafeInterpolations(src, allowed, helpers) {
   return templateLiterals(src)
     .filter(isMarkup)
-    .flatMap(t => t.exprs.filter(e => !safeInterpolation(e, allowed)).map(e => `${t.line}: ${e}`));
+    .flatMap(t => t.exprs.map((expr, k) => ({ line: t.line, expr, span: t.spans[k] }))
+      .filter(({ expr }) => !safeInterpolation(expr, allowed, helpers)));
+}
+
+// The same, as "line: expr" strings for an assertion message.
+export function unescapedInterpolations(src, allowed, helpers) {
+  return unsafeInterpolations(src, allowed, helpers).map(({ line, expr }) => `${line}: ${expr}`);
 }

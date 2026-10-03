@@ -1,6 +1,6 @@
 import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';
-import { el, esc, analysisHtml, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
+import { el, esc, analysisHtml, ratingStars, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { openRecorder, audioPlayer, coverageCandidates, coverageClaimField } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
 import { aiErrorBlock, gateAi } from '../ai-status.js';
@@ -85,7 +85,7 @@ function recordCard(r, student, d, navigate) {
   const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-4">
     <div class="flex items-center gap-2 text-xs mb-1.5">
       <span class="flex items-center gap-1 font-600 px-2 py-0.5 rounded-full" style="color:${esc(tm.color)};background:${esc(tm.color)}14"><i data-lucide="${esc(tm.icon)}" class="w-3.5 h-3.5"></i>${esc(tm.label)}</span>
-      ${r.rating ? `<span class="text-[#8a6412]">${esc('\u2605'.repeat(r.rating) + '\u2606'.repeat(5 - r.rating))}</span>` : ''}
+      ${r.rating ? `<span class="text-[#8a6412]">${ratingStars(r.rating)}</span>` : ''}
       <span class="text-ink-faint ml-auto">${esc(fmtDateTime(r.createdAt))}</span>
       <button class="del text-ink-faint hover:text-[#a4473a] p-0.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
     </div>

@@ -50,7 +50,7 @@ export class Api {
     throw new Error('PUT /api/state kept failing its precondition');
   }
 
-  async reset() { await this.putState({ schemaVersion: 1 }); }
+  async reset() { await this.putState({ schemaVersion: 1, students: [] }); }
 
   async seed(options) {
     const state = familyState(options);
