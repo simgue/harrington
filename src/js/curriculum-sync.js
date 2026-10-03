@@ -4,7 +4,7 @@
 // change is only seen if the cache under data/private/taxonomy/ is replaced.
 import { getData, SUBJECTS } from './data.js';
 import * as store from './store.js';
-import { formatCount } from './format.js';
+import { countLabel } from './format.js';
 
 // Build a compact snapshot of the current curriculum for future comparison.
 function snapshot(d) {
@@ -43,7 +43,7 @@ export function syncCurriculum() {
       store.addNotification({
         type: 'welcome',
         title: 'Your curriculum is ready',
-        body: `Harrington has loaded ${formatCount(next.count)} topics (${next.version}) from the open Marble curriculum. This copy is kept on this computer and does not update on its own.`,
+        body: `Harrington has loaded ${countLabel(next.count, 'topic')} (${next.version}) from the open Marble curriculum. This copy is kept on this computer and does not update on its own.`,
       });
     }
     return;

@@ -1,6 +1,7 @@
 import * as store from '../store.js';
 import { getData, SUBJECTS } from '../data.js';
 import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
+import { countLabel } from '../format.js';
 import { audioPlayer, openRecorder } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
 import { aiErrorBlock, gateAi } from '../ai-status.js';
@@ -39,7 +40,7 @@ export function openRecordingsLibrary() {
     }
 
     const groups = groupRecordings(recs, d.byId);
-    bodyWrap.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${recs.length} recording${recs.length > 1 ? 's' : ''} in ${groups.length} group${groups.length > 1 ? 's' : ''}.</p>`));
+    bodyWrap.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${countLabel(recs.length, 'recording')} in ${countLabel(groups.length, 'group')}.</p>`));
 
     for (const g of groups) {
       const meta = SUBJECTS[g.subject] || { color: '#6f665a', icon: 'folder' };
@@ -96,7 +97,7 @@ function recordingCard(r, student, rerender) {
     <div class="flex items-center gap-2 text-xs mb-1">
       <span class="flex items-center gap-1 font-600 text-[#a4473a]"><i data-lucide="mic" class="w-3.5 h-3.5"></i>Recording</span>
       <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
-      <button class="del text-ink-faint hover:text-[#a4473a] p-0.5" title="Delete recording" aria-label="Delete recording ${esc(r.title || fmtDateTime(r.createdAt))}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+      <button class="del text-ink-faint hover:text-[#a4473a] w-11 h-11 -my-[13px] -mr-[13px] flex items-center justify-center shrink-0 lg:w-auto lg:h-auto lg:m-0 lg:p-0.5" title="Delete recording" aria-label="Delete recording ${esc(r.title || fmtDateTime(r.createdAt))}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
     </div>
     ${r.title ? `<p class="font-600 text-sm">${esc(r.title)}</p>` : ''}
     ${r.topicName ? `<p class="text-[11px] text-ink-faint mt-0.5">on ${esc(r.topicName)}</p>` : ''}
@@ -141,7 +142,7 @@ function renderAnalysis(container, r, student, topic) {
 export function privacyControls({ hasNotes = false } = {}) {
   return el(`<div class="mt-2 space-y-1">
     <p class="text-[11px] text-ink-faint flex items-center gap-1.5"><i data-lucide="shield-check" class="w-3.5 h-3.5 shrink-0"></i>Names of learners in this app are replaced with “the child” before this is sent.</p>
-    ${hasNotes ? `<label class="flex items-center gap-2.5 min-h-10 py-1 text-xs text-ink-soft cursor-pointer select-none"><input type="checkbox" class="include-notes accent-brand w-5 h-5 shrink-0 cursor-pointer" />Include my notes in this request</label>` : ''}
+    ${hasNotes ? `<label class="flex items-center gap-2.5 min-h-11 py-1 text-xs text-ink-soft cursor-pointer select-none"><input type="checkbox" class="include-notes accent-brand w-5 h-5 shrink-0 cursor-pointer" />Include my notes in this request</label>` : ''}
   </div>`);
 }
 

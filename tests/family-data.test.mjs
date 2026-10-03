@@ -2,6 +2,7 @@
 // relative fetches from the store are routed to a spawned server.mjs.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -525,8 +526,8 @@ describe('family data safety in the store', { concurrency: false }, () => {
     assert.equal(plain(migrated), false);
     assert.match(migrated.settings.parentPinHash, /^[0-9a-f]{64}$/);
     assert.deepEqual(migrated.settings.calendar, before.settings.calendar);
-    assert.equal(await store.checkParentPin('2468'), true);
-    assert.equal(await store.checkParentPin('1111'), false);
+    assert.equal(store.checkParentPin('2468'), true);
+    assert.equal(store.checkParentPin('1111'), false);
     const exported = await store.exportDocument();
     assert.equal(plain(exported), false);
     assert.equal(JSON.stringify(exported).includes('"2468"'), false);
@@ -539,7 +540,61 @@ describe('family data safety in the store', { concurrency: false }, () => {
     const imported = await serverState();
     assert.equal(plain(imported), false);
     assert.equal(JSON.stringify(imported).includes('"1357"'), false);
-    assert.equal(await store.checkParentPin('1357'), true);
-    assert.equal(await store.checkParentPin('2468'), false);
+    assert.equal(store.checkParentPin('1357'), true);
+    assert.equal(store.checkParentPin('2468'), false);
+  });
+
+  const plainPin = (doc) => JSON.stringify(doc).includes('"parentPin"');
+  const withPlainPin = (pin) => (doc) => {
+    const { parentPinHash: _h, parentPinSalt: _s, ...settings } = doc.settings || {};
+    return { ...doc, settings: { ...settings, parentPin: pin } };
+  };
+
+  test('export hashes a plain PIN another device saved since this tab loaded', async () => {
+    await store.loadAll();
+    await store.flushSaves();
+    const other = await otherDevicePut(withPlainPin('8642'));
+    assert.equal(other.settings.parentPin, '8642');
+    // This tab has nothing pending, so the export is the server copy.
+    const exported = await store.exportDocument();
+    assert.equal(exported.unsavedChanges, undefined);
+    assert.equal(plainPin(exported), false);
+    assert.equal(JSON.stringify(exported).includes('"8642"'), false);
+    assert.match(exported.settings.parentPinHash, /^[0-9a-f]{64}$/);
+  });
+
+  test('a conflict reload hashes a plain PIN another device saved, and saves the hash', async () => {
+    await store.loadAll();
+    await store.flushSaves();
+    const id = store.get().students[0].id;
+    await otherDevicePut(withPlainPin('9753'));
+    statusEvents.length = 0;
+    store.setStatus(id, 'count-to-5', 'practicing');
+    await store.flushSaves(); // 412: reloads the other device's document
+    assert.deepEqual(statusEvents, ['conflict']);
+    assert.equal(plainPin(store.get().settings), false);
+    assert.equal(store.checkParentPin('9753'), true);
+    await store.flushSaves(); // the migration's own save
+    const saved = await serverState();
+    assert.equal(plainPin(saved), false);
+    assert.match(saved.settings.parentPinHash, /^[0-9a-f]{64}$/);
+  });
+
+  test('two tabs migrating the same plain PIN: the losing tab reloads without a toast', async () => {
+    await otherDevicePut(withPlainPin('1470'));
+    await store.loadAll(); // migrates; the save is still pending
+    assert.equal(plainPin(store.get().settings), false);
+    // The other tab migrated and saved first.
+    await otherDevicePut((doc) => {
+      const { parentPin: _p, ...settings } = doc.settings;
+      return { ...doc, settings: { ...settings, parentPinSalt: '0'.repeat(32), parentPinHash: createHash('sha256').update(`${'0'.repeat(32)}:1470`).digest('hex') } };
+    });
+    statusEvents.length = 0;
+    await store.flushSaves();
+    assert.equal(statusEvents.includes('conflict'), false);
+    assert.equal(store.get().settings.parentPinSalt, '0'.repeat(32));
+    assert.equal(store.checkParentPin('1470'), true);
+    await store.flushSaves();
+    assert.equal(plainPin(await serverState()), false);
   });
 });

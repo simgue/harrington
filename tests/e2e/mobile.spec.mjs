@@ -1,7 +1,8 @@
 // 390×844 phone viewport: every route renders without sideways scrolling, and
 // the phone-only chrome (top bar, bottom nav) works.
 import { test, expect, modal, closeModal, expectToast, noHorizontalOverflow, childView, leaveChildView } from './fixtures.mjs';
-import { TOPICS } from './support/family.mjs';
+import { LEARNERS, TOPICS } from './support/family.mjs';
+import { TODAY_KEY } from './support/env.mjs';
 
 const ROUTES = [
   ['dashboard', ''],
@@ -98,16 +99,62 @@ test('export and import from the learner menu on a phone (F6)', async ({ page, g
   await expect(page.locator('#modal-root > div')).toHaveCount(0);
 });
 
-test('learner row buttons are 40px tap targets with names (F14)', async ({ page, gotoApp }) => {
+// F14: every target named below is at least 44 × 44 px on a phone.
+async function expectTapTarget(locator, name) {
+  const box = await locator.boundingBox();
+  expect(box, name).not.toBeNull();
+  expect(box.width, `${name} width`).toBeGreaterThanOrEqual(44);
+  expect(box.height, `${name} height`).toBeGreaterThanOrEqual(44);
+}
+
+test('learner menu: 44px targets with names, names not cut off (F14)', async ({ page, gotoApp, shot }) => {
   await gotoApp({ seed: {} });
   await page.getByRole('button', { name: 'Switch learner' }).click();
   const menu = modal(page);
   for (const name of ['Placement for Wren Example', 'Edit Wren Example', 'Remove learner Wren Example']) {
-    const box = await menu.getByRole('button', { name, exact: true }).boundingBox();
-    expect(box.width, name).toBeGreaterThanOrEqual(40);
-    expect(box.height, name).toBeGreaterThanOrEqual(40);
+    await expectTapTarget(menu.getByRole('button', { name, exact: true }), name);
   }
-  await expect(menu.getByText('Wren Example', { exact: true })).toBeVisible();
+  await expectTapTarget(menu.getByRole('button', { name: 'Switch', exact: true }).first(), 'Switch');
+  await expectTapTarget(menu.getByRole('button', { name: 'Add', exact: true }), 'Add');
+  await noHorizontalOverflow(page);
+});
+
+test('learner menu at 360 px: no sideways scroll and the full name shows (F14)', async ({ page, gotoApp, shot }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await gotoApp({ seed: {} });
+  await page.getByRole('button', { name: 'Switch learner' }).click();
+  const menu = modal(page);
+  await expect(menu.getByRole('heading', { name: 'Students' })).toBeVisible();
+  await noHorizontalOverflow(page);
+  for (const name of ['Wren Example', 'Rowan Example', 'Sage Example']) {
+    const label = menu.getByText(name, { exact: true });
+    // Truncated text is wider than its box.
+    expect(await label.evaluate((n) => n.scrollWidth - n.clientWidth), `${name} is cut off`).toBeLessThanOrEqual(0);
+  }
+  await expectTapTarget(menu.getByRole('button', { name: 'Remove learner Wren Example' }), 'Remove learner at 360 px');
+  await shot('learner-menu-360', { full: false });
+});
+
+test('record, recording and calendar extra delete buttons are 44px targets (F14)', async ({ page, api, gotoApp }) => {
+  await gotoApp({
+    seed: {
+      records: [
+        { type: 'observation', title: 'Counted the stairs out loud', topicId: TOPICS.oneToOne.id },
+        { type: 'recording', title: 'Unlinked chat', note: 'Typed, no audio.' },
+      ],
+      extra: { plan: { [LEARNERS.rowan.id]: { moves: {}, done: {}, extras: { [TODAY_KEY]: [
+        { id: 'x_seed', kind: 'lesson', topicId: TOPICS.oneToOne.id, topicName: TOPICS.oneToOne.name, subject: 'Mathematics', title: `Extra lesson · ${TOPICS.oneToOne.name}` },
+      ] } } } },
+    },
+  });
+  // The Recordings folder opens from the dashboard.
+  await page.getByRole('button', { name: /Recordings folder/ }).click();
+  await expectTapTarget(modal(page).getByRole('button', { name: 'Delete recording Unlinked chat' }), 'Delete recording');
+  await closeModal(page);
+  await page.goto('/#records');
+  await expectTapTarget(page.getByRole('button', { name: 'Delete record Counted the stairs out loud' }), 'Delete record');
+  await page.goto('/#calendar');
+  await expectTapTarget(page.getByRole('button', { name: `Remove extra Extra lesson · ${TOPICS.oneToOne.name}` }), 'Remove extra');
   await noHorizontalOverflow(page);
 });
 
@@ -119,7 +166,7 @@ test('the "Include my notes" opt-in is a comfortable target and its label toggle
   expect(size.width).toBeGreaterThanOrEqual(20);
   expect(size.height).toBeGreaterThanOrEqual(20);
   const label = page.locator('label', { hasText: 'Include my notes in this request' });
-  expect((await label.boundingBox()).height).toBeGreaterThanOrEqual(40);
+  expect((await label.boundingBox()).height).toBeGreaterThanOrEqual(44);
   await label.getByText('Include my notes in this request').click();
   await expect(box).toBeChecked();
 });

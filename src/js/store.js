@@ -92,23 +92,33 @@ function applyDocument(data) {
   state.notifications = Array.isArray(doc.notifications) ? doc.notifications : [];
   state.curriculumSnapshot = doc.curriculumSnapshot || null;
   state.graphView = doc.graphView === 'list' ? 'list' : 'atlas';
-  state.settings = objectOr(doc.settings, {});
+  const settings = objectOr(doc.settings, {});
+  // A plain PIN (from before it was hashed, or saved by an older tab) is
+  // hashed as the document is applied, so no save writes it back.
+  state.settings = migratePinSettings(settings);
   stateVersion = Number.isSafeInteger(doc.version) ? doc.version : 0;
+  return state.settings !== settings;
+}
+
+// Saves the PIN migration applyDocument made. If that is all this tab has to
+// save and another tab saved first (two tabs open during the upgrade), the
+// conflict reload is not worth a toast: the reloaded document is migrated again.
+let migrationOnly = false;
+function persistMigration() {
+  const pending = dirty;
+  persist();
+  migrationOnly = !pending;
 }
 
 export async function loadAll() {
+  let migrated;
   try {
-    applyDocument(await backend.loadState());
+    migrated = applyDocument(await backend.loadState());
   } catch (e) {
     console.warn('load failed', e);
     throw e;
   }
-  // A family document from before the PIN was hashed keeps it in plain text.
-  const settings = await migratePinSettings(state.settings);
-  if (settings !== state.settings) {
-    state.settings = settings;
-    persist();
-  }
+  if (migrated) persistMigration();
 }
 
 function snapshotData() {
@@ -152,11 +162,13 @@ function reloadFromServer(doc) {
   dirty = false;
   // A pending beacon carried the version we are discarding, so it cannot land.
   unconfirmedBeacon = null;
-  applyDocument(doc);
+  const quiet = migrationOnly;
+  migrationOnly = false;
+  if (applyDocument(doc)) persistMigration();
   const present = new Set(state.students.map(s => s.id));
   pendingAudioDeletes = pendingAudioDeletes.filter(item => !present.has(item.studentId));
   emit();
-  saveStatus({ type: 'conflict' });
+  if (!quiet) saveStatus({ type: 'conflict' });
 }
 
 // Deletes recordings of learners whose removal the server has accepted.
@@ -214,6 +226,7 @@ async function saveWith(makeData) {
       try {
         const next = await backend.saveState(data, stateVersion, newWriteId());
         stateVersion = Math.max(stateVersion, next);
+        if (!dirty) migrationOnly = false;
         deleteRemovedAudio();
         saveStatus({ type: 'saved' });
         return true;
@@ -255,6 +268,7 @@ export function flushSaves() {
 }
 
 function persist() {
+  migrationOnly = false;
   dirty = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSaves, 400);
@@ -321,7 +335,7 @@ export async function exportDocument() {
     ? { ...snapshotData(), version: stateVersion, ...meta, unsavedChanges: true }
     : { ...(await backend.loadState()), ...meta };
   // Never a plain PIN in the file, even one another device just saved.
-  doc.settings = await migratePinSettings(doc.settings);
+  doc.settings = migratePinSettings(doc.settings);
   return doc;
 }
 
@@ -362,12 +376,12 @@ export function importDocument(doc) {
   const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = doc;
   // Colors end up in style attributes, so only palette colors are imported.
   data.students = data.students.map(s => (PALETTE.includes(s.color) ? s : { ...s, color: PALETTE[0] }));
+  // An older export may carry the PIN in plain text; only its hash is saved.
+  if (data.settings !== undefined) data.settings = migratePinSettings(objectOr(data.settings, {}));
   clearTimeout(saveTimer);
   saveTimer = null;
   dirty = false;
   saveQueue = saveQueue.catch(() => {}).then(async () => {
-    // An older export may carry the PIN in plain text; only its hash is saved.
-    if (data.settings !== undefined) data.settings = await migratePinSettings(objectOr(data.settings, {}));
     const ok = await saveWith(() => data);
     if (ok) {
       applyDocument({ ...data, version: stateVersion });
@@ -1007,9 +1021,9 @@ export function setChildViewOpen(open) { childViewOpen = !!open; }
 // (pin.js).
 export function hasParentPin() { return hasPin(state.settings); }
 export function checkParentPin(pin) { return verifyPin(pin, state.settings); }
-export async function setParentPin(pin) {
+export function setParentPin(pin) {
   if (!PIN_PATTERN.test(String(pin))) return false;
-  state.settings = await pinSettings(state.settings, pin);
+  state.settings = pinSettings(state.settings, pin);
   persist();
   return true;
 }

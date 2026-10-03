@@ -87,7 +87,7 @@ function recordCard(r, student, d, navigate) {
       <span class="flex items-center gap-1 font-600 px-2 py-0.5 rounded-full" style="color:${tm.color};background:${tm.color}14"><i data-lucide="${tm.icon}" class="w-3.5 h-3.5"></i>${tm.label}</span>
       ${r.rating ? `<span class="text-[#8a6412]">${'\u2605'.repeat(r.rating)}${'\u2606'.repeat(5-r.rating)}</span>` : ''}
       <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
-      <button class="del text-ink-faint hover:text-[#a4473a] p-0.5" title="Delete record" aria-label="Delete record ${esc(r.title || tm.label)}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+      <button class="del text-ink-faint hover:text-[#a4473a] w-11 h-11 -my-[13px] -mr-[13px] flex items-center justify-center shrink-0 lg:w-auto lg:h-auto lg:m-0 lg:p-0.5" title="Delete record" aria-label="Delete record ${esc(r.title || tm.label)}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
     </div>
     ${r.title ? `<p class="font-600">${esc(r.title)}</p>` : ''}
     ${coverageNames(r).length ? `<p class="text-xs font-600 text-brand-dark mb-1 flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>Coverage: ${coverageNames(r).map(esc).join(' · ')}</p>` : ''}

@@ -70,8 +70,9 @@ returns to the parent view.
 not a lock: four digits are easy to guess, and reloading the page always
 returns to the parent view, which is also the way back if you forget it.
 Harrington keeps only a scrambled (salted, hashed) copy of the PIN, never the
-digits themselves, and an export carries only that copy. To clear it, remove
-`parentPinHash` and `parentPinSalt` from `settings` in the family data file.
+digits themselves, and an export carries only that copy. To clear it, close
+every Harrington tab, then remove `parentPinHash` and `parentPinSalt` from
+`settings` in the family data file.
 
 - **My garden.** One plant per subject, described in words, never numbers.
 - **Story time and number time.** Today's literacy and numeracy options for

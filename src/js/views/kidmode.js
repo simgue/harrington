@@ -81,19 +81,19 @@ function askForPin(student, back) {
   else show('Set a grown-up PIN', 'Choose 4 digits. You will need them to leave the child view.');
 
   page.querySelector('#back').onclick = back;
-  page.querySelector('form').onsubmit = async e => {
+  page.querySelector('form').onsubmit = e => {
     e.preventDefault();
     const pin = input.value.trim();
     if (!/^\d{4}$/.test(pin)) { msg.textContent = 'Please enter 4 digits.'; input.value = ''; input.focus(); return; }
     msg.textContent = '';
     if (existing) {
-      if (await store.checkParentPin(pin)) close();
+      if (store.checkParentPin(pin)) close();
       else { msg.textContent = 'That is not the PIN.'; input.value = ''; input.focus(); }
     } else if (first === null) {
       first = pin;
       show('Type it again', 'Enter the same 4 digits to confirm.');
     } else if (pin === first) {
-      await store.setParentPin(pin);
+      store.setParentPin(pin);
       close();
     } else {
       first = null;

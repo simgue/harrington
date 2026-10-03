@@ -250,11 +250,14 @@ not \"Notifications\" (finding F13)".
 
 **Fixed by findings bundle B (#38).** The buttons are named for what they
 act on: "Remove learner <name>", "Delete record <title>", "Delete recording
-<title>" and "Remove extra <title>". On a phone the learner row's placement,
-edit and remove buttons are 40 × 40 px (24 px on a desktop, as before), and
-the HAR-19 "Include my notes" checkbox is 20 px in a 40 px label that ticks
-it. `learners`, `records` and `calendar` reach the buttons by name;
-`mobile.spec.mjs` measures the tap targets.
+<title>" and "Remove extra <title>". On a phone every one of them is at
+least 44 × 44 px: the learner row's placement, edit and remove buttons move
+to a labeled line of their own (24 px icons on a desktop, as before), Switch
+and Add are 44 px tall, the delete and remove buttons have a 44 px hit area
+around the same icon, and the HAR-19 "Include my notes" checkbox is 20 px in
+a 44 px label that ticks it. `learners`, `records` and `calendar` reach the
+buttons by name; `mobile.spec.mjs` measures the targets at 390 px and checks
+the learner menu at 360 px (no sideways scroll, no name cut off).
 
 Original report: **Low.** The trash and x buttons for a learner (`shell.js:141`), a record
 (`records.js:81`), a recording (`recordings.js:98`) and a calendar extra
@@ -266,10 +269,13 @@ with no accessible name (finding F14)", now flipped.
 
 ## F15. Dashboard says "1590 topics" where the map says "1,590"
 
-**Fixed by findings bundle B (#38).** `formatCount` (`src/js/format.js`,
-`Intl.NumberFormat` for the reader's locale) prints every count on the
-dashboard, the map and the curriculum notice; the hero reads "0 of 1,590
-topics mastered" (`dashboard.spec.mjs`, `tests/format.test.mjs`).
+**Fixed by findings bundle B (#38).** `formatCount` and `countLabel`
+(`src/js/format.js`, `Intl.NumberFormat` and `Intl.PluralRules` for
+`en-US`, since all copy is American English) print the counts on the
+dashboard, the map, the topic page, the recordings folder, the import
+preview and the curriculum notice; the hero reads "0 of 1,590 topics
+mastered" and the map "Computing realm, 1 domain" (`dashboard.spec.mjs`,
+`map.spec.mjs`, `tests/format.test.mjs`).
 
 Original report: **Low.** The dashboard hero prints `stats.total` raw (`dashboard.js:46`); the
 map and the notification use `toLocaleString()`.
@@ -281,9 +287,12 @@ section…", which expected "0 of 1590 topics mastered"; now flipped.
 
 **Fixed by findings bundle B (#38).** The family document keeps
 `settings.parentPinHash`, a SHA-256 of the PIN with `settings.parentPinSalt`,
-a random salt per family (Web Crypto, with a plain-JS SHA-256 where a page
-served over plain http on the home network has none). A plain `parentPin`
-is hashed on load and on import, and the export never carries one.
+a random salt per family (a plain-JS SHA-256, which also works where a page
+served over plain http on the home network has no Web Crypto). A plain
+`parentPin` is hashed whenever a document is applied (load, a conflict
+reload, import) and again at export, so no save writes it back and no export
+carries one; a hash or salt that is not lowercase hex of the right length is
+dropped.
 `data-safety.spec.mjs` seeds a plain PIN and checks the export holds only the
 hash; `child-view.spec.mjs` checks a newly set PIN is saved hashed;
 `tests/pin.test.mjs` and `tests/family-data.test.mjs` cover the round trip
@@ -399,7 +408,7 @@ The suite confirms these audit items now behave, and fails if they regress:
 | AI buttons failed with "Couldn't … right now" when no provider was set up | HAR-13: "Needs a local AI provider" chips linking to the README; the dashboard and child view hide what needs AI | `no-ai` |
 | The unlinked `#timeline` route | HAR-13 removed it; the URL now opens the dashboard | `map` |
 | Export and Import not reachable on a phone (F6) | Findings bundle B: in the learner selector below `lg` | `mobile` |
-| Icon-only buttons without a name (F14) | Findings bundle B: named for what they act on; 40 px learner-row targets on a phone | `learners`, `records`, `calendar`, `mobile` |
-| "1590 topics" on the dashboard (F15) | Findings bundle B: one locale-aware count formatter | `dashboard` |
+| Icon-only buttons without a name (F14) | Findings bundle B: named for what they act on; 44 px targets on a phone | `learners`, `records`, `calendar`, `mobile` |
+| "1590 topics" on the dashboard (F15) | Findings bundle B: one count and plural formatter (`en-US`) | `dashboard` |
 | The PIN in plain text in the document and export (F16) | Findings bundle B: salted SHA-256 hash; plain PINs migrate on load and import | `data-safety`, `child-view` |
 | Typed answers graded by substring | Not reachable with the digital tests the mock returns; covered by `tests/grading.test.mjs` | unit |

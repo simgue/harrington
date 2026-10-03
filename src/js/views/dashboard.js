@@ -14,7 +14,7 @@ import { meadowScene, petalRing, weekFlower, growthIcon, growthChip, stageForSta
 import { openKidMode } from './kidmode.js';
 import { openPlacement } from './placement.js';
 import { pickKey, invitationEvidenceSummary } from '../daily.js';
-import { formatCount } from '../format.js';
+import { countLabel, formatCount } from '../format.js';
 
 // Pastel stop colours for the day's path, cycled per topic.
 const STOPS = [
@@ -45,7 +45,7 @@ export function renderDashboard(params, { navigate }) {
       <div>
         <p class="text-sm font-medium text-brand flex items-center gap-1.5"><i data-lucide="sun" class="w-4 h-4"></i>${greet}</p>
         <h1 class="font-display text-3xl sm:text-[40px] leading-tight font-600 mt-0.5">${name}'s ${weekday}</h1>
-        <p class="text-sm text-ink-soft mt-1">${dateLabel} · age ${age} · ${formatCount(stats.totalMastered)} of ${formatCount(stats.total)} topics mastered</p>
+        <p class="text-sm text-ink-soft mt-1">${dateLabel} · age ${age} · ${formatCount(stats.totalMastered)} of ${countLabel(stats.total, 'topic')} mastered</p>
       </div>
       <div class="flex flex-wrap gap-2">
         <button id="qmic" class="flex items-center gap-2.5 h-12 pl-1.5 pr-5 rounded-full bg-brand hover:bg-brand-dark text-paper-card text-sm font-600 transition-colors">
@@ -187,7 +187,7 @@ export function renderDashboard(params, { navigate }) {
     <span class="w-12 h-12 rounded-full bg-rose flex items-center justify-center shrink-0"><i data-lucide="folder" class="w-5.5 h-5.5 text-rose-deep"></i></span>
     <span class="flex-1 min-w-0">
       <span class="block font-600">Recordings folder</span>
-      <span class="block text-sm text-ink-soft">${recCount ? `${recCount} voice recording${recCount > 1 ? 's' : ''}, grouped by section or topic` : 'Capture and revisit lesson conversations, organized by section or topic'}</span>
+      <span class="block text-sm text-ink-soft">${recCount ? `${countLabel(recCount, 'voice recording')}, grouped by section or topic` : 'Capture and revisit lesson conversations, organized by section or topic'}</span>
     </span>
     <span class="shrink-0 flex items-center gap-1 text-sm font-600 text-rose-deep">Open<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
   </button>`);
@@ -526,7 +526,7 @@ function gameCard(student) {
           <span class="text-xs text-ink-faint">${g.into} / ${g.need} XP</span>
         </div>
         <div class="h-2.5 rounded-full bg-butter-light overflow-hidden"><div class="mbar h-full rounded-full bg-butter" style="width:${g.pct}%"></div></div>
-        <p class="text-xs text-ink-faint mt-1.5">${formatCount(g.xp)} total XP · ${earnedCount} badge${earnedCount === 1 ? '' : 's'}</p>
+        <p class="text-xs text-ink-faint mt-1.5">${formatCount(g.xp)} total XP · ${countLabel(earnedCount, 'badge')}</p>
       </div>
     </div>
     <div id="badges" class="flex flex-wrap gap-1.5 mt-4"></div>

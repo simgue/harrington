@@ -112,7 +112,7 @@ Editing: the form opens filled in, a December birth month makes a 6-year-old
 and the menu ("born December 2020").
 
 The remove button is named for the learner ("Remove learner Wren Example"),
-and on a phone the placement, edit and remove buttons are 40 px targets (F14,
+and on a phone the placement, edit and remove buttons are 44 px targets (F14,
 fixed).
 
 ---
@@ -672,8 +672,10 @@ dashboard, calendar, world map, skill tree, topic page, records, insights,
 list view, child view and quest log, with no console errors; the bottom tabs
 navigate and mark the current page; the top-bar guide and learner switcher
 open; Export downloads and Import opens the preview from the learner
-selector (F6); the learner row's buttons are at least 40 × 40 px (F14); the
-"Include my notes" checkbox is at least 20 px with a 40 px label that ticks it.
+selector (F6); the learner row's buttons, Switch and Add, and the record,
+recording and calendar-extra delete buttons are at least 44 × 44 px, and at
+360 px the learner menu does not scroll sideways or cut a name off (F14); the
+"Include my notes" checkbox is at least 20 px with a 44 px label that ticks it.
 
 ![Learner selector with Export and Import](screenshots/mobile/13-learner-menu-family-data.jpg)
 

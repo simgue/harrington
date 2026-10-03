@@ -241,7 +241,7 @@ function extraRow(x, active, navigate) {
       <p class="text-xs text-ink-faint truncate">${kindMeta.label}${x.subject ? ' · ' + esc(x.subject) : ''}</p>
     </div>
     <button class="go text-xs font-medium text-brand-dark shrink-0">Open</button>
-    <button class="del text-ink-faint hover:text-[#a4473a] p-1 shrink-0" title="Remove from this day" aria-label="Remove extra ${esc(x.title || x.topicName || kindMeta.label)}"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+    <button class="del text-ink-faint hover:text-[#a4473a] w-11 h-11 -my-[11px] -mr-[11px] flex items-center justify-center shrink-0 lg:w-auto lg:h-auto lg:m-0 lg:p-1" title="Remove from this day" aria-label="Remove extra ${esc(x.title || x.topicName || kindMeta.label)}"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
   </div>`);
   row.querySelector('.go').onclick = () => {
     if (x.kind === 'practice') { openDuePractice(); return; }

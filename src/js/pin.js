@@ -14,47 +14,55 @@ export function newSalt() {
   return toHex(bytes);
 }
 
-// Web Crypto is only there in a secure context (https, localhost, 127.0.0.1).
-// A tablet opening Harrington at http://192.168.x.x has none, so the same
-// SHA-256 runs in plain JS there.
-export async function sha256Hex(text, { subtle = globalThis.crypto?.subtle } = {}) {
-  const data = new TextEncoder().encode(text);
-  if (subtle) return toHex(new Uint8Array(await subtle.digest('SHA-256', data)));
-  return sha256Fallback(data);
+// SHA-256 in plain JS, synchronous so the PIN can be migrated while a family
+// document is applied (load, conflict reload, import, export). It also works
+// where Web Crypto does not: a tablet opening Harrington at
+// http://192.168.x.x is not a secure context.
+export function sha256Hex(text) {
+  return sha256Bytes(new TextEncoder().encode(text));
 }
 
 export function hashPin(pin, salt) {
   return sha256Hex(`${salt}:${pin}`);
 }
 
+const HASH_PATTERN = /^[0-9a-f]{64}$/;
+const SALT_PATTERN = /^[0-9a-f]{32}$/;
+const storedHash = (settings) =>
+  HASH_PATTERN.test(settings?.parentPinHash ?? '') && SALT_PATTERN.test(settings?.parentPinSalt ?? '');
+
 export function hasPin(settings) {
-  return !!(settings?.parentPinHash || legacyPin(settings));
+  return storedHash(settings) || !!legacyPin(settings);
 }
 
-export async function verifyPin(pin, settings) {
+export function verifyPin(pin, settings) {
   if (!PIN_PATTERN.test(String(pin))) return false;
   const legacy = legacyPin(settings);
   if (legacy) return String(pin) === legacy;
-  if (!settings?.parentPinHash || !settings?.parentPinSalt) return false;
-  return (await hashPin(String(pin), settings.parentPinSalt)) === settings.parentPinHash;
+  if (!storedHash(settings)) return false;
+  return hashPin(String(pin), settings.parentPinSalt) === settings.parentPinHash;
 }
 
 // Settings for a new PIN: a fresh salt and its hash, the plain PIN gone.
-export async function pinSettings(settings, pin) {
-  const { parentPin: _plain, ...rest } = settings || {};
+export function pinSettings(settings, pin) {
+  const { parentPin: _plain, parentPinHash: _h, parentPinSalt: _s, ...rest } = settings || {};
   const salt = newSalt();
-  return { ...rest, parentPinSalt: salt, parentPinHash: await hashPin(String(pin), salt) };
+  return { ...rest, parentPinSalt: salt, parentPinHash: hashPin(String(pin), salt) };
 }
 
-// A family document from before the hash (or hand-edited) may carry the plain
-// PIN. Returns settings without it, hashed if it was a valid PIN, or the same
-// object when there is nothing to migrate.
-export async function migratePinSettings(settings) {
-  if (!settings || typeof settings !== 'object' || !('parentPin' in settings)) return settings;
+// A family document from before the hash (or hand-edited, or imported) may
+// carry the plain PIN, or a hash or salt that is not one Harrington wrote.
+// Returns settings with the plain PIN hashed and any malformed hash and salt
+// dropped, or the same object when there is nothing to change.
+export function migratePinSettings(settings) {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return settings;
+  const hasPlain = 'parentPin' in settings;
+  const hasStored = 'parentPinHash' in settings || 'parentPinSalt' in settings;
+  if (!hasPlain && (!hasStored || storedHash(settings))) return settings;
   const pin = legacyPin(settings);
   if (pin) return pinSettings(settings, pin);
-  const { parentPin: _drop, ...rest } = settings;
-  return rest;
+  const { parentPin: _drop, parentPinHash, parentPinSalt, ...rest } = settings;
+  return storedHash(settings) ? { ...rest, parentPinHash, parentPinSalt } : rest;
 }
 
 function legacyPin(settings) {
@@ -65,7 +73,7 @@ function legacyPin(settings) {
   return PIN_PATTERN.test(text) ? text : null;
 }
 
-// ---- SHA-256 (FIPS 180-4) for pages without Web Crypto ----
+// ---- SHA-256 (FIPS 180-4) ----
 const K = new Uint32Array([
   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
   0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -77,7 +85,7 @@ const K = new Uint32Array([
   0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ]);
 
-export function sha256Fallback(data) {
+function sha256Bytes(data) {
   const bitLength = data.length * 8;
   const padded = new Uint8Array(Math.ceil((data.length + 9) / 64) * 64);
   padded.set(data);
