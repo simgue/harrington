@@ -120,6 +120,83 @@ What the family sees with `HARRINGTON_AI_CAPABILITIES=lesson`:
 - `/api/health` reports `aiCapabilities: ["lesson"]`, and the server refuses
   any other request with 403 even if a page asks.
 
+### Where the variables live
+
+The settings are environment variables of the Harrington server process. They
+never go in the app, in family data, or in a committed file. Pick one of:
+
+- **Exported in the shell** before starting, as above. They last until that
+  terminal closes.
+- **A `.env` file** next to `package.json`, started with Node's built-in loader
+  (Node 20.6 or newer, no dependency). `.env` and `.env.*` are already in
+  `.gitignore`.
+
+  ```bash
+  # .env
+  HARRINGTON_AI_BASE_URL=http://127.0.0.1:11434/v1
+  HARRINGTON_AI_MODEL=qwen2.5:7b
+  HARRINGTON_AI_CAPABILITIES=lesson
+  ```
+
+  ```bash
+  node --env-file=.env server.mjs
+  # the experiment reads the same file:
+  node --env-file=.env scripts/ai-experiment.mjs --data-dir ./data/scratch --learner "Sample Nine" --age 6
+  ```
+
+- **Docker Compose**: keep the committed `compose.yaml` as it is and add a
+  local `compose.override.yaml` (Compose merges it automatically; do not
+  commit it) that points at the same `.env`:
+
+  ```yaml
+  services:
+    harrington:
+      env_file: .env
+  ```
+
+  An `environment:` block in that override works too. Never put a key or a
+  cloud endpoint in `compose.yaml` itself.
+
+Restart the server after any change, then check `http://127.0.0.1:4173/api/health`:
+`aiConfigured` should be `true` and `aiCapabilities` should list what you
+switched on (for example `["lesson"]`).
+
+## Or: Gemini (cloud) example
+
+The same adapter talks to Google's Gemini through Gemini's OpenAI-compatible
+endpoint. No code change is needed; Harrington appends `/chat/completions` to
+the base URL.
+
+```bash
+# .env (never committed)
+HARRINGTON_AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+HARRINGTON_AI_MODEL=gemini-2.5-flash
+HARRINGTON_AI_API_KEY=your-key-from-google-ai-studio
+HARRINGTON_AI_CAPABILITIES=lesson
+```
+
+- Create the key in [Google AI Studio](https://aistudio.google.com/apikey).
+  Use a current Gemini model id; `gemini-2.5-flash` is an example.
+- Harrington sends the key to Google as an `Authorization: Bearer` header, from
+  the server only. The browser never sees it, and `/api/health` never reports it.
+- The key lives only in the server's environment (one of the ways above). Never
+  commit it, paste it into `compose.yaml`, or type it into the app. If it is
+  ever exposed, delete it in AI Studio and create a new one.
+- A cloud model answers in seconds rather than minutes, so the three-minute
+  timeout is rarely an issue. The experiment script works the same way against
+  it, and its report records the model, so a local and a cloud run compare
+  side by side.
+
+**Privacy.** A cloud endpoint means prompts leave the house and are handled
+under Google's terms. A lesson prompt contains the topic's name, subject,
+domain, age band, description and mastery evidence, and no learner data:
+prompts always say "your child", never a name (HAR-19). Other capabilities send
+more: discussion analysis sends the transcript with learners' names redacted
+(nicknames and other people's names go as spoken), and parent notes go only
+when the parent ticks "Include my notes in this request" for that one request.
+`HARRINGTON_AI_CAPABILITIES` is how to keep a cloud key to lessons only: the
+server refuses every other request before anything reaches Google.
+
 ## 3. Run the lessons experiment
 
 `scripts/ai-experiment.mjs` writes lessons for the next ten topics a learner's
@@ -185,7 +262,6 @@ keep them off. Add a capability by extending the list
 If a capability disappoints, take it back out of the list: what it already
 wrote stays in the cache and keeps opening.
 
-Using a cloud or vendor endpoint instead means prompts leave the house: topic
-text, and for analysis and reviews the redacted transcripts and any notes the
-parent opts in. See the README's
+Using a cloud or vendor endpoint instead means prompts leave the house; see
+[Or: Gemini (cloud) example](#or-gemini-cloud-example) and the README's
 [URL-swap priming](../README.md#url-swap-priming-same-adapter-no-batch-job).

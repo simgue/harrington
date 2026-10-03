@@ -207,8 +207,9 @@ To switch AI on one capability at a time, list them in
 `HARRINGTON_AI_CAPABILITIES` (for example `HARRINGTON_AI_CAPABILITIES=lesson`;
 unset means all). Controls for the others show "Not switched on yet", and the
 server refuses them. **[docs/AI-SETUP.md](docs/AI-SETUP.md)** covers choosing a
-model for reliable JSON, expected latency, the lessons-only experiment
-(`scripts/ai-experiment.mjs`) and when to widen.
+model for reliable JSON, expected latency, where the variables live (shell,
+`.env`, Docker), a Gemini (cloud) example with an API key, the lessons-only
+experiment (`scripts/ai-experiment.mjs`) and when to widen.
 
 Local models can take a while to write lesson JSON. The adapter waits up to
 three minutes (`HARRINGTON_AI_TIMEOUT_MS` to override) and then fails closed.
