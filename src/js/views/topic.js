@@ -2,7 +2,7 @@ import { SUBJECTS, getData } from '../data.js';
 import { graphParamsForTopic } from './graph.js';
 import * as store from '../store.js';
 import { growthChip, growthIcon, stageForStatus } from '../meadow.js';
-import { el, esc, refreshIcons, toast, fmtDateTime } from '../ui.js';
+import { el, esc, analysisHtml, ratingStars, refreshIcons, toast, fmtDateTime } from '../ui.js';
 import { isUnlocked, blockingPrereqs, MASTERY, sectionForTopic, topicsMasteryStats, sectionTestReady } from '../mastery.js';
 import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';
@@ -37,7 +37,7 @@ export function renderTopic(params, { navigate }) {
   root.appendChild(el(`
     <div class="mb-5">
       <div class="flex items-center gap-2 mb-2.5 text-xs font-medium">
-        <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white" style="background:${meta.color}"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5"></i>${esc(t.subject)}</span>
+        <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white" style="background:${esc(meta.color)}"><i data-lucide="${esc(meta.icon)}" class="w-3.5 h-3.5"></i>${esc(t.subject)}</span>
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">${esc(t.domain)}</span>
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">Ages ${esc(t.ageRangeStart)}–${esc(t.ageRangeEnd)}</span>
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-faint capitalize">${esc((t.type||'').toLowerCase())}</span>
@@ -55,7 +55,7 @@ export function renderTopic(params, { navigate }) {
       <i data-lucide="lock" class="w-5 h-5 text-[#a4473a] shrink-0 mt-0.5"></i>
       <div>
         <p class="font-600 text-sm text-[#8e3a2f]">Foundations needed first</p>
-        <p class="text-sm text-[#8a6412] mt-0.5">Master ${blocking.length} prerequisite${blocking.length>1?'s':''} below before starting this topic — this keeps learning solid.</p>
+        <p class="text-sm text-[#8a6412] mt-0.5">Master ${esc(blocking.length)} prerequisite${blocking.length>1?'s':''} below before starting this topic — this keeps learning solid.</p>
       </div>
     </div>`));
   }
@@ -137,7 +137,7 @@ export function renderTopic(params, { navigate }) {
 function section(icon, title, contentEl, extra = '') {
   const s = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5">
     <div class="flex items-center justify-between mb-3.5">
-      <h2 class="font-600 flex items-center gap-2"><i data-lucide="${icon}" class="w-4.5 h-4.5 text-brand-dark"></i>${title}</h2>
+      <h2 class="font-600 flex items-center gap-2"><i data-lucide="${esc(icon)}" class="w-4.5 h-4.5 text-brand-dark"></i>${esc(title)}</h2>
       <span>${extra}</span>
     </div>
     <div class="body"></div>
@@ -162,24 +162,24 @@ function masterySection(t, student) {
   if (passed) {
     body.appendChild(el(`<div class="rounded-xl bg-brand-light/60 border border-brand/30 p-3.5 flex items-center gap-2.5 mb-3">
       <i data-lucide="badge-check" class="w-5 h-5 text-brand-dark shrink-0"></i>
-      <p class="text-sm text-ink-soft"><span class="font-600 text-ink">Mastered.</span> ${last ? `Passed the topic test with ${last.pct}%.` : 'This topic is marked mastered.'}</p>
+      <p class="text-sm text-ink-soft"><span class="font-600 text-ink">Mastered.</span> ${last ? `Passed the topic test with ${esc(last.pct)}%.` : 'This topic is marked mastered.'}</p>
     </div>`));
     const chBest = store.challengesFor(student.id, t.id).sort((a,b)=>(b.correct/b.total)-(a.correct/a.total))[0];
-    const ch = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white font-medium text-sm transition-colors mb-2" style="background:${meta.color}"><i data-lucide="zap" class="w-4 h-4"></i>Try the challenge quiz</button>`);
+    const ch = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white font-medium text-sm transition-colors mb-2" style="background:${esc(meta.color)}"><i data-lucide="zap" class="w-4 h-4"></i>Try the challenge quiz</button>`);
     ch.onclick = () => openChallenge(t);
     // Hidden without a provider; the retake button below already shows the chip.
     if (store.aiAvailable()) {
       body.appendChild(ch);
-      body.appendChild(el(`<p class="text-xs text-ink-faint mb-1">A timed, slightly harder stretch to keep them challenged.${chBest ? ` Best: ${chBest.correct}/${chBest.total}.` : ''}</p>`));
+      body.appendChild(el(`<p class="text-xs text-ink-faint mb-1">A timed, slightly harder stretch to keep them challenged.${chBest ? ` Best: ${esc(chBest.correct)}/${esc(chBest.total)}.` : ''}</p>`));
     }
   } else {
-    body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-3">Passing this topic's mastery test (${90}%+) marks it <span class="font-600">mastered</span> and counts toward the section check. ${last ? `<span class="text-[#a4473a] font-medium">Last attempt: ${last.pct}%.</span>` : ''}</p>`));
+    body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-3">Passing this topic's mastery test (${90}%+) marks it <span class="font-600">mastered</span> and counts toward the section check. ${last ? `<span class="text-[#a4473a] font-medium">Last attempt: ${esc(last.pct)}%.</span>` : ''}</p>`));
     if (!unlocked) {
-      body.appendChild(el(`<p class="text-xs text-[#a4473a] flex items-start gap-1.5 mb-3"><i data-lucide="lock" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i>Master ${blocking.length} prerequisite${blocking.length>1?'s':''} first (see Connections) — but you can still test if you're ready.</p>`));
+      body.appendChild(el(`<p class="text-xs text-[#a4473a] flex items-start gap-1.5 mb-3"><i data-lucide="lock" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i>Master ${esc(blocking.length)} prerequisite${blocking.length>1?'s':''} first (see Connections) — but you can still test if you're ready.</p>`));
     }
   }
 
-  const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${passed ? 'bg-paper border border-paper-line text-ink-soft hover:border-brand/40' : 'text-white'} font-medium text-sm transition-colors" ${passed ? '' : `style="background:${meta.color}"`}>
+  const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${passed ? 'bg-paper border border-paper-line text-ink-soft hover:border-brand/40' : 'text-white'} font-medium text-sm transition-colors" ${passed ? '' : `style="background:${esc(meta.color)}"`}>
     <i data-lucide="file-check-2" class="w-4 h-4"></i>${passed ? 'Retake topic test' : 'Take topic mastery test'}</button>`);
   btn.onclick = () => openMasteryTest(t.subject, null, t);
   body.appendChild(gateAi(btn));
@@ -199,7 +199,7 @@ function statusControl(t, student, unlocked) {
   const opts = wrap.querySelector('[role="group"]');
   Object.entries(MASTERY).forEach(([k, v]) => {
     const on = status === k;
-    const b = el(`<button class="px-2.5 py-1 rounded-full border text-xs font-medium transition-all ${on ? 'text-white border-transparent' : 'bg-paper-card text-ink-soft border-paper-line hover:border-ink-faint/40'}" ${on ? `style="background:${v.color}" aria-pressed="true"` : 'aria-pressed="false"'} title="Set status to ${v.label.toLowerCase()}">${v.label}</button>`);
+    const b = el(`<button class="px-2.5 py-1 rounded-full border text-xs font-medium transition-all ${on ? 'text-white border-transparent' : 'bg-paper-card text-ink-soft border-paper-line hover:border-ink-faint/40'}" ${on ? `style="background:${esc(v.color)}" aria-pressed="true"` : 'aria-pressed="false"'} title="Set status to ${esc(v.label.toLowerCase())}">${esc(v.label)}</button>`);
     b.onclick = () => { if (on) return; store.setStatus(student.id, t.id, k); toast(`Marked as ${v.label.toLowerCase()}`, k === 'mastered' ? 'success' : 'default'); };
     opts.appendChild(b);
   });
@@ -219,22 +219,22 @@ function sectionCheckSection(t, student) {
   const passed = !!(last && last.passed);
   const ready = student ? sectionTestReady(student.id, sec) : false;
 
-  body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-1">Part of <span class="font-600 text-ink">${esc(sec.domain)} · Age ${esc(sec.age)}</span> (${sec.topics.length} topics).</p>`));
+  body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-1">Part of <span class="font-600 text-ink">${esc(sec.domain)} · Age ${esc(sec.age)}</span> (${esc(sec.topics.length)} topics).</p>`));
   body.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${passed
-    ? `Section check passed with ${last.pct}%.`
+    ? `Section check passed with ${esc(last.pct)}%.`
     : ready
       ? `All topics mastered — take the section check to unlock the next section. Needs 90%+.`
       : `Pass the mastery test for every topic in this section to unlock the section check.`}</p>`));
 
   if (student) {
     body.appendChild(el(`<div class="flex items-center gap-2 mb-3">
-      <div class="h-1.5 rounded-full bg-paper-line overflow-hidden flex-1"><div class="mbar h-full rounded-full" style="width:${Math.round((stats.mastered/(stats.total||1))*100)}%;background:${meta.color}"></div></div>
-      <span class="text-[11px] text-ink-faint shrink-0">${stats.mastered}/${stats.total} topics</span>
+      <div class="h-1.5 rounded-full bg-paper-line overflow-hidden flex-1"><div class="mbar h-full rounded-full" style="width:${esc(Math.round((stats.mastered/(stats.total||1))*100))}%;background:${esc(meta.color)}"></div></div>
+      <span class="text-[11px] text-ink-faint shrink-0">${esc(stats.mastered)}/${esc(stats.total)} topics</span>
     </div>`));
   }
 
   const canTake = passed || ready;
-  const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${!canTake ? 'bg-paper border border-paper-line text-ink-faint cursor-not-allowed' : passed ? 'bg-paper border border-paper-line text-ink-soft hover:border-brand/40' : 'text-white'} font-medium text-sm transition-colors" ${canTake && !passed ? `style="background:${meta.color}"` : ''} ${!canTake ? 'disabled' : ''}>
+  const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${!canTake ? 'bg-paper border border-paper-line text-ink-faint cursor-not-allowed' : passed ? 'bg-paper border border-paper-line text-ink-soft hover:border-brand/40' : 'text-white'} font-medium text-sm transition-colors" ${canTake && !passed ? `style="background:${esc(meta.color)}"` : ''} ${!canTake ? 'disabled' : ''}>
     <i data-lucide="${!canTake ? 'lock' : 'clipboard-check'}" class="w-4 h-4"></i>${passed ? 'Retake section check' : !canTake ? 'Locked until topics mastered' : 'Take section check'}</button>`);
   if (canTake) btn.onclick = () => { if (!student) { toast('Add a student first', 'error'); return; } openMasteryTest(sec.subject, sec); };
   body.appendChild(canTake ? gateAi(btn) : btn);
@@ -266,7 +266,7 @@ function recordingItem(r) {
   const item = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
     <div class="flex items-center gap-2 text-xs mb-1">
       <span class="flex items-center gap-1 font-600 text-[#a4473a]"><i data-lucide="mic" class="w-3.5 h-3.5"></i>Recording</span>
-      <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
+      <span class="text-ink-faint ml-auto">${esc(fmtDateTime(r.createdAt))}</span>
     </div>
     ${r.title ? `<p class="font-600 text-sm">${esc(r.title)}</p>` : ''}
     ${r.topicName ? `<p class="text-[11px] text-ink-faint mt-0.5">on ${esc(r.topicName)}</p>` : ''}
@@ -288,7 +288,7 @@ function connectionsSection(t, student, navigate) {
   }
 
   // Plain-language intro so the flow is obvious.
-  body.appendChild(el(`<p class="text-xs text-ink-soft leading-relaxed mb-3">Learning builds from the bottom up: master what's <span class="font-600" style="color:${meta.color}">below</span> first, then <span class="font-600 text-ink">this topic</span>, which then opens up what's <span class="font-600" style="color:${meta.color}">above</span>.</p>`));
+  body.appendChild(el(`<p class="text-xs text-ink-soft leading-relaxed mb-3">Learning builds from the bottom up: master what's <span class="font-600" style="color:${esc(meta.color)}">below</span> first, then <span class="font-600 text-ink">this topic</span>, which then opens up what's <span class="font-600" style="color:${esc(meta.color)}">above</span>.</p>`));
 
   const flow = el(`<div class="relative"></div>`);
 
@@ -305,7 +305,7 @@ function connectionsSection(t, student, navigate) {
           ${p.strength === 'hard'
             ? '<span class="text-[10px] font-600 text-[#a4473a] uppercase tracking-wide">Required</span>'
             : '<span class="text-[10px] font-medium text-ink-faint uppercase tracking-wide">Helpful</span>'}
-          <span class="text-[10px] text-ink-faint">· ${MASTERY[st].label}</span>
+          <span class="text-[10px] text-ink-faint">· ${esc(MASTERY[st].label)}</span>
         </span>
         ${p.reason ? `<span class="block text-[11px] text-ink-faint clamp-2 leading-snug mt-1">${esc(p.reason)}</span>` : ''}
       </span>
@@ -320,25 +320,25 @@ function connectionsSection(t, student, navigate) {
     flow.appendChild(el(`<p class="text-[11px] font-600 uppercase tracking-wide text-ink-faint mb-2 flex items-center gap-1.5"><i data-lucide="arrow-down-to-line" class="w-3.5 h-3.5"></i>Comes before · master these first</p>`));
     const list = el(`<div class="space-y-1.5"></div>`);
     prereqs.slice(0, 8).forEach(p => { const r = topicRow(p, 'pre'); if (r) list.appendChild(r); });
-    if (prereqs.length > 8) list.appendChild(el(`<p class="text-xs text-ink-faint px-1">+${prereqs.length - 8} more</p>`));
+    if (prereqs.length > 8) list.appendChild(el(`<p class="text-xs text-ink-faint px-1">+${esc(prereqs.length - 8)} more</p>`));
     flow.appendChild(list);
     // connector arrow down into this topic
-    flow.appendChild(el(`<div class="flex justify-center py-1.5"><i data-lucide="arrow-down" class="w-5 h-5" style="color:${meta.color}"></i></div>`));
+    flow.appendChild(el(`<div class="flex justify-center py-1.5"><i data-lucide="arrow-down" class="w-5 h-5" style="color:${esc(meta.color)}"></i></div>`));
   }
 
   // 2) This topic (the anchor)
-  flow.appendChild(el(`<div class="rounded-xl px-3 py-2.5 flex items-center gap-2.5 text-white" style="background:${meta.color}">
-    <i data-lucide="${meta.icon}" class="w-4 h-4 shrink-0"></i>
+  flow.appendChild(el(`<div class="rounded-xl px-3 py-2.5 flex items-center gap-2.5 text-white" style="background:${esc(meta.color)}">
+    <i data-lucide="${esc(meta.icon)}" class="w-4 h-4 shrink-0"></i>
     <span class="flex-1 min-w-0"><span class="block text-[10px] uppercase tracking-wide opacity-80">You are here</span><span class="block text-sm font-600 leading-snug truncate">${esc(t.name)}</span></span>
   </div>`));
 
   // 3) Unlocks ("comes after")
   if (unlocks.length) {
-    flow.appendChild(el(`<div class="flex justify-center py-1.5"><i data-lucide="arrow-down" class="w-5 h-5" style="color:${meta.color}"></i></div>`));
+    flow.appendChild(el(`<div class="flex justify-center py-1.5"><i data-lucide="arrow-down" class="w-5 h-5" style="color:${esc(meta.color)}"></i></div>`));
     flow.appendChild(el(`<p class="text-[11px] font-600 uppercase tracking-wide text-ink-faint mb-2 flex items-center gap-1.5"><i data-lucide="arrow-up-from-line" class="w-3.5 h-3.5"></i>Leads to · unlocks these next</p>`));
     const list = el(`<div class="space-y-1.5"></div>`);
     unlocks.slice(0, 8).forEach(p => { const r = topicRow(p, 'post'); if (r) list.appendChild(r); });
-    if (unlocks.length > 8) list.appendChild(el(`<p class="text-xs text-ink-faint px-1">+${unlocks.length - 8} more</p>`));
+    if (unlocks.length > 8) list.appendChild(el(`<p class="text-xs text-ink-faint px-1">+${esc(unlocks.length - 8)} more</p>`));
     flow.appendChild(list);
   }
 
@@ -361,7 +361,7 @@ function referenceSection(t) {
 
 function linkRow(l) {
   return el(`<a href="${esc(l.url)}" target="_blank" rel="noopener" class="flex items-center gap-2.5 p-2.5 rounded-lg border border-paper-line hover:border-brand/40 hover:bg-paper transition-colors group">
-    <i data-lucide="${l.icon}" class="w-4 h-4 text-ink-soft group-hover:text-brand-dark"></i>
+    <i data-lucide="${esc(l.icon)}" class="w-4 h-4 text-ink-soft group-hover:text-brand-dark"></i>
     <span class="text-sm flex-1">${esc(l.label)}</span>
     <i data-lucide="external-link" class="w-3.5 h-3.5 text-ink-faint"></i>
   </a>`);
@@ -371,11 +371,11 @@ function activitiesSection(t) {
   const body = el(`<div class="space-y-4"></div>`);
   const ai = store.aiAvailable();
   const mk = (title, icon, items, kind) => {
-    const wrap = el(`<div><p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-2 flex items-center gap-1.5"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i>${title}</p><div class="grid sm:grid-cols-2 gap-2.5"></div></div>`);
+    const wrap = el(`<div><p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-2 flex items-center gap-1.5"><i data-lucide="${esc(icon)}" class="w-3.5 h-3.5"></i>${esc(title)}</p><div class="grid sm:grid-cols-2 gap-2.5"></div></div>`);
     const g = wrap.querySelector('div.grid');
     items.forEach(a => {
       const card = el(`<button class="text-left rounded-xl border border-paper-line bg-paper p-3 card-hover group">
-        <div class="flex items-center gap-2 mb-1"><i data-lucide="${a.icon}" class="w-4 h-4 text-brand-dark"></i><p class="font-600 text-sm flex-1">${esc(a.title)}</p><i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-ink-faint group-hover:text-brand-dark"></i></div>
+        <div class="flex items-center gap-2 mb-1"><i data-lucide="${esc(a.icon)}" class="w-4 h-4 text-brand-dark"></i><p class="font-600 text-sm flex-1">${esc(a.title)}</p><i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-ink-faint group-hover:text-brand-dark"></i></div>
         <p class="text-xs text-ink-soft leading-relaxed clamp-3">${esc(a.body)}</p>
         <span class="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-brand-dark"><i data-lucide="list-ordered" class="w-3 h-3"></i>Get instructions</span>
       </button>`);
@@ -409,11 +409,11 @@ function aiSection(t) {
 
   const run = async (fn, label) => {
     out.innerHTML = '';
-    const loading = el(`<div class="flex items-center gap-2 text-sm text-ink-soft py-2"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>${label}</div>`);
+    const loading = el(`<div class="flex items-center gap-2 text-sm text-ink-soft py-2"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>${esc(label)}</div>`);
     out.appendChild(loading);
     try {
       const text = await fn(t);
-      out.innerHTML = `<div class="ai-prose text-sm text-ink-soft bg-paper border border-paper-line rounded-xl p-4">${text}</div>`;
+      out.innerHTML = `<div class="ai-prose text-sm text-ink-soft bg-paper border border-paper-line rounded-xl p-4">${analysisHtml(text)}</div>`;
     } catch (e) {
       out.innerHTML = '';
       out.appendChild(aiErrorBlock(e, () => run(fn, label), { compact: true }));
@@ -459,9 +459,9 @@ function recordItem(r) {
   }[r.type] || { icon: 'sticky-note', label: 'Note', color: '#6f665a' };
   const item = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
     <div class="flex items-center gap-2 mb-1 text-xs">
-      <span class="flex items-center gap-1 font-600" style="color:${typeMeta.color}"><i data-lucide="${typeMeta.icon}" class="w-3.5 h-3.5"></i>${typeMeta.label}</span>
-      ${r.rating ? `<span class="flex items-center gap-0.5 text-ink-faint">${'\u2605'.repeat(r.rating)}${'\u2606'.repeat(5-r.rating)}</span>` : ''}
-      <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
+      <span class="flex items-center gap-1 font-600" style="color:${esc(typeMeta.color)}"><i data-lucide="${esc(typeMeta.icon)}" class="w-3.5 h-3.5"></i>${esc(typeMeta.label)}</span>
+      ${r.rating ? `<span class="flex items-center gap-0.5 text-ink-faint">${ratingStars(r.rating)}</span>` : ''}
+      <span class="text-ink-faint ml-auto">${esc(fmtDateTime(r.createdAt))}</span>
     </div>
     ${r.title ? `<p class="font-600 text-sm">${esc(r.title)}</p>` : ''}
     ${r.note ? `<p class="text-sm text-ink-soft mt-0.5 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}

@@ -37,6 +37,10 @@ tagged a release yet; everything below is on `main`.
   plain, accurate wording (HAR-12).
 
 ### Added
+- The family document and exports carry `schemaVersion: 1`. Ordered
+  migrations in `src/js/schema.js` run when a document is loaded or
+  imported (documents from before the field gain it), and importing a file
+  from a newer data format is refused with a message to update Harrington.
 - Today's pick-one stops record evidence for the pick: the note and voice
   forms offer an opt-in "Mark curriculum coverage" checkbox, and a pick shows
   "Evidence recorded" only once a linked record claims coverage. Each stop
@@ -68,6 +72,29 @@ tagged a release yet; everything below is on `main`.
   Homestead (HAR-2).
 
 ### Fixed
+- Record cards, the recordings folder and the recorder escape every value
+  they put into markup, and a source test fails on any new unescaped one in
+  those files (HAR-11 follow-up).
+- A stored AI analysis renders through an allowlist of the tags the app
+  writes, so an imported file cannot inject markup through it.
+- Import checks learner ids and fields, the active learner, progress,
+  records, test and challenge results, XP, interests, calendar settings, the
+  PIN and notifications (`src/js/document.js`), and refuses a malformed file
+  with the reason; a hostile file could run script on the Dashboard, a topic
+  page and Insights, or leave the app stuck loading (HAR-10 follow-up).
+- The server runs the same check on every save (422 with the reason) and
+  refuses a save in a data format newer than its own or older than the
+  stored document's (409); the app shows the reason instead of dropping the
+  change.
+- A document saved by a newer Harrington opens read-only, with a banner and
+  Import disabled, instead of being written back in the older format with
+  its new fields dropped.
+- The server removes stored parent notes from an AI request the parent did
+  not opt in to, and forwards only `{ role, content }` text messages.
+- The server replaces every learner name in the family document with “the
+  child” in each message it forwards to the AI provider, with the same rules
+  as the browser, so a prompt that missed the browser-side redaction still
+  carries no name; `/api/health` reports `redaction: "server+client"`.
 - The Calendar page rendered blank without an AI provider (`gateAi` was
   called but not imported); a source test now checks every file that uses an
   `ai-status.js` helper imports it (HAR-18, HAR-20).

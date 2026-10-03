@@ -64,6 +64,7 @@ test('serves Harrington and reports self-hosted health', async () => {
     ok: true,
     mode: 'self-hosted',
     aiConfigured: false,
+    redaction: 'server+client',
     taxonomyCached: false,
     stateVersion: 0,
     stateBytes: 0,
@@ -88,7 +89,8 @@ test('persists versioned family state on the Harrington server', async () => {
   const empty = await fetch(`${baseUrl}/api/state`);
   assert.equal(empty.status, 200);
   assert.equal(empty.headers.get('etag'), '"v0"');
-  assert.deepEqual(await empty.json(), { version: 0 });
+  // A new document is at the current data format (src/js/schema.js).
+  assert.deepEqual(await empty.json(), { schemaVersion: 1, version: 0 });
 
   const state = {
     students: [{ id: 'student-1', name: 'Sample Learner', birthYear: 2018 }],
@@ -232,7 +234,7 @@ test('stores a client writeId and returns it on reads and conflicts', async () =
   assert.equal((await stale.json()).writeId, 'tab-a-1');
 
   // Echoing the stored id back (read, modify, write) does not claim it.
-  const echoed = await putState({ ...loaded, students: [] }, `"v${loaded.version}"`);
+  const echoed = await putState({ ...loaded, students: [], activeStudentId: null }, `"v${loaded.version}"`);
   assert.equal(echoed.status, 204);
   const afterEcho = await (await fetch(`${baseUrl}/api/state`)).json();
   assert.equal(afterEcho.writeId, undefined);
@@ -240,6 +242,46 @@ test('stores a client writeId and returns it on reads and conflicts', async () =
   // Ids that are not short strings are not stored.
   assert.equal((await putState({ ...state, writeId: 'x'.repeat(65) }, `"v${afterEcho.version}"`)).status, 204);
   assert.equal((await (await fetch(`${baseUrl}/api/state`)).json()).writeId, undefined);
+});
+
+test('refuses a save the app could not render (422) or a data format it does not know (409)', async () => {
+  const current = async () => (await fetch(`${baseUrl}/api/state`)).json();
+  const before = await current();
+  const tag = `"v${before.version}"`;
+  const learner = { id: 'v1', name: 'Valid Learner', birthYear: 2019 };
+  for (const [body, error] of [
+    [{ students: [{ ...learner, id: 'constructor' }] }, 'Learner 1 in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
+    [{ students: [learner], records: { v1: [{ id: 'r', type: '<img src=x onerror=alert(1)>' }] } }, 'A record in the file (records item 1) has a type other than observation, question, discussion, assessment, recording, note.'],
+    [{ students: [learner], tests: { v1: [{ pct: '<b>' }] } }, 'A test result in the file (tests item 1) has a score outside 0 to 100%.'],
+    [{ students: [learner], game: { v1: { xp: '<b>' } } }, 'The file\'s XP is not a number of zero or more.'],
+    [{ students: 'nope' }, 'The file has no learner list.'],
+    [{ schemaVersion: 'one', students: [] }, 'schemaVersion must be a whole number'],
+  ]) {
+    const response = await putState(body, tag);
+    assert.equal(response.status, 422, error);
+    assert.deepEqual(await response.json(), { error });
+  }
+  // The unload beacon path is checked the same way.
+  const beacon = await fetch(`${baseUrl}/api/state`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ students: [{ ...learner, id: '__proto__' }], version: before.version }),
+  });
+  assert.equal(beacon.status, 422);
+
+  const newer = await putState({ schemaVersion: 2, students: [] }, tag);
+  assert.equal(newer.status, 409);
+  assert.match((await newer.json()).error, /reads family data up to format 1; the save is format 2/);
+
+  // Once the stored document is format 1, a save without the field (format 0) is refused.
+  assert.equal((await putState({ schemaVersion: 1, students: [learner] }, tag)).status, 204);
+  const stored = await current();
+  const older = await putState({ students: [learner] }, `"v${stored.version}"`);
+  assert.equal(older.status, 409);
+  assert.match((await older.json()).error, /family data is format 1; this save is format 0/);
+  assert.deepEqual(await current(), stored, 'nothing refused was written');
+  // Leave the store as later tests expect: back to a document without the field.
+  await writeFile(join(dataDir, 'family-state.json'), JSON.stringify({ ...before, version: stored.version }));
 });
 
 test('round-trips an export through import', async () => {
@@ -566,6 +608,160 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
         assert.equal(response.status, 200);
       }
       assert.ok(captured.slice(1).every((entry) => entry.body.model === 'llama3.2'));
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+  });
+
+  test('replaces every learner name in the family document before forwarding', async () => {
+    const captured = [];
+    const upstream = createServer(async (req, res) => {
+      captured.push(JSON.parse(await readRequestBody(req)));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }));
+    });
+    await listen(upstream);
+    const harrington = await spawnHarrington({
+      HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`,
+      HARRINGTON_AI_MODEL: 'llama3.2',
+    });
+    const ask = async (messages) => {
+      const response = await fetch(`${harrington.url}/api/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      });
+      assert.equal(response.status, 200);
+      return captured.at(-1).messages;
+    };
+
+    try {
+      // No family document yet: messages pass through unchanged.
+      assert.deepEqual(await ask([{ role: 'user', content: 'Mary Jane counted' }]), [{ role: 'user', content: 'Mary Jane counted' }]);
+
+      // The variants from tests/ai.test.mjs, plus short parts.
+      const students = ['Mary-Jane Smith', "Mia O'Neil", 'Zoë Park', 'José Ruiz', 'An Nguyen', 'Leo Little']
+        .map((name, i) => ({ id: `s${i}`, name }));
+      const put = await fetch(`${harrington.url}/api/state`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'If-Match': '"v0"' },
+        body: JSON.stringify({ students }),
+      });
+      assert.equal(put.status, 204);
+
+      for (const [said, expected] of [
+        ['Say it again, Mary Jane.', 'Say it again, the child.'],
+        ['MaryJane and mary-jane', 'the child and the child'],
+        ['Mary, then Jane.', 'the child, then the child.'],
+        ['And Zoe? Zoe Park: nine!', 'And the child? the child: nine!'],
+        ['Thank you Jose.', 'Thank you the child.'],
+        ['Zoe\u0308 waved.', 'the child waved.'],
+        ['Zoë’s café', 'the child’s café'],
+        ['and O’Neil too. Mia O’Neil laughed', 'and the child too. the child laughed'],
+        ["Mia O'Neil's turn", "the child's turn"],
+        ['ONeil', 'the child'],
+        ['He said an apple; An and AN came', 'He said an apple; the child and the child came'],
+        ['leo and LEO, little Leo', 'the child and the child, the child the child'],
+        ['Ask the Leo', 'Ask the child'],
+      ]) {
+        const [message] = await ask([{ role: 'user', content: said }]);
+        assert.equal(message.content, expected, said);
+      }
+
+      // Every message is redacted, and only { role, content } is forwarded.
+      const forwarded = await ask([
+        { role: 'system', content: 'You help Zoe Park.', name: 'José' },
+        { role: 'user', content: 'José and Leo' },
+        { role: 'assistant', content: 'Hello Mia' },
+      ]);
+      assert.deepEqual(forwarded, [
+        { role: 'system', content: 'You help the child.' },
+        { role: 'user', content: 'the child and the child' },
+        { role: 'assistant', content: 'Hello the child' },
+      ]);
+      assert.doesNotMatch(JSON.stringify(captured.slice(1)).normalize('NFD').replace(/\p{M}/gu, ''), /\b(mary|jane|zoe|jose|o.?neil|smith|ruiz|nguyen|leo|little)\b/i);
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+  });
+
+  test('refuses messages that are not { role, content: string } with 400', async () => {
+    let forwarded = 0;
+    const upstream = createServer(async (req, res) => {
+      forwarded += 1;
+      await readRequestBody(req);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }));
+    });
+    await listen(upstream);
+    const harrington = await spawnHarrington({
+      HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`,
+      HARRINGTON_AI_MODEL: 'llama3.2',
+    });
+    try {
+      for (const [message, error] of [
+        [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }, 'Message 1 content must be a string'],
+        [{ role: 'user', content: { text: 'hi' } }, 'Message 1 content must be a string'],
+        [{ role: 'user', content: null }, 'Message 1 content must be a string'],
+        [{ role: 'assistant', content: '', tool_calls: [{ id: 't', type: 'function' }] }, 'Message 1 has tool_calls, which Harrington does not send'],
+        [{ role: 'tool', content: 'x' }, 'Message 1 has a role other than system, user or assistant'],
+        ['hi', 'Message 1 is not an object'],
+      ]) {
+        const response = await fetch(`${harrington.url}/api/ai`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: [message] }),
+        });
+        assert.equal(response.status, 400, error);
+        assert.deepEqual(await response.json(), { error });
+      }
+      assert.equal(forwarded, 0);
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+  });
+
+  test('removes stored parent notes unless the request says the parent opted in', async () => {
+    const captured = [];
+    const upstream = createServer(async (req, res) => {
+      captured.push(JSON.parse(await readRequestBody(req)));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }));
+    });
+    await listen(upstream);
+    const harrington = await spawnHarrington({
+      HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`,
+      HARRINGTON_AI_MODEL: 'llama3.2',
+    });
+    const note = 'Zebulon got stuck carrying the one.\nHe   counted on his fingers twice before he trusted the answer.';
+    const ask = async (content, extra = {}) => {
+      const response = await fetch(`${harrington.url}/api/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content }], ...extra }),
+      });
+      assert.equal(response.status, 200);
+      return captured.at(-1).messages[0].content;
+    };
+    try {
+      const put = await fetch(`${harrington.url}/api/state`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'If-Match': '"v0"' },
+        body: JSON.stringify({ students: [{ id: 's1', name: 'Zebulon Quixote' }], records: { s1: [{ id: 'r1', type: 'observation', note, title: 'Carrying' }] } }),
+      });
+      assert.equal(put.status, 204);
+      // As the browser sends it: the name already redacted, whitespace reflowed.
+      const sent = 'the child got stuck carrying the one. He counted on his fingers twice before he trusted the answer.';
+      assert.equal(await ask(`Notes: ${sent} Advise.`), 'Notes: [note removed] Advise.');
+      // A line of 20+ characters on its own, cut short by the browser's limit, is removed too.
+      assert.equal(await ask('Notes: He counted on his fingers twice before he trusted the answer.'), 'Notes: [note removed]');
+      // Opted in: the note goes as sent.
+      assert.equal(await ask(`Notes: ${sent}`, { includeNotes: true }), `Notes: ${sent}`);
+      // Anything else is untouched.
+      assert.equal(await ask('Count to five with the child.'), 'Count to five with the child.');
     } finally {
       await harrington.stop();
       upstream.close();

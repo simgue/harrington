@@ -460,10 +460,14 @@ describe('family data safety in the store', { concurrency: false }, () => {
     await store.flushSaves();
   });
 
-  test('import replaces a color outside the palette', async () => {
+  test('import replaces an older palette color and refuses any other color', async () => {
     const exported = JSON.parse(JSON.stringify(await store.exportDocument()));
     const target = exported.students[0];
     target.color = 'red"><img src=x onerror=alert(1)>';
+    assert.equal(store.inspectImport(exported).ok, false);
+    await assert.rejects(store.importDocument(exported), /Learner 1 in the file has a color that is not a hex color/);
+
+    target.color = '#3f7d5e'; // the first palette, before HAR-22
     target.name = '<b>Sample "Eleven"</b>';
     assert.equal(await store.importDocument(exported), true);
     const imported = store.get().students.find((s) => s.id === target.id);

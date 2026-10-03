@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
+import { unescapedInterpolations } from './support/templates.mjs';
 
 const repoRoot = new URL('..', import.meta.url);
 const source = (path) => readFile(new URL(path, repoRoot), 'utf8');
@@ -109,4 +110,72 @@ test('esc() neutralizes markup and attribute breakouts', async () => {
   assert.equal(esc(null), '');
   assert.equal(esc(undefined), '');
   assert.equal(esc(7), '7');
+});
+
+// Markup templates in these files interpolate only escaped values (HAR-11):
+// esc(), analysisHtml(), ratingStars(), a number, a ternary or .map().join()
+// of literal templates, a call to a listed helper that builds its markup from
+// constants (meadow.js icons and rings, a view's own stat box), or a listed
+// expression. A new `${t.name}` in markup fails here.
+const MEADOW = ['meadowScene', 'petalRing', 'weekFlower', 'growthIcon', 'growthChip'];
+const ESCAPED_MARKUP = {
+  'src/js/recorder.js': {
+    allowed: ['coverageClaimField(coverageTopics)'], // escapes each name; tested in daily.test.mjs
+  },
+  'src/js/views/records.js': {
+    allowed: ["coverageNames(r).map(esc).join(' · ')", 'coverageClaimField(coverageTopics)'],
+  },
+  'src/js/views/recordings.js': {},
+  'src/js/views/dashboard.js': {
+    helpers: [...MEADOW, 'stop'],
+    // Markup built a few lines above from escaped values.
+    allowed: ['stopHtml', "parts.join(' · ')", 'flowers'],
+  },
+  'src/js/views/topic.js': {
+    helpers: MEADOW,
+    allowed: ['extra'], // section()'s header buttons, constant markup from the records section
+  },
+  'src/js/views/insights.js': { helpers: [...MEADOW, 'statBox'] },
+  'src/js/views/challenge.js': {},
+};
+
+test('learner, record and result markup interpolates only escaped values', async () => {
+  for (const [path, { allowed = [], helpers = [] }] of Object.entries(ESCAPED_MARKUP)) {
+    const unescaped = unescapedInterpolations(await source(path), new Set(allowed), helpers);
+    assert.deepEqual(unescaped, [], `${path} interpolates unescaped values into markup (line: expression)`);
+  }
+});
+
+test('the markup escaping check flags what it should and nothing else', () => {
+  const flagged = (code) => unescapedInterpolations(code).map((hit) => hit.replace(/^\d+: /, ''));
+  // Flagged: raw values, values next to an esc() call, values in nested markup.
+  assert.deepEqual(flagged('el(`<span>${t.name}</span>`)'), ['t.name']);
+  assert.deepEqual(flagged('el(`<b title="${esc(a) + b}">`)'), ['esc(a) + b']);
+  assert.deepEqual(flagged('el(`<i>${on ? `x ${t.subject}` : \'\'}</i>`)'), ['t.subject']);
+  assert.deepEqual(flagged('el(`<i>${on ? t.subject : \'\'}</i>`)'), ["on ? t.subject : ''"]);
+  assert.deepEqual(flagged('el(`<i>${xs.map(x => x.name).join(\'\')}</i>`)'), ['xs.map(x => x.name).join(\'\')']);
+  // Not flagged: escaped values, literal choices, non-markup templates.
+  assert.deepEqual(flagged('el(`<span title="${esc(t.id)}">${esc(t.name)}</span>`)'), []);
+  assert.deepEqual(flagged('el(`<i class="${on ? \'a\' : \'b\'}">${xs.map(x => `<b>${esc(x)}</b>`).join(\' \')}</i>`)'), []);
+  assert.deepEqual(flagged('const key = `${t.subject}|${t.domain}`;'), []);
+  assert.deepEqual(flagged('el(`<i>${a ? \'x\' : b ? \'y\' : `z`}${90}</i>`)'), []);
+  assert.deepEqual(flagged('el(`<i>${a ? \'x\' : b ? y : \'z\'}</i>`)'), ["a ? 'x' : b ? y : 'z'"]);
+  assert.deepEqual(unescapedInterpolations('el(`<i>${ring(a)}${ring(a) + b}</i>`)', new Set(), ['ring']).map((h) => h.replace(/^\d+: /, '')), ['ring(a) + b']);
+  // Comments, regex literals and strings with backticks or braces do not derail the scan.
+  assert.deepEqual(flagged('// a `quoted` word\nconst re = /`{/g; const s = \'`}\';\nel(`<p>${t.name}</p>`)'), ['t.name']);
+});
+
+test('stored analysis HTML keeps only the tags toHtml() writes', async () => {
+  const { analysisHtml } = await importSource('src/js/ui.js');
+  const fine = '<h4>Summary</h4><p>Counted to <strong>ten</strong> &amp; <em>back</em>.</p><ul><li>a &lt;b&gt;</li></ul>';
+  assert.equal(analysisHtml(fine), fine);
+  // An imported document can carry any string here.
+  const hostile = '<p onclick="x()">Hi</p><img src=x onerror=alert(1)><script>alert(2)</script><a href="javascript:x">y</a><svg/onload=z><!-- c --><p';
+  const out = analysisHtml(hostile);
+  assert.doesNotMatch(out, /<(?!\/?(?:p|h4|ul|li|strong|em)>)/, out);
+  assert.equal(out, '&lt;p onclick=&quot;x()&quot;&gt;Hi</p>&lt;img src=x onerror=alert(1)&gt;&lt;script&gt;alert(2)&lt;/script&gt;'
+    + '&lt;a href=&quot;javascript:x&quot;&gt;y&lt;/a&gt;&lt;svg/onload=z&gt;&lt;!-- c --&gt;&lt;p');
+  assert.equal(analysisHtml('a > b <<p>c'), 'a &gt; b &lt;<p>c');
+  assert.equal(analysisHtml(null), '');
+  assert.equal(analysisHtml(7), '7');
 });

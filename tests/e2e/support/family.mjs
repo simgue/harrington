@@ -35,6 +35,7 @@ export function familyState({ learners = ['wren', 'rowan', 'sage'], active = 'ro
   const activeId = LEARNERS[active].id;
   const now = FIXED_NOW.getTime();
   const state = {
+    schemaVersion: 1,
     students,
     activeStudentId: activeId,
     progress: Object.fromEntries(students.map((s) => [s.id, {}])),

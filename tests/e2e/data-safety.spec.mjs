@@ -2,7 +2,7 @@
 // second tab sees when the first one saved first.
 import { test, expect, modal, expectToast, nav, setTopicStatus } from './fixtures.mjs';
 import { FIXED_NOW } from './support/env.mjs';
-import { LEARNERS, TOPICS } from './support/family.mjs';
+import { LEARNERS, TOPICS, familyState } from './support/family.mjs';
 
 const ROWAN = LEARNERS.rowan.id;
 const exportButton = (page) => page.getByRole('button', { name: 'Export', exact: true });
@@ -78,9 +78,49 @@ test('import refuses files that are not a family export', async ({ page, api, go
   await chooseImportFile(page, JSON.stringify({ hello: 'world' }));
   await expectToast(page, 'The file has no learner list.');
   await chooseImportFile(page, JSON.stringify({ students: [{ name: 'No id' }] }));
-  await expectToast(page, 'A learner in the file is missing an id or name.');
+  await expectToast(page, 'Learner 1 in the file is missing an id or name.');
   await expect(page.locator('#modal-root > div')).toHaveCount(0);
   expect((await api.getState()).state.students).toHaveLength(3);
+});
+
+test('an imported analysis renders as text, not markup', async ({ page, api, gotoApp }) => {
+  await gotoApp({ seed: {} });
+  const doc = (await api.getState()).state;
+  const hostile = '<p>Kept paragraph</p><img src=x onerror="window.__pwned=1"><script>window.__pwned=2</script>';
+  doc.records[ROWAN] = [{ id: 'r_hostile', type: 'observation', title: 'Imported note', note: '', createdAt: FIXED_NOW.getTime() - 3_600_000, analysis: hostile }];
+  await chooseImportFile(page, JSON.stringify(doc));
+  await modal(page).getByRole('button', { name: 'Replace family data' }).click();
+  await expectToast(page, 'Family data imported');
+  await nav(page, 'Records').click();
+  const prose = page.locator('.ai-prose').first();
+  await expect(prose).toContainText('Kept paragraph');
+  await expect(prose).toContainText('<img src=x onerror="window.__pwned=1">');
+  await expect(prose.locator('p')).toHaveCount(1);
+  await expect(prose.locator('img, script')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+});
+
+test('a newer data format opens read-only: a banner, Import disabled, nothing saved', async ({ page, api, gotoApp, errors }) => {
+  // Another Harrington, one data format ahead, saved this document.
+  const doc = { ...familyState({ learners: ['rowan'], active: 'rowan' }), schemaVersion: 2, levelset: { future: true } };
+  await api.putState({ ...doc, schemaVersion: 1 }); // the server here only stores format 1
+  const writes = [];
+  await page.route('**/api/state', (route) => {
+    const method = route.request().method();
+    if (method === 'GET') return route.fulfill({ status: 200, contentType: 'application/json', headers: { ETag: '"v7"' }, body: JSON.stringify({ ...doc, version: 7 }) });
+    writes.push(method);
+    return route.fulfill({ status: 204, headers: { ETag: '"v8"' } });
+  });
+  await gotoApp({ seed: null, hash: `topic/${TOPICS.oneToOne.id}` });
+  await expect(page.locator('.read-only-banner')).toContainText('saved by a newer version of Harrington');
+  await expect(importButton(page)).toBeDisabled();
+
+  // A change shows on the page but never reaches the server, not even on hide.
+  await setTopicStatus(page, 'Learning');
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForTimeout(800);
+  expect(writes).toEqual([]);
+  expect(errors).toEqual([]);
 });
 
 test('two tabs: the second save loses and reloads the first one\'s data, after a success toast (finding F17)', async ({ page, context, api, gotoApp, shot }) => {

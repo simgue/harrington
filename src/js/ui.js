@@ -103,6 +103,22 @@ export function openModal(contentEl, opts = {}) {
   return handle;
 }
 
+// AI analysis HTML is stored on records and travels in exports, so it is
+// rendered through this allowlist: the bare tags ai.js toHtml() produces
+// (p, h4, ul, li, strong, em) are kept and any other markup, including a tag
+// with attributes, is shown as text.
+const ANALYSIS_TAG = /^<\/?(?:p|h4|ul|li|strong|em)>$/;
+export function analysisHtml(html) {
+  return String(html ?? '').replace(/<[^<>]*>?|>/g, m => (ANALYSIS_TAG.test(m) ? m : esc(m)));
+}
+
+// A 1-5 confidence rating as five stars. Anything else (an imported 6, a
+// string) is clamped, so String#repeat never throws and only stars render.
+export function ratingStars(rating) {
+  const n = Math.min(5, Math.max(0, Math.round(Number(rating)) || 0));
+  return '\u2605'.repeat(n) + '\u2606'.repeat(5 - n);
+}
+
 export function fmtDate(ts) {
   const d = new Date(ts);
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });

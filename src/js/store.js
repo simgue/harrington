@@ -1,5 +1,9 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
+import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, schemaVersionOf } from './schema.js';
+import { BOOKKEEPING_FIELDS, LEARNER_KEYS, MIN_BIRTH_YEAR, documentFields, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
+
+export { MIN_BIRTH_YEAR };
 
 export const MASTERY = {
   none:       { label: 'Not started', rank: 0, color: '#d2c6ad' },
@@ -71,11 +75,8 @@ let unconfirmedBeacon = null;
 // Recordings of removed learners, deleted once the removal is saved.
 let pendingAudioDeletes = [];
 
-// Per-learner maps keyed by student id. removeStudent clears every one of them.
-const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
-  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests'];
 
-// Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'failed', error? }
+// Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'rejected' | 'read-only' | 'failed', error? }
 export function onSaveStatus(fn) { saveListeners.add(fn); return () => saveListeners.delete(fn); }
 function saveStatus(event) { saveListeners.forEach(fn => { try { fn(event); } catch (e) { console.warn(e); } }); }
 
@@ -83,8 +84,23 @@ function objectOr(value, fallback) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
 }
 
+// Top-level fields this version does not know (from a newer Harrington, say),
+// kept as they are through load and save so nothing is dropped.
+let unknownFields = {};
+// Set when the loaded document is from a newer data format or has an
+// unreadable one: nothing is saved until Harrington is updated (see
+// isReadOnly), so this version can never write it back in an older shape.
+let readOnly = false;
+export function isReadOnly() { return readOnly; }
+
+// Applies a document from the server or an import. Returns true when a
+// migration changed it, so the caller can save the migrated document once.
 function applyDocument(data) {
-  const doc = objectOr(data, {});
+  const raw = objectOr(data, {});
+  readOnly = isUnwritableSchema(raw);
+  const doc = migrateDocument(raw);
+  unknownFields = Object.fromEntries(Object.entries(doc)
+    .filter(([key]) => !documentFields.includes(key) && !BOOKKEEPING_FIELDS.includes(key)));
   state.students = Array.isArray(doc.students) ? doc.students : [];
   state.activeStudentId = doc.activeStudentId || (state.students[0] && state.students[0].id) || null;
   for (const key of LEARNER_KEYS) state[key] = objectOr(doc[key], {});
@@ -93,39 +109,37 @@ function applyDocument(data) {
   state.graphView = doc.graphView === 'list' ? 'list' : 'atlas';
   state.settings = objectOr(doc.settings, {});
   stateVersion = Number.isSafeInteger(doc.version) ? doc.version : 0;
+  return !readOnly && schemaVersionOf(doc) !== schemaVersionOf(raw);
+}
+
+// Loading never writes, with one exception: a document a migration changed is
+// saved once, right away, as a normal versioned save. (When the synced
+// snapshot of PR #35 lands, markSynced() runs before this save, on the
+// migrated document.)
+function saveIfMigrated(migrated) {
+  if (!migrated) return;
+  dirty = true;
+  flushSaves();
 }
 
 export async function loadAll() {
   try {
-    applyDocument(await backend.loadState());
+    saveIfMigrated(applyDocument(await backend.loadState()));
   } catch (e) {
     console.warn('load failed', e);
     throw e;
   }
 }
 
+// Saves are always in the format this code writes (see schema.js), with every
+// field in documentFields and any unknown top-level field carried over.
 function snapshotData() {
-  return {
-    students: state.students,
-    activeStudentId: state.activeStudentId,
-    progress: state.progress,
-    records: state.records,
-    tests: state.tests,
-    plan: state.plan,
-    challenges: state.challenges,
-    adaptations: state.adaptations,
-    suggestions: state.suggestions,
-    notifications: state.notifications,
-    curriculumSnapshot: state.curriculumSnapshot,
-    recall: state.recall,
-    practice: state.practice,
-    activity: state.activity,
-    game: state.game,
-    daily: state.daily,
-    interests: state.interests,
+  const computed = {
+    schemaVersion: SCHEMA_VERSION,
     graphView: state.graphView === 'list' ? 'list' : 'atlas',
-    settings: state.settings,
   };
+  const known = Object.fromEntries(documentFields.map(key => [key, key in computed ? computed[key] : state[key]]));
+  return { ...unknownFields, ...known };
 }
 
 function newWriteId() {
@@ -145,11 +159,12 @@ function reloadFromServer(doc) {
   dirty = false;
   // A pending beacon carried the version we are discarding, so it cannot land.
   unconfirmedBeacon = null;
-  applyDocument(doc);
+  const migrated = applyDocument(doc);
   const present = new Set(state.students.map(s => s.id));
   pendingAudioDeletes = pendingAudioDeletes.filter(item => !present.has(item.studentId));
   emit();
   saveStatus({ type: 'conflict' });
+  saveIfMigrated(migrated);
 }
 
 // Deletes recordings of learners whose removal the server has accepted.
@@ -195,6 +210,7 @@ async function conflictDocument(error) {
 // nothing to send). A 412 caused by our own earlier write, such as an unload
 // beacon, adopts that version and tries again; any other 412 reloads.
 async function saveWith(makeData) {
+  if (readOnly) { dirty = false; saveStatus({ type: 'read-only' }); return false; }
   saving = true;
   // Kept across attempts: after a 412 caused by our own earlier write, the
   // body is sent again even if makeData() has nothing new.
@@ -223,7 +239,10 @@ async function saveWith(makeData) {
   } catch (e) {
     dirty = true;
     console.warn('save failed', e);
-    saveStatus({ type: e.status === 413 ? 'too-large' : 'failed', error: e });
+    // 422 and 409: the server refused the document itself (document.js and
+    // the data format rules), so retrying the same data will not help.
+    const type = e.status === 413 ? 'too-large' : e.status === 422 || e.status === 409 ? 'rejected' : 'failed';
+    saveStatus({ type, error: e });
     return false;
   } finally {
     saving = false;
@@ -248,6 +267,7 @@ export function flushSaves() {
 }
 
 function persist() {
+  if (readOnly) { saveStatus({ type: 'read-only' }); return; }
   dirty = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSaves, 400);
@@ -260,7 +280,7 @@ function persist() {
 // before the next save. A save still in flight uses the same version, so
 // exactly one of the two wins and the other recognises it.
 export function handlePageHidden() {
-  if (!dirty) return;
+  if (!dirty || readOnly) return;
   clearTimeout(saveTimer);
   saveTimer = null;
   const writeId = newWriteId();
@@ -311,46 +331,42 @@ export async function exportDocument() {
   await flushSaves();
   const meta = { exportedAt: new Date().toISOString(), taxonomyVersion: state.curriculumSnapshot?.version || null };
   if (dirty) return { ...snapshotData(), version: stateVersion, ...meta, unsavedChanges: true };
-  return { ...(await backend.loadState()), ...meta };
+  return { ...migrateDocument(await backend.loadState()), ...meta };
 }
 
-// Checks an export (or a raw family-state.json) before import. Returns
-// { ok, error?, learners: [{ name, topics, records, tests }] } for the preview.
+// Checks an export (or a raw family-state.json) before import with the same
+// rules the server applies to every save (document.js). Returns
+// { ok, error?, learners: [{ name, topics, records, tests }], colorsAdjusted }
+// for the preview.
 export function inspectImport(doc) {
   const fail = (error) => ({ ok: false, error, learners: [] });
-  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return fail('The file is not a Harrington family export.');
-  if (!Array.isArray(doc.students)) return fail('The file has no learner list.');
-  for (const s of doc.students) {
-    if (!s || typeof s !== 'object' || typeof s.id !== 'string' || !s.id || typeof s.name !== 'string') {
-      return fail('A learner in the file is missing an id or name.');
-    }
+  if (!isObject(doc)) return fail('The file is not a Harrington family export.');
+  if (schemaVersionOf(doc) === null) return fail('The file\'s data format version is not a number.');
+  if (isNewerSchema(doc)) {
+    return fail(`The file comes from a newer version of Harrington (data format ${doc.schemaVersion}; this one reads up to ${SCHEMA_VERSION}). Update Harrington, then import it.`);
   }
-  for (const key of LEARNER_KEYS) {
-    if (doc[key] !== undefined && (!doc[key] || typeof doc[key] !== 'object' || Array.isArray(doc[key]))) {
-      return fail(`The file's "${key}" section is not in the expected shape.`);
-    }
-  }
-  if (doc.notifications !== undefined && !Array.isArray(doc.notifications)) {
-    return fail('The file\'s notifications are not in the expected shape.');
-  }
+  const problem = validateDocument(doc);
+  if (problem) return fail(problem);
   const learners = doc.students.map(s => ({
     name: s.name,
     topics: countOf(doc.progress?.[s.id]),
     records: countOf(doc.records?.[s.id]),
     tests: countOf(doc.tests?.[s.id]),
   }));
-  return { ok: true, learners };
+  // Learner colors that import will move to the nearest palette color.
+  const colorsAdjusted = doc.students.filter(s => paletteColor(s.color) !== s.color).length;
+  return { ok: true, learners, colorsAdjusted };
 }
 
 // Replaces the family document on the server with `doc`, guarded by the
 // current version. Resolves false if another device saved first (state is
 // then reloaded from the server) or the save failed.
 export function importDocument(doc) {
+  if (readOnly) return Promise.reject(new Error(READ_ONLY_MESSAGE));
   const check = inspectImport(doc);
   if (!check.ok) return Promise.reject(new Error(check.error));
-  const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = doc;
-  // Colors end up in style attributes, so only palette colors are imported.
-  data.students = data.students.map(s => (PALETTE.includes(s.color) ? s : { ...s, color: PALETTE[0] }));
+  const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = migrateDocument(doc);
+  data.students = data.students.map(s => ({ ...s, color: paletteColor(s.color) }));
   clearTimeout(saveTimer);
   saveTimer = null;
   dirty = false;
@@ -365,13 +381,23 @@ export function importDocument(doc) {
   return saveQueue;
 }
 
+export const READ_ONLY_MESSAGE = 'This family data was saved by a newer version of Harrington. Update Harrington to make changes; nothing is saved until then.';
+
 // ---- Students ----
 export const PALETTE = ['#3f6b3b', '#a4473a', '#2f6285', '#5b4a86', '#8a6412', '#9a4a6e'];
+// Colors end up in style attributes, so only palette colors are kept: a hex
+// color outside the palette (an older palette, a hand edit) becomes the
+// nearest palette color, and anything else the first one. inspectImport has
+// already refused a color that is not a hex color.
+const rgb = hex => [1, 3, 5].map(i => Number.parseInt(hex.slice(i, i + 2), 16));
+function paletteColor(color) {
+  if (PALETTE.includes(color)) return color;
+  if (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color)) return PALETTE[0];
+  const [r, g, b] = rgb(color.toLowerCase());
+  const distance = p => { const [pr, pg, pb] = rgb(p); return (pr - r) ** 2 + (pg - g) ** 2 + (pb - b) ** 2; };
+  return PALETTE.reduce((best, p) => (distance(p) < distance(best) ? p : best));
+}
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-export const MIN_BIRTH_YEAR = 1990;
-const validMonth = m => Number.isInteger(m) && m >= 1 && m <= 12;
-const validYear = y => Number.isInteger(y) && y >= MIN_BIRTH_YEAR && y <= new Date().getFullYear();
-const validDateKey = k => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
 export function addStudent(name, birthYear, birthMonth = null) {
   const id = 's_' + Math.random().toString(36).slice(2, 9);
   const color = PALETTE[state.students.length % PALETTE.length];
@@ -1007,12 +1033,6 @@ export function setParentPin(pin) {
 // ranges. Anything malformed is dropped or repaired; no home days at all
 // falls back to Mon–Fri. Returns { homeDays: [0-6, …], breaks: [{ start, end, label }, …] }.
 const DEFAULT_HOME_DAYS = [1, 2, 3, 4, 5];
-const realDateKey = k => {
-  if (!validDateKey(k)) return false;
-  const [y, m, d] = k.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
-};
 export function normalizeCalendar(raw) {
   const cal = objectOr(raw, {});
   let homeDays = Array.isArray(cal.homeDays)
@@ -1064,7 +1084,6 @@ export function normalizeCached(kind, value) {
 
 // Optional list fields must be arrays when present; the renderers map over them.
 const listsOrAbsent = (v, keys) => keys.every(k => v[k] == null || Array.isArray(v[k]));
-const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
 export function isValidCached(kind, value) {
   const v = normalizeCached(kind, value);
