@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
+import { isLoopbackAddress } from '../lib/loopback.mjs';
+import { AI_CAPABILITIES, parseCapabilities } from '../src/js/ai-capabilities.js';
 
 const repoRoot = new URL('..', import.meta.url);
 let child;
@@ -64,6 +66,8 @@ test('serves Harrington and reports self-hosted health', async () => {
     ok: true,
     mode: 'self-hosted',
     aiConfigured: false,
+    aiSource: 'none',
+    aiCapabilities: [],
     taxonomyCached: false,
     stateVersion: 0,
     stateBytes: 0,
@@ -439,8 +443,8 @@ async function readRequestBody(req) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-async function spawnHarrington(extraEnv = {}) {
-  const dir = await mkdtemp(join(tmpdir(), 'harrington-ai-'));
+async function spawnHarrington(extraEnv = {}, { dir: existingDir = null } = {}) {
+  const dir = existingDir || await mkdtemp(join(tmpdir(), 'harrington-ai-'));
   const proc = spawn(process.execPath, ['server.mjs'], {
     cwd: repoRoot,
     env: {
@@ -455,12 +459,12 @@ async function spawnHarrington(extraEnv = {}) {
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  let output = '';
   const url = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('AI test server did not start')), 5000);
-    let output = '';
     proc.stdout.on('data', (chunk) => {
       output += chunk.toString();
-      const match = output.match(/http:\/\/127\.0\.0\.1:(\d+)/);
+      const match = output.match(/listening at http:\/\/[^\s:]+:(\d+)/);
       if (match) {
         clearTimeout(timer);
         resolve(`http://127.0.0.1:${match[1]}`);
@@ -475,6 +479,8 @@ async function spawnHarrington(extraEnv = {}) {
   return {
     url,
     dir,
+    // Everything the server has printed so far.
+    get output() { return output; },
     async stop() {
       proc.kill('SIGTERM');
       await new Promise((resolve) => proc.once('exit', resolve));
@@ -539,6 +545,7 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [{ role: 'user', content: 'Write a lesson' }],
+          capability: 'lesson',
           model: 'gpt-4o-mini',
         }),
       });
@@ -560,6 +567,7 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messages: [{ role: 'user', content: model }],
+            capability: 'explain',
             model,
           }),
         });
@@ -586,11 +594,11 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
     });
 
     try {
-      // What the browser sends since HAR-23: only the messages.
+      // What the browser sends since HAR-26: the messages and their capability.
       const ai = await fetch(`${harrington.url}/api/ai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: 'Explain counting' }] }),
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'Explain counting' }], capability: 'explain' }),
       });
       assert.equal(ai.status, 200);
       assert.deepEqual(await ai.json(), { content: 'ok' });
@@ -621,7 +629,7 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
       const ai = await fetch(`${harrington.url}/api/ai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], model: 'small' }),
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], capability: 'lesson', model: 'small' }),
       });
       assert.equal(ai.status, 502);
       const body = await ai.json();
@@ -647,7 +655,7 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
       const ai = await fetch(`${harrington.url}/api/ai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }] }),
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], capability: 'lesson' }),
       });
       assert.equal(ai.status, 504);
       assert.match((await ai.json()).error, /timed out/i);
@@ -656,4 +664,405 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
       upstream.close();
     }
   });
+  test('HARRINGTON_AI_CAPABILITIES allows only the listed capabilities and health reports them', async () => {
+    const captured = [];
+    const upstream = createServer(async (req, res) => {
+      captured.push(JSON.parse(await readRequestBody(req)));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { content: '{"objective":"ok"}' } }] }));
+    });
+    await listen(upstream);
+    const harrington = await spawnHarrington({
+      HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`,
+      HARRINGTON_AI_MODEL: 'llama3.2',
+      // The plural a family is likely to type, plus a name that is not a capability.
+      HARRINGTON_AI_CAPABILITIES: ' lessons , telepathy ',
+    });
+    const post = (body) => fetch(`${harrington.url}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const messages = [{ role: 'user', content: 'hi' }];
+
+    try {
+      const health = await (await fetch(`${harrington.url}/api/health`)).json();
+      assert.equal(health.aiConfigured, true);
+      assert.deepEqual(health.aiCapabilities, ['lesson']);
+
+      // Allowed.
+      const allowed = await post({ messages, capability: 'lesson' });
+      assert.equal(allowed.status, 200);
+      assert.deepEqual(await allowed.json(), { content: '{"objective":"ok"}' });
+
+      // Denied, with a message the browser reads as "not switched on".
+      const denied = await post({ messages, capability: 'test' });
+      assert.equal(denied.status, 403);
+      const deniedBody = await denied.json();
+      assert.match(deniedBody.error, /"test" AI capability is not switched on/);
+      assert.equal(deniedBody.capability, 'test');
+
+      // A missing, unknown or non-string capability is never trusted.
+      for (const body of [{ messages }, { messages, capability: 'telepathy' }, { messages, capability: ['lesson'] }, { messages, capability: '' }]) {
+        const response = await post(body);
+        assert.equal(response.status, 403, JSON.stringify(body));
+        assert.match((await response.json()).error, /must name a known capability/);
+      }
+
+      // Only the allowed request reached the provider, and without the capability field.
+      assert.equal(captured.length, 1);
+      assert.deepEqual(Object.keys(captured[0]).sort(), ['messages', 'model']);
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+  });
+
+  test('every capability is on by default, and none without a provider', async () => {
+    const upstream = createServer(async (req, res) => {
+      await readRequestBody(req);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }));
+    });
+    await listen(upstream);
+    const harrington = await spawnHarrington({
+      HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`,
+      HARRINGTON_AI_MODEL: 'llama3.2',
+    });
+    try {
+      const health = await (await fetch(`${harrington.url}/api/health`)).json();
+      assert.deepEqual(health.aiCapabilities, [...AI_CAPABILITIES]);
+      for (const capability of AI_CAPABILITIES) {
+        const response = await fetch(`${harrington.url}/api/ai`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], capability }),
+        });
+        assert.equal(response.status, 200, capability);
+      }
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+
+    // The list alone switches nothing on: no provider, no capabilities, still 503.
+    const noProvider = await spawnHarrington({ HARRINGTON_AI_CAPABILITIES: 'lesson' });
+    try {
+      const health = await (await fetch(`${noProvider.url}/api/health`)).json();
+      assert.equal(health.aiConfigured, false);
+      assert.deepEqual(health.aiCapabilities, []);
+      const response = await fetch(`${noProvider.url}/api/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], capability: 'lesson' }),
+      });
+      assert.equal(response.status, 503);
+    } finally {
+      await noProvider.stop();
+    }
+  });
+});
+
+test('parseCapabilities reads a comma list, plural spellings and "all"', () => {
+  assert.deepEqual(parseCapabilities(undefined).enabled, [...AI_CAPABILITIES]);
+  assert.deepEqual(parseCapabilities('  ').enabled, [...AI_CAPABILITIES]);
+  assert.deepEqual(parseCapabilities('ALL').enabled, [...AI_CAPABILITIES]);
+  assert.deepEqual(parseCapabilities('lessons'), { enabled: ['lesson'], unknown: [] });
+  assert.deepEqual(parseCapabilities('recall, Lesson,,quizzes'), { enabled: ['lesson', 'recall', 'quiz'], unknown: [] });
+  assert.deepEqual(parseCapabilities('nothing-real'), { enabled: [], unknown: ['nothing-real'] });
+});
+
+describe('AI provider settings saved in the app', { concurrency: false }, () => {
+  const KEY = 'sk-test-ABCDEFGH-family-key-9z8y';
+  const json = (method, body, headers = {}) => ({
+    method,
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  // An OpenAI-compatible stub that records what it receives.
+  async function provider(answer = (req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ choices: [{ message: { content: 'OK' } }] }));
+  }) {
+    const seen = [];
+    const server = createServer(async (req, res) => {
+      seen.push({ url: req.url, authorization: req.headers.authorization || null, body: JSON.parse(await readRequestBody(req)) });
+      answer(req, res);
+    });
+    await listen(server);
+    return { seen, base: `http://127.0.0.1:${server.address().port}/v1`, close: () => server.close() };
+  }
+
+  test('save, read masked, use, and remove: stored values win over the environment', async () => {
+    const upstream = await provider();
+    const harrington = await spawnHarrington({
+      HARRINGTON_AI_BASE_URL: 'http://127.0.0.1:9/v1',
+      HARRINGTON_AI_MODEL: 'env-model',
+      HARRINGTON_AI_API_KEY: 'env-key-0000-wxyz',
+    });
+    const secrets = join(harrington.dir, 'secrets.json');
+    try {
+      // Environment only: source "env", the key only as a hint.
+      let settings = await (await fetch(`${harrington.url}/api/settings/ai`)).json();
+      assert.deepEqual(
+        { baseUrl: settings.baseUrl, model: settings.model, hasApiKey: settings.hasApiKey, apiKeyHint: settings.apiKeyHint, source: settings.source },
+        { baseUrl: 'http://127.0.0.1:9/v1', model: 'env-model', hasApiKey: true, apiKeyHint: 'wxyz', source: { baseUrl: 'env', model: 'env', apiKey: 'env', timeoutMs: 'none', capabilities: 'none' } },
+      );
+      assert.ok(!JSON.stringify(settings).includes('env-key-0000'));
+      assert.deepEqual(settings.presets.map((p) => p.id), ['ollama', 'gemini', 'custom']);
+      assert.equal((await (await fetch(`${harrington.url}/api/health`)).json()).aiSource, 'env');
+
+      // Save from the app: the URL is trimmed and loses its trailing slashes.
+      const saved = await fetch(`${harrington.url}/api/settings/ai`, json('PUT', {
+        baseUrl: `  ${upstream.base}// `, model: ' saved-model ', apiKey: ` ${KEY} `, capabilities: ['recall', 'lesson'], timeoutMs: 20_000,
+      }));
+      assert.equal(saved.status, 200);
+      const savedText = await saved.text();
+      assert.ok(!savedText.includes(KEY), 'the key is never returned');
+      settings = JSON.parse(savedText);
+      assert.equal(settings.baseUrl, upstream.base);
+      assert.equal(settings.model, 'saved-model');
+      assert.equal(settings.apiKeyHint, '9z8y');
+      assert.deepEqual(settings.capabilities, ['lesson', 'recall']);
+      assert.equal(settings.timeoutMs, 20_000);
+      assert.deepEqual(settings.source, { baseUrl: 'app', model: 'app', apiKey: 'app', timeoutMs: 'app', capabilities: 'app' });
+
+      // Owner-only, atomic, and in the documented shape.
+      assert.equal((await stat(secrets)).mode & 0o777, 0o600);
+      assert.deepEqual((await readdir(harrington.dir)).filter((name) => name.includes('.tmp')), []);
+      const doc = JSON.parse(await readFile(secrets, 'utf8'));
+      assert.equal(doc.schemaVersion, 1);
+      assert.equal(doc.ai.apiKey, KEY);
+      assert.ok(Number.isInteger(doc.ai.updatedAt));
+      // Never inside the family document.
+      assert.ok(!JSON.stringify(await (await fetch(`${harrington.url}/api/state`)).json()).includes(KEY));
+
+      const health = await (await fetch(`${harrington.url}/api/health`)).json();
+      assert.deepEqual([health.aiConfigured, health.aiSource, health.aiCapabilities], [true, 'app', ['lesson', 'recall']]);
+      assert.ok(!JSON.stringify(health).includes(upstream.base) && !JSON.stringify(health).includes('saved-model'), 'health carries no URL or model');
+
+      // /api/ai now uses the saved provider, key and capabilities, with no restart.
+      const chat = (capability) => fetch(`${harrington.url}/api/ai`, json('POST', { messages: [{ role: 'user', content: 'hi' }], capability }));
+      assert.equal((await chat('lesson')).status, 200);
+      assert.equal((await chat('explain')).status, 403);
+      assert.equal(upstream.seen.length, 1);
+      assert.equal(upstream.seen[0].authorization, `Bearer ${KEY}`);
+      assert.equal(upstream.seen[0].body.model, 'saved-model');
+
+      // apiKey omitted keeps it; "" removes it and the environment's applies again.
+      settings = await (await fetch(`${harrington.url}/api/settings/ai`, json('PUT', { model: 'other-model' }))).json();
+      assert.deepEqual([settings.model, settings.apiKeyHint, settings.source.apiKey], ['other-model', '9z8y', 'app']);
+      settings = await (await fetch(`${harrington.url}/api/settings/ai`, json('PUT', { apiKey: '' }))).json();
+      assert.deepEqual([settings.apiKeyHint, settings.source.apiKey], ['wxyz', 'env']);
+
+      // DELETE removes the file; the environment resumes.
+      settings = await (await fetch(`${harrington.url}/api/settings/ai`, { method: 'DELETE' })).json();
+      assert.deepEqual([settings.baseUrl, settings.model, settings.source.baseUrl], ['http://127.0.0.1:9/v1', 'env-model', 'env']);
+      await assert.rejects(stat(secrets), { code: 'ENOENT' });
+      assert.equal((await fetch(`${harrington.url}/api/settings/ai`, { method: 'DELETE' })).status, 200, 'deleting twice is fine');
+
+      assert.ok(!harrington.output.includes(KEY), 'the key is never logged');
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+  });
+
+  test('PUT validates every field and changes nothing on a bad request', async () => {
+    const harrington = await spawnHarrington();
+    const put = (body, headers) => fetch(`${harrington.url}/api/settings/ai`, json('PUT', body, headers));
+    try {
+      assert.equal((await put({ baseUrl: 'http://127.0.0.1:11434/v1', model: 'llama3.2' })).status, 200);
+      const before = await readFile(join(harrington.dir, 'secrets.json'), 'utf8');
+      const bad = [
+        { baseUrl: 'ftp://example.test/v1' },
+        { baseUrl: 'not a url' },
+        { baseUrl: 42 },
+        { baseUrl: 'https://user:pass@example.test/v1' },
+        { model: '' , baseUrl: 'http://127.0.0.1:11434/v1' },
+        { model: 'x'.repeat(201) },
+        { apiKey: 'k'.repeat(513) },
+        { apiKey: 'has a space' },
+        { apiKey: 7 },
+        { timeoutMs: 0 },
+        { timeoutMs: 1.5 },
+        { timeoutMs: '1000' },
+        { capabilities: ['telepathy'] },
+        { capabilities: 'lesson' },
+        { endpoint: 'http://x' },
+      ];
+      for (const body of bad) {
+        const response = await put(body);
+        assert.equal(response.status, 400, JSON.stringify(body));
+        assert.ok((await response.json()).error);
+      }
+      assert.equal((await put({ model: 'x' }, { 'Sec-Fetch-Site': 'cross-site' })).status, 403);
+      const plain = await fetch(`${harrington.url}/api/settings/ai`, { method: 'PUT', headers: { 'Content-Type': 'text/plain' }, body: '{"model":"x"}' });
+      assert.equal(plain.status, 415);
+      assert.equal((await fetch(`${harrington.url}/api/settings/ai`, { method: 'DELETE', headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, 403);
+      assert.equal(await readFile(join(harrington.dir, 'secrets.json'), 'utf8'), before);
+
+      // A 512-character key and an empty capability list are fine; null clears.
+      assert.equal((await put({ apiKey: 'k'.repeat(512), capabilities: [] })).status, 200);
+      const health = await (await fetch(`${harrington.url}/api/health`)).json();
+      assert.deepEqual([health.aiConfigured, health.aiCapabilities], [true, []]);
+      const cleared = await (await put({ capabilities: null, apiKey: null })).json();
+      assert.equal(cleared.capabilities.length, AI_CAPABILITIES.length);
+      assert.equal(cleared.hasApiKey, false);
+      // A short key has no hint.
+      assert.equal((await (await put({ apiKey: 'abc12' })).json()).apiKeyHint, null);
+    } finally {
+      await harrington.stop();
+    }
+  });
+
+  test('the connection test sends no learner data and never echoes the key or the provider body', async () => {
+    const upstream = await provider((req, res) => {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: { message: `Incorrect API key provided: ${KEY}` } }));
+    });
+    const harrington = await spawnHarrington();
+    const testIt = () => fetch(`${harrington.url}/api/settings/ai/test`, { method: 'POST' });
+    try {
+      assert.deepEqual(await (await testIt()).json(), { ok: false, latencyMs: 0, error: 'not configured' });
+
+      await fetch(`${harrington.url}/api/settings/ai`, json('PUT', { baseUrl: upstream.base, model: 'm', apiKey: KEY }));
+      const response = await testIt();
+      const text = await response.text();
+      assert.equal(response.status, 200);
+      assert.ok(!text.includes(KEY) && !text.includes('Incorrect'), text);
+      const result = JSON.parse(text);
+      assert.deepEqual({ ...result, latencyMs: typeof result.latencyMs }, { ok: false, status: 401, error: 'provider error', latencyMs: 'number' });
+      assert.deepEqual(upstream.seen[0].body, { model: 'm', messages: [{ role: 'user', content: 'Reply with the single word OK.' }] });
+      assert.equal((await fetch(`${harrington.url}/api/settings/ai/test`, { method: 'POST', headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, 403);
+      assert.ok(!harrington.output.includes(KEY), 'the key is never logged');
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+
+    const working = await provider();
+    const ok = await spawnHarrington({ HARRINGTON_AI_BASE_URL: working.base, HARRINGTON_AI_MODEL: 'm' });
+    try {
+      const result = await (await fetch(`${ok.url}/api/settings/ai/test`, { method: 'POST' })).json();
+      assert.equal(result.ok, true);
+      assert.ok(Number.isInteger(result.latencyMs));
+    } finally {
+      await ok.stop();
+      working.close();
+    }
+  });
+
+  test('an unreadable secrets file acts as empty and is logged once without its content', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'harrington-ai-'));
+    await writeFile(join(dir, 'secrets.json'), '{ "ai": { "apiKey": "MARKER-should-not-print" ');
+    const harrington = await spawnHarrington({ HARRINGTON_AI_BASE_URL: 'http://127.0.0.1:9/v1', HARRINGTON_AI_MODEL: 'env-model' }, { dir });
+    try {
+      for (let i = 0; i < 3; i += 1) {
+        const settings = await (await fetch(`${harrington.url}/api/settings/ai`)).json();
+        assert.deepEqual([settings.model, settings.source.model, settings.hasApiKey], ['env-model', 'env', false]);
+      }
+      assert.equal(harrington.output.match(/is not valid JSON/g)?.length, 1);
+      assert.ok(!harrington.output.includes('MARKER'));
+    } finally {
+      await harrington.stop();
+    }
+  });
+});
+
+test('npm run backup leaves secrets.json out of the archive', async () => {
+  const work = await mkdtemp(join(tmpdir(), 'harrington-backup-'));
+  try {
+    const dataDir = join(work, 'private');
+    await mkdir(join(dataDir, 'lessons'), { recursive: true });
+    await writeFile(join(dataDir, 'family-state.json'), '{"version":1}');
+    await writeFile(join(dataDir, 'lessons', 'a.json'), '{}');
+    await writeFile(join(dataDir, 'secrets.json'), '{"schemaVersion":1,"ai":{"apiKey":"sk-backup-test"}}');
+    const run = spawnSync(process.execPath, ['scripts/backup.mjs'], {
+      cwd: repoRoot,
+      env: { ...process.env, HARRINGTON_DATA_DIR: dataDir, HARRINGTON_BACKUP_DIR: join(work, 'backups') },
+      encoding: 'utf8',
+    });
+    assert.equal(run.status, 0, run.stderr);
+    const [archive] = await readdir(join(work, 'backups'));
+    const listing = spawnSync('tar', ['-tzf', join(work, 'backups', archive)], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
+    assert.ok(listing.some((name) => name.endsWith('private/family-state.json')), listing.join('\n'));
+    assert.ok(listing.some((name) => name.endsWith('private/lessons/a.json')));
+    assert.ok(!listing.some((name) => name.includes('secrets.json')), listing.join('\n'));
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
+test('isLoopbackAddress accepts only this computer', () => {
+  for (const address of ['127.0.0.1', '127.8.9.10', '::1', '0:0:0:0:0:0:0:1', '::ffff:127.0.0.1', '::FFFF:127.0.0.2']) {
+    assert.equal(isLoopbackAddress(address), true, address);
+  }
+  for (const address of ['192.168.1.20', '10.0.0.1', '100.64.0.7', '::ffff:192.168.1.20', 'fe80::1', '::', '0.0.0.0', '128.0.0.1', '', undefined, null, '127.0.0.1.evil']) {
+    assert.equal(isLoopbackAddress(address), false, String(address));
+  }
+});
+
+describe('AI provider settings from another device', { concurrency: false }, () => {
+  // Another device on the network: this computer's own non-loopback address.
+  const lanAddress = Object.values(networkInterfaces()).flat()
+    .find((entry) => entry && entry.family === 'IPv4' && !entry.internal)?.address;
+
+  test('without an access token, only this computer can change or test the provider', { skip: !lanAddress && 'no non-loopback IPv4 interface here' }, async () => {
+    const harrington = await spawnHarrington({ HARRINGTON_HOST: '0.0.0.0' });
+    const port = new URL(harrington.url).port;
+    const remote = `http://${lanAddress}:${port}`;
+    const local = `http://127.0.0.1:${port}`;
+    const put = (base, headers = {}) => fetch(`${base}/api/settings/ai`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ baseUrl: 'http://attacker.test/v1', model: 'm' }),
+    });
+    try {
+      // Reading stays allowed (it never carries the key) and says it is read-only here.
+      const view = await (await fetch(`${remote}/api/settings/ai`)).json();
+      assert.equal(view.canChange, false);
+
+      const LOCAL_ONLY = 'AI provider settings can only be changed from the computer running Harrington until an access token is set';
+      for (const response of [
+        await put(remote),
+        // A forged header changes nothing: the socket address decides.
+        await put(remote, { 'X-Forwarded-For': '127.0.0.1' }),
+        await fetch(`${remote}/api/settings/ai`, { method: 'DELETE' }),
+        await fetch(`${remote}/api/settings/ai/test`, { method: 'POST' }),
+      ]) {
+        assert.equal(response.status, 403);
+        assert.deepEqual(await response.json(), { error: LOCAL_ONLY });
+      }
+      await assert.rejects(stat(join(harrington.dir, 'secrets.json')), { code: 'ENOENT' });
+
+      // The same server, from this computer.
+      const saved = await put(local);
+      assert.equal(saved.status, 200);
+      assert.equal((await saved.json()).canChange, true);
+      assert.equal((await (await fetch(`${remote}/api/health`)).json()).aiConfigured, true);
+    } finally {
+      await harrington.stop();
+    }
+  });
+});
+
+// HAR-25 restructures /api/health; whatever its shape, a configured provider
+// must still show as aiConfigured, or every AI control quietly turns off.
+test('health reports aiConfigured, aiSource and aiCapabilities when a provider is configured', async () => {
+  const fromEnv = await spawnHarrington({ HARRINGTON_AI_BASE_URL: 'http://127.0.0.1:9/v1', HARRINGTON_AI_MODEL: 'm', HARRINGTON_AI_CAPABILITIES: 'lesson' });
+  try {
+    const health = await (await fetch(`${fromEnv.url}/api/health`)).json();
+    assert.equal(health.aiConfigured, true);
+    assert.equal(health.aiSource, 'env');
+    assert.deepEqual(health.aiCapabilities, ['lesson']);
+
+    await fetch(`${fromEnv.url}/api/settings/ai`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseUrl: 'http://127.0.0.1:8/v1', model: 'n' }) });
+    const after = await (await fetch(`${fromEnv.url}/api/health`)).json();
+    assert.equal(after.aiConfigured, true);
+    assert.equal(after.aiSource, 'app');
+  } finally {
+    await fromEnv.stop();
+  }
 });

@@ -264,6 +264,7 @@ function accountBox() {
         <i data-lucide="download" class="w-3.5 h-3.5"></i>Export</button>
       <button id="import" class="flex items-center justify-center gap-1.5 h-8 rounded-full bg-paper text-xs font-medium text-ink hover:bg-paper-deep transition-colors" title="Import family data">
         <i data-lucide="upload" class="w-3.5 h-3.5"></i>Import</button>
+      <a href="#settings" class="col-span-2 flex items-center justify-center gap-1.5 h-8 rounded-full bg-paper text-xs font-medium text-ink hover:bg-paper-deep transition-colors"><i data-lucide="plug-zap" class="w-3.5 h-3.5"></i>AI provider</a>
     </div>
   </div>`);
   box.querySelector('#export').onclick = exportFamilyData;

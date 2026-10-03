@@ -104,14 +104,14 @@ function recordCard(r, student, d, navigate) {
     const run = includeNotes => openAnalysis(r, student, topic, includeNotes);
     if (r.analysis) {
       analyzeWrap.appendChild(savedAnalysis(r.analysis));
-      const redo = regenerateButton(); // null without an AI provider
+      const redo = regenerateButton(); // null when analysis cannot generate
       if (redo) {
         analyzeWrap.appendChild(redo);
         analyzeWrap.appendChild(analysisOptIn(redo, r, run));
       }
     } else {
       const btn = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyze &amp; get advice</button>`);
-      const gated = gateAi(btn);
+      const gated = gateAi(btn, { capability: 'analysis' });
       analyzeWrap.appendChild(gated);
       if (gated === btn) analyzeWrap.appendChild(analysisOptIn(btn, r, run));
     }

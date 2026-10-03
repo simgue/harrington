@@ -5,7 +5,8 @@ import { test } from 'node:test';
 // store.js reaches the server through backend.js; stub fetch so /api/health
 // answers in Node without a running server.
 let aiConfigured = false;
-globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ ok: true, aiConfigured }) });
+let aiCapabilities; // undefined: a server from before HARRINGTON_AI_CAPABILITIES
+globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ ok: true, aiConfigured, aiCapabilities }) });
 const store = await import('../src/js/store.js');
 const { explainAiError } = await import('../src/js/ai-status.js');
 
@@ -20,6 +21,18 @@ test('explainAiError recognizes the server and client "not configured" messages'
     const result = explainAiError(err);
     assert.equal(result.kind, 'unconfigured');
     assert.match(result.message, /local AI provider/);
+  }
+});
+
+test('explainAiError reads a switched-off capability as "disabled", not a failure', () => {
+  for (const err of [
+    Object.assign(new Error('The "printables" AI capability is not switched on for this Harrington server'), { body: { capability: 'printables' } }),
+    Object.assign(new Error('The "recall" AI capability is not switched on for this Harrington server'), { capability: 'recall' }),
+  ]) {
+    const result = explainAiError(err);
+    assert.equal(result.kind, 'disabled');
+    assert.match(result.message, /switched on/);
+    assert.doesNotMatch(result.message, /local AI provider/);
   }
 });
 
@@ -47,6 +60,50 @@ test('the store reads aiConfigured at connect and on refreshHealth', async () =>
   assert.equal(await store.refreshHealth(), true);
   assert.equal(store.aiAvailable(), true);
   assert.equal('aiConfigured' in store.get(), false, 'the health flag is not persisted with family state');
+});
+
+test('the store gates each capability by aiCapabilities from /api/health', async () => {
+  try {
+    aiConfigured = true;
+    aiCapabilities = ['lesson'];
+    assert.equal(await store.refreshHealth('lesson'), true);
+    assert.equal(store.aiAvailable('lesson'), true);
+    assert.equal(store.aiAvailable('printables'), false);
+    assert.equal(store.aiSwitchedOff('printables'), true);
+    assert.equal(store.aiSwitchedOff('lesson'), false);
+    assert.equal(store.aiAvailable(['explain', 'lesson']), true, 'an array asks for any of them');
+    assert.equal(store.aiAvailable(), true, 'no capability asks for any at all');
+    assert.equal(await store.refreshHealth('test'), false);
+
+    // A cache miss for a capability that is off rejects as "disabled", with the capability.
+    await assert.rejects(store.generateCached('print:sample-topic', async () => ({ printables: [] })), (err) => {
+      assert.equal(explainAiError(err).kind, 'disabled');
+      assert.equal(err.capability, 'printables');
+      return true;
+    });
+
+    aiCapabilities = [];
+    await store.refreshHealth();
+    assert.equal(store.aiAvailable(), false);
+    assert.equal(store.aiSwitchedOff('lesson'), true);
+
+    // No provider: nothing is "switched off", it is not set up at all.
+    aiConfigured = false;
+    aiCapabilities = ['lesson'];
+    await store.refreshHealth();
+    assert.equal(store.aiAvailable('lesson'), false);
+    assert.equal(store.aiSwitchedOff('lesson'), false);
+
+    // An older server without the list: every capability is on.
+    aiConfigured = true;
+    aiCapabilities = undefined;
+    await store.refreshHealth();
+    assert.equal(store.aiAvailable('quiz'), true);
+  } finally {
+    aiConfigured = false;
+    aiCapabilities = undefined;
+    await store.refreshHealth();
+  }
 });
 
 test('refreshHealth rejects on an outage and keeps the last known flag', async () => {
@@ -87,7 +144,8 @@ test('every AI-backed view uses the shared ai-status helper', async () => {
 
 test('the child view hides AI actions without provider wording', async () => {
   const code = await source('src/js/views/kidmode.js');
-  assert.match(code, /store\.aiAvailable\(\)/);
+  assert.match(code, /store\.aiAvailable\('recall'\)/);
+  assert.match(code, /store\.aiAvailable\('challenge'\)/);
   assert.doesNotMatch(code, /ai-status|AI provider|aiUnavailableChip/);
 });
 
