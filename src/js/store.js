@@ -29,6 +29,7 @@ let state = {
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
   daily: {},          // studentId -> { 'yyyy-mm-dd': { offers: {literacy:[topicId], numeracy:[topicId]}, picks: {literacy, numeracy} } }
   interests: {},      // studentId -> { chips: [label], text: '' }  (what the learner is into, parent-entered)
+  requests: {},       // studentId -> [ {id, text, createdAt, topicId|null} ]  (topic finder log, newest first)
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
   settings: {},       // family-wide: { parentPin, calendar: { homeDays:[0-6], breaks:[{start, end, label}] } }
 };
@@ -73,7 +74,7 @@ let pendingAudioDeletes = [];
 
 // Per-learner maps keyed by student id. removeStudent clears every one of them.
 const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
-  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests'];
+  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests', 'requests'];
 
 // Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'failed', error? }
 export function onSaveStatus(fn) { saveListeners.add(fn); return () => saveListeners.delete(fn); }
@@ -123,6 +124,7 @@ function snapshotData() {
     game: state.game,
     daily: state.daily,
     interests: state.interests,
+    requests: state.requests,
     graphView: state.graphView === 'list' ? 'list' : 'atlas',
     settings: state.settings,
   };
@@ -351,6 +353,7 @@ export function importDocument(doc) {
   const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = doc;
   // Colors end up in style attributes, so only palette colors are imported.
   data.students = data.students.map(s => (PALETTE.includes(s.color) ? s : { ...s, color: PALETTE[0] }));
+  if (data.requests) data.requests = cleanRequestLogs(data.requests, data.students);
   clearTimeout(saveTimer);
   saveTimer = null;
   dirty = false;
@@ -890,6 +893,59 @@ export function setInterests(studentId, interests, { quiet = false } = {}) {
   persist();
   if (!quiet) emit();
   return interestsFor(studentId);
+}
+
+// ---- Topic requests (what the parent asked the topic finder) ----
+export const REQUEST_LOG_MAX = 50;
+export const REQUEST_TEXT_LEN = 200;
+// Keeps well-formed entries only, newest first, capped; tolerates anything an
+// import or an older document might hold.
+function cleanRequests(value) {
+  const seen = new Set();
+  const list = [];
+  for (const raw of Array.isArray(value) ? value : []) {
+    if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || !raw.id || seen.has(raw.id)) continue;
+    const text = typeof raw.text === 'string' ? raw.text.trim().replace(/\s+/g, ' ').slice(0, REQUEST_TEXT_LEN) : '';
+    if (!text || !Number.isFinite(raw.createdAt)) continue;
+    seen.add(raw.id);
+    list.push({ id: raw.id, text, createdAt: raw.createdAt, topicId: typeof raw.topicId === 'string' && raw.topicId ? raw.topicId : null });
+  }
+  return list.sort((a, b) => b.createdAt - a.createdAt).slice(0, REQUEST_LOG_MAX);
+}
+// On import: every known learner's log cleaned, unknown learners dropped.
+function cleanRequestLogs(logs, students) {
+  const out = {};
+  if (!logs || typeof logs !== 'object' || Array.isArray(logs)) return out;
+  for (const s of students) {
+    if (Object.prototype.hasOwnProperty.call(logs, s.id)) {
+      const list = cleanRequests(logs[s.id]);
+      if (list.length) out[s.id] = list;
+    }
+  }
+  return out;
+}
+// A copy, newest first.
+export function requestsFor(studentId) {
+  return cleanRequests(state.requests[studentId]);
+}
+// Logs a request; returns the new entry, or null for empty text.
+export function logRequest(studentId, text, topicId = null) {
+  const entry = { id: 'rq_' + Math.random().toString(36).slice(2, 10), text: String(text || ''), createdAt: Date.now(), topicId };
+  const list = cleanRequests([entry, ...(state.requests[studentId] || [])]);
+  if (!list.some(r => r.id === entry.id)) return null;
+  state.requests[studentId] = list;
+  persist(); emit();
+  return list.find(r => r.id === entry.id);
+}
+// Records which topic the parent chose for a logged request.
+export function setRequestTopic(studentId, requestId, topicId) {
+  const list = cleanRequests(state.requests[studentId]);
+  const entry = list.find(r => r.id === requestId);
+  if (!entry || entry.topicId === topicId) return false;
+  entry.topicId = topicId || null;
+  state.requests[studentId] = list;
+  persist(); emit();
+  return true;
 }
 
 // Whether the student was active on each of the last `days` days, oldest first.

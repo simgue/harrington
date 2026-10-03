@@ -75,3 +75,14 @@ test('export and import are not reachable on a phone (finding F6)', async ({ pag
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Import', exact: true })).toHaveCount(0);
 });
+
+test('no horizontal overflow: topic finder with a path', async ({ page, gotoApp, shot, errors }) => {
+  await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'mastered' } }, hash: 'find' });
+  await page.getByLabel('What does Rowan Example want to learn?').fill('how to tell the time');
+  await page.getByRole('button', { name: 'Find', exact: true }).click();
+  await page.getByRole('region', { name: /^Closest topics for/ }).getByRole('button', { name: /Telling Time: Hours and Half Hours/ }).click();
+  await expect(page.getByRole('group', { name: 'Next ready step' })).toBeVisible();
+  await noHorizontalOverflow(page);
+  await shot('find');
+  expect(errors).toEqual([]);
+});
