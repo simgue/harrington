@@ -75,3 +75,58 @@ test('export and import are not reachable on a phone (finding F6)', async ({ pag
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Import', exact: true })).toHaveCount(0);
 });
+
+// HAR-21 follow-ups on a phone, where the quest log stacks under the tree.
+test('quest log reveal lands below the top bar, and "Back to tree" returns to the node (items 4 and 8)', async ({ page, gotoApp, shot }) => {
+  await gotoApp({ seed: {}, hash: `graph/English/${encodeURIComponent('Grammar & Punctuation')}` });
+  // The highest skill in a tall tree: its quest log stacks far below the fold.
+  const highest = await page.locator('button.skill-node').evaluateAll((nodes) => nodes.reduce((a, b) => (b.offsetTop < a.offsetTop ? b : a)).dataset.skillId);
+  const target = page.locator(`button.skill-node[data-skill-id="${highest}"]`);
+  await target.click();
+  const log = page.getByRole('complementary', { name: 'Quest log' });
+  await expect(log).toBeAttached();
+  await page.waitForTimeout(500); // the fade-up has finished
+  const box = await log.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    const margin = parseFloat(getComputedStyle(el).scrollMarginTop);
+    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    return {
+      scrollY: window.scrollY,
+      // Its top on its margin, unless the page ends first.
+      expected: Math.min(maxScroll, Math.round(rect.top + window.scrollY - margin)),
+      margin,
+      top: rect.top,
+      bottom: rect.bottom,
+      bar: document.querySelector('header.sticky').getBoundingClientRect().bottom,
+      nav: [...document.querySelectorAll('nav[aria-label="Main"]')].find((nav) => nav.offsetHeight).getBoundingClientRect().top,
+    };
+  });
+  expect(box.margin).toBe(72);
+  expect(Math.abs(box.scrollY - box.expected)).toBeLessThanOrEqual(0.5);
+  // Clear of the top bar and the bottom navigation.
+  expect(box.bar).toBeLessThanOrEqual(box.top);
+  expect(box.bottom).toBeLessThanOrEqual(box.nav);
+  const pill = log.getByRole('button', { name: 'Back to tree' });
+  await expect(pill).toBeInViewport();
+  await shot('quest-log-revealed', { full: false });
+
+  await pill.click();
+  await expect(target).toBeInViewport();
+  await expect(target).toBeFocused();
+  await noHorizontalOverflow(page);
+});
+
+test('a status write keeps the quest log scrolled where it was (N4)', async ({ page, gotoApp }) => {
+  await gotoApp({ seed: {}, hash: `graph/Mathematics/${encodeURIComponent('Counting & Cardinality')}` });
+  await page.locator('button.skill-node', { hasText: TOPICS.oneToOne.name }).first().click();
+  const log = page.getByRole('complementary', { name: 'Quest log' });
+  await expect(log.getByRole('button', { name: 'Mark as learning' })).toBeAttached();
+  const scrolled = await log.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+    return el.scrollTop;
+  });
+  expect(scrolled).toBeGreaterThan(50);
+  await log.getByRole('button', { name: 'Mark as learning' }).evaluate((button) => button.click());
+  await expect(log.getByRole('button', { name: 'Keep as learning' })).toBeAttached();
+  await expect.poll(() => log.evaluate((el) => el.scrollTop)).toBe(scrolled);
+});

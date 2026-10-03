@@ -23,6 +23,11 @@ tagged a release yet; everything below is on `main`.
 - A learner switched away from the map (from the dashboard, say) keeps the
   skill they open next: "Back to graph" from their topic page selects it
   instead of clearing it as the previous learner's (HAR-21 follow-up).
+- Skill tree follow-ups: browser Back and Forward return to the tree at the
+  window and tree scroll it was left at, and clear a selection made for
+  another learner. The quest log keeps its own scroll when a status changes,
+  lands fully in view when revealed, and has a "Back to tree" button on
+  phones (HAR-21 follow-up).
 - Generated lessons, print sheets, activity instructions and recall cards are
   never cached empty or malformed, open once for rapid repeat clicks, and each
   has "Generate a different version" that keeps the previous version if it
