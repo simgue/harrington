@@ -267,7 +267,15 @@ function accountBox() {
     </div>
   </div>`);
   box.querySelector('#export').onclick = exportFamilyData;
-  box.querySelector('#import').onclick = pickImportFile;
+  const importButton = box.querySelector('#import');
+  importButton.onclick = pickImportFile;
+  // A newer data format is open read-only: importing would overwrite it.
+  if (store.isReadOnly()) {
+    importButton.disabled = true;
+    importButton.classList.add('opacity-50', 'cursor-not-allowed');
+    importButton.title = 'Update Harrington to import family data';
+    showReadOnly();
+  }
   return box;
 }
 
@@ -311,17 +319,18 @@ function pickImportFile() {
     }
     const check = store.inspectImport(doc);
     if (!check.ok) { toast(check.error, 'error'); return; }
-    openImportPreview(doc, check.learners);
+    openImportPreview(doc, check.learners, check.colorsAdjusted);
   };
   input.click();
 }
 
-function openImportPreview(doc, learners) {
+function openImportPreview(doc, learners, colorsAdjusted = 0) {
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const body = el(`<div class="p-5">
     <h3 class="font-display text-lg font-600 mb-1">Import family data?</h3>
     <p class="text-sm text-ink-faint mb-4">This replaces all family data on this server with the file${doc.exportedAt ? ` exported ${esc(new Date(doc.exportedAt).toLocaleString())}` : ''}. Recordings are not part of the file.</p>
     <div id="learners" class="space-y-2 mb-5"></div>
+    ${colorsAdjusted ? `<p class="text-xs text-ink-faint -mt-3 mb-5">${esc(plural(colorsAdjusted, 'learner color'))} adjusted to the nearest palette color.</p>` : ''}
     <div class="flex gap-2 justify-end">
       <button id="cancel" class="px-4 h-10 rounded-full bg-paper text-sm font-medium">Cancel</button>
       <button id="confirm" class="px-4 h-10 rounded-full bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors">Replace family data</button>
@@ -347,6 +356,19 @@ function openImportPreview(doc, learners) {
 }
 
 let tooLargeBanner = null;
+let readOnlyBanner = null;
+
+// The family data is from a newer Harrington: nothing is saved (store.js
+// isReadOnly), so say so for as long as the page is open.
+function showReadOnly() {
+  if (readOnlyBanner || typeof document === 'undefined') return;
+  readOnlyBanner = el(`<div role="alert" class="read-only-banner fixed top-0 inset-x-0 z-[98] bg-[#8a6412] text-white px-4 py-2.5 text-sm font-medium text-center flex items-center justify-center gap-2">
+    <i data-lucide="lock" class="w-4 h-4 shrink-0"></i>
+    <span>${esc(store.READ_ONLY_MESSAGE)}</span>
+  </div>`);
+  document.body.appendChild(readOnlyBanner);
+  refreshIcons();
+}
 let retryToast = null;
 
 function clearSaveProblems() {
@@ -387,4 +409,5 @@ store.onSaveStatus(({ type, error }) => {
   else if (type === 'too-large') showTooLarge();
   else if (type === 'failed') showRetry();
   else if (type === 'rejected') showRetry(error?.message || null);
+  else if (type === 'read-only') showReadOnly();
 });
