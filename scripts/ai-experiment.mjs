@@ -9,6 +9,8 @@
 //
 // Options:
 //   --data-dir <dir>   scratch Harrington data dir (default: HARRINGTON_DATA_DIR)
+//   --settings-dir <dir>  data dir whose Settings > AI provider values to use
+//                      (default: the scratch data dir; HARRINGTON_AI_* otherwise)
 //   --learner <name>   a fictional learner; read from the data dir, or new with --age
 //   --age <years>      age for a learner who is not in the data dir yet
 //   --topics <a,b,…>   topic ids to use instead of the daily-choice topics
@@ -26,7 +28,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { parseCapabilities } from '../src/js/ai-capabilities.js';
+import { chatCompletion, readStoredAiSettings, resolveAiSettings } from '../lib/ai-provider.mjs';
 import { aiLesson, redactNames } from '../src/js/ai.js';
 import { LANES, laneOptions } from '../src/js/daily.js';
 import { getData, hardPrereqs, loadTaxonomy, topicAge } from '../src/js/data.js';
@@ -34,22 +36,11 @@ import { isValidCached, normalizeCached, studentAge } from '../src/js/store.js';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 // Mirrors server.mjs.
-const DEFAULT_AI_TIMEOUT_MS = 180_000;
 const DEFAULT_TAXONOMY_UPSTREAM = 'https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@main/data';
 
 export class ExperimentError extends Error {}
 
-// ---- The endpoint, the way server.mjs's adapter calls it ----
-
-// Mirrors completionContent() in server.mjs.
-function completionContent(payload) {
-  const choice = payload?.choices?.[0];
-  if (!choice) return '';
-  const content = choice.message?.content ?? choice.text;
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) return content.map((part) => (typeof part === 'string' ? part : part?.text || '')).join('');
-  return content == null ? '' : String(content);
-}
+// ---- The endpoint, through the same call as server.mjs ----
 
 const jsonResponse = (status, value) => new Response(JSON.stringify(value), {
   status,
@@ -79,37 +70,12 @@ function installFetch({ settings, dataDir, names, upstream, attempt }) {
       return { ...message, content };
     });
 
-    const headers = { 'Content-Type': 'application/json' };
-    if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), settings.timeoutMs);
-    let response;
-    try {
-      response = await realFetch(`${settings.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ model: settings.model, messages }),
-        signal: controller.signal,
-      });
-    } catch (error) {
-      return error?.name === 'AbortError'
-        ? jsonResponse(504, { error: 'The AI provider timed out' })
-        : jsonResponse(502, { error: 'The AI provider is unreachable' });
-    } finally {
-      clearTimeout(timer);
+    const result = await chatCompletion(settings, messages, { fetchImpl: realFetch });
+    if (!result.ok) {
+      return jsonResponse(result.httpStatus, { error: result.status ? `${result.error} (${result.status})` : result.error });
     }
-    if (!response.ok) {
-      await response.text().catch(() => '');
-      return jsonResponse(502, { error: `The AI provider failed (${response.status})` });
-    }
-    let payload;
-    try {
-      payload = await response.json();
-    } catch {
-      return jsonResponse(502, { error: 'The AI provider returned an invalid response' });
-    }
-    if (payload?.usage) attempt.usage = payload.usage;
-    return jsonResponse(200, { content: completionContent(payload) });
+    if (result.usage) attempt.usage = result.usage;
+    return jsonResponse(200, { content: result.content });
   };
   return () => { globalThis.fetch = realFetch; };
 }
@@ -249,23 +215,21 @@ async function generate(topic, { retries, attempt }) {
 export async function runExperiment(options) {
   const { env = process.env, learner: learnerName, age = null, topicIds = [], count = 10, retries = 1, save = true, now = new Date(), log = () => {} } = options;
 
-  const capabilities = parseCapabilities(env.HARRINGTON_AI_CAPABILITIES).enabled;
-  if (!capabilities.includes('lesson')) {
-    throw new ExperimentError(`HARRINGTON_AI_CAPABILITIES (${env.HARRINGTON_AI_CAPABILITIES}) does not include lessons, so the experiment will not run. Set HARRINGTON_AI_CAPABILITIES=lesson.`);
-  }
-  const timeoutRaw = Number.parseInt(String(env.HARRINGTON_AI_TIMEOUT_MS || '').trim(), 10);
-  const settings = {
-    baseUrl: String(env.HARRINGTON_AI_BASE_URL || '').trim().replace(/\/+$/, ''),
-    model: String(env.HARRINGTON_AI_MODEL || '').trim(),
-    apiKey: String(env.HARRINGTON_AI_API_KEY || '').trim(),
-    timeoutMs: Number.isInteger(timeoutRaw) && timeoutRaw > 0 ? timeoutRaw : DEFAULT_AI_TIMEOUT_MS,
-  };
-  if (!settings.baseUrl || !settings.model) {
-    throw new ExperimentError('Set HARRINGTON_AI_BASE_URL and HARRINGTON_AI_MODEL to the endpoint the experiment should use.');
-  }
   const rawDir = options.dataDir || env.HARRINGTON_DATA_DIR;
   if (!rawDir) throw new ExperimentError('Pass --data-dir (or set HARRINGTON_DATA_DIR) to a scratch Harrington data dir.');
   const dataDir = resolve(rawDir);
+
+  // The provider as Harrington resolves it: settings saved in the app (in
+  // --settings-dir, by default the data dir) win over HARRINGTON_AI_*.
+  const settingsFile = join(resolve(options.settingsDir || dataDir), 'secrets.json');
+  const settings = resolveAiSettings(await readStoredAiSettings(settingsFile, (why) => log(`Ignoring ${settingsFile}: it ${why}`)), env);
+  if (!settings.configured) {
+    throw new ExperimentError('No AI provider is set up: save one under Settings > AI provider (and pass --settings-dir), or set HARRINGTON_AI_BASE_URL and HARRINGTON_AI_MODEL.');
+  }
+  const capabilities = settings.capabilities;
+  if (!capabilities.includes('lesson')) {
+    throw new ExperimentError(`The AI capabilities switched on (${capabilities.join(', ') || 'none'}) do not include lessons, so the experiment will not run. Switch lessons on (HARRINGTON_AI_CAPABILITIES=lesson, or under Settings > AI provider).`);
+  }
   if (!learnerName || !String(learnerName).trim()) throw new ExperimentError('Pass --learner with a fictional learner\'s name.');
   if (!Number.isInteger(retries) || retries < 0) throw new ExperimentError('--retries must be 0 or more.');
   if (!topicIds.length && (!Number.isInteger(count) || count < 1)) throw new ExperimentError('--count must be 1 or more.');
@@ -345,6 +309,7 @@ export function parseArgs(argv) {
     const arg = argv[i];
     if (arg === '--help' || arg === '-h') options.help = true;
     else if (arg === '--data-dir') options.dataDir = value(++i, arg);
+    else if (arg === '--settings-dir') options.settingsDir = value(++i, arg);
     else if (arg === '--learner') options.learner = value(++i, arg);
     else if (arg === '--age') options.age = integer(value(++i, arg), arg);
     else if (arg === '--count') options.count = integer(value(++i, arg), arg);

@@ -1,6 +1,6 @@
 // Runs after Playwright's webServer entries are up (the taxonomy download and
 // cache happen in start-app.mjs, which the webServer runs first). Here we only
-// confirm the five servers are what the specs expect and reset the mock.
+// confirm the six servers are what the specs expect and reset the mock.
 import { URLS } from './support/env.mjs';
 import { CACHE_DIR, cacheIsComplete } from './support/taxonomy.mjs';
 
@@ -11,11 +11,12 @@ async function health(url) {
 }
 
 export default async function globalSetup() {
-  const [ai, noAi, unreachable, lessonsOnly] = await Promise.all([
+  const [ai, noAi, unreachable, lessonsOnly, settings] = await Promise.all([
     health(`${URLS.appAi}/api/health`),
     health(`${URLS.appNoAi}/api/health`),
     health(`${URLS.appAiUnreachable}/api/health`),
     health(`${URLS.appLessonsOnly}/api/health`),
+    health(`${URLS.appSettings}/api/health`),
   ]);
   await health(`${URLS.mockAi}/health`);
   if (ai.aiConfigured !== true) {
@@ -29,6 +30,9 @@ export default async function globalSetup() {
   }
   if (lessonsOnly.aiConfigured !== true || String(lessonsOnly.aiCapabilities) !== 'lesson') {
     throw new Error(`The app on ${URLS.appLessonsOnly} should have AI with only lessons switched on; is another server using that port?`);
+  }
+  if (settings.aiConfigured !== false) {
+    throw new Error(`The app on ${URLS.appSettings} should start with no AI provider; is another server using that port?`);
   }
   const dead = await fetch(URLS.deadAi).then(() => true, () => false);
   if (dead) throw new Error(`Something is listening on ${URLS.deadAi}, which the ai-unreachable project needs to be closed (E2E_PORT_BASE moves it)`);

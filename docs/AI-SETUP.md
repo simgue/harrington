@@ -77,6 +77,36 @@ Each lesson is generated once per topic and then served from the lesson cache.
 
 ## 2. Point Harrington at it, lessons only
 
+### In the app: Settings > AI provider
+
+Open **AI provider** in the sidebar's family box (next to Export and Import),
+or go to `http://127.0.0.1:4173/#settings`.
+
+1. Pick a preset: **Ollama on this computer** fills
+   `http://127.0.0.1:11434/v1`; type the model you pulled (for example
+   `qwen2.5:7b`). **Google Gemini** and **OpenAI-compatible (custom)** are
+   below.
+2. Paste an API key if the provider needs one (Ollama doesn't).
+3. Under **Switched on**, leave only **Lessons** ticked.
+4. **Save**, then **Test connection**. It sends one tiny request with no
+   learner data and says whether the provider answered.
+
+Changes apply at once: no restart, and the AI buttons across the app update as
+soon as you save. **Remove saved settings** forgets everything saved here.
+
+**Where the key is kept.** On the Harrington server only, in
+`data/private/secrets.json` (or `secrets.json` in `HARRINGTON_DATA_DIR`),
+readable by its owner only. It is never sent back to the page: the form shows
+"Saved, ends in …abcd" and offers Replace and Remove. It is not part of
+Export, and `npm run backup` leaves that file out, so a backup copied
+elsewhere never carries the key; enter it again after a restore.
+
+### Or with environment variables (Docker and Compose)
+
+The same settings can come from the server's environment instead, which suits
+Docker. A value saved in the app wins over its variable, field by field;
+removing the saved settings returns to the environment.
+
 ```bash
 export HARRINGTON_AI_BASE_URL=http://127.0.0.1:11434/v1
 export HARRINGTON_AI_MODEL=qwen2.5:7b
@@ -86,8 +116,13 @@ npm start
 
 Restart Harrington after changing any of these. Docker on the same computer as
 Ollama usually needs `HARRINGTON_AI_BASE_URL=http://host.docker.internal:11434/v1`.
+The settings page shows "Configured from the server environment" with the
+address and model, and the key only as its last four characters.
 
-`HARRINGTON_AI_CAPABILITIES` is a comma list of what `/api/ai` may forward:
+### Capabilities
+
+`HARRINGTON_AI_CAPABILITIES` (or the **Switched on** boxes in the app) lists
+what `/api/ai` may forward:
 
 | Capability | What it writes |
 | --- | --- |
@@ -107,7 +142,7 @@ on everything, which is what a configured provider did before this setting
 existed. Unknown names are ignored and logged at startup. Nothing is switched
 on without `HARRINGTON_AI_BASE_URL` and `HARRINGTON_AI_MODEL`.
 
-What the family sees with `HARRINGTON_AI_CAPABILITIES=lesson`:
+What the family sees with only lessons switched on:
 
 - "Open full lesson" works everywhere it appears, and so does "Generate a
   different version" inside a lesson.
@@ -122,8 +157,8 @@ What the family sees with `HARRINGTON_AI_CAPABILITIES=lesson`:
 
 ### Where the variables live
 
-The settings are environment variables of the Harrington server process. They
-never go in the app, in family data, or in a committed file. Pick one of:
+When you use environment variables, they belong to the Harrington server
+process and never go in family data or a committed file. Pick one of:
 
 - **Exported in the shell** before starting, as above. They last until that
   terminal closes.
@@ -158,14 +193,21 @@ never go in the app, in family data, or in a committed file. Pick one of:
   cloud endpoint in `compose.yaml` itself.
 
 Restart the server after any change, then check `http://127.0.0.1:4173/api/health`:
-`aiConfigured` should be `true` and `aiCapabilities` should list what you
-switched on (for example `["lesson"]`).
+`aiConfigured` should be `true`, `aiSource` says whether the settings came from
+the app (`"app"`) or the environment (`"env"`), and `aiCapabilities` lists what
+is switched on (for example `["lesson"]`).
 
 ## Or: Gemini (cloud) example
 
 The same adapter talks to Google's Gemini through Gemini's OpenAI-compatible
 endpoint. No code change is needed; Harrington appends `/chat/completions` to
 the base URL.
+
+In the app: Settings > AI provider, choose **Google Gemini** (it fills the base
+URL, suggests `gemini-2.5-flash` and switches on lessons only), paste the key
+from Google AI Studio, Save, then Test connection.
+
+With environment variables instead:
 
 ```bash
 # .env (never committed)
@@ -179,9 +221,9 @@ HARRINGTON_AI_CAPABILITIES=lesson
   Use a current Gemini model id; `gemini-2.5-flash` is an example.
 - Harrington sends the key to Google as an `Authorization: Bearer` header, from
   the server only. The browser never sees it, and `/api/health` never reports it.
-- The key lives only in the server's environment (one of the ways above). Never
-  commit it, paste it into `compose.yaml`, or type it into the app. If it is
-  ever exposed, delete it in AI Studio and create a new one.
+- The key lives only on the server: in `secrets.json` when saved in the app, or
+  in the server's environment. Never commit it or paste it into `compose.yaml`.
+  If it is ever exposed, delete it in AI Studio and create a new one.
 - A cloud model answers in seconds rather than minutes, so the three-minute
   timeout is rarely an issue. The experiment script works the same way against
   it, and its report records the model, so a local and a cloud run compare
@@ -194,15 +236,25 @@ prompts always say "your child", never a name (HAR-19). Other capabilities send
 more: discussion analysis sends the transcript with learners' names redacted
 (nicknames and other people's names go as spoken), and parent notes go only
 when the parent ticks "Include my notes in this request" for that one request.
-`HARRINGTON_AI_CAPABILITIES` is how to keep a cloud key to lessons only: the
-server refuses every other request before anything reaches Google.
+The capability list (the **Switched on** boxes, or `HARRINGTON_AI_CAPABILITIES`)
+is how to keep a cloud key to lessons only: the server refuses every other
+request before anything reaches Google.
 
 ## 3. Run the lessons experiment
 
 `scripts/ai-experiment.mjs` writes lessons for the next ten topics a learner's
 daily choice would offer, using exactly the prompt the app uses, and writes a
 report to `docs/experiments/<date>-lessons.md`. Use a **scratch data dir and a
-fictional learner**, never the family's real data:
+fictional learner**, never the family's real data. It uses the provider you
+saved under Settings > AI provider when you point `--settings-dir` at the
+app's data dir (it only reads the settings there):
+
+```bash
+node scripts/ai-experiment.mjs --data-dir ./data/scratch --settings-dir ./data/private \
+  --learner "Sample Nine" --age 6
+```
+
+or the environment, as the server would:
 
 ```bash
 export HARRINGTON_AI_BASE_URL=http://127.0.0.1:11434/v1
@@ -218,8 +270,8 @@ node scripts/ai-experiment.mjs --data-dir ./data/scratch --learner "Sample Nine"
 - `--topics id1,id2` (or bare ids) uses those topics instead.
 - `--retries 1` (the default) allows one more attempt after an answer that is
   not usable; `--count` changes how many daily-choice topics.
-- The script refuses to run when `HARRINGTON_AI_CAPABILITIES` does not
-  include lessons, and every prompt goes through the same learner-name
+- The script refuses to run when lessons are not switched on (in the app's
+  saved settings, or `HARRINGTON_AI_CAPABILITIES`), and every prompt goes through the same learner-name
   redaction as the app (the report counts any redaction; it should be 0).
 - Usable lessons are saved to the scratch data dir's lesson cache
   (`--no-save` to skip), so you can read them in Harrington:
@@ -256,8 +308,9 @@ A sensible order, from most to least forgiving: `printables`, `activity`,
 `explain`, `recall`, `quiz`, `analysis`, `review`, then `test` and
 `challenge` last. Tests and challenges need strict JSON with an answer key
 and a second verification call per test; if the model struggles with lessons,
-keep them off. Add a capability by extending the list
-(`HARRINGTON_AI_CAPABILITIES=lesson,printables`) and restarting.
+keep them off. Add a capability by ticking it under Settings > AI provider, or
+by extending the list (`HARRINGTON_AI_CAPABILITIES=lesson,printables`) and
+restarting.
 
 If a capability disappoints, take it back out of the list: what it already
 wrote stays in the cache and keeps opening.

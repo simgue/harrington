@@ -73,14 +73,38 @@ after(async () => {
   if (dataDir) await rm(dataDir, { recursive: true, force: true });
 });
 
-test('refuses to run unless HARRINGTON_AI_CAPABILITIES includes lessons', async () => {
+test('refuses to run unless lessons are switched on', async () => {
   for (const capabilities of ['recall', 'test,printables', 'nonsense']) {
     await assert.rejects(
       runExperiment({ env: { ...env, HARRINGTON_AI_CAPABILITIES: capabilities }, dataDir, learner: LEARNER, out: join(dataDir, 'never.md'), now: NOW }),
-      (err) => err instanceof ExperimentError && /does not include lessons/.test(err.message),
+      (err) => err instanceof ExperimentError && /do not include lessons/.test(err.message),
     );
   }
   assert.equal(requests.length, 0, 'nothing reached the endpoint');
+});
+
+test('uses the provider saved under Settings > AI provider over the environment', async () => {
+  // Saved in another data dir (the family's), as server.mjs writes it.
+  const settingsDir = await mkdtemp(join(tmpdir(), 'harrington-experiment-settings-'));
+  try {
+    await writeFile(join(settingsDir, 'secrets.json'), JSON.stringify({
+      schemaVersion: 1,
+      ai: { baseUrl: env.HARRINGTON_AI_BASE_URL, model: 'saved-model', apiKey: 'saved-key-1234', capabilities: ['lesson'] },
+    }));
+    requests.length = 0;
+    const blankEnv = { HARRINGTON_AI_CAPABILITIES: 'recall', HARRINGTON_TAXONOMY_UPSTREAM: env.HARRINGTON_TAXONOMY_UPSTREAM };
+    const { report } = await runExperiment({ env: blankEnv, dataDir, settingsDir, learner: LEARNER, topicIds: ['count-5'], save: false, out: join(dataDir, 'report', 'saved.md'), now: NOW });
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].body.model, 'saved-model');
+    assert.equal(requests[0].authorization, 'Bearer saved-key-1234');
+    assert.match(report, /\| Model \| saved-model \|/);
+    assert.doesNotMatch(report, /saved-key/, 'the report never carries the key');
+
+    // Without a provider anywhere, it says how to set one up.
+    await assert.rejects(runExperiment({ env: {}, dataDir, learner: LEARNER, out: join(dataDir, 'never.md'), now: NOW }), /No AI provider is set up/);
+  } finally {
+    await rm(settingsDir, { recursive: true, force: true });
+  }
 });
 
 test('writes the report for the learner\'s daily-choice topics, with retries, usage and blank rating columns', async () => {
