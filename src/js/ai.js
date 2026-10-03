@@ -414,16 +414,19 @@ export function aiMasteryTest({ subject, age, topicNames, mode, section, topic, 
   const isTopic = !!topic;
   const isSection = !isTopic && !!section;
   const count = isTopic ? '4 to 6' : isSection ? '6 to 9' : '10 to 14';
+  // Legacy learners without a birth year have no age: leave the clause out.
+  const known = Number.isFinite(age);
+  const aged = known ? ` aged ${age}` : '';
   const scope = isTopic
     ? `the topic "${topic.name}" — ${topic.description || ''}${(topic.evidence && topic.evidence.length) ? '. Mastery evidence: ' + topic.evidence.join('; ') : ''}`
-    : (topicNames && topicNames.length ? topicNames.join(', ') : `core ${subject} skills for age ${age}`);
+    : (topicNames && topicNames.length ? topicNames.join(', ') : `core ${subject} skills${known ? ` for age ${age}` : ''}`);
   const heading = isTopic
-    ? `Write a TOPIC MASTERY TEST for the single topic "${topic.name}" within ${subject}, for a learner aged ${age}. This confirms the child has truly mastered this one topic before moving on. Mastery is 90% or more correct.`
+    ? `Write a TOPIC MASTERY TEST for the single topic "${topic.name}" within ${subject}, for a learner${aged}. This confirms the child has truly mastered this one topic before moving on. Mastery is 90% or more correct.`
     : isSection
-    ? `Write a SECTION MASTERY TEST for the unit "${section}" within ${subject}, for a learner aged ${age}. This checks the child has mastered this section before moving on. Mastery is 90% or more correct.`
-    : `Write a FINAL MASTERY TEST for the subject "${subject}" for a learner aged ${age}. Mastery is 90% or more correct.`;
+    ? `Write a SECTION MASTERY TEST for the unit "${section}" within ${subject}, for a learner${aged}. This checks the child has mastered this section before moving on. Mastery is 90% or more correct.`
+    : `Write a FINAL MASTERY TEST for the subject "${subject}" for a learner${aged}. Mastery is 90% or more correct.`;
   const prompt =
-`You are an expert homeschool assessor writing a test for a child aged ${age}. ${heading}
+`You are an expert homeschool assessor writing a test for a child${aged}. ${heading}
 Focus tightly on: ${scope}.
 ${advanced ? 'ADAPTIVE DIFFICULTY: This child is excelling here, so pitch the questions a notch harder than usual — larger numbers, an extra reasoning step, or slightly deeper application — while staying fair for the age and on-topic.' : ''}
 
@@ -431,7 +434,7 @@ RULES FOR GOOD QUESTIONS (follow all):
 1. SOLVE every question yourself first. Only write an answer you are 100% certain is correct.
 2. Each question must have EXACTLY ONE correct option. The other options must be plausible but clearly, unambiguously wrong. Never let two options both be arguably correct.
 3. Questions must be self-contained and answerable from the text alone — no "read the passage above", no reference to pictures, manipulatives, or things not shown.
-4. Use simple, direct, age-${age} language. One idea per question. Avoid trick wording, double negatives, and "which of these is NOT" unless truly necessary.
+4. Use simple, direct, ${known ? `age-${age}` : 'age-appropriate'} language. One idea per question. Avoid trick wording, double negatives, and "which of these is NOT" unless truly necessary.
 5. Options must be short, distinct, and not overlapping (e.g. don't include both "4" and "four"). Don't use "all of the above" / "none of the above".
 6. For math, keep numbers age-appropriate and put the FULL arithmetic in "verify" so it can be checked.
 
@@ -463,8 +466,9 @@ Use real, specific, age-appropriate content (actual numbers, words, examples) �
 // without frustrating: same core skill but slightly bigger numbers / minor
 // concepts from what comes next. All multiple_choice for fast, fair grading.
 export function aiChallenge({ subject, age, topic, nextHint }) {
+  const aged = Number.isFinite(age) ? ` aged ${age}` : '';
   const prompt =
-`You are an expert homeschool assessor creating a fun, TIMED "challenge" quiz for a child aged ${age} who has ALREADY mastered "${topic.name}" (${subject} > ${topic.domain}). Description: ${topic.description || ''}.
+`You are an expert homeschool assessor creating a fun, TIMED "challenge" quiz for a child${aged} who has ALREADY mastered "${topic.name}" (${subject} > ${topic.domain}). Description: ${topic.description || ''}.
 This is a stretch, not a trap: keep it enjoyable and doable, roughly 10-20% harder than the mastery test. Ways to stretch: slightly bigger numbers, an extra step, or a small taste of the next concept${nextHint ? ` (e.g. ${nextHint})` : ''}.
 
 RULES:

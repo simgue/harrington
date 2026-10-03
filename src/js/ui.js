@@ -6,6 +6,12 @@ export function el(html) {
   return t.content.firstElementChild;
 }
 
+// "1 topic", "3 topics". Until the shared count formatter lands, the one
+// plural rule for counts shown in the views.
+export function countOf(n, singular, plural = `${singular}s`) {
+  return `${n} ${Number(n) === 1 ? singular : plural}`;
+}
+
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }

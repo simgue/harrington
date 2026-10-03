@@ -248,6 +248,30 @@ test('a missing birth year reads "age unknown", never "age null"', () => {
   for (const p of prompts) { assert.match(p, /age unknown/); assert.doesNotMatch(p, /age (null|undefined)/); }
 });
 
+test('a test or challenge for a learner with no age leaves the age clause out', async () => {
+  const promptOf = async (call) => {
+    const before = sent.length;
+    await call();
+    return sent[before].messages.map(m => m.content).join('\n');
+  };
+  const prompts = [
+    await promptOf(() => ai.aiMasteryTest({ subject: 'Mathematics', age: null, topicNames: ['Count to 5'], mode: 'digital' })),
+    await promptOf(() => ai.aiMasteryTest({ subject: 'Mathematics', age: null, topicNames: [], mode: 'physical' })),
+    await promptOf(() => ai.aiChallenge({ subject: 'Mathematics', age: undefined, topic })),
+  ];
+  for (const p of prompts) {
+    assert.doesNotMatch(p, /aged|for age|age-(null|undefined)|null|undefined/);
+    assert.match(p, /for a child\b/);
+  }
+  assert.match(prompts[0], /FINAL MASTERY TEST for the subject "Mathematics" for a learner\. /);
+  assert.match(prompts[0], /age-appropriate language/);
+  assert.match(prompts[1], /Focus tightly on: core Mathematics skills\./);
+  const known = await promptOf(() => ai.aiMasteryTest({ subject: 'Mathematics', age: 7, topicNames: [], mode: 'digital' }));
+  assert.match(known, /for a learner aged 7\. /);
+  assert.match(known, /core Mathematics skills for age 7/);
+  assert.match(known, /age-7 language/);
+});
+
 test('redactLearnerNames covers every learner in state, not only the active one', () => {
   assert.equal(ai.redactLearnerNames('Zebulon and Sample Nine and Nine-pins'), 'the child and the child and the child-pins');
 });
