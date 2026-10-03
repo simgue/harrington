@@ -174,10 +174,11 @@ describe('family data safety in the store', { concurrency: false }, () => {
     store.awardXp(id, 10);
     store.saveDailyOffers(id, '2026-09-27', { literacy: ['rhymes'], numeracy: ['count-to-5'] });
     store.setInterests(id, { chips: ['Animals'], text: 'bridges' });
+    store.logRequest(id, 'how to count to five', 'count-to-5');
     await store.flushSaves();
 
     const before = await serverState();
-    const keys = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations', 'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests'];
+    const keys = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations', 'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests', 'requests'];
     for (const key of keys) assert.ok(before[key][id], `${key} was populated`);
 
     store.removeStudent(id);
@@ -458,6 +459,38 @@ describe('family data safety in the store', { concurrency: false }, () => {
     assert.equal(atEight.topicDate.has('rhymes'), false, 'the age-7 band is behind an 8-year-old');
     store.removeStudent(id);
     await store.flushSaves();
+  });
+
+  test('the topic finder request log survives export and import, and import cleans it', async () => {
+    const id = store.get().students[0].id;
+    const asked = store.logRequest(id, 'rhyming words');
+    store.setRequestTopic(id, asked.id, 'rhymes');
+    store.logRequest(id, 'counting');
+    await store.flushSaves();
+    const exported = JSON.parse(JSON.stringify(await store.exportDocument()));
+    assert.deepEqual(exported.requests[id].map((r) => [r.text, r.topicId]), [['counting', null], ['rhyming words', 'rhymes']]);
+
+    store.logRequest(id, 'asked after the export');
+    await store.flushSaves();
+    assert.equal(await store.importDocument(exported), true);
+    assert.deepEqual(store.requestsFor(id), exported.requests[id]);
+    assert.deepEqual((await serverState()).requests[id], exported.requests[id]);
+
+    // Bad entries, an oversized log and a learner the file does not have are dropped on import.
+    const tampered = JSON.parse(JSON.stringify(exported));
+    tampered.requests[id] = [
+      ...Array.from({ length: store.REQUEST_LOG_MAX + 5 }, (_, i) => ({ id: `rq_t${i}`, text: `t${i}`, createdAt: 1000 + i, topicId: null })),
+      { id: 'rq_bad', text: 42, createdAt: 1 }, null, 'nope',
+    ];
+    tampered.requests.ghost = [{ id: 'rq_g', text: 'from nowhere', createdAt: 1 }];
+    assert.equal(await store.importDocument(tampered), true);
+    const saved = (await serverState()).requests;
+    assert.equal(saved[id].length, store.REQUEST_LOG_MAX);
+    assert.equal(saved[id][0].id, `rq_t${store.REQUEST_LOG_MAX + 4}`, 'newest kept');
+    assert.ok(!saved[id].some((r) => r.id === 'rq_bad'));
+    assert.equal(saved.ghost, undefined);
+    assert.equal(store.inspectImport({ ...exported, requests: 'nope' }).ok, false);
+    assert.equal(await store.importDocument(exported), true);
   });
 
   test('import replaces a color outside the palette', async () => {

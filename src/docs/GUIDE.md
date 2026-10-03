@@ -87,6 +87,31 @@ The connected curriculum, in two modes.
 - **List.** Prefer text? Switch to the list and drill from subject to domain
   to age band to topic.
 
+## Find a topic
+
+**Find a topic** (on the dashboard, under the greeting, and on every skill
+tree) turns a request such as "how to tell the time" or "fractions" into topics
+from the curriculum map. It runs on this computer and uses no AI.
+
+- **Closest topics.** Up to eight matches, ranked by how well the words fit
+  the topic's name, area and description. Common words ("clock" for time,
+  "halves" for fractions) count too. Topics in your learner's age band rank a
+  little higher, but nothing is hidden for being younger or older. If nothing
+  fits, try other words: a simpler one, or the name of the subject.
+- **Path.** Choose a match to see the required foundations still in the way,
+  foundations first, each with its stage (Seed, Sprout, Bud or Bloom), and how
+  many steps are left. Helpful (dashed) foundations are not listed; the topic
+  page shows them.
+- **Next ready step.** The first step whose foundations are all mastered, with
+  **Open topic page**, **Add to today**, **Plan it** (pick a day in the
+  calendar) and **Find on skill tree**.
+- **Request log.** Every request is kept under the learner, with the topic you
+  chose, newest first (the last 50). It is part of the family data, so it is
+  in exports and backups.
+
+The map only holds the 1,590 Marble topics; a subject it does not cover cannot
+be found yet.
+
 ## Growth stages and mastery
 
 Progress is shown as a plant:

@@ -371,13 +371,32 @@ function dayTopicRow(t, active, navigate) {
   return row;
 }
 
-function openMoveTopic(topic, active, navigate) {
-  const currentKey = selectedKey;
+// Puts a topic on a day: a topic on the learner's track moves there; one the
+// track does not hold (below the start age, off the on-ramp) is added to that
+// day as an extra lesson. A rest day becomes the next home day. Returns the
+// day it landed on and whether the topic moved (rather than being added).
+export function planTopicOn(active, topic, picked) {
+  const dayKey = nextHomeDayKey(picked, familyCalendar());
+  const moved = buildPlan(active).topicDate.has(topic.id);
+  if (moved) {
+    store.moveTopic(active.id, topic.id, dayKey);
+    invalidatePlan(active.id);
+  } else {
+    store.addExtra(active.id, dayKey, {
+      kind: 'lesson', topicId: topic.id, topicName: topic.name,
+      subject: topic.subject, title: `Lesson · ${topic.name}`,
+    });
+  }
+  return { dayKey, moved };
+}
+
+export function openMoveTopic(topic, active, navigate, { title = `Move “${topic.name}”`, blurb = 'Stuck on it, or want to get ahead? Move this topic to another day. Its section order still applies.' } = {}) {
+  const currentKey = selectedKey || keyOf(new Date());
   const calendar = familyCalendar();
   const nextDay = nextHomeDayKey(currentKey, calendar, { after: true });
   const body = el(`<div class="p-5">
-    <h3 class="font-display text-lg font-600 mb-1">Move “${esc(topic.name)}”</h3>
-    <p class="text-xs text-ink-faint mb-4">Stuck on it, or want to get ahead? Move this topic to another day. Its section order still applies.</p>
+    <h3 class="font-display text-lg font-600 mb-1">${esc(title)}</h3>
+    <p class="text-xs text-ink-faint mb-4">${esc(blurb)}</p>
     <div class="space-y-2 mb-4">
       <button id="tomorrow" class="w-full text-left px-4 py-3 rounded-xl border border-paper-line hover:border-brand/40 transition-colors flex items-center gap-2.5"><i data-lucide="calendar-arrow-down" class="w-4 h-4 text-brand-dark"></i><span class="text-sm font-medium">Push to next home day</span></button>
     </div>
@@ -389,12 +408,12 @@ function openMoveTopic(topic, active, navigate) {
   </div>`);
   const doMove = (picked) => {
     // Rest days schedule nothing: a rest day moves to the next home day.
-    const dayKey = nextHomeDayKey(picked, calendar);
-    store.moveTopic(active.id, topic.id, dayKey);
-    invalidatePlan(active.id);
-    toast(dayKey === picked ? `Moved to ${dayKey}` : `${picked} is a rest day — moved to ${dayKey}`, 'success');
+    const { dayKey, moved } = planTopicOn(active, topic, picked);
+    const verb = moved ? 'moved' : 'added';
+    toast(dayKey === picked ? `${moved ? 'Moved' : 'Added'} to ${dayKey}` : `${picked} is a rest day — ${verb} to ${dayKey}`, 'success');
     m.close();
     selectedKey = dayKey;
+    viewMonth = new Date(parseKey(dayKey).getFullYear(), parseKey(dayKey).getMonth(), 1);
     navigate('calendar');
   };
   body.querySelector('#tomorrow').onclick = () => doMove(nextDay);
