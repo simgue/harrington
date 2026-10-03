@@ -100,14 +100,16 @@ function applyDocument(data) {
   return state.settings !== settings;
 }
 
-// Saves the PIN migration applyDocument made. If that is all this tab has to
-// save and another tab saved first (two tabs open during the upgrade), the
-// conflict reload is not worth a toast: the reloaded document is migrated again.
+// Saves the PIN migration applyDocument made, once and right away (a load that
+// migrated nothing never writes). If that is all this tab has to save and
+// another tab saved first (two tabs open during the upgrade), the conflict
+// reload is not worth a toast: the reloaded document is migrated again.
 let migrationOnly = false;
 function persistMigration() {
   const pending = dirty;
-  persist();
+  dirty = true;
   migrationOnly = !pending;
+  return flushSaves();
 }
 
 export async function loadAll() {
@@ -118,7 +120,7 @@ export async function loadAll() {
     console.warn('load failed', e);
     throw e;
   }
-  if (migrated) persistMigration();
+  if (migrated) await persistMigration();
 }
 
 function snapshotData() {

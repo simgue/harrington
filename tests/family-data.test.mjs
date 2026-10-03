@@ -582,19 +582,43 @@ describe('family data safety in the store', { concurrency: false }, () => {
 
   test('two tabs migrating the same plain PIN: the losing tab reloads without a toast', async () => {
     await otherDevicePut(withPlainPin('1470'));
-    await store.loadAll(); // migrates; the save is still pending
-    assert.equal(plainPin(store.get().settings), false);
-    // The other tab migrated and saved first.
-    await otherDevicePut((doc) => {
-      const { parentPin: _p, ...settings } = doc.settings;
-      return { ...doc, settings: { ...settings, parentPinSalt: '0'.repeat(32), parentPinHash: createHash('sha256').update(`${'0'.repeat(32)}:1470`).digest('hex') } };
-    });
+    const salt = '0'.repeat(32);
+    // The other tab migrates and saves just before this tab's migration save.
+    const wrapped = globalThis.fetch;
+    let raced = false;
+    globalThis.fetch = async (path, options = {}) => {
+      if (!raced && path === '/api/state' && options.method === 'PUT') {
+        raced = true;
+        await otherDevicePut((doc) => {
+          const { parentPin: _p, ...settings } = doc.settings;
+          return { ...doc, settings: { ...settings, parentPinSalt: salt, parentPinHash: createHash('sha256').update(`${salt}:1470`).digest('hex') } };
+        });
+      }
+      return wrapped(path, options);
+    };
     statusEvents.length = 0;
-    await store.flushSaves();
+    try {
+      await store.loadAll(); // migrates and saves at once: 412, reload
+      await store.flushSaves();
+    } finally {
+      globalThis.fetch = wrapped;
+    }
+    assert.equal(raced, true);
     assert.equal(statusEvents.includes('conflict'), false);
-    assert.equal(store.get().settings.parentPinSalt, '0'.repeat(32));
+    assert.equal(store.get().settings.parentPinSalt, salt);
     assert.equal(store.checkParentPin('1470'), true);
-    await store.flushSaves();
     assert.equal(plainPin(await serverState()), false);
+  });
+
+  test('a load that migrates the PIN saves once, at once; a load with nothing to migrate never writes', async () => {
+    await otherDevicePut(withPlainPin('2580'));
+    const before = (await serverState()).version;
+    await store.loadAll(); // no flushSaves: the migration save is not debounced
+    const after = await serverState();
+    assert.equal(after.version, before + 1);
+    assert.equal(plainPin(after), false);
+    await store.loadAll();
+    await store.flushSaves();
+    assert.equal((await serverState()).version, before + 1);
   });
 });

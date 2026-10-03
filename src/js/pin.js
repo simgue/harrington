@@ -43,24 +43,25 @@ export function verifyPin(pin, settings) {
   return hashPin(String(pin), settings.parentPinSalt) === settings.parentPinHash;
 }
 
-// Settings for a new PIN: a fresh salt and its hash, the plain PIN gone.
-export function pinSettings(settings, pin) {
+// Settings for a new PIN: a fresh salt (or the one given, for fixtures) and
+// its hash, the plain PIN gone.
+export function pinSettings(settings, pin, salt = newSalt()) {
   const { parentPin: _plain, parentPinHash: _h, parentPinSalt: _s, ...rest } = settings || {};
-  const salt = newSalt();
   return { ...rest, parentPinSalt: salt, parentPinHash: hashPin(String(pin), salt) };
 }
 
 // A family document from before the hash (or hand-edited, or imported) may
 // carry the plain PIN, or a hash or salt that is not one Harrington wrote.
 // Returns settings with the plain PIN hashed and any malformed hash and salt
-// dropped, or the same object when there is nothing to change.
-export function migratePinSettings(settings) {
+// dropped, or the same object when there is nothing to change. Synchronous;
+// `salt` can be injected for fixtures.
+export function migratePinSettings(settings, { salt } = {}) {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return settings;
   const hasPlain = 'parentPin' in settings;
   const hasStored = 'parentPinHash' in settings || 'parentPinSalt' in settings;
   if (!hasPlain && (!hasStored || storedHash(settings))) return settings;
   const pin = legacyPin(settings);
-  if (pin) return pinSettings(settings, pin);
+  if (pin) return pinSettings(settings, pin, salt);
   const { parentPin: _drop, parentPinHash, parentPinSalt, ...rest } = settings;
   return storedHash(settings) ? { ...rest, parentPinHash, parentPinSalt } : rest;
 }

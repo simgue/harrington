@@ -63,6 +63,10 @@ test('a plain PIN from an older family document migrates to the hash', () => {
   const fresh = migratePinSettings(stale);
   assert.equal(verifyPin('1357', fresh), true);
   assert.equal(verifyPin('9999', fresh), false);
+  // The salt can be injected for fixtures.
+  const fixed = migratePinSettings({ parentPin: '2468' }, { salt: 'a'.repeat(32) });
+  assert.equal(fixed.parentPinSalt, 'a'.repeat(32));
+  assert.equal(fixed.parentPinHash, nodeSha(`${'a'.repeat(32)}:2468`));
   // An empty or malformed plain PIN is dropped, not hashed.
   assert.deepEqual(migratePinSettings({ parentPin: '' }), {});
   assert.deepEqual(migratePinSettings({ parentPin: 'abcd', calendar: {} }), { calendar: {} });
