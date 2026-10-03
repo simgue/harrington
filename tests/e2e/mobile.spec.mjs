@@ -75,3 +75,17 @@ test('export and import are not reachable on a phone (finding F6)', async ({ pag
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Import', exact: true })).toHaveCount(0);
 });
+
+test('the notes opt-in is a 20 px box whose label is the hit area', async ({ page, gotoApp }) => {
+  await gotoApp({
+    seed: { records: [{ type: 'observation', title: 'Counted the stairs out loud', note: 'Got to 12.', topicId: TOPICS.oneToOne.id }] },
+    hash: 'insights',
+  });
+  const box = page.getByRole('checkbox', { name: 'Include my notes in this request' });
+  const size = await box.boundingBox();
+  expect([Math.round(size.width), Math.round(size.height)]).toEqual([20, 20]);
+  const label = page.locator('label', { has: box });
+  expect((await label.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  await label.getByText('Include my notes in this request').click();
+  await expect(box).toBeChecked();
+});
