@@ -2,19 +2,29 @@
 // Dead-code report for src/js: modules the app never loads, named exports no
 // other module imports, imports never referenced, and uses of another
 // module's named export that the module forgot to import (heuristic: string
-// and template text are blanked, local declarations and parameters excluded;
-// a removed namespace import, `import * as x`, is not detected).
+// and template text are blanked, local declarations and parameters excluded).
+// Namespace imports (`import * as store from './store.js'`) are tracked too:
+// a member use such as `store.x` needs a namespace import named `store` in
+// that module (a removed import whose uses survived), the member must be one
+// the target exports, and a namespace import with no member use in code is
+// reported as unused unless the bare name is passed around as a value.
 // Tests and scripts count as importers; exports only tests import are listed
 // for information.
-// Usage: node scripts/dead-code.mjs   (exit code 1 when anything is found)
+// Usage: node scripts/dead-code.mjs [--root <dir>]   (exit code 1 when anything
+// is found; --root points at another checkout, for the fixture tests)
+import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const rootArg = process.argv.indexOf('--root');
+const root = rootArg === -1
+  ? resolve(dirname(fileURLToPath(import.meta.url)), '..')
+  : resolve(process.argv[rootArg + 1]);
 
 async function walk(dir, exts) {
   const out = [];
+  if (!existsSync(dir)) return out;
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) out.push(...await walk(path, exts));
@@ -82,7 +92,7 @@ const consumerFiles = [
   ...srcFiles,
   ...await walk(join(root, 'tests'), ['.mjs', '.js']),
   ...await walk(join(root, 'scripts'), ['.mjs', '.js']),
-  join(root, 'server.mjs'),
+  ...[join(root, 'server.mjs')].filter((file) => existsSync(file)),
 ];
 // An identifier reference: not a property access (`a.name`), but a spread
 // (`...name`) counts.
@@ -119,8 +129,11 @@ for (const [file, code] of sources) {
           accesses.push(...m[1].split(',').map((s) => s.split(':')[0].trim()).filter(Boolean));
         }
         for (const name of accesses) note(target, name, file);
-        if (srcFiles.includes(file) && !accesses.length && !ref(local).test(body)) {
-          unusedImports.push(`${relative(root, file)}: * as ${local}`);
+        // In code only, so a namespace named in a string or template text
+        // does not count as a use. A bare value use (`fn(store)`) does.
+        if (srcFiles.includes(file) && !namespaceMembers(codeOnly(body), local).length
+          && !new RegExp(`${ref(local).source}(?!\\s*\\??\\.)`).test(codeOnly(body))) {
+          unusedImports.push(`${relative(root, file)}: * as ${local} (no member use)`);
         }
         continue;
       }
@@ -130,6 +143,15 @@ for (const [file, code] of sources) {
       }
     }
   }
+}
+
+// Members read off a namespace: `ns.a`, `ns?.a`, and `const { a, b: c } = ns`.
+function namespaceMembers(code, local) {
+  const members = [...code.matchAll(new RegExp(`${ref(local).source}\\s*\\??\\.\\s*([\\w$]+)`, 'g'))].map((m) => m[1]);
+  for (const m of code.matchAll(new RegExp(`\\{([\\w$\\s,:]*)\\}\\s*=\\s*${local}\\b`, 'g'))) {
+    members.push(...m[1].split(',').map((s) => s.split(':')[0].trim()).filter(Boolean));
+  }
+  return members;
 }
 
 const isTest = (file) => relative(root, file).startsWith('tests/');
@@ -197,6 +219,22 @@ function codeOnly(code) {
   }
   return out;
 }
+// A local declaration, parameter or destructuring of `name` in `code`.
+function declaredIn(code, name) {
+  const n = `\\b${name}\\b`;
+  return [
+    `(?:function\\*?|const|let|var|class)\\s+${name}\\b`, // declaration
+    `(?:const|let|var)\\s*[{[][^}\\]]*${n}[^}\\]]*[}\\]]\\s*=`, // destructuring
+    `function\\s*\\w*\\s*\\((?:[^)]*,)?\\s*${name}\\s*(?:[,=][^)]*)?\\)`, // function parameter
+    `\\((?:[^()]*,)?\\s*${name}\\s*(?:[,=][^()]*)?\\)\\s*=>`, // arrow parameters
+    `(?<![\\w$.])${name}\\s*=>`, // single arrow parameter
+    `catch\\s*\\(\\s*${name}\\s*\\)`,
+    `function\\s*\\w*\\s*\\([^)]*\\{(?:[^}]*,)?\\s*${name}\\s*[,}=]`, // destructured parameter
+    `\\([^()]*\\{(?:[^}]*,)?\\s*${name}\\s*[,}=][^()]*\\)\\s*=>`,
+    `[{,(]\\s*${name}\\s*=(?![=>])`, // parameter or destructuring default
+  ].some((pattern) => new RegExp(pattern).test(code));
+}
+
 const exportedNames = new Set(srcFiles.flatMap((file) => parseExports(sources.get(file))));
 const missingImports = [];
 for (const file of srcFiles) {
@@ -210,19 +248,52 @@ for (const file of srcFiles) {
     if (bound.has(name) || own.has(name)) continue;
     // A use: an identifier that is not an object key (`name:`) or a property.
     if (!new RegExp(`${ref(name).source}(?!\\s*:(?!:))`).test(code)) continue;
-    const n = `\\b${name}\\b`;
-    const declared = [
-      `(?:function\\*?|const|let|var|class)\\s+${name}\\b`, // declaration
-      `(?:const|let|var)\\s*[{[][^}\\]]*${n}[^}\\]]*[}\\]]\\s*=`, // destructuring
-      `function\\s*\\w*\\s*\\((?:[^)]*,)?\\s*${name}\\s*(?:[,=][^)]*)?\\)`, // function parameter
-      `\\((?:[^()]*,)?\\s*${name}\\s*(?:[,=][^()]*)?\\)\\s*=>`, // arrow parameters
-      `(?<![\\w$.])${name}\\s*=>`, // single arrow parameter
-      `catch\\s*\\(\\s*${name}\\s*\\)`,
-      `function\\s*\\w*\\s*\\([^)]*\\{(?:[^}]*,)?\\s*${name}\\s*[,}=]`, // destructured parameter
-      `\\([^()]*\\{(?:[^}]*,)?\\s*${name}\\s*[,}=][^()]*\\)\\s*=>`,
-      `[{,(]\\s*${name}\\s*=(?![=>])`, // parameter or destructuring default
-    ].some((pattern) => new RegExp(pattern).test(code));
+    const declared = declaredIn(code, name);
     if (!declared) missingImports.push(`${relative(root, file)}: ${name}`);
+  }
+}
+
+// Namespace imports. Every name some module binds with `import * as name`
+// is a namespace the others could reach for: `store.x` in a module with no
+// `import * as store` (and no local `store`) is a removed import whose uses
+// survived. A member the target does not export is the same mistake one step
+// later (`store.renamedAway()`), so it is checked for every namespace binding.
+const namespaces = new Map(); // local name -> Set of target files
+for (const file of srcFiles) {
+  for (const { statement, target, bindings } of parseImports(sources.get(file), file)) {
+    for (const { imported, local } of bindings) {
+      if (imported !== '*' || !local || !statement) continue;
+      if (!namespaces.has(local)) namespaces.set(local, new Set());
+      namespaces.get(local).add(target);
+    }
+  }
+}
+const relTargets = (targets) => [...targets].map((t) => relative(root, t)).join(' or ');
+const missingNamespaces = [];
+const unknownMembers = [];
+for (const file of srcFiles) {
+  const imports = parseImports(sources.get(file), file);
+  const bound = new Set(imports.flatMap(({ bindings }) => bindings.map((b) => b.local)));
+  const code = codeOnly(sources.get(file)).replace(/^[ \t]*import\s+[\w$*{}\s,]+?\s+from\s+['"][^'"]*['"]\s*;?/gm, ' ');
+  for (const [name, targets] of namespaces) {
+    if (bound.has(name)) continue;
+    const members = [...new Set(namespaceMembers(code, name))];
+    if (!members.length || declaredIn(code, name)) continue;
+    missingNamespaces.push(`${relative(root, file)}: ${members.map((m) => `${name}.${m}`).join(', ')} (no \`import * as ${name}\` from ${relTargets(targets)})`);
+  }
+  for (const { target, bindings } of imports) {
+    const targetCode = sources.get(target);
+    // `export *` re-exports names this parser cannot see; skip those targets.
+    if (!targetCode || /export\s*\*/.test(targetCode)) continue;
+    const exported = new Set(parseExports(targetCode));
+    for (const { imported, local } of bindings) {
+      if (imported !== '*' || !local) continue;
+      for (const member of new Set(namespaceMembers(code, local))) {
+        if (!exported.has(member) && member !== 'default') {
+          unknownMembers.push(`${relative(root, file)}: ${local}.${member} (${relative(root, target)} exports no ${member})`);
+        }
+      }
+    }
   }
 }
 
@@ -232,4 +303,7 @@ section('Exports with no importer', unusedExports);
 section('Exports imported only by tests (informational)', testOnlyExports);
 section('Imports never referenced', unusedImports);
 section('Uses of another module\'s export that is not imported', missingImports);
-process.exitCode = unreachable.length + unusedExports.length + unusedImports.length + missingImports.length ? 1 : 0;
+section('Namespace member uses with no namespace import', missingNamespaces);
+section('Namespace members the target module does not export', unknownMembers);
+process.exitCode = [unreachable, unusedExports, unusedImports, missingImports, missingNamespaces, unknownMembers]
+  .some((list) => list.length) ? 1 : 0;

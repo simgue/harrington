@@ -43,6 +43,9 @@ so the numbers stay stable.
 | F17 | A losing tab confirms a change, then discards it; a tab's own boot write can raise the conflict | Medium | `data-safety` | |
 | F18 | "Plant something new" in the child view offers a topic already in progress | Low | `child-view` | |
 | ~~F19~~ | ~~Without an AI provider the Calendar does not render (`gateAi is not defined`)~~ | High | `no-ai` | Fixed by #29 (`8665fdc`) |
+| F20 | The app shell has no `<main>` landmark | Low | `routes` | |
+| F21 | Without an AI provider every cache check logs a 404 console error | Low | `routes` | |
+| F22 | The challenge and mastery-test dialogs do not gate their own start button | Low | unit (`ai-status-views`) | |
 
 Verified fixed since the 27 September audit (the suite now guards them):
 see [the end of this page](#fixed-since-the-audit).
@@ -337,6 +340,41 @@ click **Calendar**; the console shows the error.
 It was pinned by a `no-ai.spec.mjs` test marked (finding F19), now replaced
 by the calendar checks in "quest log, calendar, insights, records and
 recordings show chips".
+
+## F20. The app shell has no `<main>` landmark
+
+**Low (accessibility).** `renderShell` (`src/js/views/shell.js`) puts each
+view inside plain `<div>`s, so screen-reader users cannot jump to the main
+content, and specs have no stable hook for it. `routes.spec.mjs` finds the
+view as the element after the "Self-hosted preview" banner. A `<main>` (or
+`role="main"`) around the view would fix both.
+
+## F21. Without an AI provider every cache check logs a 404 console error
+
+**Low.** With no provider, `gateAi(control, { cachedKey })` asks the server
+whether a lesson is cached (`store.hasCachedLesson` → `backend.loadLesson`).
+A miss is a 404 by design, and Chromium logs each one as "Failed to load
+resource: the server responded with a status of 404 (Not Found)": a topic
+page logs about ten. `loadLesson` also returns without reading the 404 body,
+so Playwright never sees those requests finish and `networkidle` never
+fires. Neither affects the family, but the noise hides real console errors;
+a 200 with an empty body, or a `HEAD` probe, would keep the console clean.
+
+`routes.spec.mjs` ignores exactly these (404s for `/api/lessons/` URLs)
+and fails on any other console error.
+
+## F22. The challenge and mastery-test dialogs do not gate their own start button
+
+**Low (defense in depth).** `openChallenge` and `openMasteryTest` show
+**Start challenge** and **Create the test** whether or not a provider is set
+up; without one, a click ends in the "none is set up" error block. Every
+launcher that reaches them is gated today (topic page, calendar extras,
+insights, the dashboard refresher, the child view), so a family without AI
+does not see them. Gating the button itself (`gateAi(button)`) would keep a
+future launcher honest.
+
+Shown by `tests/ai-status-views.test.mjs` (unit, not e2e): the "challenge"
+and "mastery test" cases are marked todo with this reason.
 
 ---
 
