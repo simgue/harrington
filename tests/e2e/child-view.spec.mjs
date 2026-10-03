@@ -188,12 +188,14 @@ test('activities launched from the child view stay score-free; results still rea
   await leaveChildView(page);
 });
 
-test('"Plant something new" offers a topic already in progress (finding F18)', async ({ page, gotoApp }) => {
+test('"Plant something new" offers a topic not yet started, not the one in progress (F18, fixed)', async ({ page, gotoApp }) => {
   await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'practicing' } } });
   await openChildView(page);
   const plant = childView(page).getByRole('button', { name: /Plant something new/ });
-  // The child is already practicing this one; "new" points straight back at it.
-  await expect(plant).toContainText(TOPICS.oneToOne.name);
+  await expect(plant).toBeVisible();
+  await expect(plant).not.toContainText(TOPICS.oneToOne.name);
+  await expect(childView(page).getByRole('button', { name: /Keep growing/ })).toHaveCount(0);
+  const name = (await plant.locator('span.block').last().innerText()).trim();
   await plant.click();
-  await expect(modal(page).getByRole('heading', { name: TOPICS.oneToOne.name })).toBeVisible();
+  await expect(modal(page).getByRole('heading', { name })).toBeVisible();
 });

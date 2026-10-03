@@ -1,7 +1,7 @@
 import * as store from '../store.js';
 import { getData, SUBJECTS } from '../data.js';
 import { el, refreshIcons, toast } from '../ui.js';
-import { studentStats, recommendedNext, recentActivity, todaysChoices } from '../mastery.js';
+import { studentStats, recommendedNext, recentActivity, todaysChoices, plantNext } from '../mastery.js';
 import { keyOf } from '../scheduler.js';
 import { BADGES } from '../game.js';
 import { openChildTopic } from './childtopic.js';
@@ -187,14 +187,16 @@ function render(student) {
     return b;
   };
 
-  const nexts = recommendedNext(student.id, 1);
-  const nextTopic = nexts[0] ? nexts[0].topic : null;
+  const plant = plantNext(student.id);
+  const nextTopic = plant ? plant.topic : null;
+  // Memory walk practices the top recommendation, usually the topic already growing.
+  const recallTopic = (recommendedNext(student.id, 1)[0] || {}).topic || null;
   // Memory walk and Beat the clock are AI-backed and are left out when no provider is set up.
   const ai = store.aiAvailable();
-  actions.appendChild(bigBtn('sprout', 'Plant something new', nextTopic ? esc(nextTopic.name) : 'Ask a grown-up to choose', { bg: '#e4eedf', deep: '#3f6b3b' },
+  actions.appendChild(bigBtn('sprout', plant && plant.keepGrowing ? 'Keep growing' : 'Plant something new', nextTopic ? esc(nextTopic.name) : 'Ask a grown-up to choose', { bg: '#e4eedf', deep: '#3f6b3b' },
     () => { if (nextTopic) openChildTopic(nextTopic); else toast('Ask a grown-up to pick something new'); }));
   if (ai) actions.appendChild(bigBtn('brain', 'Memory walk', dueRecall ? 'Some are ready for you' : 'Keep it growing', { bg: '#eee8f6', deep: '#5b4a86' },
-    () => { if (dueRecall) openDueRecall(); else if (nextTopic) openRecall(nextTopic); else toast('Learn something first, then come back!'); }, dueRecall || 0));
+    () => { if (dueRecall) openDueRecall(); else if (recallTopic) openRecall(recallTopic); else toast('Learn something first, then come back!'); }, dueRecall || 0));
 
   const d = getData();
   const mastered = Object.entries(store.progressFor(student.id)).filter(([id, v]) => v.status === 'mastered' && d.byId.has(id)).map(([id]) => d.byId.get(id));
