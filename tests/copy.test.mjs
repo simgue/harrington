@@ -79,3 +79,26 @@ test('SECURITY.md and the guides keep lines within 80 columns', async () => {
 test('CONTRIBUTING no longer says AI is disabled until self-hosted adapters exist', async () => {
   assert.doesNotMatch(await prose('CONTRIBUTING.md'), /disabled until|self-hosted adapters?/i);
 });
+
+test('counts in the views agree with their number ("1 topic", never "1 topics")', async () => {
+  const { countOf } = await import('../src/js/ui.js');
+  assert.equal(countOf(1, 'topic'), '1 topic');
+  assert.equal(countOf(0, 'topic'), '0 topics');
+  assert.equal(countOf(12, 'point'), '12 points');
+  assert.equal(countOf('1', 'topic'), '1 topic');
+  assert.equal(countOf(2, 'child', 'children'), '2 children');
+  const pinned = {
+    'src/js/views/topic.js': ["(${countOf(sec.topics.length, 'topic')})", "${stats.mastered}/${countOf(stats.total, 'topic')}"],
+    'src/js/views/masterytest.js': [
+      "${secStats.mastered} of ${countOf(secStats.total, 'topic')} in this section marked mastered.",
+      "${stats.mastered} of ${countOf(stats.total, 'topic')} marked mastered (${stats.pct}%).",
+      "${graded.earned} of ${countOf(graded.total, 'point')}",
+    ],
+    'src/js/views/dashboard.js': ["${stats.totalMastered} of ${countOf(stats.total, 'topic')} mastered"],
+  };
+  for (const [path, phrases] of Object.entries(pinned)) {
+    const text = await read(path);
+    for (const phrase of phrases) assert.ok(text.includes(phrase), `${path} lost: ${phrase}`);
+    assert.doesNotMatch(text, /\$\{[^}]*(total|length)\} (topics|points)\b/, `${path} has an unpluralized count`);
+  }
+});
