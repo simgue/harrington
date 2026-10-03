@@ -2,7 +2,7 @@ import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiRecallCards } from '../ai.js';
-import { aiErrorBlock, gateAi, generateAnotherButton, regenerateInto } from '../ai-status.js';
+import { aiErrorBlock, gateAi, generateAnotherButton, offerRetrySave, regenerateInto } from '../ai-status.js';
 import { award, XP } from '../game.js';
 
 // Cards are cached per topic (shared, like lessons) so retrieval practice is
@@ -11,9 +11,14 @@ function recallKey(topic) { return 'recall:' + topic.id; }
 function generateCards(topic) {
   return () => aiRecallCards(topic, topic.ageRangeStart || 8).then(cards => ({ cards }));
 }
-const usableCards = (data) => (Array.isArray(data?.cards) ? data.cards : []).filter(c => c && c.front && c.back);
+// Every card is checked before the session starts, so a malformed one is left
+// out (and counted) instead of breaking the session when it is reached.
 export async function cardsForTopic(topic) {
-  return usableCards(await store.generateCached(recallKey(topic), generateCards(topic)));
+  return store.recallCardsOf(await store.generateCached(recallKey(topic), generateCards(topic)));
+}
+
+function droppedNote(dropped) {
+  return el(`<p class="recall-dropped text-xs text-ink-faint mb-3">${dropped === 1 ? '1 card couldn’t be shown and was left out.' : `${dropped} cards couldn’t be shown and were left out.`}</p>`);
 }
 
 // The child view never shows provider wording (HAR-15), so failures read neutrally there.
@@ -32,33 +37,36 @@ export async function openRecall(topic) {
   stage.appendChild(loading('Preparing recall cards…', 'Made once, then saved for reuse.'));
   refreshIcons();
 
-  let cards;
+  let set;
   try {
-    cards = await cardsForTopic(topic);
+    set = await cardsForTopic(topic);
   } catch (e) {
     stage.replaceChildren(failureBlock(e, () => { m.close(); openRecall(topic); }));
     return;
   }
-  if (!cards.length) { stage.replaceChildren(el(`<p class="text-sm text-ink-soft py-6 text-center">No recall cards for this topic.</p>`)); return; }
+  if (!set.cards.length) { stage.replaceChildren(el(`<p class="text-sm text-ink-soft py-6 text-center">No recall cards for this topic.</p>`)); return; }
 
   // Each session renders into its own node, so a regenerate can be tried off-screen.
-  const session = (list) => {
-    const box = el(`<div></div>`);
-    runSession(box, m, student, meta, list.map(c => ({ ...c, topicId: topic.id })), () => openRecall(topic), false, onRegen);
-    return box;
+  const session = ({ cards, dropped }) => {
+    const wrap = el(`<div></div>`);
+    if (dropped) wrap.appendChild(droppedNote(dropped));
+    const box = wrap.appendChild(el(`<div></div>`));
+    runSession(box, m, student, meta, cards.map(c => ({ ...c, topicId: topic.id })), () => openRecall(topic), false, onRegen);
+    return wrap;
   };
   const track = (list) => list.forEach(c => store.ensureRecallCard(student.id, c.id, topic.id));
   // No regenerate in the child view.
   const onRegen = store.isChildViewOpen() ? null : () => regenerateInto(stage, {
     key: recallKey(topic), generate: generateCards(topic),
-    render: (fresh) => session(usableCards(fresh)),
+    render: (fresh) => session(store.recallCardsOf(fresh)),
     loading: loading('Writing a fresh set of cards\u2026', ''),
     // New cards reuse positional ids, so the old schedule is dropped for every learner.
-    onShow: (fresh) => { store.resetRecallTopic(topic.id); track(usableCards(fresh)); },
+    onShow: (fresh) => { store.resetRecallTopic(topic.id); track(store.recallCardsOf(fresh).cards); },
   });
-  track(cards);
-  stage.replaceChildren(session(cards));
+  track(set.cards);
+  stage.replaceChildren(session(set));
   refreshIcons();
+  if (!store.isChildViewOpen()) offerRetrySave(recallKey(topic));
 }
 
 // Study everything due today across all topics (mixed retrieval practice).
@@ -83,21 +91,25 @@ export async function openDueRecall() {
   // Card ids are `${topicId}::${n}`; fall back to that for records saved without a topicId.
   due.forEach(c => { const t = c.topicId || String(c.id).split('::')[0]; (byTopic[t] = byTopic[t] || []).push(c.id); });
   const allCards = [];
+  let dropped = 0;
   try {
     for (const [topicId, ids] of Object.entries(byTopic)) {
       const topic = d.byId.get(topicId);
       if (!topic) continue;
-      const cards = await cardsForTopic(topic);
-      const known = new Set(cards.map(c => c.id));
-      // Due entries whose card no longer exists (an older, longer card set) are dropped.
-      store.dropRecallCards(student.id, ids.filter(id => !known.has(id)));
-      cards.filter(c => ids.includes(c.id)).forEach(c => allCards.push({ ...c, subject: topic.subject, topicId: topic.id }));
+      const set = await cardsForTopic(topic);
+      // Due entries whose card no longer exists (an older, longer card set, or
+      // a malformed card) are dropped.
+      store.dropOrphanRecall(student.id, topic.id, set.cards);
+      const due = set.cards.filter(c => ids.includes(c.id));
+      due.forEach(c => allCards.push({ ...c, subject: topic.subject, topicId: topic.id }));
+      dropped += set.droppedIds.filter(id => ids.includes(id)).length;
     }
     if (!allCards.length) { stage.replaceChildren(caughtUp()); refreshIcons(); return; }
     // shuffle for interleaving
     for (let i = allCards.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [allCards[i], allCards[j]] = [allCards[j], allCards[i]]; }
-    stage.innerHTML = '';
-    runSession(stage, m, student, SUBJECTS.Mathematics, allCards, () => openDueRecall(), true);
+    stage.replaceChildren();
+    if (dropped) stage.appendChild(droppedNote(dropped));
+    runSession(stage.appendChild(el(`<div></div>`)), m, student, SUBJECTS.Mathematics, allCards, () => openDueRecall(), true);
   } catch (e) {
     stage.replaceChildren(failureBlock(e, () => { m.close(); openDueRecall(); }));
   }

@@ -730,8 +730,20 @@ export function dueRecallCards(studentId, { cardIds = null, topicId = null } = {
       && (!topicId || c.topicId === topicId))
     .map(([id, c]) => ({ id, ...c }));
 }
+// Card ids are `${topicId}::${n}`; older records may lack a topicId.
+const recallTopicOf = (id, c) => c?.topicId || String(id).split('::')[0];
+
+// Cards due today, minus entries whose card is gone from a card set this
+// session has already read. Topics not read yet are checked in the background
+// (reconcileRecallDue), which prunes their orphans and emits if any were found.
 export function recallDueCount(studentId) {
-  return dueRecallCards(studentId).length;
+  const due = dueRecallCards(studentId);
+  const live = due.filter(c => {
+    const known = knownRecallIds(recallTopicOf(c.id, c));
+    return !known || known.has(c.id);
+  });
+  reconcileRecallDue(studentId).catch(() => {});
+  return live.length;
 }
 // A regenerated card set replaces a topic's cards for every learner. Card ids
 // are positional, so old scheduling state would attach to different questions
@@ -751,6 +763,17 @@ export function dropRecallCards(studentId, cardIds) {
   const gone = cardIds.filter(id => id in r);
   gone.forEach(id => { delete r[id]; });
   if (gone.length) { persist(); emit(); }
+}
+// The one place orphans are found: a learner's records for `topicId` whose
+// card is not in `cards` (the topic's current, validated card set) are dropped.
+// Used by "Due today" and by the due count. Returns how many were dropped.
+export function dropOrphanRecall(studentId, topicId, cards) {
+  const known = new Set(cards.map(c => c.id));
+  const gone = Object.entries(recallOf(studentId))
+    .filter(([id, c]) => recallTopicOf(id, c) === topicId && !known.has(id))
+    .map(([id]) => id);
+  dropRecallCards(studentId, gone);
+  return gone.length;
 }
 
 // ---- Spaced practice for missed mastery-test questions ----
@@ -1045,6 +1068,8 @@ const CACHE_KINDS = { 'topic:': 'lesson', 'print:': 'printables', 'act:': 'activ
 const lessonCache = new Map();
 const existsMemo = new Map(); // key -> Promise<boolean>, for the no-provider "Open" upgrade
 const inflight = new Map();   // key -> Promise of a generation in progress
+const unsaved = new Set();    // keys generated this session that the server did not store
+const recallChecked = new Map(); // topicId -> Promise, one cache read per session for the due count
 
 export function cacheKind(key) {
   const prefix = Object.keys(CACHE_KINDS).find(p => String(key).startsWith(p));
@@ -1077,9 +1102,46 @@ export function isValidCached(kind, value) {
         && (v.independentActivity == null || (isObject(v.independentActivity) && listsOrAbsent(v.independentActivity, ['steps'])));
     case 'printables': return Array.isArray(v.printables) && v.printables.some(p => isObject(p) && isObject(p.content) && hasContent(p.content));
     case 'activity': return Array.isArray(v.steps) && v.steps.some(hasContent) && listsOrAbsent(v, ['materials']);
-    case 'recall': return Array.isArray(v.cards) && v.cards.some(c => isObject(c) && text(c.front) && text(c.back));
+    case 'recall': return Array.isArray(v.cards) && v.cards.some(isValidRecallCard);
     default: return true;
   }
+}
+
+// One recall card as the session renders it: an id to schedule, a front and a
+// back, and an optional text hint.
+function isValidRecallCard(c) {
+  return isObject(c) && text(c.id) && text(c.front) && text(c.back) && (c.hint == null || typeof c.hint === 'string');
+}
+
+// The usable cards of a recall cache value, how many malformed ones were left
+// out, and the ids of those that still carry one.
+export function recallCardsOf(value) {
+  const list = normalizeCached('recall', value)?.cards;
+  const all = Array.isArray(list) ? list : [];
+  const cards = all.filter(isValidRecallCard);
+  const droppedIds = all.filter(c => !isValidRecallCard(c) && text(c?.id)).map(c => c.id);
+  return { cards, dropped: all.length - cards.length, droppedIds };
+}
+
+// Ids of a topic's card set when this session has read it, otherwise null.
+function knownRecallIds(topicId) {
+  const value = lessonCache.get('recall:' + topicId);
+  return value ? new Set(recallCardsOf(value).cards.map(c => c.id)) : null;
+}
+
+// Reads each due topic's card set once per session (never generating) and
+// drops orphaned schedule entries. Resolves to how many were dropped.
+export async function reconcileRecallDue(studentId) {
+  const topics = new Set(dueRecallCards(studentId).map(c => recallTopicOf(c.id, c)));
+  let dropped = 0;
+  for (const topicId of topics) {
+    if (!recallChecked.has(topicId)) recallChecked.set(topicId, getCachedLesson('recall:' + topicId));
+    await recallChecked.get(topicId);
+    // Read the live value: a regenerate may have replaced it since.
+    const value = lessonCache.get('recall:' + topicId);
+    if (value) dropped += dropOrphanRecall(studentId, topicId, recallCardsOf(value).cards);
+  }
+  return dropped;
 }
 
 export function invalidResult() {
@@ -1112,13 +1174,42 @@ export async function saveCachedLesson(id, data) {
   catch (e) { console.warn('Could not save to the lesson cache', e); return false; }
   lessonCache.set(id, value);
   existsMemo.set(id, Promise.resolve(true));
+  unsaved.delete(id);
   return true;
+}
+
+// Whether `id` was generated this session but the server did not store it.
+export function isUnsavedCached(id) { return unsaved.has(id); }
+
+// Tries again to store a generated value the server refused. No AI call.
+export async function retrySaveCached(id) {
+  if (!unsaved.has(id)) return true;
+  return saveCachedLesson(id, lessonCache.get(id));
+}
+
+// Saved entries under the given prefixes, newest first, that pass their
+// kind's validator (each is read once and kept for this session, so opening
+// it makes no further request). At most `limit`; [] when the listing fails.
+export async function savedLessons(prefixes, limit = 8) {
+  let listed;
+  try { listed = (await Promise.all(prefixes.map(p => backend.listLessons(p)))).flat(); }
+  catch { return []; }
+  listed = listed.filter(e => typeof e?.key === 'string' && prefixes.some(p => e.key.startsWith(p)));
+  listed.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  const valid = [];
+  for (const entry of listed) {
+    if (valid.length >= limit) break;
+    if (await hasCachedLesson(entry.key)) valid.push({ key: entry.key, savedAt: entry.savedAt });
+  }
+  return valid;
 }
 
 // Test-only: drops this tab's copies, as a fresh session would start.
 export function forgetCachedLessons() {
   lessonCache.clear();
   existsMemo.clear();
+  unsaved.clear();
+  recallChecked.clear();
 }
 
 // Whether a valid cached value exists, memoized for the session. Only a
@@ -1145,7 +1236,10 @@ export function hasCachedLesson(id) {
 // `force` skips the cache (regenerate). `accept(fresh)` runs before saving
 // (views pass a trial render) and a throw there leaves the cache untouched.
 // Concurrent calls for one key share a single generation. Without a provider
-// a cache miss rejects as "not configured".
+// a cache miss rejects as "not configured". When the server will not store a
+// first generation, the result is still returned and kept for this session
+// (isUnsavedCached, retrySaveCached), so it is never paid for twice; a
+// regenerate that cannot be stored rejects and the previous version stays.
 export function generateCached(id, generate, { force = false, accept = null } = {}) {
   if (inflight.has(id)) return inflight.get(id);
   const kind = cacheKind(id);
@@ -1160,7 +1254,11 @@ export function generateCached(id, generate, { force = false, accept = null } = 
     if (accept) {
       try { accept(fresh); } catch (e) { console.error(e); throw invalidResult(); }
     }
-    if (!(await saveCachedLesson(id, fresh))) throw new Error('Harrington could not save the result');
+    if (!(await saveCachedLesson(id, fresh))) {
+      if (force) throw new Error('Harrington could not save the result');
+      lessonCache.set(id, fresh);
+      unsaved.add(id);
+    }
     return fresh;
   })();
   inflight.set(id, run);

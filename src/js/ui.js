@@ -16,20 +16,28 @@ export function refreshIcons() {
   iconTimer = setTimeout(() => { try { window.lucide?.createIcons(); } catch (e) {} }, 10);
 }
 
-export function toast(msg, kind = 'default') {
+// `action: { label, onClick }` adds a button and keeps the toast up longer;
+// clicking it dismisses the toast and runs onClick.
+export function toast(msg, kind = 'default', { action = null } = {}) {
   const root = document.getElementById('toast-root');
   const colors = {
     default: 'bg-ink text-white',
     success: 'bg-brand text-white',
     error: 'bg-[#a4473a] text-white',
   };
-  const t = el(`<div class="px-4 py-2.5 rounded-lg text-sm font-medium ${colors[kind] || colors.default} shadow-lg flex items-center gap-2 opacity-0 translate-y-2 transition-all duration-300">${esc(msg)}</div>`);
-  root.appendChild(t);
-  requestAnimationFrame(() => { t.classList.remove('opacity-0', 'translate-y-2'); });
-  setTimeout(() => {
+  const t = el(`<div role="status" class="px-4 py-2.5 rounded-lg text-sm font-medium ${colors[kind] || colors.default} shadow-lg flex items-center gap-2 opacity-0 translate-y-2 transition-all duration-300">${esc(msg)}</div>`);
+  const hide = () => {
     t.classList.add('opacity-0', 'translate-y-2');
     setTimeout(() => t.remove(), 300);
-  }, 2800);
+  };
+  if (action) {
+    const btn = el(`<button class="ml-2 underline underline-offset-2 font-600">${esc(action.label)}</button>`);
+    btn.onclick = () => { hide(); action.onClick(); };
+    t.appendChild(btn);
+  }
+  root.appendChild(t);
+  requestAnimationFrame(() => { t.classList.remove('opacity-0', 'translate-y-2'); });
+  setTimeout(hide, action ? 10000 : 2800);
 }
 
 // Bookkeeping for open modals, kept free of the DOM so tests can drive it.

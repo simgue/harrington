@@ -367,3 +367,80 @@ test('every cached view generates through store.generateCached', async () => {
     assert.doesNotMatch(await read(`views/${name}.js`), /store\.(saveCachedLesson|getCachedLesson)\(/, `${name}.js reads or saves the cache by hand`);
   }
 });
+
+test('a first generation the server will not store is returned, kept for the session and saved by retrySaveCached', async () => {
+  await reset();
+  failPuts = true;
+  aiReplies = [LESSON];
+  assert.deepEqual(await store.generateCached('topic:t-cache', () => aiLesson(topic)), LESSON);
+  assert.equal(calls.ai, 1);
+  assert.equal(store.isUnsavedCached('topic:t-cache'), true);
+  assert.equal(lessons.has('topic:t-cache'), false);
+  // Opening again in this session reuses it: no second AI call.
+  assert.deepEqual(await store.generateCached('topic:t-cache', () => aiLesson(topic)), LESSON);
+  assert.equal(calls.ai, 1);
+  assert.equal(await store.retrySaveCached('topic:t-cache'), false, 'still refused');
+  failPuts = false;
+  assert.equal(await store.retrySaveCached('topic:t-cache'), true);
+  assert.deepEqual(lessons.get('topic:t-cache'), LESSON);
+  assert.equal(store.isUnsavedCached('topic:t-cache'), false);
+  assert.equal(calls.ai, 1);
+});
+
+test('gateAi shows the `saved` control instead of the live one when only the cache can open it', async () => {
+  await reset({ ai: false });
+  lessons.set('topic:t-cache', LESSON);
+  const control = fakeNode('open');
+  const saved = fakeNode('open saved');
+  const placeholder = fakeNode('chip');
+  assert.equal(gateAi(control, { cachedKey: 'topic:t-cache', fallback: placeholder, saved }), placeholder);
+  await settle();
+  assert.equal(placeholder.replacedWith, saved);
+  // An invalid saved value is never offered.
+  lessons.set('topic:t-bad', { objective: 'x', teach: [] });
+  const chip = fakeNode('chip');
+  gateAi(control, { cachedKey: 'topic:t-bad', fallback: chip, saved: fakeNode('open saved') });
+  await settle();
+  assert.equal(chip.replacedWith, null);
+});
+
+test('savedLessons lists only valid entries, newest first, without any AI call', async () => {
+  await reset({ ai: false });
+  const fetchBefore = globalThis.fetch;
+  const listing = {
+    'topic:': [{ key: 'topic:a', savedAt: 3 }, { key: 'topic:bad', savedAt: 5 }],
+    'print:': [{ key: 'print:a', savedAt: 4 }],
+  };
+  globalThis.fetch = async (path, options) => {
+    const url = String(path);
+    if (url.startsWith('/api/lessons?prefix=')) return json(200, { lessons: listing[decodeURIComponent(url.split('=')[1])] });
+    return fetchBefore(path, options);
+  };
+  try {
+    lessons.set('topic:a', LESSON);
+    lessons.set('topic:bad', { objective: 'x', teach: [] });
+    lessons.set('print:a', { printables: [{ type: 'worksheet', content: { problems: ['1 + 1'] } }] });
+    assert.deepEqual(await store.savedLessons(['topic:', 'print:']), [{ key: 'print:a', savedAt: 4 }, { key: 'topic:a', savedAt: 3 }]);
+    assert.deepEqual((await store.savedLessons(['topic:', 'print:'], 1)).map(e => e.key), ['print:a']);
+    assert.equal(calls.ai, 0);
+  } finally {
+    globalThis.fetch = fetchBefore;
+  }
+  // A listing failure reads as an empty shelf.
+  globalThis.fetch = async () => { throw new TypeError('Failed to fetch'); };
+  try {
+    assert.deepEqual(await store.savedLessons(['topic:']), []);
+  } finally {
+    globalThis.fetch = fetchBefore;
+  }
+});
+
+test('recallCardsOf keeps valid cards and counts malformed ones', () => {
+  const ok = { id: 't::0', front: 'Two and two?', back: 'Four', hint: '' };
+  const { cards, dropped, droppedIds } = store.recallCardsOf({ cards: [ok, { id: 't::1', front: 'x' }, { front: 'no id', back: 'y' }, null, { id: 't::4', front: 'f', back: 'b', hint: 7 }] });
+  assert.deepEqual(cards, [ok]);
+  assert.equal(dropped, 4);
+  assert.deepEqual(droppedIds, ['t::1', 't::4']);
+  assert.deepEqual(store.recallCardsOf([ok]).cards, [ok], 'legacy bare array');
+  assert.deepEqual(store.recallCardsOf(null), { cards: [], dropped: 0, droppedIds: [] });
+});

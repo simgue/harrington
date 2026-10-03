@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -346,6 +346,43 @@ async function loadTaxonomyFile(name) {
   return body;
 }
 
+// ---- Saved lessons listing ----
+// Keys and saved times for one cache prefix, never content. Read-only.
+const LESSON_LIST_PREFIXES = new Set(['topic:', 'print:', 'recall:']);
+
+async function listLessons(prefix) {
+  const names = await readdir(lessonsDir).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  const entries = [];
+  for (const name of names) {
+    if (!name.endsWith('.json')) continue; // skips in-flight .tmp files
+    const encoded = name.slice(0, -'.json'.length);
+    const key = Buffer.from(encoded, 'base64url').toString('utf8');
+    if (Buffer.from(key, 'utf8').toString('base64url') !== encoded || !key.startsWith(prefix)) continue;
+    entries.push({ key, path: join(lessonsDir, name) });
+  }
+  const listed = await Promise.all(entries.map(async ({ key, path }) => {
+    try {
+      return { key, savedAt: Math.round((await stat(path)).mtimeMs) };
+    } catch (error) {
+      if (error.code === 'ENOENT') return null; // removed since readdir
+      throw error;
+    }
+  }));
+  return listed.filter(Boolean).sort((a, b) => b.savedAt - a.savedAt || a.key.localeCompare(b.key));
+}
+
+async function handleLessonList(req, res, url) {
+  const prefix = url.searchParams.get('prefix');
+  if (!LESSON_LIST_PREFIXES.has(prefix)) {
+    sendJson(res, 400, { error: 'prefix must be one of topic:, print: or recall:' });
+    return;
+  }
+  sendJson(res, 200, { lessons: await listLessons(prefix) });
+}
+
 async function handleApi(req, res, url) {
   if (url.pathname === '/api/health' && req.method === 'GET') {
     sendJson(res, 200, {
@@ -381,6 +418,11 @@ async function handleApi(req, res, url) {
       await handleStateWrite(req, res);
       return true;
     }
+  }
+
+  if (url.pathname === '/api/lessons' && req.method === 'GET') {
+    await handleLessonList(req, res, url);
+    return true;
   }
 
   const lessonKey = routeKey(url.pathname, '/api/lessons/');

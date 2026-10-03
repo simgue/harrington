@@ -153,3 +153,69 @@ test('the guide still labels the AI features', async ({ page, gotoApp }) => {
   expect(await modal(page).getByText('Needs a local AI provider; see the README.').count()).toBeGreaterThan(3);
 });
 
+
+// Saved lessons open without a provider (HAR-13 review follow-up). The entries
+// are seeded straight into this server's lesson cache, as an earlier run with a
+// provider would have left them. A topic no other test here opens keeps the
+// chip checks above unaffected.
+const SAVED = TOPICS.rote100;
+const SAVED_LESSON = {
+  objective: 'Say the counting numbers in order to 100',
+  duration: '15 minutes',
+  teach: [{ title: 'Count by tens first', say: 'Ten, twenty, thirty…', do: 'Point at a hundred chart' }],
+};
+const SAVED_SHEET = { printables: [{ type: 'worksheet', title: 'Fill the hundred chart', content: { instructions: 'Write the missing numbers.', problems: ['41, 42, __, 44'] } }] };
+
+async function seedSaved(request) {
+  for (const [key, value] of [[`topic:${SAVED.id}`, SAVED_LESSON], [`print:${SAVED.id}`, SAVED_SHEET]]) {
+    const res = await request.put(`/api/lessons/${encodeURIComponent(key)}`, { data: value });
+    expect(res.status()).toBe(204);
+  }
+}
+
+test('a saved lesson opens from the topic page as "Open saved lesson", with no AI call', async ({ page, request, gotoApp, shot }) => {
+  await seedSaved(request);
+  let aiCalls = 0;
+  page.on('request', (req) => { if (new URL(req.url()).pathname === '/api/ai') aiCalls += 1; });
+  await gotoApp({ seed: {}, hash: `topic/${SAVED.id}` });
+  await expect(page.getByRole('heading', { level: 1, name: SAVED.name })).toBeVisible();
+
+  const open = page.getByRole('button', { name: 'Open saved lesson', exact: true });
+  await expect(open).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open full lesson', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Print & go', exact: true })).toBeVisible();
+  await shot('topic-saved-lesson', { full: false });
+
+  await open.click();
+  await expect(modal(page)).toContainText(SAVED_LESSON.objective);
+  await expect(modal(page)).toContainText('Count by tens first');
+  // Regenerate still needs a provider.
+  await expect(modal(page).getByRole('button', { name: 'Generate a different version' })).toHaveCount(0);
+  await expect(chips(modal(page))).toHaveCount(1);
+  await closeModal(page);
+  expect(aiCalls).toBe(0);
+});
+
+test('the Records page shelves saved lessons and printables, and they open with no AI call', async ({ page, request, gotoApp }) => {
+  await seedSaved(request);
+  // Fails the lesson validator, so it is never offered.
+  expect((await request.put(`/api/lessons/${encodeURIComponent(`topic:${TOPICS.howMany.id}`)}`, { data: { objective: 'no steps', teach: [] } })).status()).toBe(204);
+  let aiCalls = 0;
+  page.on('request', (req) => { if (new URL(req.url()).pathname === '/api/ai') aiCalls += 1; });
+  await gotoApp({ seed: {} });
+  await nav(page, 'Records').click();
+
+  const shelf = page.getByRole('region', { name: 'Saved lessons' });
+  await expect(shelf).toBeVisible();
+  await expect(shelf.getByRole('listitem').filter({ hasText: SAVED.name })).toHaveCount(2);
+  await expect(shelf).not.toContainText(TOPICS.howMany.name);
+
+  await shelf.getByRole('button', { name: `Open Lesson: ${SAVED.name}` }).click();
+  await expect(modal(page)).toContainText(SAVED_LESSON.objective);
+  await closeModal(page);
+
+  await shelf.getByRole('button', { name: `Open Print & go: ${SAVED.name}` }).click();
+  await expect(modal(page)).toContainText('Fill the hundred chart');
+  await closeModal(page);
+  expect(aiCalls).toBe(0);
+});
