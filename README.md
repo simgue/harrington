@@ -30,17 +30,28 @@ and names of learners in this app are replaced with “the child” in the brows
 before a request is built (accents, hyphens and apostrophe variants included).
 When an AI provider is configured, this is what still leaves the machine:
 
-- topic names, descriptions and statuses, and mastery percentages;
-- the topic's age from the curriculum (lessons, explanations, quizzes,
-  printables, activities, recall cards, topic and section tests, challenges);
-- the learner's exact age (or “age unknown”) for whole-subject tests,
-  discussion analyses and progress reviews;
-- record counts by type, the topics they link to and the average confidence rating;
+- topic text: topic names, descriptions and mastery evidence, and the activity
+  idea being expanded;
+- the topic's age from the curriculum (lessons, printables, activities,
+  “Explain simply”, mini-quizzes, recall cards, topic and section tests,
+  challenges, and a discussion analysis linked to a topic);
+- the learner's exact age for whole-subject tests (left out when no birth year
+  is set), discussion analyses (alongside the linked topic's age) and progress
+  reviews (“age unknown” when no birth year is set), and for a topic test or
+  challenge only when the topic has no curriculum age;
+- the adaptive “excelling” flag on topic and section tests, once the parent
+  has approved harder questions for that domain;
+- for progress reviews: mastered, in-progress and total topic counts and the
+  mastery percentage, recent topic names and statuses, record counts by type,
+  the topics they link to and the average confidence rating;
 - a discussion transcript, when the parent asks for an analysis;
 - the parent's notes, only when they tick “Include my notes in this request”
   for that one request (record titles are never sent).
 
-Nicknames, and other people's names in a transcript, are sent as spoken.
+Learner names, birth month and year, and interests are never sent. Only the
+names entered in Harrington are replaced: a nickname, especially one that is
+an ordinary word, is sent as spoken, as are other people's names in a
+transcript.
 
 ## What works without an AI provider
 

@@ -45,10 +45,11 @@ The parent's view of the day.
 
 - **Today's path.** A short literacy choice and a short numeracy choice, two
   options each, drawn from the focus domains in
-  [POC-SPINE.md](https://github.com/simgue/harrington/blob/main/docs/POC-SPINE.md). Topics already in progress and
-  domains that have gone quiet come first. Your child picks one of each, here
-  or in the child view, and the day's options and picks are saved. Very young
-  learners may get a gentle review day instead.
+  [POC-SPINE.md](https://github.com/simgue/harrington/blob/main/docs/POC-SPINE.md).
+  Topics already in progress and domains that have gone quiet come first. Your
+  child picks one of each, here or in the child view, and the day's options
+  and picks are saved. Very young learners may get a gentle review day
+  instead.
 - **From the calendar.** Topics scheduled for today. Opening a lesson or a
   refresher quiz from here needs a local AI provider.
 - **Stepping stones next.** Unlocked, age-appropriate topics to try next.
@@ -177,13 +178,19 @@ report curriculum changes.
   private data folder (`data/private/`) on this computer. The server listens
   only on this computer by default.
 - Nothing leaves your home unless you configure an AI provider. If you do,
-  lessons, tests, challenges and cards send it topic text and the topic's age
-  from the curriculum; whole-subject tests, discussion analyses and progress
-  reviews send your child's exact age instead. A discussion analysis sends the
-  transcript; analyses and progress reviews send your notes only when you tick
-  "Include my notes in this request". Learner names are replaced with "the
-  child" before any request is built. The live transcript is the exception
-  described above.
+  lessons, printables, activities, "Explain simply", mini-quizzes, recall
+  cards, tests and challenges send it topic text and the topic's age from the
+  curriculum. Whole-subject tests and progress reviews send your child's exact
+  age; a discussion analysis sends their exact age too, alongside the linked
+  topic's age. Topic and section tests also say when you have approved harder
+  questions because your child is excelling. A progress review sends mastery
+  counts, recent topic names and statuses, record counts and the average
+  confidence rating. A discussion analysis sends the transcript; analyses and
+  progress reviews send your notes only when you tick "Include my notes in
+  this request". Learner names are replaced with "the child" before any
+  request is built; a nickname, especially one that is an ordinary word, is
+  sent as spoken, so use names Harrington knows. Record titles and interests
+  are never sent. The live transcript is the exception described above.
 - There is no sign-in or encryption yet. Do not expose Harrington to the public
   internet.
 
