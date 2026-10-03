@@ -4,7 +4,7 @@ import { el, esc, refreshIcons, fmtDateTime, toast } from '../ui.js';
 import { studentStats, recommendedNext, recentActivity, todaysChoices, isUnlocked, MASTERY } from '../mastery.js';
 import { openRecordForm } from './records.js';
 import { openRecorder } from '../recorder.js';
-import { keyOf, topicsOn, dailyExtras, restInfo, familyCalendar } from '../scheduler.js';
+import { keyOf, parseKey, topicsOn, dailyExtras, restInfo, familyCalendar, pauseInfo } from '../scheduler.js';
 import { openMasteryTest } from './masterytest.js';
 import { openRecordingsLibrary } from './recordings.js';
 import { openDueRecall } from './recall.js';
@@ -268,8 +268,12 @@ function todayCard(active, navigate) {
       <span class="absolute -right-1 -bottom-1 w-[18px] h-[18px] rounded-full bg-ink text-paper-card text-[10.5px] font-600 flex items-center justify-center">${n}</span>
     </span>`;
 
+  // A rest day or break pauses the daily rhythm: no choices, said plainly.
+  const pause = pauseInfo(todayKey, familyCalendar());
+  if (pause) body.appendChild(restStop(pause, stop(++stopNo, STOPS[3], pause.kind === 'break' ? 'tent' : 'sun')));
+
   // Literacy and numeracy: two options each, the child picks one.
-  const choices = todaysChoices(active.id, todayKey);
+  const choices = pause ? {} : todaysChoices(active.id, todayKey);
   const laneTone = { literacy: STOPS[0], numeracy: STOPS[1] };
   let anyOptions = false;
   for (const [key, c] of Object.entries(choices)) {
@@ -309,7 +313,7 @@ function todayCard(active, navigate) {
       list.appendChild(row);
     });
     body.appendChild(cal);
-  } else if (!anyOptions) {
+  } else if (!anyOptions && !pause) {
     body.appendChild(el(`<div class="relative rounded-3xl bg-paper p-4">
       ${stop(++stopNo, STOPS[3], 'sun')}
       <p class="font-600">A gentle review day</p>
@@ -349,6 +353,19 @@ function todayCard(active, navigate) {
   body.appendChild(rec);
 
   return card;
+}
+
+// "Break until <date>" or "Rest day", with the next learning day named.
+function restStop(pause, stopHtml) {
+  const day = (k, opts) => parseKey(k).toLocaleDateString(undefined, opts);
+  const title = pause.kind === 'break'
+    ? `${esc(pause.label || 'Break')} until ${day(pause.until, { weekday: 'long', month: 'long', day: 'numeric' })}`
+    : 'Rest day';
+  return el(`<div class="rest-stop relative rounded-3xl bg-paper p-4">
+    ${stopHtml}
+    <p class="font-600">${title}</p>
+    <p class="text-sm text-ink-soft mt-0.5">No choices or new topics today. Next learning day: <span class="font-600 text-ink">${day(pause.nextKey, { weekday: 'long', month: 'long', day: 'numeric' })}</span>.</p>
+  </div>`);
 }
 
 // One lane's pick-one stop: two option cards; tapping one makes it the pick

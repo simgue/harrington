@@ -27,6 +27,34 @@ export async function openDuePractice() {
   runSession(stage, m, student, due, () => openDuePractice());
 }
 
+// A calendar "Extra practice · <topic>": that topic's retries that are due.
+// With none due, say so (and when the queued ones come back) and offer the
+// whole due queue as its own action.
+export function openTopicPractice(topic) {
+  const student = store.activeStudent();
+  if (!student) { toast('Add a student first', 'error'); return; }
+  const { stage, m } = shell(topic.name);
+  const queued = store.topicPracticeItems(student.id, topic.id);
+  const items = queued.filter(x => x.isDue);
+  if (items.length) { runSession(stage, m, student, items, () => openTopicPractice(topic)); return; }
+  const due = store.practiceDueCount(student.id);
+  const next = queued[0] ? new Date(queued[0].due).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) : '';
+  const empty = el(`<div class="text-center py-8">
+    <div class="w-16 h-16 rounded-full bg-brand-light flex items-center justify-center mx-auto mb-4"><i data-lucide="check-check" class="w-8 h-8 text-brand-dark"></i></div>
+    <p class="font-600 text-lg">Nothing to practice for this topic today</p>
+    <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto">${queued.length
+      ? `${queued.length} missed question${queued.length > 1 ? 's' : ''} from ${esc(topic.name)} come${queued.length > 1 ? '' : 's'} back on ${next}.`
+      : `Questions missed on a ${esc(topic.name)} test come back here for retries. None are queued.`}</p>
+    ${due
+      ? `<button id="allqueue" class="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-paper-line font-medium hover:border-brand/40 transition-colors"><i data-lucide="repeat" class="w-4 h-4"></i>Practice all due retries (${due})</button>`
+      : `<p class="text-xs text-ink-faint mt-4">No retries are due on other topics either.</p>`}
+  </div>`);
+  const all = empty.querySelector('#allqueue');
+  if (all) all.onclick = () => { m.close(); openDuePractice(); };
+  stage.appendChild(empty);
+  refreshIcons();
+}
+
 function runSession(stage, m, student, items, restart) {
   let i = 0;
   const results = { correct: 0, missed: 0 };
@@ -142,12 +170,12 @@ function formatAnswer(item) {
   return item.answer || '';
 }
 
-function shell() {
+function shell(topicName = '') {
   const body = el(`<div class="p-0">
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
       <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-brand/10"><i data-lucide="repeat" class="w-5 h-5 text-brand-dark"></i></span>
       <div class="flex-1 min-w-0">
-        <p class="text-xs text-ink-faint">Spaced practice</p>
+        <p class="text-xs text-ink-faint">Spaced practice${topicName ? ' · ' + esc(topicName) : ''}</p>
         <h3 class="font-display text-lg font-600 leading-tight">Missed questions, retried</h3>
       </div>
     </div>

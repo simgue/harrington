@@ -17,7 +17,7 @@ let state = {
   records: {},        // studentId -> [ {id, topicId, type, title, note, rating, questions, createdAt,
                       //   coverage?: [{topicId, topicName}], source?: {kind: 'daily-pick'|'invitation', key}} ]
   tests: {},          // studentId -> [ {id, subject, mode, score, total, pct, passed, createdAt} ]
-  plan: {},           // studentId -> { moves:{topicId:dateKey}, done:{dateKey:true}, extras:{dateKey:[items]} }
+  plan: {},           // studentId -> { moves:{topicId:dateKey}, done:{dateKey:true}, extras:{dateKey:[items]}, pace? }
   challenges: {},     // studentId -> [ {id, topicId, subject, domain, correct, total, seconds, createdAt} ]
   adaptations: {},    // studentId -> { 'Subject|Domain': { level:'advanced', since } }
   suggestions: {},    // studentId -> [ {id, kind, subject, domain, reason, status, createdAt} ]
@@ -600,6 +600,13 @@ export function toggleDayDone(studentId, dateKey) {
   persist(); emit();
 }
 export function isDayDone(studentId, dateKey) { return !!planOf(studentId).done[dateKey]; }
+// The learner's catch-up pace ('catch-up-first' or 'mixed', see scheduler.js).
+// Only the pace changes: done days, moves and extras stay as they are.
+export function setCatchUpPace(studentId, pace) {
+  const p = planOf(studentId);
+  if (pace === 'mixed') p.pace = 'mixed'; else delete p.pace;
+  persist(); emit();
+}
 // Extra practice items a parent adds to a day: {id, kind, topicId, topicName, subject, title}
 export function addExtra(studentId, dateKey, item) {
   const p = planOf(studentId);
@@ -804,6 +811,15 @@ export function duePracticeItems(studentId) {
   return Object.entries(p)
     .filter(([, c]) => c.due <= today)
     .map(([id, c]) => ({ id, ...c }));
+}
+// One topic's queued retries, soonest first, each with `isDue`: the set behind
+// a parent's "Extra practice · <topic>" on the calendar.
+export function topicPracticeItems(studentId, topicId) {
+  const today = dayStart(Date.now());
+  return Object.entries(practiceOf(studentId))
+    .filter(([, c]) => c.topicId === topicId)
+    .map(([id, c]) => ({ id, ...c, isDue: c.due <= today }))
+    .sort((a, b) => (a.due || 0) - (b.due || 0));
 }
 export function practiceDueCount(studentId) {
   return duePracticeItems(studentId).length;

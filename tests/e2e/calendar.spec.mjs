@@ -11,8 +11,8 @@ async function openCalendar(page, gotoApp, seed = {}) {
 }
 
 const dayCell = (page, day) => page.locator('div.grid-cols-7 > button').filter({ has: page.locator('span > span', { hasText: new RegExp(`^${day}$`) }) }).first();
-// The day panel (rest days have no Mark done button, so find it by its first section).
-const dayPanel = (page) => page.locator('div.space-y-5', { has: page.getByText('New today', { exact: true }) });
+// The day panel (rest days have no Mark done button, so find it by its marker).
+const dayPanel = (page) => page.locator('[data-day-panel]');
 
 test('month grid, navigation, start date and the day panel; no refresher before anything is mastered (F5, fixed by HAR-18)', async ({ page, gotoApp, shot, errors }) => {
   await openCalendar(page, gotoApp);
@@ -46,7 +46,8 @@ test('month grid, navigation, start date and the day panel; no refresher before 
   // Weekend days are rest days by default; before the track is outside it.
   await dayCell(page, 10).click();
   await expect(dayPanel(page)).toContainText('Rest day');
-  await expect(dayPanel(page)).toContainText('A rest day — nothing is scheduled.');
+  await expect(dayPanel(page)).toContainText('Nothing is scheduled.');
+  await expect(dayPanel(page)).toContainText('Next learning day: Monday, October 12');
   await expect(dayPanel(page).getByRole('button', { name: 'Mark done' })).toHaveCount(0);
   await expect(dayPanel(page)).not.toContainText('Daily refreshers');
   await dayCell(page, 6).click();
@@ -94,12 +95,12 @@ test('home days and breaks: rest days schedule nothing and the track picks up af
 
   // Today (a Wednesday) is now a rest day; its topic moved to the next home day.
   await expect(dayPanel(page)).toContainText('Rest day');
-  await expect(dayPanel(page)).toContainText('A rest day — nothing is scheduled.');
+  await expect(dayPanel(page)).toContainText('Nothing is scheduled.');
   // Nothing is scheduled inside the break (Oct 12–16) …
   for (const d of [12, 13, 14, 15, 16]) {
     await dayCell(page, d).click();
     await expect(dayPanel(page)).toContainText('Break · Fall break');
-    await expect(dayPanel(page)).toContainText('A rest day — nothing is scheduled.');
+    await expect(dayPanel(page)).toContainText('Nothing is scheduled.');
     await expect(dayPanel(page).locator('button.open')).toHaveCount(0);
   }
   // … and the track picks up on the first home day after it.
@@ -154,10 +155,10 @@ test('add an extra of each kind, open one, remove one; Extra practice opens spac
   const state = await api.waitForState((s) => s.plan?.[ROWAN]?.extras?.['2026-10-07']?.length === 4);
   expect(state.plan[ROWAN].extras['2026-10-07'].map((x) => x.kind)).toEqual(['practice', 'lesson', 'retest', 'challenge']);
 
-  // "Extra practice" opens spaced practice (nothing is due yet).
+  // "Extra practice" opens that topic's practice (nothing is queued for it).
   const practiceRow = panel.locator('div.rounded-xl', { hasText: `Extra practice · ${TOPICS.oneToOne.name}` });
   await practiceRow.getByRole('button', { name: 'Open' }).click();
-  await expect(modal(page).getByText('All caught up!')).toBeVisible();
+  await expect(modal(page).getByText('Nothing to practice for this topic today')).toBeVisible();
   await expect(modal(page).getByText(/Lesson plan · /)).toHaveCount(0);
   await page.keyboard.press('Escape');
 
@@ -221,4 +222,105 @@ test('refresher, activity and stretch cards open their tools; the dead footer bu
   await page.keyboard.press('Escape');
   await row.getByRole('button', { name: 'Lesson' }).click();
   await expect(modal(page).getByText(/Lesson plan · /)).toBeVisible();
+});
+
+// ---- Calendar follow-ups (HAR-18 review). Tagged @mobile: these run in the
+// desktop and the mobile project. ----
+
+const FALL_BREAK = { homeDays: [1, 2, 3, 4, 5], breaks: [{ start: '2026-10-05', end: '2026-10-09', label: 'Fall break' }] };
+const retry = (topicId, q) => ({ topicId, subject: 'Mathematics', q, type: 'multiple_choice', options: ['3', '4'], answer: 1, box: 0, due: 0, reps: 0, lapses: 0, last: null, createdAt: 0 });
+
+test('a break pauses the rhythm: no choices on the dashboard, the next learning day named, and a done day can be reopened', { tag: '@mobile' }, async ({ page, api, gotoApp, shot, errors }) => {
+  await gotoApp({ seed: { extra: { settings: { calendar: FALL_BREAK }, plan: { [ROWAN]: { moves: {}, extras: {}, done: { '2026-10-07': 1790000000000 } } } } } });
+  // Dashboard: the break, honestly; no pick-one stops.
+  const today = page.locator('section[aria-labelledby="today-h"]');
+  await expect(today.locator('.rest-stop')).toContainText('Fall break until Friday, October 9');
+  await expect(today.locator('.rest-stop')).toContainText('Next learning day: Monday, October 12');
+  await expect(today.getByRole('group', { name: /pick one/ })).toHaveCount(0);
+  await expect(today).not.toContainText('A gentle review day');
+  await expect(today).toContainText('Record what happened');
+  await shot('rest-day-dashboard', { full: false });
+
+  // Calendar: today is inside the break, was marked done before it, and can be reopened.
+  await nav(page, 'Calendar').click();
+  const panel = dayPanel(page);
+  await expect(panel.locator('.rest-notice')).toContainText('Fall break until Friday, October 9');
+  await expect(panel.locator('.rest-notice')).toContainText('Next learning day: Monday, October 12');
+  await expect(panel.locator('.rest-notice')).toContainText('marked done before it became a rest day');
+  await expect(dayCell(page, 7).locator('[data-lucide="check-circle-2"], svg.lucide-check-circle-2, svg.lucide-circle-check')).toHaveCount(1);
+  await expect(panel).not.toContainText('Daily refreshers');
+  await shot('rest-day-done-kept', { full: false });
+  await panel.getByRole('button', { name: 'Done' }).click();
+  await expectToast(page, 'Day reopened');
+  await expect(dayPanel(page).getByRole('button', { name: /^(Done|Mark done)$/ })).toHaveCount(0);
+  await api.waitForState((s) => s.plan?.[ROWAN] && !s.plan[ROWAN].done?.['2026-10-07']);
+
+  // "Go to Monday" selects the next learning day, which is not today.
+  await dayPanel(page).getByRole('button', { name: 'Go to Monday' }).click();
+  await expect(dayPanel(page).getByRole('heading', { name: 'Monday, October 12' })).toBeVisible();
+  await expect(dayPanel(page)).toContainText('Home learning day');
+  await expect(dayPanel(page)).toContainText('New on Monday');
+  await expect(dayPanel(page)).not.toContainText('New today');
+  expect(errors).toEqual([]);
+});
+
+test('"New today" only on today; other days say "New on <weekday>"', { tag: '@mobile' }, async ({ page, gotoApp }) => {
+  await openCalendar(page, gotoApp);
+  await expect(dayPanel(page)).toContainText('New today');
+  await dayCell(page, 8).click();
+  await expect(dayPanel(page)).toContainText('New on Thursday');
+  await expect(dayPanel(page)).not.toContainText('New today');
+});
+
+test('Extra practice opens its own topic; with nothing for it, the whole queue is a separate action', { tag: '@mobile' }, async ({ page, gotoApp, shot }) => {
+  await openCalendar(page, gotoApp, {
+    extra: {
+      practice: { [ROWAN]: { p_other: retry(TOPICS.howMany.id, 'How many apples in all?') } },
+      plan: { [ROWAN]: { moves: {}, done: {}, extras: { '2026-10-07': [{ id: 'x_e2e', kind: 'practice', topicId: TOPICS.oneToOne.id, topicName: TOPICS.oneToOne.name, subject: 'Mathematics', title: `Extra practice · ${TOPICS.oneToOne.name}` }] } } },
+    },
+  });
+  const row = dayPanel(page).locator('div.rounded-xl', { hasText: `Extra practice · ${TOPICS.oneToOne.name}` });
+  await row.getByRole('button', { name: 'Open' }).click();
+  const m = modal(page);
+  await expect(m).toContainText(`Spaced practice · ${TOPICS.oneToOne.name}`);
+  await expect(m).toContainText('Nothing to practice for this topic today');
+  await expect(m).not.toContainText('How many apples in all?');
+  await shot('extra-practice-topic-empty', { full: false });
+  await m.getByRole('button', { name: 'Practice all due retries (1)' }).click();
+  await expect(modal(page)).toContainText('Retry 1 of 1');
+  await expect(modal(page)).toContainText('How many apples in all?');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#modal-root > div')).toHaveCount(0);
+});
+
+test('Extra practice runs only that topic\'s retries', async ({ page, gotoApp }) => {
+  await openCalendar(page, gotoApp, {
+    extra: {
+      practice: { [ROWAN]: { p_mine: retry(TOPICS.oneToOne.id, 'Count the three cups.'), p_other: retry(TOPICS.howMany.id, 'How many apples in all?') } },
+      plan: { [ROWAN]: { moves: {}, done: {}, extras: { '2026-10-07': [{ id: 'x_e2e', kind: 'practice', topicId: TOPICS.oneToOne.id, topicName: TOPICS.oneToOne.name, subject: 'Mathematics', title: `Extra practice · ${TOPICS.oneToOne.name}` }] } } },
+    },
+  });
+  await dayPanel(page).locator('div.rounded-xl', { hasText: 'Extra practice · ' }).getByRole('button', { name: 'Open' }).click();
+  await expect(modal(page)).toContainText('Retry 1 of 1');
+  await expect(modal(page)).toContainText('Count the three cups.');
+});
+
+test('catch-up pace: the default names its weeks; Mixed reschedules and keeps done days', { tag: '@mobile' }, async ({ page, api, gotoApp, shot }) => {
+  await openCalendar(page, gotoApp, { extra: { plan: { [ROWAN]: { moves: {}, extras: {}, done: { '2026-10-06': 1790000000000 } } } } });
+  const bar = page.locator('#pacebar');
+  await expect(bar.getByRole('button', { name: 'Catch-up first' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(bar.locator('.pace-summary')).toHaveText(/^Catch-up first: \d+ catch-up topics come before Rowan Example's first own-age topic, about \d+ weeks of home days\.$/);
+  const firstDay = await dayPanel(page).locator('button.open span.block').first().innerText();
+  await bar.getByRole('button', { name: 'Mixed' }).click();
+  await expectToast(page, 'Catch-up pace updated — track rescheduled');
+  await expect(page.locator('#pacebar').getByRole('button', { name: 'Mixed' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#pacebar .pace-summary')).toHaveText(/^Mixed: two catch-up topics to one own-age topic\. \d+ catch-up topics finish in about \d+ weeks, with own-age topics from the first week\.$/);
+  await shot('catch-up-pace-mixed', { full: false });
+  const state = await api.waitForState((s) => s.plan?.[ROWAN]?.pace === 'mixed');
+  expect(state.plan[ROWAN].done).toEqual({ '2026-10-06': 1790000000000 });
+  // Back to the default: the original first topic returns and the pace is not stored.
+  await page.locator('#pacebar').getByRole('button', { name: 'Catch-up first' }).click();
+  await expect(dayPanel(page).locator('button.open span.block').first()).toHaveText(firstDay);
+  const back = await api.waitForState((s) => s.plan?.[ROWAN] && !('pace' in s.plan[ROWAN]));
+  expect(back.plan[ROWAN].done).toEqual({ '2026-10-06': 1790000000000 });
 });

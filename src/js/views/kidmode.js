@@ -2,7 +2,7 @@ import * as store from '../store.js';
 import { getData, SUBJECTS } from '../data.js';
 import { el, refreshIcons, toast } from '../ui.js';
 import { studentStats, recommendedNext, recentActivity, todaysChoices } from '../mastery.js';
-import { keyOf } from '../scheduler.js';
+import { keyOf, parseKey, pauseInfo, familyCalendar } from '../scheduler.js';
 import { BADGES } from '../game.js';
 import { openChildTopic } from './childtopic.js';
 import { openRecall, openDueRecall } from './recall.js';
@@ -147,7 +147,10 @@ function render(student) {
   // Today's pick-one choices: story time and number time.
   const todayKey = keyOf(new Date());
   const tones = { literacy: { bg: '#fbe5de', deep: '#a4473a' }, numeracy: { bg: '#e3eff6', deep: '#2f6285' } };
-  for (const [key, c] of Object.entries(todaysChoices(student.id, todayKey))) {
+  // A rest day or break pauses the choices.
+  const pause = pauseInfo(todayKey, familyCalendar());
+  if (pause) main.appendChild(el(`<p class="rest-day meadow-card px-5 py-4 text-[15px] leading-snug">No choices today: it's a rest day. See you on ${parseKey(pause.nextKey).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}!</p>`));
+  for (const [key, c] of Object.entries(pause ? {} : todaysChoices(student.id, todayKey))) {
     if (!c.options.length) continue;
     const tone = tones[key];
     const sec = el(`<section aria-label="${c.lane.kidLabel}: pick one">
