@@ -138,10 +138,16 @@ function openStudentMenu(navigate) {
       </div>
       ${isActive ? '<span class="text-xs font-medium text-brand-dark px-2 py-0.5 rounded-full bg-brand/10">Active</span>' : '<button class="select text-xs font-medium text-brand px-3 py-1.5 rounded-full bg-paper-card hover:bg-brand-light">Switch</button>'}
       <button class="place text-ink-faint hover:text-brand-dark p-1" title="Placement: mark earlier topics mastered" aria-label="Placement for ${esc(s.name)}"><i data-lucide="list-checks" class="w-4 h-4"></i></button>
+      <button class="levelset text-ink-faint hover:text-brand-dark p-1" title="Level-set workbook: find where they are, one sheet at a time" aria-label="Level-set workbook for ${esc(s.name)}"><i data-lucide="clipboard-list" class="w-4 h-4"></i></button>
       <button class="edit text-ink-faint hover:text-brand-dark p-1" title="Edit learner" aria-label="Edit ${esc(s.name)}"><i data-lucide="pencil" class="w-4 h-4"></i></button>
       <button class="del text-ink-faint hover:text-[#a4473a] p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
     </div>`);
     row.querySelector('.place').addEventListener('click', () => { m.close(); openPlacement(s); });
+    row.querySelector('.levelset').addEventListener('click', () => {
+      m.close();
+      if (s.id !== state.activeStudentId) store.setActiveStudent(s.id);
+      navigate('levelset', { id: s.id });
+    });
     row.querySelector('.edit').addEventListener('click', () => { m.close(); openEditStudent(s); });
     row.querySelector('.select')?.addEventListener('click', () => { store.setActiveStudent(s.id); m.close(); toast('Switched to ' + s.name); });
     row.querySelector('.del').addEventListener('click', () => {

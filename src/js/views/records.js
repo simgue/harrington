@@ -6,6 +6,7 @@ import { aiDiscussionAnalysis } from '../ai.js';
 import { aiErrorBlock, gateAi } from '../ai-status.js';
 import { savedAnalysis, regenerateButton, analysisOptIn, notesIncludedLine } from './recordings.js';
 import { coverageFields } from '../daily.js';
+import { sectionLabel } from './observation.js';
 
 const TYPES = {
   observation: { icon: 'eye', label: 'Observation', color: '#2f6285', hint: 'What you noticed as they worked' },
@@ -85,6 +86,7 @@ function recordCard(r, student, d, navigate) {
   const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-4">
     <div class="flex items-center gap-2 text-xs mb-1.5">
       <span class="flex items-center gap-1 font-600 px-2 py-0.5 rounded-full" style="color:${tm.color};background:${tm.color}14"><i data-lucide="${tm.icon}" class="w-3.5 h-3.5"></i>${tm.label}</span>
+      ${r.observed ? '<span class="observed-chip flex items-center gap-1 font-medium px-2 py-0.5 rounded-full text-[#2f6285] bg-[#2f6285]/10"><i data-lucide="eye" class="w-3.5 h-3.5"></i>observed</span>' : ''}
       ${r.rating ? `<span class="text-[#8a6412]">${'\u2605'.repeat(r.rating)}${'\u2606'.repeat(5-r.rating)}</span>` : ''}
       <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
       <button class="del text-ink-faint hover:text-[#a4473a] p-0.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
@@ -118,6 +120,7 @@ function recordCard(r, student, d, navigate) {
     card.appendChild(analyzeWrap);
   }
 
+  if (r.observed) card.appendChild(observedDetails(r));
   if (r.placement) card.appendChild(placementUndo(r, student));
 
   const delMsg = r.placement && !r.placement.undoneAt
@@ -126,6 +129,19 @@ function recordCard(r, student, d, navigate) {
   card.querySelector('.del').onclick = () => { if (confirm(delMsg)) store.removeRecord(student.id, r.id); };
   card.querySelector('.topic')?.addEventListener('click', () => navigate('topic', { id: r.topicId }));
   return card;
+}
+
+// An observation check: what was seen, and what the pass completed.
+function observedDetails(r) {
+  const o = r.observed;
+  const items = Array.isArray(o.items) ? o.items : [];
+  const wrap = el(`<div class="mt-2.5 pt-2.5 border-t border-paper-line">
+    <p class="text-xs font-600 ${o.passed ? 'text-brand-dark' : 'text-[#8a6412]'}">${o.passed ? 'Every item seen: marked mastered' : `${esc(o.score)} of ${esc(o.total)} seen: not marked mastered yet`}</p>
+    ${o.sectionId ? `<p class="text-xs text-ink-soft mt-0.5">Completed the section ${esc(sectionLabel(o.sectionId))} by observation.</p>` : ''}
+    ${o.subject ? `<p class="text-xs text-ink-soft mt-0.5">Completed ${esc(o.subject)} by observation.</p>` : ''}
+    <ul class="mt-1.5 space-y-1">${items.map(it => `<li class="flex gap-2 text-xs ${it.seen ? 'text-ink-soft' : 'text-ink-faint'}"><i data-lucide="${it.seen ? 'check' : 'minus'}" class="w-3.5 h-3.5 shrink-0 mt-px ${it.seen ? 'text-brand' : ''}"></i><span>${esc(it.text)}</span></li>`).join('')}</ul>
+  </div>`);
+  return wrap;
 }
 
 // Undo for a placement record: reverts exactly the topics it changed.

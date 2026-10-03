@@ -8,6 +8,8 @@ import { aiErrorBlock, gateAi } from '../ai-status.js';
 import { fmtDate } from '../ui.js';
 import { applySuggestion, dismissSuggestion } from '../adapt.js';
 import { privacyControls, notesIncludedLine } from './recordings.js';
+import { modeLabel } from '../observe.js';
+import { sectionLabel } from './observation.js';
 
 let selSubject = 'Mathematics';
 
@@ -110,7 +112,7 @@ export function renderInsights(params, { navigate }) {
         <p class="text-sm text-ink-soft leading-relaxed">${canTake
           ? 'The capstone across the whole subject. Needs 90%+ to pass — digital or printable.'
           : 'Unlocks once every section has been passed. Pass the topic and section checks on the topic pages first.'}</p>
-        ${lastTest ? `<p class="text-xs mt-1.5 flex items-center gap-1.5 ${lastTest.passed ? 'text-brand-dark' : 'text-[#a4473a]'}"><i data-lucide="${lastTest.passed ? 'badge-check' : 'history'}" class="w-3.5 h-3.5"></i>Last: ${lastTest.pct}% ${lastTest.passed ? '· Passed' : '· Try again'} on ${fmtDate(lastTest.createdAt)}</p>` : ''}
+        ${lastTest ? `<p class="text-xs mt-1.5 flex items-center gap-1.5 ${lastTest.passed ? 'text-brand-dark' : 'text-[#a4473a]'}"><i data-lucide="${lastTest.passed ? 'badge-check' : 'history'}" class="w-3.5 h-3.5"></i>Last: ${lastTest.mode === 'observed' ? 'every section mastered' : `${lastTest.pct}%`} ${lastTest.passed ? '· Passed' : '· Try again'}${modeLabel(lastTest) ? ` · ${modeLabel(lastTest)}` : ''} on ${fmtDate(lastTest.createdAt)}</p>` : ''}
       </div>
       <button id="test" class="shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${canTake ? 'bg-brand hover:bg-brand-dark text-white' : 'bg-paper border border-paper-line text-ink-faint cursor-not-allowed'} font-medium transition-colors" ${!canTake ? 'disabled' : ''}><i data-lucide="${canTake ? 'file-check-2' : 'lock'}" class="w-4 h-4"></i>${passed ? 'Retake test' : !canTake ? 'Locked' : 'Start test'}</button>
     </div>
@@ -119,6 +121,10 @@ export function renderInsights(params, { navigate }) {
   const testBtn = testCard.querySelector('#test');
   if (canTake) testBtn.replaceWith(gateAi(testBtn));
   root.appendChild(testCard);
+
+  // Observation checks (the non-AI path) for this subject
+  const observedCard = observedChecksCard(active, selSubject, navigate);
+  if (observedCard) root.appendChild(observedCard);
 
   // AI feedback card
   const fbCard = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 mb-5">
@@ -189,6 +195,34 @@ export function renderInsights(params, { navigate }) {
 
   refreshIcons();
   return root;
+}
+
+// Recent evidence-checklist results in a subject, each labelled "observed".
+function observedChecksCard(student, subject, navigate) {
+  const d = getData();
+  const results = store.testsFor(student.id, subject).filter(t => t.mode === 'observed')
+    .sort((a, b) => b.createdAt - a.createdAt);
+  if (!results.length) return null;
+  const passed = results.filter(t => t.scope === 'topic' && t.passed).length;
+  const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 mb-5">
+    <h2 class="font-600 flex items-center gap-2 mb-1"><i data-lucide="eye" class="w-4.5 h-4.5 text-brand-dark"></i>Observation checks</h2>
+    <p class="text-xs text-ink-soft mb-3">Mastery you checked by watching, with no quiz. ${passed} topic${passed === 1 ? '' : 's'} mastered this way in ${esc(subject)}.</p>
+    <div class="obs-list space-y-1.5"></div>
+  </div>`);
+  const list = card.querySelector('.obs-list');
+  results.slice(0, 6).forEach(t => {
+    const topic = t.topicId ? d.byId.get(t.topicId) : null;
+    const what = t.scope === 'topic' ? (topic ? topic.name : 'A topic')
+      : t.scope === 'section' ? `Section: ${sectionLabel(t.sectionId)}` : `${subject}: every section`;
+    const row = el(`<div class="flex items-center gap-2.5 p-2.5 rounded-lg border border-paper-line bg-paper text-sm">
+      <i data-lucide="${t.passed ? 'badge-check' : 'circle-dashed'}" class="w-4 h-4 shrink-0 ${t.passed ? 'text-brand-dark' : 'text-[#8a6412]'}"></i>
+      <span class="flex-1 min-w-0 truncate">${esc(what)}</span>
+      <span class="text-xs text-ink-faint shrink-0">${t.scope === 'topic' ? `${esc(t.score)} of ${esc(t.total)} seen · ` : ''}${esc(modeLabel(t))} · ${fmtDate(t.createdAt)}</span>
+    </div>`);
+    if (topic) { row.classList.add('cursor-pointer', 'hover:border-brand/40'); row.onclick = () => navigate('topic', { id: topic.id }); }
+    list.appendChild(row);
+  });
+  return card;
 }
 
 function statBox(n, label, color) {

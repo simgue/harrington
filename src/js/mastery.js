@@ -134,7 +134,7 @@ function sectionId(subject, domain, age) { return `${subject}|${domain}|${age}`;
 
 // Ordered sections for a subject: grouped by (domain, age band), ordered by age
 // then by the domain's centrality — the order a learner should move through them.
-function subjectSections(subject) {
+export function subjectSections(subject) {
   const d = getData();
   const byAge = subjectByAge(subject); // age -> ordered topics
   const sections = [];

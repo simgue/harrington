@@ -14,6 +14,7 @@ import { openLesson, openActivityDetail, activityCacheKey } from './lesson.js';
 import { openPrintables } from './printables.js';
 import { recallSectionCard } from './recall.js';
 import { aiErrorBlock, aiUnavailableChip, gateAi } from '../ai-status.js';
+import { openObservation, canObserve } from './observation.js';
 
 export function renderTopic(params, { navigate }) {
   const d = getData();
@@ -162,7 +163,7 @@ function masterySection(t, student) {
   if (passed) {
     body.appendChild(el(`<div class="rounded-xl bg-brand-light/60 border border-brand/30 p-3.5 flex items-center gap-2.5 mb-3">
       <i data-lucide="badge-check" class="w-5 h-5 text-brand-dark shrink-0"></i>
-      <p class="text-sm text-ink-soft"><span class="font-600 text-ink">Mastered.</span> ${last ? `Passed the topic test with ${last.pct}%.` : 'This topic is marked mastered.'}</p>
+      <p class="text-sm text-ink-soft"><span class="font-600 text-ink">Mastered.</span> ${last && last.passed && last.mode === 'observed' ? `Seen by observation (${last.score} of ${last.total}).` : last && last.passed ? `Passed the topic test with ${last.pct}%.` : 'This topic is marked mastered.'}</p>
     </div>`));
     const chBest = store.challengesFor(student.id, t.id).sort((a,b)=>(b.correct/b.total)-(a.correct/a.total))[0];
     const ch = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white font-medium text-sm transition-colors mb-2" style="background:${meta.color}"><i data-lucide="zap" class="w-4 h-4"></i>Try the challenge quiz</button>`);
@@ -173,7 +174,7 @@ function masterySection(t, student) {
       body.appendChild(el(`<p class="text-xs text-ink-faint mb-1">A timed, slightly harder stretch to keep them challenged.${chBest ? ` Best: ${chBest.correct}/${chBest.total}.` : ''}</p>`));
     }
   } else {
-    body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-3">Passing this topic's mastery test (${90}%+) marks it <span class="font-600">mastered</span> and counts toward the section check. ${last ? `<span class="text-[#a4473a] font-medium">Last attempt: ${last.pct}%.</span>` : ''}</p>`));
+    body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-3">Passing this topic's mastery test (${90}%+), or seeing every item in an observation check, marks it <span class="font-600">mastered</span> and counts toward the section check. ${last ? `<span class="text-[#a4473a] font-medium">Last attempt: ${last.mode === 'observed' ? `${last.score} of ${last.total} seen by observation` : `${last.pct}%`}.</span>` : ''}</p>`));
     if (!unlocked) {
       body.appendChild(el(`<p class="text-xs text-[#a4473a] flex items-start gap-1.5 mb-3"><i data-lucide="lock" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i>Master ${blocking.length} prerequisite${blocking.length>1?'s':''} first (see Connections) — but you can still test if you're ready.</p>`));
     }
@@ -183,6 +184,15 @@ function masterySection(t, student) {
     <i data-lucide="file-check-2" class="w-4 h-4"></i>${passed ? 'Retake topic test' : 'Take topic mastery test'}</button>`);
   btn.onclick = () => openMasteryTest(t.subject, null, t);
   body.appendChild(gateAi(btn));
+
+  // The non-AI path: tick the topic's evidence items while watching.
+  if (canObserve(t)) {
+    const queued = store.levelsetFor(student.id).observe.includes(t.id);
+    const ob = el(`<button class="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper border border-brand/30 text-brand-dark font-medium text-sm hover:border-brand transition-colors"><i data-lucide="eye" class="w-4 h-4"></i>Check mastery by observation</button>`);
+    ob.onclick = () => openObservation(t, student);
+    body.appendChild(ob);
+    body.appendChild(el(`<p class="text-xs text-ink-faint mt-1.5">${queued ? 'Waiting for a check: you marked it “Unsure” in the level-set workbook. ' : ''}Tick the evidence you see. Works without AI.</p>`));
+  }
 
   return section('target', 'Topic mastery test', body);
 }
@@ -221,10 +231,10 @@ function sectionCheckSection(t, student) {
 
   body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-1">Part of <span class="font-600 text-ink">${esc(sec.domain)} · Age ${esc(sec.age)}</span> (${sec.topics.length} topics).</p>`));
   body.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${passed
-    ? `Section check passed with ${last.pct}%.`
+    ? (last.mode === 'observed' ? 'Section passed by observation: every topic in it was mastered.' : `Section check passed with ${last.pct}%.`)
     : ready
       ? `All topics mastered — take the section check to unlock the next section. Needs 90%+.`
-      : `Pass the mastery test for every topic in this section to unlock the section check.`}</p>`));
+      : `Master every topic in this section (by test or by observation) to unlock the section check. Mastering the last one by observation passes the section.`}</p>`));
 
   if (student) {
     body.appendChild(el(`<div class="flex items-center gap-2 mb-3">
