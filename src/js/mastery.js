@@ -73,12 +73,9 @@ export function recommendedNext(studentId, limit = 6) {
   return candidates.slice(0, limit);
 }
 
-// Today's literacy and numeracy pick-one options for a student, as topics.
-// Offers are chosen once per day and remembered; picks come from the store.
-// `blocked` (locked topics with their first unmet prerequisite) is worked out
-// fresh each time, since it changes as soon as a prerequisite is mastered.
-// Returns { [lane]: { lane, options, pick, blocked: [{ topic, needs }] } }.
-export function todaysChoices(studentId, dateKey) {
+// The day's choices as built from the learner's progress, without reading or
+// saving the remembered offers.
+function buildChoices(studentId, dateKey) {
   const d = getData();
   const s = store.get().students.find(x => x.id === studentId);
   const prog = store.progressFor(studentId);
@@ -87,7 +84,7 @@ export function todaysChoices(studentId, dateKey) {
     const t = d.byId.get(id);
     if (t && (v.updatedAt || 0) > (lastByDomain.get(t.domain) || 0)) lastByDomain.set(t.domain, v.updatedAt || 0);
   }
-  const built = buildDailyChoices(d.topics, {
+  return buildDailyChoices(d.topics, {
     age: store.studentAge(s) || 5,
     dateKey,
     now: Date.now(),
@@ -97,6 +94,26 @@ export function todaysChoices(studentId, dateKey) {
     topicAge,
     blockingPrereqs: (id) => blockingPrereqs(studentId, id).map(p => d.byId.get(p.id)).filter(Boolean),
   }, 2, 4);
+}
+
+// Today's offers ({ literacy: [topicId], numeracy: [topicId] }) without saving
+// them: the remembered ones, else what the dashboard would offer. Used by the
+// notification bell, which must not write.
+export function todaysOffers(studentId, dateKey) {
+  const saved = store.dailyFor(studentId, dateKey);
+  if (saved && saved.offers) return saved.offers;
+  const built = buildChoices(studentId, dateKey);
+  return Object.fromEntries(Object.entries(built).map(([k, lane]) => [k, lane.options.map(t => t.id)]));
+}
+
+// Today's literacy and numeracy pick-one options for a student, as topics.
+// Offers are chosen once per day and remembered; picks come from the store.
+// `blocked` (locked topics with their first unmet prerequisite) is worked out
+// fresh each time, since it changes as soon as a prerequisite is mastered.
+// Returns { [lane]: { lane, options, pick, blocked: [{ topic, needs }] } }.
+export function todaysChoices(studentId, dateKey) {
+  const d = getData();
+  const built = buildChoices(studentId, dateKey);
   const saved = store.dailyFor(studentId, dateKey);
   let offers = saved && saved.offers;
   if (!offers) {

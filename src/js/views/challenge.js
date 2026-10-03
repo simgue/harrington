@@ -148,15 +148,6 @@ export async function openChallenge(topic) {
       const aced = questions.length && (correct / questions.length) >= 0.8;
       setTimeout(() => award(student.id, null, aced ? XP.challengeAce : XP.challenge), 500);
 
-      // Celebrate a new personal best (not the very first attempt).
-      if (beatBest) {
-        store.addNotification({
-          type: 'challenge',
-          title: `New best score! ${student.name} · ${topic.name}`,
-          body: `${student.name} beat their previous best on the ${topic.name} challenge — ${correct}/${questions.length} correct (up from ${prevBest}). Keep up the momentum!`,
-          meta: { subject: topic.subject, topicId: topic.id, correct, total: questions.length, prevBest },
-        });
-      }
       renderResult(correct, questions.length, idx, seconds, raised, beatBest);
     }
   }

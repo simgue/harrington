@@ -167,9 +167,25 @@ A day-by-day plan from your start date, on the home days you choose.
 
 ## Notifications
 
-The bell shows a welcome note on first run. The curriculum is downloaded once
-and kept on this computer; it does not update on its own, so the bell does not
-report curriculum changes.
+The bell lists things that need a parent, worked out on this computer from
+your own data (no AI is involved):
+
+- **Today's picks are still open.** On a home day (see Home days & breaks),
+  from 3 pm, for a learner with no literacy or numeracy pick yet.
+- **No evidence this week.** A learner with no record in the last 7 days.
+- **Backup older than 7 days.** The newest archive `npm run backup` wrote
+  (to `backups/`, or `HARRINGTON_BACKUP_DIR` when set) is more than a week old.
+- **No backup recorded.** No archive is there at all. It links to the
+  deployment runbook's backup section. If you back up another way (a Docker
+  volume, say), dismiss it and it stays quiet for 30 days.
+
+Items carry the learner they are about; the bell opens on the active learner,
+and "All learners" shows everyone. The button reads "Notifications, 2 new" to
+a screen reader. Dismiss an item once it is handled: picks come back on the
+next home day, evidence after the next quiet week, and a backup reminder a week
+later (30 days for "No backup recorded"). A welcome item appears once on first run. The curriculum is downloaded
+once and does not update on its own, so the bell does not report curriculum
+changes.
 
 ## Privacy and data
 
