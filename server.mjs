@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promis
 import { createServer } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { AI_CAPABILITIES, capabilityOffMessage, parseCapabilities } from './src/js/ai-capabilities.js';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(repoRoot, 'src');
@@ -21,6 +22,8 @@ const TAXONOMY_UPSTREAM = process.env.HARRINGTON_TAXONOMY_UPSTREAM
   || 'https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@main/data';
 const AI_UNCONFIGURED = 'AI is not configured for this self-hosted Harrington server';
 const DEFAULT_AI_TIMEOUT_MS = 180_000;
+// Read once: which kinds of prompt /api/ai may forward (all when unset).
+const aiCapabilityConfig = parseCapabilities(process.env.HARRINGTON_AI_CAPABILITIES);
 
 const MIME = {
   '.css': 'text/css; charset=utf-8',
@@ -233,8 +236,11 @@ function aiSettings() {
   const model = envTrim('HARRINGTON_AI_MODEL');
   const apiKey = envTrim('HARRINGTON_AI_API_KEY');
   const timeoutRaw = Number.parseInt(envTrim('HARRINGTON_AI_TIMEOUT_MS'), 10);
+  const configured = Boolean(baseUrl && model);
   return {
-    configured: Boolean(baseUrl && model),
+    configured,
+    // Nothing is switched on without a provider.
+    capabilities: configured ? aiCapabilityConfig.enabled : [],
     baseUrl,
     model,
     apiKey,
@@ -267,6 +273,17 @@ async function handleAiChat(req, res) {
   const body = await readJson(req);
   if (!Array.isArray(body.messages)) {
     throw Object.assign(new Error('Request body must include a messages array'), { statusCode: 400 });
+  }
+  // Every prompt names its capability; a missing or unknown one is refused,
+  // never assumed.
+  const { capability } = body;
+  if (typeof capability !== 'string' || !AI_CAPABILITIES.includes(capability)) {
+    sendJson(res, 403, { error: 'AI requests must name a known capability, so Harrington refused this one' });
+    return;
+  }
+  if (!settings.capabilities.includes(capability)) {
+    sendJson(res, 403, { error: capabilityOffMessage(capability), capability });
+    return;
   }
 
   const headers = { 'Content-Type': 'application/json' };
@@ -348,10 +365,12 @@ async function loadTaxonomyFile(name) {
 
 async function handleApi(req, res, url) {
   if (url.pathname === '/api/health' && req.method === 'GET') {
+    const ai = aiSettings();
     sendJson(res, 200, {
       ok: true,
       mode: 'self-hosted',
-      aiConfigured: aiSettings().configured,
+      aiConfigured: ai.configured,
+      aiCapabilities: ai.capabilities,
       taxonomyCached: await taxonomyCached(),
       ...(await stateHealth()),
     });
@@ -502,6 +521,11 @@ server.listen(port, host, () => {
   const actualPort = typeof address === 'object' && address ? address.port : port;
   console.log(`Harrington listening at http://${host}:${actualPort}`);
   console.log(`Family data directory: ${dataDir}`);
+  if (aiCapabilityConfig.unknown.length) {
+    console.warn(`Ignoring unknown HARRINGTON_AI_CAPABILITIES entries: ${aiCapabilityConfig.unknown.join(', ')}`);
+  }
+  const ai = aiSettings();
+  if (ai.configured) console.log(`AI capabilities switched on: ${ai.capabilities.join(', ') || 'none'}`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

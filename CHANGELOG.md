@@ -7,6 +7,13 @@ tagged a release yet; everything below is on `main`.
 ## [Unreleased]
 
 ### Changed
+- AI can be switched on one capability at a time with
+  `HARRINGTON_AI_CAPABILITIES` (for example `lesson`; unset means all). Every
+  request names its capability, the server refuses the rest with 403,
+  `/api/health` reports `aiCapabilities`, and controls for a capability that is
+  off show "Not switched on yet" while cached content still opens. New
+  `scripts/ai-experiment.mjs` and docs/AI-SETUP.md run and record the
+  lessons-only local experiment (HAR-26).
 - Calendar follows the family's home days and breaks (set under Home days &
   breaks); rest days schedule nothing. Unmastered literacy and numeracy topics
   below the learner's age come first, after their prerequisites. Refreshers

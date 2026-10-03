@@ -81,12 +81,13 @@ export async function deleteAudio(name) {
   await request(`/api/audio/${encodeURIComponent(name)}`, { method: 'DELETE' });
 }
 
-// The server always uses its configured HARRINGTON_AI_MODEL.
-export async function chat(messages) {
+// The server always uses its configured HARRINGTON_AI_MODEL, and forwards the
+// request only when `capability` is switched on (HARRINGTON_AI_CAPABILITIES).
+export async function chat(messages, capability) {
   const response = await request('/api/ai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, capability }),
   });
   return response.json();
 }

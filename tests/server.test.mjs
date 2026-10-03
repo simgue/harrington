@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
+import { AI_CAPABILITIES, parseCapabilities } from '../src/js/ai-capabilities.js';
 
 const repoRoot = new URL('..', import.meta.url);
 let child;
@@ -64,6 +65,7 @@ test('serves Harrington and reports self-hosted health', async () => {
     ok: true,
     mode: 'self-hosted',
     aiConfigured: false,
+    aiCapabilities: [],
     taxonomyCached: false,
     stateVersion: 0,
     stateBytes: 0,
@@ -539,6 +541,7 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [{ role: 'user', content: 'Write a lesson' }],
+          capability: 'lesson',
           model: 'gpt-4o-mini',
         }),
       });
@@ -560,6 +563,7 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messages: [{ role: 'user', content: model }],
+            capability: 'explain',
             model,
           }),
         });
@@ -586,11 +590,11 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
     });
 
     try {
-      // What the browser sends since HAR-23: only the messages.
+      // What the browser sends since HAR-26: the messages and their capability.
       const ai = await fetch(`${harrington.url}/api/ai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: 'Explain counting' }] }),
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'Explain counting' }], capability: 'explain' }),
       });
       assert.equal(ai.status, 200);
       assert.deepEqual(await ai.json(), { content: 'ok' });
@@ -621,7 +625,7 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
       const ai = await fetch(`${harrington.url}/api/ai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], model: 'small' }),
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], capability: 'lesson', model: 'small' }),
       });
       assert.equal(ai.status, 502);
       const body = await ai.json();
@@ -647,7 +651,7 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
       const ai = await fetch(`${harrington.url}/api/ai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }] }),
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], capability: 'lesson' }),
       });
       assert.equal(ai.status, 504);
       assert.match((await ai.json()).error, /timed out/i);
@@ -656,4 +660,110 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
       upstream.close();
     }
   });
+  test('HARRINGTON_AI_CAPABILITIES allows only the listed capabilities and health reports them', async () => {
+    const captured = [];
+    const upstream = createServer(async (req, res) => {
+      captured.push(JSON.parse(await readRequestBody(req)));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { content: '{"objective":"ok"}' } }] }));
+    });
+    await listen(upstream);
+    const harrington = await spawnHarrington({
+      HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`,
+      HARRINGTON_AI_MODEL: 'llama3.2',
+      // The plural a family is likely to type, plus a name that is not a capability.
+      HARRINGTON_AI_CAPABILITIES: ' lessons , telepathy ',
+    });
+    const post = (body) => fetch(`${harrington.url}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const messages = [{ role: 'user', content: 'hi' }];
+
+    try {
+      const health = await (await fetch(`${harrington.url}/api/health`)).json();
+      assert.equal(health.aiConfigured, true);
+      assert.deepEqual(health.aiCapabilities, ['lesson']);
+
+      // Allowed.
+      const allowed = await post({ messages, capability: 'lesson' });
+      assert.equal(allowed.status, 200);
+      assert.deepEqual(await allowed.json(), { content: '{"objective":"ok"}' });
+
+      // Denied, with a message the browser reads as "not switched on".
+      const denied = await post({ messages, capability: 'test' });
+      assert.equal(denied.status, 403);
+      const deniedBody = await denied.json();
+      assert.match(deniedBody.error, /"test" AI capability is not switched on/);
+      assert.equal(deniedBody.capability, 'test');
+
+      // A missing, unknown or non-string capability is never trusted.
+      for (const body of [{ messages }, { messages, capability: 'telepathy' }, { messages, capability: ['lesson'] }, { messages, capability: '' }]) {
+        const response = await post(body);
+        assert.equal(response.status, 403, JSON.stringify(body));
+        assert.match((await response.json()).error, /must name a known capability/);
+      }
+
+      // Only the allowed request reached the provider, and without the capability field.
+      assert.equal(captured.length, 1);
+      assert.deepEqual(Object.keys(captured[0]).sort(), ['messages', 'model']);
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+  });
+
+  test('every capability is on by default, and none without a provider', async () => {
+    const upstream = createServer(async (req, res) => {
+      await readRequestBody(req);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }));
+    });
+    await listen(upstream);
+    const harrington = await spawnHarrington({
+      HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`,
+      HARRINGTON_AI_MODEL: 'llama3.2',
+    });
+    try {
+      const health = await (await fetch(`${harrington.url}/api/health`)).json();
+      assert.deepEqual(health.aiCapabilities, [...AI_CAPABILITIES]);
+      for (const capability of AI_CAPABILITIES) {
+        const response = await fetch(`${harrington.url}/api/ai`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], capability }),
+        });
+        assert.equal(response.status, 200, capability);
+      }
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+
+    // The list alone switches nothing on: no provider, no capabilities, still 503.
+    const noProvider = await spawnHarrington({ HARRINGTON_AI_CAPABILITIES: 'lesson' });
+    try {
+      const health = await (await fetch(`${noProvider.url}/api/health`)).json();
+      assert.equal(health.aiConfigured, false);
+      assert.deepEqual(health.aiCapabilities, []);
+      const response = await fetch(`${noProvider.url}/api/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], capability: 'lesson' }),
+      });
+      assert.equal(response.status, 503);
+    } finally {
+      await noProvider.stop();
+    }
+  });
+});
+
+test('parseCapabilities reads a comma list, plural spellings and "all"', () => {
+  assert.deepEqual(parseCapabilities(undefined).enabled, [...AI_CAPABILITIES]);
+  assert.deepEqual(parseCapabilities('  ').enabled, [...AI_CAPABILITIES]);
+  assert.deepEqual(parseCapabilities('ALL').enabled, [...AI_CAPABILITIES]);
+  assert.deepEqual(parseCapabilities('lessons'), { enabled: ['lesson'], unknown: [] });
+  assert.deepEqual(parseCapabilities('recall, Lesson,,quizzes'), { enabled: ['lesson', 'recall', 'quiz'], unknown: [] });
+  assert.deepEqual(parseCapabilities('nothing-real'), { enabled: [], unknown: ['nothing-real'] });
 });

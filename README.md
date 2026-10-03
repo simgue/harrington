@@ -68,7 +68,9 @@ Lessons, print & go sheets, mastery tests, challenges, recall cards, activity
 instructions, discussion analysis, progress reviews and adaptive suggestions
 need a local AI provider (see [Optional local model](#optional-local-model-ollama)).
 Without one, those buttons are replaced by a quiet "Needs a local AI provider"
-link (and left out of the child view). The curriculum is downloaded once on
+link (and left out of the child view); with a provider but a capability not
+switched on, the link reads "Not switched on yet" (see
+[docs/AI-SETUP.md](docs/AI-SETUP.md)). The curriculum is downloaded once on
 first start and does not update on its own.
 
 ## Highlights
@@ -198,7 +200,15 @@ npm start
 
 Restart Harrington after changing these variables. `/api/health` reports
 `aiConfigured: true` only when both the base URL and model are set. The browser
-sends only the messages; every request uses `HARRINGTON_AI_MODEL`.
+sends only the messages and the capability they are for; every request uses
+`HARRINGTON_AI_MODEL`.
+
+To switch AI on one capability at a time, list them in
+`HARRINGTON_AI_CAPABILITIES` (for example `HARRINGTON_AI_CAPABILITIES=lesson`;
+unset means all). Controls for the others show "Not switched on yet", and the
+server refuses them. **[docs/AI-SETUP.md](docs/AI-SETUP.md)** covers choosing a
+model for reliable JSON, expected latency, the lessons-only experiment
+(`scripts/ai-experiment.mjs`) and when to widen.
 
 Local models can take a while to write lesson JSON. The adapter waits up to
 three minutes (`HARRINGTON_AI_TIMEOUT_MS` to override) and then fails closed.

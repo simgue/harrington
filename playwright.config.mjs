@@ -3,10 +3,12 @@
 //   npm run e2e            run everything (report, screenshots, recordings)
 //   npm run e2e:ui-docs    wipe and regenerate docs/e2e/screenshots, record every test
 //
-// Three servers are started for the run (ports from tests/e2e/support/env.mjs):
+// These servers are started for the run (ports from tests/e2e/support/env.mjs):
 //   mock AI provider  -> 4311   tests/e2e/mock-ai-server.mjs
 //   app with AI       -> 4312   node server.mjs, AI pointed at the mock
 //   app without AI    -> 4313   node server.mjs, no provider (fail-closed)
+//   AI unreachable    -> 4314   provider configured, nothing listening there
+//   lessons only      -> 4315   AI pointed at the mock, HARRINGTON_AI_CAPABILITIES=lesson
 // Each app gets a fresh temporary HARRINGTON_DATA_DIR. Tests share one server
 // per project and reset the family state before each test, so they run serially.
 // Servers are never reused: a Harrington already listening on these ports could
@@ -46,7 +48,7 @@ const mobile = {
 };
 
 // Files with a project of their own; the desktop project runs everything else.
-const SPECIAL = /(^|[\\/])(api|no-ai|ai-unreachable|mobile|walkthrough|walkthrough-mobile)\.spec\.mjs$/;
+const SPECIAL = /(^|[\\/])(api|no-ai|ai-unreachable|lessons-only|mobile|walkthrough|walkthrough-mobile)\.spec\.mjs$/;
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -90,6 +92,12 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 180_000,
     },
+    {
+      command: `node tests/e2e/start-app.mjs --port ${PORTS.appLessonsOnly} --ai --capabilities lesson`,
+      url: `${URLS.appLessonsOnly}/api/health`,
+      reuseExistingServer: false,
+      timeout: 180_000,
+    },
   ],
   projects: [
     { name: 'api', testMatch: /(^|[\\/])api\.spec\.mjs$/, use: { baseURL: URLS.appAi } },
@@ -100,6 +108,7 @@ export default defineConfig({
     },
     { name: 'no-ai', testMatch: /(^|[\\/])no-ai\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appNoAi } },
     { name: 'ai-unreachable', testMatch: /(^|[\\/])ai-unreachable\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appAiUnreachable } },
+    { name: 'lessons-only', testMatch: /(^|[\\/])lessons-only\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appLessonsOnly } },
     { name: 'mobile', testMatch: /(^|[\\/])mobile\.spec\.mjs$/, use: { ...mobile, baseURL: URLS.appAi } },
     {
       name: 'walkthrough',
