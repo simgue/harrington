@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
@@ -95,6 +95,25 @@ test('health reports the age in days of the newest archive in HARRINGTON_BACKUP_
   assert.equal(await ageOf(), 3);
   await rm(backups, { recursive: true, force: true });
   assert.equal(await ageOf(), null);
+});
+
+test('health still answers when the backup folder cannot be read', async () => {
+  const backups = join(dataDir, 'backups');
+  const health = async () => {
+    const res = await fetch(`${baseUrl}/api/health`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.doesNotMatch(JSON.stringify(body), /backups/, 'no path in the health answer');
+    return body.backupAgeDays;
+  };
+  // A symlink loop (ELOOP).
+  await symlink('backups', backups);
+  assert.equal(await health(), null);
+  await rm(backups, { force: true });
+  // A file where the folder should be (ENOTDIR).
+  await writeFile(backups, 'not a folder');
+  assert.equal(await health(), null);
+  await rm(backups, { force: true });
 });
 
 function putState(value, ifMatch, url = baseUrl) {

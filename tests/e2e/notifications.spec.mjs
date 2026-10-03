@@ -20,7 +20,7 @@ test('first run shows the welcome and the missing backup; dismiss all clears the
   await expect(items(page)).toHaveCount(2);
   await expect(m.getByText('Welcome to Harrington')).toBeVisible();
   await expect(m.getByText('No backup recorded')).toBeVisible();
-  await expect(m.getByRole('link', { name: 'How to set up backups' })).toHaveAttribute('href', /docs\/DEPLOYMENT\.md#nightly-backup$/);
+  await expect(m.getByRole('link', { name: 'How to set up backups' })).toHaveAttribute('href', /README\.md#backup-and-restore$/);
   await expect(items(page).first()).toContainText('Whole family');
   await shot('notifications-first-run', { full: false });
   await m.getByRole('button', { name: 'Dismiss all' }).click();

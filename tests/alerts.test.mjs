@@ -5,6 +5,7 @@ import {
   picksStillOpen, noRecentEvidence, backupOverdue, welcome, buildAlerts, forLearner, bellLabel,
   PICKS_DUE_HOUR, EVIDENCE_DAYS, BACKUP_DAYS, NO_BACKUP_SNOOZE_DAYS, BACKUP_HELP_HREF,
 } from '../src/js/alerts.js';
+import { pruneDismissed } from '../src/js/alert-dismissals.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 // Fixed local-time clocks. 2026-10-05 is a Monday, 2026-10-10 a Saturday.
@@ -77,7 +78,7 @@ test('backup: flagged when older than seven days or none recorded, quiet when un
   assert.equal(none.title, 'No backup recorded');
   assert.equal(none.key, 'backup:none');
   assert.equal(none.href, BACKUP_HELP_HREF);
-  assert.match(BACKUP_HELP_HREF, /docs\/DEPLOYMENT\.md#nightly-backup$/);
+  assert.match(BACKUP_HELP_HREF, /README\.md#backup-and-restore$/);
   assert.equal(old.href, undefined);
   assert.equal(backupOverdue({ backupAgeDays: undefined }), null);
 });
@@ -118,6 +119,28 @@ test('backup: "No backup recorded" snoozes for 30 days and never hides the age r
   assert.deepEqual(keys({ backupAgeDays: null, dismissed, now: MON_3PM + 30 * DAY }), ['backup:none']);
   // Once an archive exists and ages, the age reminder shows despite that dismissal.
   assert.deepEqual(keys({ backupAgeDays: 9, dismissed, now: MON_3PM + DAY }), ['backup']);
+});
+
+test('pruneDismissed keeps permanent dismissals and drops only expired snoozes and past picks', () => {
+  const day0 = MON_3PM;
+  const dismissed = {
+    welcome: day0,
+    'evidence:s_ada:12345': day0,
+    backup: day0,
+    'backup:none': day0,
+    'picks:s_ada:2026-10-05': day0,
+    'picks:s_ada:2026-10-04': day0 - DAY,
+    junk: 'not a time',
+  };
+  // Same day: only the junk entry and yesterday's picks go.
+  assert.deepEqual(Object.keys(pruneDismissed(dismissed, day0 + 60_000)).sort(),
+    ['backup', 'backup:none', 'evidence:s_ada:12345', 'picks:s_ada:2026-10-05', 'welcome']);
+  // A week later the backup snooze has expired; the 30-day one has not.
+  assert.deepEqual(Object.keys(pruneDismissed(dismissed, day0 + 7 * DAY)).sort(),
+    ['backup:none', 'evidence:s_ada:12345', 'welcome']);
+  // Day 61: the welcome and the evidence dismissal are still there (the old 60-day prune dropped them).
+  assert.deepEqual(Object.keys(pruneDismissed(dismissed, day0 + 61 * DAY)).sort(), ['evidence:s_ada:12345', 'welcome']);
+  assert.deepEqual(pruneDismissed(undefined, day0), {});
 });
 
 test('forLearner keeps family-wide items under every filter', () => {

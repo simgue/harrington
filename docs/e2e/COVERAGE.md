@@ -113,7 +113,8 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 | Dashboard | covered | `dashboard` | Every section listed in the audit, for ages 3, 6 and 9, with no console errors. Banner wording (F4), count formatting (F15). |
 | Insights: subject stats, recommended next | covered | `insights` | Subject chips, the four counts, recommendation opens its topic. |
 | Insights: progress review, final test, adaptive suggestions | covered with mock AI | `insights`, `no-ai` | Review generated; HAR-19: no learner name in the prompt, notes left out by default and sent (with names replaced) once the box is ticked (F2 fixed); final test locked and unlocked; suggestions approved and undone. |
-| Notifications bell | covered | `notifications` | HAR-27: first-run welcome and "No backup recorded" with its runbook link, dismiss one and dismiss all (kept after reload), open picks after 3 pm per learner with the learner filter, picks made or before 3 pm, no evidence this week. Accessible name "Notifications, N new" (F13 fixed). Backup age and `HARRINGTON_BACKUP_DIR` are covered by `server.test.mjs`; the 30-day snooze by `alerts.test.mjs`. |
+| Notifications bell | covered | `notifications`, `mobile` | HAR-27: first-run welcome and "No backup recorded" with its README link, dismiss one and dismiss all (kept after reload), open picks after 3 pm per learner with the learner filter, picks made or before 3 pm, no evidence this week. Accessible name "Notifications, N new" (F13 fixed). Backup age and `HARRINGTON_BACKUP_DIR` are covered by `server.test.mjs`; the 30-day snooze by `alerts.test.mjs`. |
+| Notifications bell on a phone | covered | `mobile` | HAR-27: the top-bar bell at 390 px opens on the active learner, "All learners" filter, dismiss one learner's picks and "No backup recorded", no sideways scroll; the backup note stays quiet 29 days later and returns after 30. Screenshot `mobile/13-notifications.jpg`. |
 
 ## 4.10 Engagement
 

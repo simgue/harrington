@@ -176,7 +176,7 @@ your own data (no AI is involved):
 - **Backup older than 7 days.** The newest archive `npm run backup` wrote
   (to `backups/`, or `HARRINGTON_BACKUP_DIR` when set) is more than a week old.
 - **No backup recorded.** No archive is there at all. It links to the
-  deployment runbook's backup section. If you back up another way (a Docker
+  README's "Backup and restore" section. If you back up another way (a Docker
   volume, say), dismiss it and it stays quiet for 30 days.
 
 Items carry the learner they are about; the bell opens on the active learner,

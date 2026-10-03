@@ -1,6 +1,7 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
 import { getData } from './data.js';
+import { pruneDismissed } from './alert-dismissals.js';
 
 export const MASTERY = {
   none:       { label: 'Not started', rank: 0, color: '#d2c6ad' },
@@ -955,14 +956,10 @@ export function earnedBadges(studentId) { return gameOf(studentId).badges; }
 // True when the family saw the old first-run welcome, so the bell skips its own.
 export function welcomed() { return state.notifications.length > 0; }
 export function dismissedAlerts() { return state.dismissedAlerts; }
-// Records a dismissal for each key; entries older than 60 days are dropped so
-// the map stays small.
-export function dismissAlerts(keys) {
-  const now = Date.now();
-  const next = {};
-  for (const [key, at] of Object.entries(state.dismissedAlerts)) {
-    if (Number(at) && now - Number(at) < 60 * 24 * 60 * 60 * 1000) next[key] = Number(at);
-  }
+// Records a dismissal for each key. Expired snoozes and past days' picks are
+// dropped so the map stays small; permanent dismissals are kept.
+export function dismissAlerts(keys, now = Date.now()) {
+  const next = pruneDismissed(state.dismissedAlerts, now);
   keys.forEach(key => { next[key] = now; });
   state.dismissedAlerts = next;
   persist(); emit();

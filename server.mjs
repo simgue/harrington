@@ -210,14 +210,20 @@ async function stateHealth() {
 }
 
 // Whole days since the newest backup archive was written, or null when there
-// is none (or the folder is missing).
+// is none. A folder that cannot be read (missing, permission denied, a symlink
+// loop) also reads as null: the health check must never fail over a backup
+// folder. Unexpected errors are logged once, by code only (no path).
+let backupReadWarned = false;
 async function backupAgeDays() {
   let names;
   try {
     names = await readdir(backupDir);
   } catch (error) {
-    if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null;
-    throw error;
+    if (error.code !== 'ENOENT' && !backupReadWarned) {
+      backupReadWarned = true;
+      console.warn(`Cannot read the backup folder (${error.code || 'unknown error'}); reporting no backup.`);
+    }
+    return null;
   }
   let newest = 0;
   for (const name of names) {

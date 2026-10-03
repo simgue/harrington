@@ -249,7 +249,7 @@ it again. With Docker, back up the `harrington-data` volume instead.
 Set `HARRINGTON_BACKUP_DIR` to write somewhere else; the server reads the same
 variable, and the notification bell reminds you when the newest archive there
 is more than 7 days old. With no archive at all it shows "No backup recorded"
-once, with a link to the backup runbook; under Docker, where backups are of the
+once, with a link to this section; under Docker, where backups are of the
 volume, dismiss it and it stays quiet for 30 days.
 
 In the app, **Export** in the sidebar's family box downloads

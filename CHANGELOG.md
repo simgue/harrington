@@ -11,7 +11,7 @@ tagged a release yet; everything below is on `main`.
   learner: today's picks still open after 3 pm on a home day, no evidence in
   the last 7 days, and a backup older than 7 days (`/api/health` now reports
   `backupAgeDays` from `HARRINGTON_BACKUP_DIR` or `backups/`). With no backup
-  recorded it says so once, links to the backup runbook, and a dismissal
+  recorded it says so once, links to the README's backup section, and a dismissal
   quiets it for 30 days. It opens on the active learner with an "All
   learners" option, items are dismissed one by one or all at once, and the
   button is named "Notifications, N new" (F13). Curriculum-change detection

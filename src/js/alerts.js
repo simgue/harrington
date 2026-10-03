@@ -7,15 +7,15 @@
 // dismissed item comes back only when the situation is new again (or, with
 // snoozeMs, once that long has passed).
 import { keyOf, restInfo } from './scheduler.js';
+import { DAY_MS, SNOOZE_MS } from './alert-dismissals.js';
 
 export const PICKS_DUE_HOUR = 15;   // local time after which open picks are flagged
 export const EVIDENCE_DAYS = 7;     // a learner with no record for this long is flagged
 export const BACKUP_DAYS = 7;       // a newest backup older than this is flagged
-export const NO_BACKUP_SNOOZE_DAYS = 30; // "No backup recorded", once dismissed, stays quiet this long
-// The runbook's backup section (docs/DEPLOYMENT.md), including Docker volumes.
-export const BACKUP_HELP_HREF = 'https://github.com/simgue/harrington/blob/main/docs/DEPLOYMENT.md#nightly-backup';
+export const NO_BACKUP_SNOOZE_DAYS = SNOOZE_MS['backup:none'] / DAY_MS; // "No backup recorded", once dismissed, stays quiet this long
+// The README's backup section (npm run backup, HARRINGTON_BACKUP_DIR, Docker volumes).
+export const BACKUP_HELP_HREF = 'https://github.com/simgue/harrington/blob/main/README.md#backup-and-restore';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 const LANE_LABELS = { literacy: 'literacy', numeracy: 'numeracy' };
 
 // (a) Today is a home day, it is 15:00 or later, and a daily lane is still
@@ -57,8 +57,8 @@ export function noRecentEvidence({ now, student, records }) {
     learnerId: student.id,
     title: `No evidence this week for ${student.name}`,
     body: last
-      ? `The last record was ${Math.floor((now - last) / DAY_MS)} days ago. Add a note, photo or recording under Records.`
-      : 'There are no records yet. Add a note, photo or recording under Records.',
+      ? `The last record was ${Math.floor((now - last) / DAY_MS)} days ago. Add a note or recording under Records.`
+      : 'There are no records yet. Add a note or recording under Records.',
   };
 }
 
@@ -66,7 +66,7 @@ export function noRecentEvidence({ now, student, records }) {
 // `backupAgeDays` comes from /api/health (null: no archive in the server's
 // backup folder; undefined: unknown, for example an older server). Family-wide.
 // A family that backs up some other way (a Docker volume, say) never has an
-// archive there, so "No backup recorded" is a one-time note with the runbook
+// archive there, so "No backup recorded" is a one-time note with the backup guide
 // link that a dismissal quiets for NO_BACKUP_SNOOZE_DAYS; it has its own key,
 // so it never hides the age reminder once a backup exists. Dismissing the age
 // reminder lasts BACKUP_DAYS.
@@ -79,7 +79,7 @@ export function backupOverdue({ backupAgeDays }) {
       learnerId: null,
       title: 'No backup recorded',
       body: 'Harrington has not seen a backup in its backup folder. If you back up another way, such as a Docker volume, dismiss this; it comes back in 30 days.',
-      snoozeMs: NO_BACKUP_SNOOZE_DAYS * DAY_MS,
+      snoozeMs: SNOOZE_MS['backup:none'],
       href: BACKUP_HELP_HREF,
       linkLabel: 'How to set up backups',
     };
@@ -91,7 +91,7 @@ export function backupOverdue({ backupAgeDays }) {
     learnerId: null,
     title: `Backup older than ${BACKUP_DAYS} days`,
     body: `The newest backup is ${backupAgeDays} days old. Run "npm run backup" on the computer running Harrington.`,
-    snoozeMs: BACKUP_DAYS * DAY_MS,
+    snoozeMs: SNOOZE_MS.backup,
   };
 }
 
