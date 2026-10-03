@@ -17,7 +17,7 @@ Some findings were fixed by pull requests that merged while the suite was
 being written: three from the first run, F7 and F10 (HAR-13, #18), F2
 (HAR-19, #24), F1 (HAR-20, #26), F5, F8 and F9 (HAR-18, #25), F11 (HAR-21,
 #23), F19, a regression from a merge that #29 fixed within the hour, and
-F6, F14, F15 and F16 (findings bundle B, #PRNUM). They are listed under
+F6, F14, F15 and F16 (findings bundle B, #38). They are listed under
 [Fixed since the audit](#fixed-since-the-audit); their entries below are kept
 so the numbers stay stable.
 
@@ -30,7 +30,7 @@ so the numbers stay stable.
 | F3 | A 3-year-old gets no daily choices and an "everything is mastered" message | Medium | `dashboard` | |
 | F4 | The preview banner says AI is not connected even when it is | Medium | `dashboard` | |
 | ~~F5~~ | ~~Day one offers a refresher quiz on a topic never taught~~ | Medium | `dashboard`, `calendar` | Fixed by HAR-18 (`428e9ea`) |
-| ~~F6~~ | ~~Export and Import are not reachable on a phone~~ | Medium | `mobile` | Fixed by findings bundle B (#PRNUM) |
+| ~~F6~~ | ~~Export and Import are not reachable on a phone~~ | Medium | `mobile` | Fixed by findings bundle B (#38) |
 | ~~F7~~ | ~~A failed "Generate a different version" leaves a spinner forever~~ | Medium | `topic` | Fixed by HAR-13 |
 | ~~F8~~ | ~~"Extra practice" on the calendar opens a lesson~~ | Medium | `calendar` | Fixed by HAR-18 (`428e9ea`) |
 | ~~F9~~ | ~~"Refreshers change each day automatically" is a button that does nothing~~ | Low | `calendar` | Fixed by HAR-18 (`428e9ea`) |
@@ -38,9 +38,9 @@ so the numbers stay stable.
 | ~~F11~~ | ~~Selecting a skill scrolls the page to the top~~ | Low | `map` | Fixed by HAR-21 (`68a94c9`) |
 | F12 | Recent growth lists topics set back to "Not started" | Low | `topic` | |
 | F13 | Notification bell has no accessible name | Low | `notifications` | |
-| ~~F14~~ | ~~Icon-only delete and remove buttons have no accessible name~~ | Low | `learners`, `records`, `calendar`, `mobile` | Fixed by findings bundle B (#PRNUM) |
-| ~~F15~~ | ~~Dashboard says "1590 topics" where the map says "1,590"~~ | Low | `dashboard` | Fixed by findings bundle B (#PRNUM) |
-| ~~F16~~ | ~~The child-view PIN is stored and exported in plain text~~ | Low | `data-safety`, `child-view` | Fixed by findings bundle B (#PRNUM) |
+| ~~F14~~ | ~~Icon-only delete and remove buttons have no accessible name~~ | Low | `learners`, `records`, `calendar`, `mobile` | Fixed by findings bundle B (#38) |
+| ~~F15~~ | ~~Dashboard says "1590 topics" where the map says "1,590"~~ | Low | `dashboard` | Fixed by findings bundle B (#38) |
+| ~~F16~~ | ~~The child-view PIN is stored and exported in plain text~~ | Low | `data-safety`, `child-view` | Fixed by findings bundle B (#38) |
 | F17 | A losing tab confirms a change, then discards it; a tab's own boot write can raise the conflict | Medium | `data-safety` | |
 | F18 | "Plant something new" in the child view offers a topic already in progress | Low | `child-view` | |
 | ~~F19~~ | ~~Without an AI provider the Calendar does not render (`gateAi is not defined`)~~ | High | `no-ai` | Fixed by #29 (`8665fdc`) |
@@ -147,7 +147,7 @@ marked (finding F5), now flipped.
 
 ## F6. Export and Import are not reachable on a phone
 
-**Fixed by findings bundle B (#PRNUM).** Below `lg`, Export and Import sit at
+**Fixed by findings bundle B (#38).** Below `lg`, Export and Import sit at
 the bottom of the learner selector (the round button in the top bar) and
 call the same download and the same preview and confirm as the sidebar.
 `mobile.spec.mjs` › "export and import from the learner menu on a phone (F6)"
@@ -248,7 +248,7 @@ not \"Notifications\" (finding F13)".
 
 ## F14. Icon-only delete and remove buttons have no accessible name
 
-**Fixed by findings bundle B (#PRNUM).** The buttons are named for what they
+**Fixed by findings bundle B (#38).** The buttons are named for what they
 act on: "Remove learner <name>", "Delete record <title>", "Delete recording
 <title>" and "Remove extra <title>". On a phone the learner row's placement,
 edit and remove buttons are 40 × 40 px (24 px on a desktop, as before), and
@@ -266,7 +266,7 @@ with no accessible name (finding F14)", now flipped.
 
 ## F15. Dashboard says "1590 topics" where the map says "1,590"
 
-**Fixed by findings bundle B (#PRNUM).** `formatCount` (`src/js/format.js`,
+**Fixed by findings bundle B (#38).** `formatCount` (`src/js/format.js`,
 `Intl.NumberFormat` for the reader's locale) prints every count on the
 dashboard, the map and the curriculum notice; the hero reads "0 of 1,590
 topics mastered" (`dashboard.spec.mjs`, `tests/format.test.mjs`).
@@ -279,7 +279,7 @@ section…", which expected "0 of 1590 topics mastered"; now flipped.
 
 ## F16. The child-view PIN is stored and exported in plain text
 
-**Fixed by findings bundle B (#PRNUM).** The family document keeps
+**Fixed by findings bundle B (#38).** The family document keeps
 `settings.parentPinHash`, a SHA-256 of the PIN with `settings.parentPinSalt`,
 a random salt per family (Web Crypto, with a plain-JS SHA-256 where a page
 served over plain http on the home network has none). A plain `parentPin`
