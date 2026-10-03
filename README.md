@@ -68,7 +68,9 @@ Lessons, print & go sheets, mastery tests, challenges, recall cards, activity
 instructions, discussion analysis, progress reviews and adaptive suggestions
 need a local AI provider (see [Optional local model](#optional-local-model-ollama)).
 Without one, those buttons are replaced by a quiet "Needs a local AI provider"
-link (and left out of the child view). The curriculum is downloaded once on
+link (and left out of the child view). Lessons and print & go sheets saved
+on the server earlier still open: the topic page shows "Open saved lesson", and
+Records lists them under "Saved lessons". The curriculum is downloaded once on
 first start and does not update on its own.
 
 ## Highlights

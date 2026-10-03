@@ -68,7 +68,8 @@ test('recall cards are saved as an object and a second session reads them withou
   await store.connect();
   assert.equal(store.aiAvailable(), true);
 
-  const first = await cardsForTopic(topic);
+  const { cards: first, dropped } = await cardsForTopic(topic);
+  assert.equal(dropped, 0);
   assert.equal(providerCalls, 1);
   assert.deepEqual(first.map(c => c.front), CARDS.cards.map(c => c.front));
   assert.equal(first[0].id, 'recall-topic::0');
@@ -78,7 +79,7 @@ test('recall cards are saved as an object and a second session reads them withou
 
   // A new session: nothing in memory, the provider is not asked again.
   store.forgetCachedLessons();
-  const second = await cardsForTopic(topic);
+  const { cards: second } = await cardsForTopic(topic);
   assert.equal(providerCalls, 1);
   assert.deepEqual(second, first);
 });
@@ -92,7 +93,7 @@ test('a legacy bare-array recall cache still reads', async () => {
   await writeFile(path, JSON.stringify(legacy));
   store.forgetCachedLessons();
   const before = providerCalls;
-  const cards = await cardsForTopic({ ...topic, id: 'legacy' });
+  const { cards } = await cardsForTopic({ ...topic, id: 'legacy' });
   assert.deepEqual(cards, legacy);
   assert.equal(providerCalls, before);
 });

@@ -320,6 +320,49 @@ test('persists lesson cache entries and recordings', async () => {
   assert.equal((await fetch(`${baseUrl}/api/audio/recording-1.webm`)).status, 404);
 });
 
+test('lists saved lesson keys and times by prefix, without content', async () => {
+  const put = (key, value) => fetch(`${baseUrl}/api/lessons/${encodeURIComponent(key)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(value),
+  });
+  const list = async (prefix) => fetch(`${baseUrl}/api/lessons?prefix=${encodeURIComponent(prefix)}`);
+  for (const key of ['topic:list-a', 'print:list-a', 'recall:list-a', 'act:list-a:game:Hop']) {
+    assert.equal((await put(key, { secret: 'content stays on its own route' })).status, 204);
+  }
+  // Something in the directory that is not a cache entry is ignored.
+  await writeFile(join(dataDir, 'lessons', 'stray.json.123.tmp'), '{}');
+
+  const topics = await list('topic:');
+  assert.equal(topics.status, 200);
+  assert.match(topics.headers.get('content-type'), /application\/json/);
+  assert.equal(topics.headers.get('cache-control'), 'no-store');
+  const body = await topics.json();
+  assert.deepEqual(Object.keys(body), ['lessons']);
+  const keys = body.lessons.map(e => e.key);
+  assert.ok(keys.includes('topic:list-a'));
+  assert.ok(keys.includes('topic:count-to-5'), 'entries saved by earlier tests');
+  assert.ok(keys.every(k => k.startsWith('topic:')));
+  for (const entry of body.lessons) {
+    assert.deepEqual(Object.keys(entry).sort(), ['key', 'savedAt']);
+    assert.ok(Number.isInteger(entry.savedAt) && entry.savedAt > 0);
+  }
+  assert.ok(body.lessons.every((e, i, all) => i === 0 || all[i - 1].savedAt >= e.savedAt), 'newest first');
+  assert.ok(!JSON.stringify(body).includes('content stays'), 'no content in the listing');
+
+  assert.deepEqual((await (await list('print:')).json()).lessons.map(e => e.key), ['print:list-a']);
+  assert.deepEqual((await (await list('recall:')).json()).lessons.map(e => e.key), ['recall:list-a']);
+
+  for (const bad of ['act:', 'topic', '', '../']) {
+    const res = await list(bad);
+    assert.equal(res.status, 400, `prefix ${JSON.stringify(bad)}`);
+    assert.deepEqual(await res.json(), { error: 'prefix must be one of topic:, print: or recall:' });
+  }
+  assert.equal((await fetch(`${baseUrl}/api/lessons`)).status, 400, 'no prefix');
+  const post = await fetch(`${baseUrl}/api/lessons?prefix=topic:`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  assert.equal(post.status, 405);
+});
+
 test('rejects invalid writes and leaves AI disabled by default', async () => {
   const invalid = await fetch(`${baseUrl}/api/state`, {
     method: 'PUT',

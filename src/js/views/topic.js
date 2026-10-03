@@ -78,7 +78,9 @@ export function renderTopic(params, { navigate }) {
   printBtn.onclick = () => openPrintables(t);
   if (!store.aiAvailable()) {
     // Without a provider, show only what is already cached; one chip stands in for the rest.
-    lessonBtn.replaceWith(gateAi(lessonBtn, { cachedKey: 'topic:' + t.id }));
+    const savedBtn = el(`<button class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="book-open-text" class="w-4 h-4"></i>Open saved lesson</button>`);
+    savedBtn.onclick = () => openLesson(t);
+    lessonBtn.replaceWith(gateAi(lessonBtn, { cachedKey: 'topic:' + t.id, saved: savedBtn }));
     printBtn.replaceWith(gateAi(printBtn, { cachedKey: 'print:' + t.id, fallback: el('<span class="hidden"></span>') }));
   }
   root.appendChild(lessonCta);

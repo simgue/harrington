@@ -28,6 +28,12 @@ tagged a release yet; everything below is on `main`.
   has "Generate a different version" that keeps the previous version if it
   fails. Recall cards now persist, printed sheets show topic, subject and age,
   and cached content opens without an AI provider (HAR-20).
+- A first generation the server cannot save stays on screen with "Retry save"
+  instead of being discarded, and is never paid for twice. Malformed recall
+  cards are left out, and counted, before a session starts, and the due count
+  drops entries for cards that no longer exist. Without an AI provider, the
+  topic page offers "Open saved lesson" and Records shows a "Saved lessons"
+  shelf (HAR-20 and HAR-13 follow-ups).
 - Welcome tour, in-app Guide, printable guide and `src/docs/GUIDE.md` describe
   only what works today. AI-backed features carry one line: "Needs a local AI
   provider; see the README." The curriculum auto-update claim is gone, and the
