@@ -390,7 +390,7 @@ export const PALETTE = ['#3f6b3b', '#a4473a', '#2f6285', '#5b4a86', '#8a6412', '
 // nearest palette color, and anything else the first one. inspectImport has
 // already refused a color that is not a hex color.
 const rgb = hex => [1, 3, 5].map(i => Number.parseInt(hex.slice(i, i + 2), 16));
-export function paletteColor(color) {
+function paletteColor(color) {
   if (PALETTE.includes(color)) return color;
   if (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color)) return PALETTE[0];
   const [r, g, b] = rgb(color.toLowerCase());

@@ -20,11 +20,11 @@ export const documentFields = ['schemaVersion', 'students', 'activeStudentId', .
 // (exportedAt, taxonomyVersion, unsavedChanges); never family data.
 export const BOOKKEEPING_FIELDS = ['version', 'updatedAt', 'writeId', 'exportedAt', 'taxonomyVersion', 'unsavedChanges'];
 
-export const MASTERY_STATUSES = ['none', 'learning', 'practicing', 'mastered'];
+const MASTERY_STATUSES = ['none', 'learning', 'practicing', 'mastered'];
 // 'note' is the label the record views fall back to for an older record.
-export const RECORD_TYPES = ['observation', 'question', 'discussion', 'assessment', 'recording', 'note'];
+const RECORD_TYPES = ['observation', 'question', 'discussion', 'assessment', 'recording', 'note'];
 export const MIN_BIRTH_YEAR = 1990;
-export const NAME_MAX = 100;
+const NAME_MAX = 100;
 // Generous bounds: they stop a hostile file, not a long transcript.
 const TEXT_MAX = { title: 1_000, note: 50_000, transcript: 200_000, analysis: 200_000, topicName: 1_000 };
 
@@ -43,7 +43,7 @@ export const realDateKey = k => {
 };
 // Learner ids become object keys and DOM ids: plain characters only, and never
 // a built-in property name such as "constructor" or "__proto__".
-export const validLearnerId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) && !(id in Object.prototype);
+const validLearnerId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) && !(id in Object.prototype);
 
 // What is wrong with one learner, as the end of "Learner 2 in the file …", or null.
 function learnerProblem(s) {
