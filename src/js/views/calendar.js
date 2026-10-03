@@ -1,13 +1,13 @@
 import { SUBJECTS, getData } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
-import { keyOf, parseKey, buildPlan, dailyExtras, planStartKey, invalidatePlan, familyCalendar, normalizeCalendar, restInfo, nextHomeDayKey } from '../scheduler.js';
+import { keyOf, parseKey, buildPlan, dailyExtras, planStartKey, invalidatePlan, familyCalendar, normalizeCalendar, restInfo, nextHomeDayKey, pauseInfo, newTopicsHeading, doneControl, normalizePace, paceSummary } from '../scheduler.js';
 import { openLesson } from './lesson.js';
 import { openActivityDetail } from './lesson.js';
 import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';
 import { openDueRecall } from './recall.js';
-import { openDuePractice } from './practice.js';
+import { openTopicPractice } from './practice.js';
 import { gateAi, aiUnavailableChip } from '../ai-status.js';
 import { activityIdeas, gameIdeas } from '../resources.js';
 import { MASTERY, isUnlocked } from '../mastery.js';
@@ -72,6 +72,7 @@ export function renderCalendar(params, { navigate }) {
   };
   startBar.querySelector('#calsettings').onclick = () => openCalendarSettings(active, navigate);
   root.appendChild(startBar);
+  root.appendChild(paceBar(active, startKey, navigate));
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   if (!viewMonth) viewMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -165,7 +166,8 @@ function dayPanel(active, navigate) {
   const date = parseKey(selectedKey);
   const plan = buildPlan(active);
   const topics = plan.byDate.get(selectedKey) || [];
-  const rest = restInfo(selectedKey, familyCalendar());
+  const rest = pauseInfo(selectedKey, familyCalendar());
+  const todayKey = keyOf(new Date());
   const inTrack = plan.firstKey && selectedKey >= plan.firstKey && selectedKey <= plan.lastKey;
   const dateLabel = date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   const done = store.isDayDone(active.id, selectedKey);
@@ -179,23 +181,28 @@ function dayPanel(active, navigate) {
     queueMicrotask(() => store.pruneExtras(sid, key, gone));
   }
 
-  const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 space-y-5"></div>`);
+  const card = el(`<div data-day-panel class="bg-paper-card border border-paper-line rounded-2xl p-5 space-y-5"></div>`);
+  const control = doneControl(rest, done);
   const head = el(`<div class="flex items-start justify-between gap-2">
     <div>
       <p class="text-xs text-ink-faint">${rest ? (rest.kind === 'break' ? `Break${rest.label ? ' · ' + esc(rest.label) : ''}` : 'Rest day') : inTrack ? 'Home learning day' : 'Outside the track'}</p>
       <h2 class="font-display text-xl font-600">${dateLabel}</h2>
     </div>
-    ${rest ? '' : `<button id="donebtn" class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${done ? 'bg-brand text-white border-transparent' : 'border-paper-line text-ink-soft hover:border-brand/40'}"><i data-lucide="${done ? 'check-circle-2' : 'circle'}" class="w-3.5 h-3.5"></i>${done ? 'Done' : 'Mark done'}</button>`}
+    ${!control ? '' : `<button id="donebtn" class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${done ? 'bg-brand text-white border-transparent' : 'border-paper-line text-ink-soft hover:border-brand/40'}"><i data-lucide="${done ? 'check-circle-2' : 'circle'}" class="w-3.5 h-3.5"></i>${done ? 'Done' : 'Mark done'}</button>`}
   </div>`);
   const doneBtn = head.querySelector('#donebtn');
+  if (doneBtn && rest) doneBtn.title = 'Marked done before this became a rest day. Tap to reopen.';
   if (doneBtn) doneBtn.onclick = () => { store.toggleDayDone(active.id, selectedKey); toast(done ? 'Day reopened' : 'Day marked complete', done ? 'default' : 'success'); navigate('calendar'); };
   card.appendChild(head);
 
+  // A rest day pauses the rhythm: say until when, and name the next learning day.
+  if (rest) card.appendChild(restNotice(rest, done, navigate));
+
   // New topics for the day
-  const newBlock = el(`<div><p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-2 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i>New today</p><div class="space-y-2"></div></div>`);
+  const newBlock = el(`<div><p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-2 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i>${newTopicsHeading(selectedKey, todayKey)}</p><div class="space-y-2"></div></div>`);
   const list = newBlock.querySelector('div');
   if (topics.length === 0) {
-    list.appendChild(el(`<p class="text-sm text-ink-faint">${rest ? 'A rest day — nothing is scheduled.' : inTrack ? 'No new topics scheduled — a review day. Try the refreshers below.' : 'This date is outside the 5–13 track.'}</p>`));
+    list.appendChild(el(`<p class="text-sm text-ink-faint">${rest ? 'Nothing is scheduled.' : inTrack ? 'No new topics scheduled — a review day. Try the refreshers below.' : 'This date is outside the 5–13 track.'}</p>`));
   } else {
     topics.forEach(t => list.appendChild(dayTopicRow(t, active, navigate)));
   }
@@ -225,6 +232,53 @@ function dayPanel(active, navigate) {
   return wrap;
 }
 
+const longDate = (k) => parseKey(k).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+
+// "Break until <date>" or "Rest day", the next learning day, and a way to it.
+function restNotice(rest, done, navigate) {
+  const title = rest.kind === 'break'
+    ? `${esc(rest.label || 'Break')} until ${longDate(rest.until)}`
+    : 'Rest day';
+  const box = el(`<div class="rest-notice rounded-xl bg-paper p-3 text-sm">
+    <p class="font-600 flex items-center gap-1.5"><i data-lucide="${rest.kind === 'break' ? 'tent' : 'sun'}" class="w-4 h-4 text-brand-dark"></i>${title}</p>
+    <p class="text-ink-soft mt-0.5">The daily rhythm is paused: no new topics, choices or refreshers. Next learning day: <span class="font-600 text-ink">${longDate(rest.nextKey)}</span>.</p>
+    ${done ? '<p class="text-xs text-ink-faint mt-1">This day was marked done before it became a rest day. The record stays; tap Done to reopen it.</p>' : ''}
+    <button type="button" class="next mt-2 text-xs font-medium text-brand-dark flex items-center gap-1">Go to ${parseKey(rest.nextKey).toLocaleDateString(undefined, { weekday: 'long' })}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
+  </div>`);
+  box.querySelector('.next').onclick = () => {
+    const d = parseKey(rest.nextKey);
+    selectedKey = rest.nextKey;
+    viewMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+    navigate('calendar');
+  };
+  return box;
+}
+
+// Catch-up pace: catch-up topics first (the default), or mixed with own-age topics.
+function paceBar(active, startKey, navigate) {
+  const pace = normalizePace(store.planOverrides(active.id).pace);
+  const summary = paceSummary(buildPlan(active), startKey, pace, active.name);
+  const opt = (value, label) => {
+    const on = pace === value;
+    return `<button type="button" data-pace="${value}" aria-pressed="${on}" class="px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${on ? 'bg-brand text-white border-transparent' : 'bg-paper text-ink-soft border-paper-line hover:border-brand/40'}">${label}</button>`;
+  };
+  const bar = el(`<div id="pacebar" class="mb-5 rounded-xl border border-paper-line bg-paper-card p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm" role="group" aria-label="Catch-up pace">
+    <span class="flex items-center gap-1.5 text-ink-soft shrink-0"><i data-lucide="gauge" class="w-4 h-4 text-brand-dark"></i>Catch-up pace</span>
+    <span class="flex gap-1.5 shrink-0">${opt('catch-up-first', 'Catch-up first')}${opt('mixed', 'Mixed')}</span>
+    <span class="pace-summary text-xs text-ink-soft min-w-0">${esc(summary)}</span>
+  </div>`);
+  bar.querySelectorAll('[data-pace]').forEach(b => {
+    b.onclick = () => {
+      if (b.dataset.pace === pace) return;
+      store.setCatchUpPace(active.id, b.dataset.pace);
+      invalidatePlan(active.id);
+      toast('Catch-up pace updated — track rescheduled', 'success');
+      navigate('calendar');
+    };
+  });
+  return bar;
+}
+
 function extraRow(x, active, navigate) {
   const d = getData();
   const meta = SUBJECTS[x.subject] || { color: '#6f665a', icon: 'plus' };
@@ -244,9 +298,9 @@ function extraRow(x, active, navigate) {
     <button class="del text-ink-faint hover:text-[#a4473a] p-1 shrink-0"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
   </div>`);
   row.querySelector('.go').onclick = () => {
-    if (x.kind === 'practice') { openDuePractice(); return; }
     const topic = x.topicId ? d.byId.get(x.topicId) : null;
     if (!topic) { toast('That topic is no longer in the curriculum', 'error'); return; }
+    if (x.kind === 'practice') { openTopicPractice(topic); return; }
     if (x.kind === 'lesson') openLesson(topic);
     else if (x.kind === 'retest') openMasteryTest(topic.subject, null, topic);
     else if (x.kind === 'challenge') openChallenge(topic);

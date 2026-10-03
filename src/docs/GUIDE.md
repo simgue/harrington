@@ -48,7 +48,9 @@ The parent's view of the day.
   [POC-SPINE.md](https://github.com/simgue/harrington/blob/main/docs/POC-SPINE.md). Topics already in progress and
   domains that have gone quiet come first. Your child picks one of each, here
   or in the child view, and the day's options and picks are saved. Very young
-  learners may get a gentle review day instead.
+  learners may get a gentle review day instead. On a rest day or during a
+  break there are no choices: the path says "Rest day" or "<Break> until
+  <date>" and names the next learning day.
 - **From the calendar.** Topics scheduled for today. Opening a lesson or a
   refresher quiz from here needs a local AI provider.
 - **Stepping stones next.** Unlocked, age-appropriate topics to try next.
@@ -129,15 +131,28 @@ A day-by-day plan from your start date, on the home days you choose.
 - **Home days and breaks.** Topics go on your home days (Monday to Friday
   unless you change them under **Home days & breaks**). Other days and the
   breaks you add are rest days: nothing is scheduled, and the plan picks up
-  after them.
-- **Month grid and day panel.** Each home day lists its topics.
+  after them. A rest day pauses the daily rhythm (no new topics, choices or
+  refreshers); its day panel says until when and names the next learning day.
+- **Month grid and day panel.** Each home day lists its topics, under "New
+  today" for today and "New on <weekday>" for any other day.
 - **Younger topics first.** Literacy and numeracy topics below your child's
-  age that are not mastered yet come first, each after what it builds on.
-  Placement marks what they already know.
+  age that are not mastered yet are catch-up topics, each placed after what
+  it builds on. Placement marks what they already know.
+- **Catch-up pace.** **Catch-up first** (the default) teaches every catch-up
+  topic before the first topic at your child's own age. **Mixed** alternates
+  two catch-up topics with one own-age topic, so own-age topics start in the
+  first week and catch-up takes longer. The calendar says what the current
+  pace means in weeks for your child. Switching pace reschedules topics only;
+  done days, moved topics and extras stay.
 - **Refreshers.** Refresher quizzes and activities come only from mastered
-  topics, so there are none until something is mastered.
+  topics, so there are none until something is mastered. The stretch
+  challenge only suggests topics whose prerequisites are mastered.
 - **Bend the plan.** **Mark done**, **move** a topic to the next home day or
-  any date, and **add extras** to any day.
+  any date, and **add extras** to any day. A day marked done that later
+  becomes a rest day keeps its check, and you can still reopen it.
+- **Extra practice.** An Extra practice item retries the questions your child
+  missed on that topic's tests. If none are due for it, it says so and offers
+  all due retries as a separate button.
 - Opening a lesson, test, challenge or recall review from a day needs a local
   AI provider; see the README.
 

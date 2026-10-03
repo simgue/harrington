@@ -77,7 +77,8 @@ export class MockAi {
 
 function areaFor(testInfo) {
   const file = basename(testInfo.file).replace(/\.spec\.mjs$/, '');
-  return file;
+  // A spec that also runs in the phone project keeps its phone shots apart.
+  return testInfo.project.name === 'mobile' && file !== 'mobile' ? `${file}-mobile` : file;
 }
 
 // Waits until the page stops changing so the same step gives the same image
