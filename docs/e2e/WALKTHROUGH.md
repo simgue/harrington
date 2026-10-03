@@ -111,7 +111,9 @@ Editing: the form opens filled in, a December birth month makes a 6-year-old
 5 on 7 October, the new name and month reach the server and show in the hero
 and the menu ("born December 2020").
 
-**Caveats.** The delete button is an unlabeled icon (F14).
+The remove button is named for the learner ("Remove learner Wren Example"),
+and on a phone the placement, edit and remove buttons are 44 px targets (F14,
+fixed).
 
 ---
 
@@ -176,7 +178,6 @@ interest chips (suggested and custom) and the note are saved per learner.
 - A 3-year-old gets no daily choices and no stepping stones, and the card
   says "Everything available is mastered" (F3).
 - The yellow banner says AI is "not connected yet" even when it is (F4).
-- "0 of 1590 topics" is not formatted like the map's "1,590" (F15).
 
 ---
 
@@ -221,11 +222,12 @@ is forgotten.
 "n/m" anywhere in the overlay, the topic card, a whole challenge or a recall
 session; no badge, level-up or XP popups; results (8/8, XP) are still saved
 for the parent. `#app` is `inert` and `aria-hidden` while it is open. Picks
-show on the dashboard. PIN: too short, mismatch, wrong PIN, Back, and the PIN
-saved to `settings.parentPin`. Beat the clock without a bloom shows "Grow a
+show on the dashboard. PIN: too short, mismatch, wrong PIN, Back, and only the PIN's
+salted hash saved to `settings`. Beat the clock without a bloom shows "Grow a
 bloom to unlock challenges!".
 
-**Caveats.** The PIN is stored and exported in plain text (F16). A
+Only a salted hash of the PIN is saved (`settings.parentPinHash` and
+`settings.parentPinSalt`), never the digits (F16, fixed). **Caveats.** A
 3-year-old's Plant something new says "Ask a grown-up to choose" (F3); for
 an older child it offers a topic already in progress (F18).
 
@@ -482,8 +484,8 @@ note-only discussion until the box is ticked; with learner names written into
 the note and the transcript, the mock provider receives "the child" and
 "the child's", and no learner's name.
 
-**Caveats.** Delete
-buttons are unlabeled icons (F14). Live transcription uses the browser's
+Delete buttons are named for the record or recording (F14, fixed).
+**Caveats.** Live transcription uses the browser's
 speech service and is not exercised by the suite.
 
 ---
@@ -577,8 +579,10 @@ success, 412 with the current document when stale, 403 for a cross-site
 write, `stateVersion`/`stateBytes` in health, and the unload beacon's POST
 (version in the body; 415 for `text/plain`, 403 cross-site, 412 stale).
 
-**Caveats.** Export and Import are not reachable on a phone (F6). The PIN
-travels in the export (F16). The losing tab first confirms the parent's
+The export holds the PIN only as a salted hash, and a plain PIN seeded in
+the family document is hashed on load (F16, fixed). On a phone, Export and
+Import are at the bottom of the learner selector (F6, fixed; see the mobile
+section). **Caveats.** The losing tab first confirms the parent's
 change, then discards it, and a tab's own boot write can lose too: the
 screenshot shows the conflict toast twice (F17).
 
@@ -667,9 +671,13 @@ scrolling sideways.
 dashboard, calendar, world map, skill tree, topic page, records, insights,
 list view, child view and quest log, with no console errors; the bottom tabs
 navigate and mark the current page; the top-bar guide and learner switcher
-open.
+open; Export downloads and Import opens the preview from the learner
+selector (F6); the learner row's buttons, Switch and Add, and the record,
+recording and calendar-extra delete buttons are at least 44 × 44 px, and at
+360 px the learner menu does not scroll sideways or cut a name off (F14); the
+"Include my notes" checkbox is at least 20 px with a 44 px label that ticks it.
 
-**Caveats.** No Export or Import on a phone (F6).
+![Learner selector with Export and Import](screenshots/mobile/13-learner-menu-family-data.jpg)
 
 ---
 

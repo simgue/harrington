@@ -16,7 +16,8 @@ accessibility.
 Some findings were fixed by pull requests that merged while the suite was
 being written: three from the first run, F7 and F10 (HAR-13, #18), F2
 (HAR-19, #24), F1 (HAR-20, #26), F5, F8 and F9 (HAR-18, #25), F11 (HAR-21,
-#23), and F19, a regression from a merge that #29 fixed within the hour. They are listed under
+#23), F19, a regression from a merge that #29 fixed within the hour, and
+F6, F14, F15 and F16 (findings bundle B, #38). They are listed under
 [Fixed since the audit](#fixed-since-the-audit); their entries below are kept
 so the numbers stay stable.
 
@@ -29,7 +30,7 @@ so the numbers stay stable.
 | F3 | A 3-year-old gets no daily choices and an "everything is mastered" message | Medium | `dashboard` | |
 | F4 | The preview banner says AI is not connected even when it is | Medium | `dashboard` | |
 | ~~F5~~ | ~~Day one offers a refresher quiz on a topic never taught~~ | Medium | `dashboard`, `calendar` | Fixed by HAR-18 (`428e9ea`) |
-| F6 | Export and Import are not reachable on a phone | Medium | `mobile` | |
+| ~~F6~~ | ~~Export and Import are not reachable on a phone~~ | Medium | `mobile` | Fixed by findings bundle B (#38) |
 | ~~F7~~ | ~~A failed "Generate a different version" leaves a spinner forever~~ | Medium | `topic` | Fixed by HAR-13 |
 | ~~F8~~ | ~~"Extra practice" on the calendar opens a lesson~~ | Medium | `calendar` | Fixed by HAR-18 (`428e9ea`) |
 | ~~F9~~ | ~~"Refreshers change each day automatically" is a button that does nothing~~ | Low | `calendar` | Fixed by HAR-18 (`428e9ea`) |
@@ -37,9 +38,9 @@ so the numbers stay stable.
 | ~~F11~~ | ~~Selecting a skill scrolls the page to the top~~ | Low | `map` | Fixed by HAR-21 (`68a94c9`) |
 | F12 | Recent growth lists topics set back to "Not started" | Low | `topic` | |
 | F13 | Notification bell has no accessible name | Low | `notifications` | |
-| F14 | Icon-only delete and remove buttons have no accessible name | Low | `learners`, `records`, `calendar` | |
-| F15 | Dashboard says "1590 topics" where the map says "1,590" | Low | `dashboard` | |
-| F16 | The child-view PIN is stored and exported in plain text | Low | `data-safety` | |
+| ~~F14~~ | ~~Icon-only delete and remove buttons have no accessible name~~ | Low | `learners`, `records`, `calendar`, `mobile` | Fixed by findings bundle B (#38) |
+| ~~F15~~ | ~~Dashboard says "1590 topics" where the map says "1,590"~~ | Low | `dashboard` | Fixed by findings bundle B (#38) |
+| ~~F16~~ | ~~The child-view PIN is stored and exported in plain text~~ | Low | `data-safety`, `child-view` | Fixed by findings bundle B (#38) |
 | F17 | A losing tab confirms a change, then discards it; a tab's own boot write can raise the conflict | Medium | `data-safety` | |
 | F18 | "Plant something new" in the child view offers a topic already in progress | Low | `child-view` | |
 | ~~F19~~ | ~~Without an AI provider the Calendar does not render (`gateAi is not defined`)~~ | High | `no-ai` | Fixed by #29 (`8665fdc`) |
@@ -146,13 +147,20 @@ marked (finding F5), now flipped.
 
 ## F6. Export and Import are not reachable on a phone
 
-**Medium.** HAR-10 put **Export** and **Import** in the desktop sidebar's
+**Fixed by findings bundle B (#38).** Below `lg`, Export and Import sit at
+the bottom of the learner selector (the round button in the top bar) and
+call the same download and the same preview and confirm as the sidebar.
+`mobile.spec.mjs` › "export and import from the learner menu on a phone (F6)"
+downloads the file, opens the import preview from it and checks that neither
+the menu nor the preview scrolls sideways.
+
+Original report: **Medium.** HAR-10 put **Export** and **Import** in the desktop sidebar's
 family box (`shell.js`, inside `aside.hidden.lg:flex`). Below the `lg`
 breakpoint the sidebar is hidden and the phone top bar has no equivalent, so
 a family using Harrington on a tablet or phone cannot back up or restore.
 
-Shown by `mobile.spec.mjs` › "export and import are not reachable on a phone
-(finding F6)".
+It was pinned by `mobile.spec.mjs` › "export and import are not reachable on a
+phone (finding F6)", now flipped as above.
 
 ## F7. A failed "Generate a different version" leaves a spinner forever
 
@@ -240,34 +248,66 @@ not \"Notifications\" (finding F13)".
 
 ## F14. Icon-only delete and remove buttons have no accessible name
 
-**Low.** The trash and x buttons for a learner (`shell.js:141`), a record
+**Fixed by findings bundle B (#38).** The buttons are named for what they
+act on: "Remove learner <name>", "Delete record <title>", "Delete recording
+<title>" and "Remove extra <title>". On a phone every one of them is at
+least 44 × 44 px: the learner row's placement, edit and remove buttons move
+to a labeled line of their own (24 px icons on a desktop, as before), Switch
+and Add are 44 px tall, the delete and remove buttons have a 44 px hit area
+around the same icon, and the HAR-19 "Include my notes" checkbox is 20 px in
+a 44 px label that ticks it. `learners`, `records` and `calendar` reach the
+buttons by name; `mobile.spec.mjs` measures the targets at 390 px and checks
+the learner menu at 360 px (no sideways scroll, no name cut off).
+
+Original report: **Low.** The trash and x buttons for a learner (`shell.js:141`), a record
 (`records.js:81`), a recording (`recordings.js:98`) and a calendar extra
 (`calendar.js:224`) contain only an icon. The specs have to reach them by
 position or class.
 
-Shown by `learners.spec.mjs` › "the learner delete button is icon-only with no
-accessible name (finding F14)".
+It was pinned by `learners.spec.mjs` › "the learner delete button is icon-only
+with no accessible name (finding F14)", now flipped.
 
 ## F15. Dashboard says "1590 topics" where the map says "1,590"
 
-**Low.** The dashboard hero prints `stats.total` raw (`dashboard.js:46`); the
+**Fixed by findings bundle B (#38).** `formatCount` and `countLabel`
+(`src/js/format.js`, `Intl.NumberFormat` and `Intl.PluralRules` for
+`en-US`, since all copy is American English) print the counts on the
+dashboard, the map, the topic page, the recordings folder, the import
+preview and the curriculum notice; the hero reads "0 of 1,590 topics
+mastered" and the map "Computing realm, 1 domain" (`dashboard.spec.mjs`,
+`map.spec.mjs`, `tests/format.test.mjs`).
+
+Original report: **Low.** The dashboard hero prints `stats.total` raw (`dashboard.js:46`); the
 map and the notification use `toLocaleString()`.
 
-Shown by `dashboard.spec.mjs` › "hero greeting and every dashboard section
-for a 6-year-old, refresher included (finding F5, finding F15)", which
-expects "0 of 1590 topics mastered".
+It was pinned by `dashboard.spec.mjs` › "hero greeting and every dashboard
+section…", which expected "0 of 1590 topics mastered"; now flipped.
 
 ## F16. The child-view PIN is stored and exported in plain text
 
-**Low.** HAR-15 keeps the parent PIN as `settings.parentPin` in the family
+**Fixed by findings bundle B (#38).** The family document keeps
+`settings.parentPinHash`, a SHA-256 of the PIN with `settings.parentPinSalt`,
+a random salt per family (a plain-JS SHA-256, which also works where a page
+served over plain http on the home network has no Web Crypto). A plain
+`parentPin` is hashed whenever a document is applied (load, a conflict
+reload, import) and again at export, so no save writes it back and no export
+carries one; a hash or salt that is not lowercase hex of the right length is
+dropped.
+`data-safety.spec.mjs` seeds a plain PIN and checks the export holds only the
+hash; `child-view.spec.mjs` checks a newly set PIN is saved hashed;
+`tests/pin.test.mjs` and `tests/family-data.test.mjs` cover the round trip
+and the migration. SECURITY and both guides say a 4-digit PIN is a gentle
+barrier, not a lock.
+
+Original report: **Low.** HAR-15 keeps the parent PIN as `settings.parentPin` in the family
 document. It is returned by `GET /api/state` and written into every
 **Export** file, so anyone who can open the export (or the data folder) can
 read it. The pull request calls the PIN a convenience rather than
 authentication, and reloading the page leaves the child view anyway, so this
 is a note for when authentication arrives rather than a defect today.
 
-Shown by `data-safety.spec.mjs` › "export downloads the whole family document
-as JSON, PIN included (finding F16)".
+It was pinned by `data-safety.spec.mjs` › "export downloads the whole family
+document as JSON, PIN included (finding F16)", now flipped.
 
 ## F17. A losing tab confirms a change, then discards it; a tab's own boot write can raise the conflict
 
@@ -348,7 +388,7 @@ The suite confirms these audit items now behave, and fails if they regress:
 | --- | --- | --- |
 | Removing a learner orphaned their tests, plan, game, etc. | HAR-10 clears every per-learner key | `data-safety` |
 | Two tabs silently overwrote each other | The losing tab reloads and says "Another device saved changes. Reloaded the latest." | `data-safety` |
-| No export or restore | Export and Import with a preview (desktop only, see F6) | `data-safety` |
+| No export or restore | Export and Import with a preview, on a phone from the learner selector (F6) | `data-safety`, `mobile` |
 | Recall grading dropped the card's `topicId`, so due cards could not load | Every graded card keeps its `topicId`; "Review" opens the due card | `topic` |
 | "Review answers → Back to result" re-saved the test and re-awarded XP | One test record per attempt | `topic` |
 | Escape on the recorder left the microphone running | Escape asks "Discard this recording?"; Cancel keeps the microphone track live, OK ends every track the recorder opened | `records` |
@@ -367,4 +407,8 @@ The suite confirms these audit items now behave, and fails if they regress:
 | Activity instructions failure reused the lesson's wording (F10) | HAR-13: chips with no provider; one set of messages (unreachable, timeout, provider error) everywhere | `no-ai`, `ai-unreachable` |
 | AI buttons failed with "Couldn't … right now" when no provider was set up | HAR-13: "Needs a local AI provider" chips linking to the README; the dashboard and child view hide what needs AI | `no-ai` |
 | The unlinked `#timeline` route | HAR-13 removed it; the URL now opens the dashboard | `map` |
+| Export and Import not reachable on a phone (F6) | Findings bundle B: in the learner selector below `lg` | `mobile` |
+| Icon-only buttons without a name (F14) | Findings bundle B: named for what they act on; 44 px targets on a phone | `learners`, `records`, `calendar`, `mobile` |
+| "1590 topics" on the dashboard (F15) | Findings bundle B: one count and plural formatter (`en-US`) | `dashboard` |
+| The PIN in plain text in the document and export (F16) | Findings bundle B: salted SHA-256 hash; plain PINs migrate on load and import | `data-safety`, `child-view` |
 | Typed answers graded by substring | Not reachable with the digital tests the mock returns; covered by `tests/grading.test.mjs` | unit |

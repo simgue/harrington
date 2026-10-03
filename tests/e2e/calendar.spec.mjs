@@ -161,9 +161,8 @@ test('add an extra of each kind, open one, remove one; Extra practice opens spac
   await expect(modal(page).getByText(/Lesson plan · /)).toHaveCount(0);
   await page.keyboard.press('Escape');
 
-  // Remove the re-test (the remove button is icon-only).
-  const retest = dayPanel(page).locator('div.rounded-xl', { hasText: `Re-test · ${TOPICS.oneToOne.name}` });
-  await retest.locator('button.del').click();
+  // Remove the re-test (F14: the icon-only button is named for the extra).
+  await dayPanel(page).getByRole('button', { name: `Remove extra Re-test · ${TOPICS.oneToOne.name}` }).click();
   await expect(dayPanel(page).getByText(`Re-test · ${TOPICS.oneToOne.name}`)).toHaveCount(0);
   await expect(dayCell(page, 7)).toContainText('+3');
   await api.waitForState((s) => s.plan?.[ROWAN]?.extras?.['2026-10-07']?.length === 3);

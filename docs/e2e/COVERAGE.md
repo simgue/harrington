@@ -27,7 +27,7 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 | Honest no-AI mode (HAR-13) | covered | `no-ai`, `ai-unreachable`, `topic` | No provider: every AI control on the topic page, quest log, calendar, insights and records is a "Needs a local AI provider" chip linking to `README.md#optional-local-model-ollama` (new tab, `rel="noopener"`); the dashboard hides the refresher and disables recall with an explanation; the child view hides Memory walk and Beat the clock with no provider wording. Provider down: controls stay, failures say "Harrington couldn’t reach the AI provider…" with Try again (helper, lesson, activity instructions). Provider error: lesson regenerate shows the error block and Try again recovers. Timeout and offline copy are not exercised (covered by `tests/ai-status.test.mjs`). |
 | Taxonomy fetch and cache | covered | `start-app.mjs`, `api` | The launcher fetches once (falling back from jsDelivr to GitHub raw) and seeds each data dir; `/api/health` reports `taxonomyCached: true`. Revalidation does not exist, so it is not tested. |
 | Persistence | partly covered | `data-safety`, `api`, every spec via `api.waitForState` | HAR-10 versioning: 428 without If-Match, 412 when stale, 403 cross-site, two-tab conflict reload with toast (F17). The unload beacon's server side over HTTP: JSON POST with `version` in the body → 204 and the state advances, stale → 412, no version → 428, `text/plain` → 415, cross-site → 403; malformed `If-Match` → 400. The browser actually sending a beacon on close mid-debounce is not exercised. |
-| Backup, export, restore | partly covered | `data-safety` | In-app Export (download, contents) and Import (invalid files), and a true round trip: the exported file is imported back (preview, cancel, confirm) and restores the same document. `npm run backup` (tar of the data dir) is not run by the suite. Not reachable on a phone (F6). PIN in the export (F16). |
+| Backup, export, restore | partly covered | `data-safety` | In-app Export (download, contents) and Import (invalid files), and a true round trip: the exported file is imported back (preview, cancel, confirm) and restores the same document. `npm run backup` (tar of the data dir) is not run by the suite. On a phone from the learner selector (`mobile`, F6 fixed). The PIN is exported only as a salted hash (F16 fixed). |
 | Authentication, TLS, LAN access | not covered | | Missing by design in the preview. |
 | Docker / Compose | not covered | | The suite runs `node server.mjs` directly; building the image is out of scope. |
 | CI | not covered (infrastructure) | `.github/workflows/e2e.yml` | No test exercises CI itself; this suite adds a workflow that runs it on pull requests and on `main`. The unit workflow is unchanged. |
@@ -110,7 +110,7 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 
 | Feature | Status | Spec | Notes |
 | --- | --- | --- | --- |
-| Dashboard | covered | `dashboard` | Every section listed in the audit, for ages 3, 6 and 9, with no console errors. Banner wording (F4), count formatting (F15). |
+| Dashboard | covered | `dashboard` | Every section listed in the audit, for ages 3, 6 and 9, with no console errors. Banner wording (F4); counts grouped like the map's "1,590" (F15 fixed). |
 | Insights: subject stats, recommended next | covered | `insights` | Subject chips, the four counts, recommendation opens its topic. |
 | Insights: progress review, final test, adaptive suggestions | covered with mock AI | `insights`, `no-ai` | Review generated; HAR-19: no learner name in the prompt, notes left out by default and sent (with names replaced) once the box is ticked (F2 fixed); final test locked and unlocked; suggestions approved and undone. |
 | Notifications bell | covered | `notifications` | Unread badge, mark all read, mark one read, empty state. Accessible name (F13). |
@@ -119,7 +119,7 @@ Specs live in `tests/e2e/`; "F" numbers point to [FINDINGS.md](FINDINGS.md).
 
 | Feature | Status | Spec | Notes |
 | --- | --- | --- | --- |
-| Child view | covered with mock AI | `child-view`, `walkthrough`, `mobile`, `no-ai` | HAR-15: no `%`, `XP`, `Level` or scores in the overlay or in the challenge, recall and topic card it opens, and no popups; results still saved for the parent; picks open the child topic card; set, confirm and enter the PIN (too short, mismatch, wrong PIN); parent shell inert while open. PIN in plain text (F16). "Plant something new" offers a topic in progress (F18). |
+| Child view | covered with mock AI | `child-view`, `walkthrough`, `mobile`, `no-ai` | HAR-15: no `%`, `XP`, `Level` or scores in the overlay or in the challenge, recall and topic card it opens, and no popups; results still saved for the parent; picks open the child topic card; set, confirm and enter the PIN (too short, mismatch, wrong PIN); parent shell inert while open. Only the PIN's salted hash is saved (F16 fixed). "Plant something new" offers a topic in progress (F18). |
 | XP, levels, 12 badges, confetti and sound | partly covered | `dashboard`, `child-view`, `topic` | Level card renders; a passed topic test unlocks "First Steps" with its popup in the parent view, and the child view shows no popups; the collection shows 10 badges (no level badges). Level-up and the sound are not asserted. |
 
 ## 4.11 Collaboration (retained, disabled)

@@ -28,6 +28,14 @@ your report and work on a fix as quickly as we reasonably can.
   Nicknames and other people's names in a transcript are sent as spoken, and
   names in scripts written without spaces (for example Chinese) are not matched
   when they run straight into other text. There are no shared-family features.
+- The child-view PIN is a gentle barrier, not a lock. Four digits are 10,000
+  guesses, and reloading the page always returns to the parent view. The
+  family document (and every export) keeps only a SHA-256 hash of the PIN
+  with a random per-family salt (`settings.parentPinHash` and
+  `settings.parentPinSalt`), never the digits. A plain `parentPin` from an
+  older document or export is hashed when it is loaded or imported. Anyone who
+  can read the data folder or an export can still recover a 4-digit PIN by
+  trying them all; the hash only keeps it out of plain sight.
 - Please never include real children's personal data in a report.
 
 Thank you for helping keep families using Harrington safe.

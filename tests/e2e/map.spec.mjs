@@ -15,8 +15,10 @@ test('world map shows eight realms; a realm opens its skill tree', async ({ page
   const realms = page.locator('g.world-realm');
   await expect(realms).toHaveCount(8);
   for (const subject of ['Mathematics', 'English', 'Science', 'History', 'Personal & Social Development', 'Life Skills', 'Computing', 'Learning to Learn']) {
-    await expect(page.getByRole('button', { name: new RegExp(`^${subject} realm, \\d+ domains$`) })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: new RegExp(`^${subject} realm, \\d+ domains?$`) })).toHaveCount(1);
   }
+  // One domain reads "1 domain", not "1 domains".
+  await expect(page.getByRole('button', { name: 'Computing realm, 1 domain', exact: true })).toHaveCount(1);
   await shot('world-map');
 
   // Keyboard: Enter on a realm opens it.
@@ -95,7 +97,7 @@ test('a locked skill explains its foundations and cannot be marked as learning',
   await locked.click();
   const log = questLog(page);
   await expect(log.getByText('Foundations needed', { exact: true })).toBeVisible();
-  await expect(log).toContainText('1 required skill still sit in front of this one');
+  await expect(log).toContainText('1 required skill still sits in front of this one');
   await expect(log.getByRole('button', { name: 'Not ready to mark as learning' })).toBeDisabled();
   await expect(log.getByText('Required foundations')).toBeVisible();
   // The blocking foundation is highlighted on the tree.
@@ -123,7 +125,7 @@ test('List view drills subject → domain → age band → topic and the choice 
   await group.getByRole('button', { name: 'List' }).click();
   await expect(group.getByRole('button', { name: 'List' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('heading', { name: 'Curriculum list' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /domains · \d+ topics/ })).toHaveCount(8);
+  await expect(page.getByRole('button', { name: /domains? · \d+ topics?/ })).toHaveCount(8);
   await shot('list-subjects');
 
   await page.getByRole('button', { name: /^Mathematics \d+ domains/ }).click();
