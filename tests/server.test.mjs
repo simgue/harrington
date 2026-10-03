@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
+import { isLoopbackAddress } from '../lib/loopback.mjs';
 import { AI_CAPABILITIES, parseCapabilities } from '../src/js/ai-capabilities.js';
 
 const repoRoot = new URL('..', import.meta.url);
@@ -463,7 +464,7 @@ async function spawnHarrington(extraEnv = {}, { dir: existingDir = null } = {}) 
     const timer = setTimeout(() => reject(new Error('AI test server did not start')), 5000);
     proc.stdout.on('data', (chunk) => {
       output += chunk.toString();
-      const match = output.match(/http:\/\/127\.0\.0\.1:(\d+)/);
+      const match = output.match(/listening at http:\/\/[^\s:]+:(\d+)/);
       if (match) {
         clearTimeout(timer);
         resolve(`http://127.0.0.1:${match[1]}`);
@@ -991,5 +992,77 @@ test('npm run backup leaves secrets.json out of the archive', async () => {
     assert.ok(!listing.some((name) => name.includes('secrets.json')), listing.join('\n'));
   } finally {
     await rm(work, { recursive: true, force: true });
+  }
+});
+
+test('isLoopbackAddress accepts only this computer', () => {
+  for (const address of ['127.0.0.1', '127.8.9.10', '::1', '0:0:0:0:0:0:0:1', '::ffff:127.0.0.1', '::FFFF:127.0.0.2']) {
+    assert.equal(isLoopbackAddress(address), true, address);
+  }
+  for (const address of ['192.168.1.20', '10.0.0.1', '100.64.0.7', '::ffff:192.168.1.20', 'fe80::1', '::', '0.0.0.0', '128.0.0.1', '', undefined, null, '127.0.0.1.evil']) {
+    assert.equal(isLoopbackAddress(address), false, String(address));
+  }
+});
+
+describe('AI provider settings from another device', { concurrency: false }, () => {
+  // Another device on the network: this computer's own non-loopback address.
+  const lanAddress = Object.values(networkInterfaces()).flat()
+    .find((entry) => entry && entry.family === 'IPv4' && !entry.internal)?.address;
+
+  test('without an access token, only this computer can change or test the provider', { skip: !lanAddress && 'no non-loopback IPv4 interface here' }, async () => {
+    const harrington = await spawnHarrington({ HARRINGTON_HOST: '0.0.0.0' });
+    const port = new URL(harrington.url).port;
+    const remote = `http://${lanAddress}:${port}`;
+    const local = `http://127.0.0.1:${port}`;
+    const put = (base, headers = {}) => fetch(`${base}/api/settings/ai`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ baseUrl: 'http://attacker.test/v1', model: 'm' }),
+    });
+    try {
+      // Reading stays allowed (it never carries the key) and says it is read-only here.
+      const view = await (await fetch(`${remote}/api/settings/ai`)).json();
+      assert.equal(view.canChange, false);
+
+      const LOCAL_ONLY = 'AI provider settings can only be changed from the computer running Harrington until an access token is set';
+      for (const response of [
+        await put(remote),
+        // A forged header changes nothing: the socket address decides.
+        await put(remote, { 'X-Forwarded-For': '127.0.0.1' }),
+        await fetch(`${remote}/api/settings/ai`, { method: 'DELETE' }),
+        await fetch(`${remote}/api/settings/ai/test`, { method: 'POST' }),
+      ]) {
+        assert.equal(response.status, 403);
+        assert.deepEqual(await response.json(), { error: LOCAL_ONLY });
+      }
+      await assert.rejects(stat(join(harrington.dir, 'secrets.json')), { code: 'ENOENT' });
+
+      // The same server, from this computer.
+      const saved = await put(local);
+      assert.equal(saved.status, 200);
+      assert.equal((await saved.json()).canChange, true);
+      assert.equal((await (await fetch(`${remote}/api/health`)).json()).aiConfigured, true);
+    } finally {
+      await harrington.stop();
+    }
+  });
+});
+
+// HAR-25 restructures /api/health; whatever its shape, a configured provider
+// must still show as aiConfigured, or every AI control quietly turns off.
+test('health reports aiConfigured, aiSource and aiCapabilities when a provider is configured', async () => {
+  const fromEnv = await spawnHarrington({ HARRINGTON_AI_BASE_URL: 'http://127.0.0.1:9/v1', HARRINGTON_AI_MODEL: 'm', HARRINGTON_AI_CAPABILITIES: 'lesson' });
+  try {
+    const health = await (await fetch(`${fromEnv.url}/api/health`)).json();
+    assert.equal(health.aiConfigured, true);
+    assert.equal(health.aiSource, 'env');
+    assert.deepEqual(health.aiCapabilities, ['lesson']);
+
+    await fetch(`${fromEnv.url}/api/settings/ai`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseUrl: 'http://127.0.0.1:8/v1', model: 'n' }) });
+    const after = await (await fetch(`${fromEnv.url}/api/health`)).json();
+    assert.equal(after.aiConfigured, true);
+    assert.equal(after.aiSource, 'app');
+  } finally {
+    await fromEnv.stop();
   }
 });

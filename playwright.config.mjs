@@ -9,7 +9,7 @@
 //   app without AI    -> 4313   node server.mjs, no provider (fail-closed)
 //   AI unreachable    -> 4314   provider configured, nothing listening there
 //   lessons only      -> 4315   AI pointed at the mock, HARRINGTON_AI_CAPABILITIES=lesson
-//   settings          -> 4316   no AI in the environment; set in the app instead
+//   settings          -> 4317   no AI in the environment; set in the app instead
 // Each app gets a fresh temporary HARRINGTON_DATA_DIR. Tests share one server
 // per project and reset the family state before each test, so they run serially.
 // Servers are never reused: a Harrington already listening on these ports could

@@ -20,7 +20,9 @@ tagged a release yet; everything below is on `main`.
   The key stays on the server in `secrets.json` (owner-only), is never sent
   back to the page (only its last four characters), and is left out of
   export and `npm run backup`. Values saved in the app win over the
-  `HARRINGTON_AI_*` environment, and `/api/health` reports `aiSource` (HAR-26).
+  `HARRINGTON_AI_*` environment, and `/api/health` reports `aiSource`. Until
+  an access token is set, only the computer running Harrington can change or
+  test them (HAR-26).
 - Calendar follows the family's home days and breaks (set under Home days &
   breaks); rest days schedule nothing. Unmastered literacy and numeracy topics
   below the learner's age come first, after their prerequisites. Refreshers

@@ -41,12 +41,14 @@ from `tests/e2e/support/env.mjs`:
 
 | Port | Server | Used by |
 | --- | --- | --- |
-| 4311 | `tests/e2e/mock-ai-server.mjs`, an OpenAI-compatible `/v1/chat/completions` | the apps on 4312 and 4315, and 4316 once its spec saves it |
+| 4311 | `tests/e2e/mock-ai-server.mjs`, an OpenAI-compatible `/v1/chat/completions` | the apps on 4312 and 4315, and 4317 once its spec saves it |
 | 4312 | `node server.mjs` with `HARRINGTON_AI_BASE_URL=http://127.0.0.1:4311/v1` and `HARRINGTON_AI_MODEL=mock` | `api`, `desktop`, `mobile`, `walkthrough`, `walkthrough-mobile` |
 | 4313 | `node server.mjs` with no AI provider | `no-ai` |
 | 4314 | `node server.mjs` with `HARRINGTON_AI_BASE_URL=http://127.0.0.1:4319/v1`, where nothing listens | `ai-unreachable` |
 | 4315 | `node server.mjs` with AI pointed at the mock and `HARRINGTON_AI_CAPABILITIES=lesson` | `lessons-only` |
-| 4316 | `node server.mjs` with no AI in the environment; the spec sets the mock as provider under Settings > AI provider | `settings` |
+| 4317 | `node server.mjs` with no AI in the environment; the spec sets the mock as provider under Settings > AI provider | `settings` |
+
+Ports 4315 (`lessons-only`, HAR-26) and 4316 (HAR-25's multi-device app) are taken; the settings app uses 4317.
 
 Port 4319 must stay free: `globalSetup` stops the run if anything answers
 there.

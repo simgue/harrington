@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   MAX_TIMEOUT_MS, chatCompletion, knownCapabilities, readStoredAiSettings, resolveAiSettings, validTimeout,
 } from './lib/ai-provider.mjs';
+import { isLoopbackAddress } from './lib/loopback.mjs';
 import { AI_CAPABILITIES, capabilityOffMessage, parseCapabilities } from './src/js/ai-capabilities.js';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
@@ -348,28 +349,48 @@ function refuseCrossSite(req, res, { json = false } = {}) {
   return false;
 }
 
+// Whether /api/* requires an access token. Nothing does yet; HAR-25 brings
+// the token gate, and this returns its flag once that lands.
+function accessTokenEnabled() {
+  return false;
+}
+
+// Repointing the provider would send it every later prompt, so without an
+// access token only the computer running Harrington may change it (or run
+// the connection test). The socket address decides; X-Forwarded-For does not.
+const LOCAL_ONLY = 'AI provider settings can only be changed from the computer running Harrington until an access token is set';
+function canChangeAiSettings(req) {
+  return accessTokenEnabled() || isLoopbackAddress(req.socket.remoteAddress);
+}
+function refuseRemote(req, res) {
+  if (canChangeAiSettings(req)) return false;
+  sendJson(res, 403, { error: LOCAL_ONLY });
+  return true;
+}
+
 async function handleAiSettings(req, res, url) {
+  const view = async () => ({ ...publicAiSettings(await aiSettings()), canChange: canChangeAiSettings(req) });
   if (url.pathname === '/api/settings/ai/test') {
     if (req.method !== 'POST') return false;
-    if (refuseCrossSite(req, res)) return true;
+    if (refuseRemote(req, res) || refuseCrossSite(req, res)) return true;
     sendJson(res, 200, await testAiConnection());
     return true;
   }
   if (req.method === 'GET') {
-    sendJson(res, 200, publicAiSettings(await aiSettings()));
+    sendJson(res, 200, await view());
     return true;
   }
   if (req.method === 'PUT') {
-    if (refuseCrossSite(req, res, { json: true })) return true;
+    if (refuseRemote(req, res) || refuseCrossSite(req, res, { json: true })) return true;
     const body = await readJson(req);
     await enqueueWrite(secretsFile, async () => writeStoredAi(applyAiSettings(await readStoredAiSettings(secretsFile, warnSecrets), body)));
-    sendJson(res, 200, publicAiSettings(await aiSettings()));
+    sendJson(res, 200, await view());
     return true;
   }
   if (req.method === 'DELETE') {
-    if (refuseCrossSite(req, res)) return true;
+    if (refuseRemote(req, res) || refuseCrossSite(req, res)) return true;
     await enqueueWrite(secretsFile, () => unlink(secretsFile).catch((error) => { if (error.code !== 'ENOENT') throw error; }));
-    sendJson(res, 200, publicAiSettings(await aiSettings()));
+    sendJson(res, 200, await view());
     return true;
   }
   return false;

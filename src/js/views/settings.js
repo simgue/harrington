@@ -127,6 +127,11 @@ function settingsForm(s) {
   </form>`);
 
   form.querySelector('#status').replaceWith(statusCard(s));
+  // Without an access token, only the computer running Harrington may change these.
+  if (s.canChange === false) {
+    form.querySelector('#test-result').before(el(`<p class="text-sm text-[#a4473a]">AI provider settings can only be changed from the computer running Harrington until an access token is set.</p>`));
+    form.querySelectorAll('input, button').forEach((node) => { node.disabled = true; });
+  }
   const input = (name) => form.querySelector(`[name="${name}"]`);
   input('baseUrl').value = values.baseUrl || '';
   input('model').value = values.model || '';
@@ -209,8 +214,8 @@ function settingsForm(s) {
     result.replaceChildren(el(`<p class="text-sm text-ink-soft flex items-center gap-2"><span class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></span>Testing the saved settings…</p>`));
     try {
       lastTest = await backend.testAiSettings();
-    } catch {
-      lastTest = { ok: false, error: 'offline' };
+    } catch (err) {
+      lastTest = err?.status === 403 ? { ok: false, error: 'refused', message: err.message } : { ok: false, error: 'offline' };
     }
     btn.disabled = false;
     result.replaceChildren(testLine(lastTest));
@@ -235,7 +240,7 @@ async function run(form, action, done) {
     await syncHealth();
   } catch (err) {
     buttons.forEach((b) => { b.disabled = false; });
-    toast(err?.status === 400 ? err.message : 'Couldn’t save the AI settings. Check that Harrington is still running.', 'error');
+    toast(err?.status === 400 || err?.status === 403 ? err.message : 'Couldn’t save the AI settings. Check that Harrington is still running.', 'error');
   }
 }
 
@@ -248,6 +253,7 @@ function testLine(t) {
     return el(`<p class="text-sm text-brand-dark flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-4 h-4"></i>Connected. The provider answered in ${(t.latencyMs / 1000).toFixed(1)} s.</p>`);
   }
   let why;
+  if (t.error === 'refused') return el(`<p class="text-sm text-[#a4473a]">${esc(t.message)}</p>`);
   if (t.error === 'not configured') why = 'save a base URL and a model first.';
   else if (t.error === 'offline') why = 'Harrington’s server didn’t answer.';
   else if (t.error === 'timed out') why = 'the provider took too long to answer. A local model may still be loading; try again in a minute.';

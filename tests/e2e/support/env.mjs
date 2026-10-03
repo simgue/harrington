@@ -11,7 +11,8 @@ export const PORTS = {
   // AI pointed at the mock, with HARRINGTON_AI_CAPABILITIES=lesson (HAR-26).
   appLessonsOnly: base + 5,
   // No AI in the environment: the settings spec sets the provider in the app.
-  appSettings: base + 6,
+  // (base + 6 is HAR-25's multi-device app.)
+  appSettings: base + 7,
   // Nothing ever listens here: the app on appAiUnreachable points its AI
   // provider at this port to exercise "couldn't reach the AI provider".
   deadAi: base + 9,

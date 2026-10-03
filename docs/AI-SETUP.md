@@ -99,7 +99,15 @@ soon as you save. **Remove saved settings** forgets everything saved here.
 readable by its owner only. It is never sent back to the page: the form shows
 "Saved, ends in …abcd" and offers Replace and Remove. It is not part of
 Export, and `npm run backup` leaves that file out, so a backup copied
-elsewhere never carries the key; enter it again after a restore.
+elsewhere never carries the key; enter it again after a restore. A backup of
+the Docker named volume (`harrington-data`) is a copy of the whole data
+directory, so it does include `secrets.json`: keep such a copy as private as
+the key itself.
+
+Until an access token protects Harrington, these settings can only be changed
+(and tested) from the computer running it; other devices can read the page but
+not save. Anything else could repoint the provider and receive every later
+prompt.
 
 ### Or with environment variables (Docker and Compose)
 
