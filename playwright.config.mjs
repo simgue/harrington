@@ -98,7 +98,7 @@ export default defineConfig({
       testIgnore: SPECIAL,
       use: { ...desktop, baseURL: URLS.appAi },
     },
-    { name: 'no-ai', testMatch: /(^|[\\/])no-ai\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appNoAi } },
+    { name: 'no-ai', testMatch: /(^|[\\/])(no-ai|routes)\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appNoAi } },
     { name: 'ai-unreachable', testMatch: /(^|[\\/])ai-unreachable\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appAiUnreachable } },
     { name: 'mobile', testMatch: /(^|[\\/])mobile\.spec\.mjs$/, use: { ...mobile, baseURL: URLS.appAi } },
     {

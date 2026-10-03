@@ -12,6 +12,7 @@
     "build:css": "tailwindcss -c tailwind.config.cjs -i src/css/tailwind-input.css -o src/css/tailwind.css --minify",
     "build:assets": "node scripts/build-assets.mjs",
     "test": "npm run build && node --test tests/*.test.mjs",
+    "check": "node --test tests/dead-code.test.mjs tests/copy.test.mjs tests/ai-status*.test.mjs",
     "e2e": "node tests/e2e/run.mjs",
     "e2e:ui-docs": "node tests/e2e/run.mjs --refresh-docs",
     "e2e:mock-ai": "node tests/e2e/mock-ai-server.mjs"

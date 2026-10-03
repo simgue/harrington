@@ -75,7 +75,7 @@ yourself to force one.
 | --- | --- | --- | --- |
 | `api` | none | `api.spec.mjs` | HTTP only, against both app servers |
 | `desktop` | 1280×900 | every other `*.spec.mjs` | AI pointed at the mock |
-| `no-ai` | 1280×900 | `no-ai.spec.mjs` | no provider: HAR-13's "Needs a local AI provider" chips |
+| `no-ai` | 1280×900 | `no-ai.spec.mjs`, `routes.spec.mjs` | no provider: HAR-13's "Needs a local AI provider" chips, and the route smoke without a provider |
 | `ai-unreachable` | 1280×900 | `ai-unreachable.spec.mjs` | a provider that is down: the "couldn't reach" copy and Try again |
 | `mobile` | 390×844, touch | `mobile.spec.mjs` | asserts no horizontal overflow on every route |
 | `walkthrough` | 1280×900 | `walkthrough.spec.mjs` | video on: parent and child walkthroughs |
