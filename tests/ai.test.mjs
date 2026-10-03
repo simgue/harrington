@@ -115,7 +115,9 @@ test(`no prompt function sends a learner name, with "${LEARNER}" in state`, asyn
       assert.ok(sent.length > 0, `${name} sent nothing to backend.chat`);
       assert.doesNotMatch(outgoing(), LEAK, `${name} sent a learner name`);
       assert.doesNotMatch(outgoing(), /\bSample\b/, `${name} sent a sibling's name`);
-      assert.ok(sent.every((body) => Object.keys(body).join() === 'messages'), `${name} sent more than the messages`);
+      // Besides the messages, only the notes opt-in, and only as true.
+      assert.ok(sent.every((body) => Object.keys(body).join() === 'messages'
+        || (Object.keys(body).join() === 'messages,includeNotes' && body.includeNotes === true)), `${name} sent more than the messages`);
     }
   }
 });
@@ -158,6 +160,18 @@ test('progress review summarizes records as counts and topic names unless opted 
   assert.match(shared, /The parent chose to share these notes/);
   assert.match(shared, new RegExp(`${NOTE_MARKER}: the child counted past five`));
   assert.doesNotMatch(shared, LEAK);
+});
+
+test('the notes opt-in reaches the server only when the parent ticked it', async () => {
+  sent.length = 0;
+  await ai.aiDiscussionAnalysis({ age: 6, topic, transcript, note, includeNotes: false });
+  await ai.aiFeedback({ age: 6, subject: 'Mathematics', stats, recentTopics: [], records, includeNotes: false });
+  await ai.aiExplain(topic);
+  assert.ok(sent.every((body) => !('includeNotes' in body)));
+  sent.length = 0;
+  await ai.aiDiscussionAnalysis({ age: 6, topic, transcript, note, includeNotes: true });
+  await ai.aiFeedback({ age: 6, subject: 'Mathematics', stats, recentTopics: [], records, includeNotes: true });
+  assert.deepEqual(sent.map((body) => body.includeNotes), [true, true]);
 });
 
 test('redactNames replaces whole names, possessives and any case', () => {

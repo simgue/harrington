@@ -82,11 +82,13 @@ export async function deleteAudio(name) {
 }
 
 // The server always uses its configured HARRINGTON_AI_MODEL.
-export async function chat(messages) {
+// includeNotes: the parent ticked "Include my notes in this request"; without
+// it the server removes any stored parent note from the messages.
+export async function chat(messages, { includeNotes = false } = {}) {
   const response = await request('/api/ai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify(includeNotes ? { messages, includeNotes: true } : { messages }),
   });
   return response.json();
 }

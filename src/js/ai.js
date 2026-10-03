@@ -105,8 +105,8 @@ Return ONLY valid JSON (no markdown, no commentary) matching exactly this shape:
 Make "teach" have 3-5 steps. Keep language warm, concrete and age-appropriate. Use real, specific examples (numbers, words, objects) rather than generic filler. The parentTips must be specific to THIS topic, not generic teaching advice.`;
 }
 
-async function ask(prompt) {
-  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }]);
+async function ask(prompt, { includeNotes = false } = {}) {
+  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }], { includeNotes });
   const text = res?.content || res?.text || String(res);
   return toHtml(text);
 }
@@ -461,7 +461,7 @@ If the transcript is too short or unclear to judge, say so honestly and suggest 
 }
 
 export function aiDiscussionAnalysis(opts) {
-  return ask(buildDiscussionPrompt(opts));
+  return ask(buildDiscussionPrompt(opts), { includeNotes: !!opts.includeNotes });
 }
 
 // Teacher feedback based on a student's real progress + records. Records go
@@ -499,5 +499,5 @@ Keep the whole thing under 220 words, encouraging and jargon-free.`;
 }
 
 export function aiFeedback(opts) {
-  return ask(buildFeedbackPrompt(opts));
+  return ask(buildFeedbackPrompt(opts), { includeNotes: !!opts.includeNotes });
 }

@@ -297,33 +297,75 @@ function completionContent(payload) {
   return content == null ? '' : String(content);
 }
 
-// Defense in depth: the browser already redacts learner names from the text
-// it puts in a prompt (src/js/ai.js); the server replaces every learner name
-// in the family document with "the child" in every message string as well,
-// with the same matching rules (src/js/redact.js).
-async function learnerNames() {
-  const { students } = await readStateDocument();
-  return (Array.isArray(students) ? students : []).map((s) => s?.name).filter((n) => typeof n === 'string' && n.trim());
+// ---- What reaches the AI provider ----
+// The browser builds prompts without learner names and leaves parent notes
+// out unless the parent opts in (src/js/ai.js). The server checks both again
+// before anything leaves the machine: every learner name in the family
+// document becomes "the child" (same rules, src/js/redact.js), and stored
+// parent notes are removed unless the request says the parent opted in.
+
+const AI_ROLES = new Set(['system', 'user', 'assistant']);
+const NOTE_REMOVED = '[note removed]';
+// A whole note is matched from this length; any note line from NOTE_LINE_MIN.
+const NOTE_MIN = 8;
+const NOTE_LINE_MIN = 20;
+
+// Only { role, content } with string content is forwarded. The app never
+// sends anything else, so an object or array content, or tool_calls, is a 400.
+function forwardableMessages(messages) {
+  return messages.map((message, i) => {
+    const fail = (why) => { throw Object.assign(new Error(`Message ${i + 1} ${why}`), { statusCode: 400 }); };
+    if (!message || typeof message !== 'object' || Array.isArray(message)) fail('is not an object');
+    if ('tool_calls' in message) fail('has tool_calls, which Harrington does not send');
+    if (!AI_ROLES.has(message.role)) fail('has a role other than system, user or assistant');
+    if (typeof message.content !== 'string') fail('content must be a string');
+    return { role: message.role, content: message.content };
+  });
 }
 
-function redactMessages(messages, names) {
-  if (!names.length) return messages;
-  const redact = (text) => redactNames(text, names);
-  return messages.map((message) => {
-    if (!message || typeof message !== 'object' || Array.isArray(message)) return message;
-    const { content } = message;
-    if (typeof content === 'string') return { ...message, content: redact(content) };
-    if (Array.isArray(content)) {
-      return {
-        ...message,
-        content: content.map((part) => {
-          if (typeof part === 'string') return redact(part);
-          if (part && typeof part.text === 'string') return { ...part, text: redact(part.text) };
-          return part;
-        }),
-      };
+function storedLearners(doc) {
+  const students = Array.isArray(doc.students) ? doc.students : [];
+  return students.map((s) => s?.name).filter((n) => typeof n === 'string' && n.trim());
+}
+
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Patterns for every stored parent note: the whole note (as the browser would
+// send it, names already redacted) and each line of NOTE_LINE_MIN characters
+// or more, with any run of whitespace matching any other. Longest first.
+function notePatterns(doc, names) {
+  const pieces = new Set();
+  const records = doc.records && typeof doc.records === 'object' ? doc.records : {};
+  for (const list of Object.values(records)) {
+    for (const record of Array.isArray(list) ? list : []) {
+      if (typeof record?.note !== 'string') continue;
+      const note = redactNames(record.note, names).trim();
+      if (note.length >= NOTE_MIN) pieces.add(note);
+      for (const line of note.split('\n')) {
+        if (line.trim().length >= NOTE_LINE_MIN) pieces.add(line.trim());
+      }
     }
-    return message;
+  }
+  return [...pieces]
+    .sort((a, b) => b.length - a.length)
+    .map((piece) => new RegExp(piece.split(/\s+/).map(escapeRegExp).join('\\s+'), 'g'));
+}
+
+// Whether the parent opted in to sending notes with this request.
+// When PR #37 lands: `&& body.capability === 'analysis'`.
+function notesAllowed(body) {
+  return body.includeNotes === true;
+}
+
+async function guardMessages(body) {
+  const messages = forwardableMessages(body.messages);
+  const doc = await readStateDocument();
+  const names = storedLearners(doc);
+  const notes = notesAllowed(body) ? [] : notePatterns(doc, names);
+  return messages.map(({ role, content }) => {
+    let text = names.length ? redactNames(content, names) : content;
+    for (const pattern of notes) text = text.replace(pattern, NOTE_REMOVED);
+    return { role, content: text };
   });
 }
 
@@ -339,7 +381,7 @@ async function handleAiChat(req, res) {
     throw Object.assign(new Error('Request body must include a messages array'), { statusCode: 400 });
   }
 
-  const messages = redactMessages(body.messages, await learnerNames());
+  const messages = await guardMessages(body);
 
   const headers = { 'Content-Type': 'application/json' };
   if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
