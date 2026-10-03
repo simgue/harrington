@@ -129,10 +129,12 @@ It was pinned by `dashboard.spec.mjs` (finding F3), now flipped. Screenshot: `sc
 ## F4. The preview banner says AI is not connected even when it is
 
 **Fixed by e2e findings batch A.** The banner reads `store.aiAvailable()`
-(from `/api/health`): "Local AI provider connected" or "No AI provider;
-everything else works". `dashboard.spec.mjs` › "the preview banner says the
-AI provider is connected… (F4, fixed)" and the no-provider line in
-`no-ai.spec.mjs`.
+(from `/api/health`): "AI provider set up" or "No AI provider set up;
+everything else works". A configured provider can still be unreachable, so
+it never says "connected"; the per-feature chips carry the rest.
+`dashboard.spec.mjs` › "the preview banner says an AI provider is set up…
+(F4, fixed)", the no-provider line in `no-ai.spec.mjs` and the
+`ai-unreachable.spec.mjs` check that it never says "connected".
 
 Original report: **Medium.** The shell banner (`shell.js:96`) always reads "AI and
 shared-family features are not connected yet", even when `/api/health`
@@ -296,12 +298,15 @@ tab's state (`diffDocuments`), reloads once and emits one `conflict` event
 listing what was discarded. The shell shows one toast naming it ("Not kept
 here: How Many in Total? marked practicing.") with **Try again** when the
 change can simply be applied again (status changes, added records and
-notes). The tab's own boot writes (curriculum snapshot, welcome or
-curriculum notification) are put back only where the fresh document lacks
-them, silently, so two tabs opened together no longer conflict.
-`data-safety.spec.mjs` › "two tabs: the losing tab says which change it
-discarded, once, and Try again re-applies it (F17, fixed)"; unit tests in
-`store-conflict.test.mjs`.
+notes); the toast names up to three changes, then "and N more". Empty
+containers created on read (such as `recall[learner]`) are not changes, and
+changes for a learner removed elsewhere are not re-applied. The tab's own
+bookkeeping (curriculum snapshot, welcome or curriculum notification, and a
+day's daily offers written while rendering) is put back only where the
+fresh document lacks it, silently, so two tabs opened together no longer
+conflict. `data-safety.spec.mjs` › "two tabs: the losing tab says which
+change it discarded…", "…from the dashboard…" and "two tabs opened together
+on the dashboard…" (F17, fixed); unit tests in `store-conflict.test.mjs`.
 
 Original report: **Medium.** Two problems around HAR-10's conflict reload, both visible in
 `screenshots/data-safety/03-conflict-toast.jpg`, where the losing tab shows
@@ -397,7 +402,7 @@ The suite confirms these audit items now behave, and fails if they regress:
 | No calendar without a provider after a merge (F19) | #29 restored the import | `no-ai` |
 | Discussion analysis and progress review sent the learner's name (F2) | HAR-19: names become "the child" before sending; notes need an opt-in | `records`, `insights` |
 | A 3-year-old had no daily choices and "everything is mastered" (F3) | Batch A: the youngest band is offered; the mastered copy only when true | `dashboard` |
-| The banner said AI was not connected when it was (F4) | Batch A: reads `/api/health` | `dashboard`, `no-ai` |
+| The banner said AI was not connected when it was (F4) | Batch A: reads `/api/health`; says "set up", never "connected" | `dashboard`, `no-ai`, `ai-unreachable` |
 | Recent growth listed topics set back to "Not started" (F12) | Batch A: dropped | `topic` |
 | A losing tab confirmed, then silently discarded a change; boot writes raised conflicts (F17) | Batch A: one toast naming the discarded change, with Try again; boot writes never conflict | `data-safety` |
 | "Plant something new" offered the topic in progress (F18) | Batch A: a topic not yet started, or "Keep growing" when nothing else is open | `child-view` |

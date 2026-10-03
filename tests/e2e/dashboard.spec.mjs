@@ -183,11 +183,11 @@ test('a 9-year-old sees older material and the same layout', async ({ page, goto
   await shot('dashboard-nine-year-old', { full: false });
 });
 
-test('the preview banner says the AI provider is connected when /api/health says so (F4, fixed)', async ({ page, request, gotoApp }) => {
+test('the preview banner says an AI provider is set up when /api/health says so (F4, fixed)', async ({ page, request, gotoApp }) => {
   await gotoApp({ seed: {} });
   expect((await (await request.get('/api/health')).json()).aiConfigured).toBe(true);
-  await expect(page.getByText('Self-hosted preview · family data stays on this server · Local AI provider connected')).toBeVisible();
-  await expect(page.getByText(/not connected yet/)).toHaveCount(0);
+  await expect(page.getByText('Self-hosted preview · family data stays on this server · AI provider set up')).toBeVisible();
+  await expect(page.getByText(/connected/)).toHaveCount(0);
 });
 
 test('HAR-17: a pick offers Note and Voice; the coverage claim is off by default; only a claimed record shows "Evidence recorded"', async ({ page, api, gotoApp, shot }) => {

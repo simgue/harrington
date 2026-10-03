@@ -93,8 +93,9 @@ export function renderShell({ route, navigate, content }) {
   const main = el(`<div class="flex-1 min-w-0 flex flex-col"></div>`);
   main.appendChild(top);
   const scroll = el(`<div class="flex-1 pb-24 lg:pb-0"></div>`);
-  // Reads the provider status from /api/health (store.aiAvailable), so it never claims what isn't so.
-  const aiLine = store.aiAvailable() ? 'Local AI provider connected' : 'No AI provider; everything else works';
+  // From /api/health (store.aiAvailable): a provider is configured, not
+  // necessarily reachable, so the banner says "set up", never "connected".
+  const aiLine = store.aiAvailable() ? 'AI provider set up' : 'No AI provider set up; everything else works';
   scroll.appendChild(el(`<div class="bg-butter-light px-4 py-2 text-center text-xs text-[#6b4d0e]">
     Self-hosted preview · family data stays on this server · ${aiLine}
   </div>`));
@@ -378,7 +379,7 @@ function showConflict({ discarded = [], retry = null } = {}) {
   const close = () => { node.remove(); if (conflictToast === node) conflictToast = null; };
   node.querySelector('button')?.addEventListener('click', () => { close(); retry(); });
   root.appendChild(node);
-  setTimeout(close, retry ? 12000 : 4000);
+  setTimeout(close, 12000);
 }
 
 function showTooLarge() {

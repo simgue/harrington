@@ -125,6 +125,47 @@ test('two tabs: the losing tab says which change it discarded, once, and Try aga
   await other.close();
 });
 
+test('two tabs: a losing tab that started on the dashboard still offers Try again (F17, fixed)', async ({ page, context, api, gotoApp }) => {
+  await gotoApp({ seed: {}, hash: `topic/${TOPICS.oneToOne.id}` });
+  const other = await context.newPage();
+  await other.clock.setFixedTime(FIXED_NOW);
+  // The dashboard creates empty per-learner containers on read (recall, daily
+  // offers); none of that may cost the parent their Try again.
+  await other.goto('/');
+  await expect(other.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
+  await api.waitForState((s) => !!s.daily?.[ROWAN]);
+
+  await setTopicStatus(page, 'Learning');
+  await api.waitForState((s) => s.progress?.[ROWAN]?.[TOPICS.oneToOne.id]?.status === 'learning');
+
+  await other.evaluate((id) => { location.hash = `#topic/${id}`; }, TOPICS.howMany.id);
+  await expect(other.getByRole('heading', { level: 1, name: TOPICS.howMany.name })).toBeVisible();
+  await setTopicStatus(other, 'Practicing');
+  const conflict = other.locator('#toast-root').getByRole('alert').filter({ hasText: 'Another device saved changes first' });
+  await expect(conflict).toHaveText(/Not kept here: How Many in Total\? marked practicing\./);
+  await expect(conflict).not.toContainText('other changes');
+  await conflict.getByRole('button', { name: 'Try again' }).click();
+  const state = await api.waitForState((s) => s.progress?.[ROWAN]?.[TOPICS.howMany.id]?.status === 'practicing');
+  expect(state.progress[ROWAN][TOPICS.oneToOne.id].status).toBe('learning');
+  await other.close();
+});
+
+test('two tabs opened together on the dashboard raise no conflict (F17, fixed)', async ({ page, context, api }) => {
+  const other = await context.newPage();
+  await other.clock.setFixedTime(FIXED_NOW);
+  // Both tabs write today's offers (and, until HAR-27, the curriculum snapshot
+  // and welcome note) as they render; whichever loses says nothing.
+  await api.seed({});
+  await Promise.all([page.goto('/'), other.goto('/')]);
+  await expect(other.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
+  await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
+  await api.waitForState((s) => !!s.daily?.[ROWAN] && !!s.curriculumSnapshot);
+  // Give a losing boot write time to come back as a 412 before checking.
+  await other.waitForTimeout(1500);
+  for (const tab of [page, other]) await expect(tab.locator('#toast-root').getByText(/Another device saved/)).toHaveCount(0);
+  await other.close();
+});
+
 test('removing a learner now clears all of their data', async ({ page, api, gotoApp }) => {
   const wren = LEARNERS.wren.id;
   await gotoApp({

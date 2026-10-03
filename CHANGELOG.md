@@ -72,9 +72,11 @@ tagged a release yet; everything below is on `main`.
   one toast naming what it did not keep (a status change, a record, a note),
   with "Try again" when the change can be applied again on the fresh copy.
   A tab's own boot writes (curriculum snapshot, welcome notification) no
-  longer raise a conflict with a sibling tab (e2e finding F17).
-- The preview banner reads the provider status from `/api/health`: "Local AI
-  provider connected" or "No AI provider; everything else works" (F4).
+  longer raise a conflict with a sibling tab, nor do daily offers written
+  while rendering (e2e finding F17).
+- The preview banner reads the provider status from `/api/health`: "AI
+  provider set up" or "No AI provider set up; everything else works". It
+  never says "connected", since a configured provider can be unreachable (F4).
 - A learner younger than the taxonomy's youngest band (a 3-year-old) gets
   that band's daily choices and stepping stones, and "Everything available
   is mastered" shows only when it is true (F3).
