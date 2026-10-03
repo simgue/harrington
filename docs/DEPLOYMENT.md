@@ -12,7 +12,7 @@ unless a step says otherwise.
   `HARRINGTON_DATA_DIR`). Pick a computer that stays on: a desktop, a mini PC,
   a home server.
 - **Every other device is only a browser** pointed at that host. Tablets and
-  phones install nothing.
+  phones install no Harrington software (option 1 adds the Tailscale app).
 - **Never run two Harrington servers against the same folder**, and never put
   the data directory in a synced folder (iCloud Drive, Dropbox, OneDrive,
   Syncthing, Google Drive) shared with another server. Two servers each think
@@ -37,13 +37,27 @@ Option 3 alone does not.
 | --- | --- | --- |
 | `HARRINGTON_HOST` | `127.0.0.1` | Address the server binds to. Must be an IP address or a host name; the server refuses to start otherwise. |
 | `HARRINGTON_PORT` | `4173` | Port. |
-| `HARRINGTON_PUBLISHED_HOST` | same as `HARRINGTON_HOST` | The address other devices actually use, when a proxy or container sits in front (for example your `.ts.net` name). It decides whether the app says "runs on this computer only" or "shared on your home network". |
-| `HARRINGTON_ACCESS_TOKEN` | unset | When set (16 characters or more), every `/api/*` request needs a sign-in cookie. Each device signs in once at `/login?token=...`. |
+| `HARRINGTON_PUBLISHED_HOST` | same as `HARRINGTON_HOST` | The name other devices open, when a proxy or container sits in front (for example your `.ts.net` name). It decides whether the app says "runs on this computer only" or "shared with your other devices", and it is a host name Harrington answers to. |
+| `HARRINGTON_ACCESS_TOKEN` | unset | When set (16 characters or more), every `/api/*` request except `/api/health` needs a sign-in cookie. Each device signs in once at `/login`. |
+| `HARRINGTON_ALLOWED_HOSTS` | unset | Extra host names Harrington answers to once it is shared, comma-separated (for example a Tailscale short name such as `family-host`). |
 
-At startup the server logs the bind address, whether it is loopback, and
-whether the access token is on (never the token itself). `GET /api/health`
-reports `host` (`"loopback"` or `"network"`) and `authEnabled`, and, when the
-token is on, `signedIn` for the device asking.
+At startup the server logs the bind address and whether it is loopback, the
+published address when it differs, the host names it answers to, and whether
+the access token is on (never the token itself). `GET /api/health` reports
+`host` (`"loopback"` or `"network"`) and `authEnabled`, and, when the token is
+on, `signedIn` for the device asking.
+
+### Host names Harrington answers to
+
+Once Harrington is shared (the bind address or the published address is not
+loopback), it answers only to `localhost`, the published address, the bind
+address, the names in `HARRINGTON_ALLOWED_HOSTS`, and any IP address. A request
+for any other name gets `421` and one line of text. This stops *DNS
+rebinding*, where a web page on someone else's domain re-points that domain at
+your Harrington and reads it through the family's browser. If a device you use
+gets that `421`, add the name it uses to `HARRINGTON_ALLOWED_HOSTS` and restart.
+A server left on loopback with no published address answers to any name, as
+before.
 
 Make a token with:
 
@@ -87,9 +101,12 @@ export HARRINGTON_ACCESS_TOKEN=paste-your-token-here   # recommended, see option
 npm start
 ```
 
-The log should say `Published address: HOSTNAME.ts.net` and `Address is not
-loopback`: Harrington binds to loopback, but devices reach it through the mesh
-name, so the app says it is shared on your home network.
+The log should say `Bind address 127.0.0.1 is loopback` and `Published address
+HOSTNAME.ts.net: other devices open Harrington there`, so the app says it is
+shared with your other devices. If anyone opens the MagicDNS short name
+(`http://family-host`), add it: `export HARRINGTON_ALLOWED_HOSTS=family-host`.
+Only the full `.ts.net` name has an HTTPS certificate, so use that one for
+recording.
 
 ### 3. Turn on HTTPS through the mesh
 
@@ -108,10 +125,10 @@ internet.
 ### 4. Open it on each device
 
 1. On the tablet, phone or laptop, make sure Tailscale is connected.
-2. If the token is on, open `https://HOSTNAME.ts.net/login?token=YOUR-TOKEN`
-   once. The browser lands on Harrington and stays signed in.
-3. Otherwise open `https://HOSTNAME.ts.net`.
-4. Add it to the home screen (Share, then Add to Home Screen on iPad and
+2. Open `https://HOSTNAME.ts.net/login`, type the token into the form, and
+   press **Sign in**. The browser lands on Harrington and stays signed in. (If
+   the token is off, open `https://HOSTNAME.ts.net` instead.)
+3. Add it to the home screen (Share, then Add to Home Screen on iPad and
    iPhone; the browser menu on Android).
 
 To keep it running, start Harrington from a service manager (systemd,
@@ -123,7 +140,7 @@ launchd, a Docker restart policy) with the same environment variables.
 Use this when the family does not want a mesh app on every device. A reverse
 proxy on the host serves HTTPS on your home network with a certificate from a
 small certificate authority (CA) it creates itself. Each device has to trust
-that CA's root certificate once.
+that CA's root certificate once. It works only on your home network.
 
 ### 1. Give the host a name on your network
 
@@ -150,8 +167,10 @@ harrington.home.arpa {
 ```
 
 Start it with `caddy run` (or the system service). `tls internal` makes Caddy
-create its own local CA and issue and renew the site certificate. Caddy sends
-`X-Forwarded-Proto: https`, so Harrington marks its sign-in cookie `Secure`.
+create its own local CA and issue and renew the site certificate. Caddy passes
+the name the browser used (`harrington.home.arpa`) and sends
+`X-Forwarded-Proto: https`, so Harrington answers and marks its sign-in cookie
+`Secure`.
 
 ### 3. Install the root certificate on each device
 
@@ -178,22 +197,27 @@ Copy **only `root.crt`** (never `root.key`) to each device and trust it:
 - **Firefox** keeps its own list: Settings, Privacy & Security, Certificates,
   View Certificates, Authorities, Import.
 
-Then open `https://harrington.home.arpa/login?token=YOUR-TOKEN` once on each
-device (or `https://harrington.home.arpa` without a token).
+Then open `https://harrington.home.arpa/login` on each device and sign in
+with the token (or open `https://harrington.home.arpa` if the token is off).
 
 ## Option 3: the built-in access token
 
 `HARRINGTON_ACCESS_TOKEN` is Harrington's own lock. With it set:
 
 - every `/api/*` request (family data, recordings, lessons, the AI adapter)
-  needs a sign-in cookie, and gets `401` with a short page explaining how to
-  sign in otherwise; the page itself, scripts and styles stay open;
-- `GET /login?token=...` with the right token sets the cookie (HttpOnly,
-  SameSite=Strict, `Secure` when the request came over HTTPS or through a
-  proxy that says so) and redirects to `/`, dropping the token from the
-  address bar; a wrong token gets a `401` page and no cookie;
+  except `/api/health` needs a sign-in cookie, and gets `401` with a short page
+  explaining how to sign in otherwise; the page itself, scripts and styles stay
+  open; `/api/health` answers a device that has not signed in with only
+  `ok`, `mode`, `host`, `authEnabled` and `signedIn: false`;
+- **the sign-in page** at `/login` has one password field. The right token
+  sets the cookie (HttpOnly, SameSite=Strict, `Secure` when the request came
+  over HTTPS or through a proxy that says so) and goes to the app; a wrong
+  token gets a `401` page and no cookie. Your password manager can fill it;
+- **the sign-in link** `/login?token=YOUR-TOKEN` does the same in one tap,
+  which is handy on a phone. It redirects to `/`, so the token leaves the
+  address bar, but the link itself stays in the browser's history (see below);
 - the cookie is derived from the token, so changing the token signs every
-  device out; sign them in again with the new link.
+  device out; sign them in again with the new token.
 
 On its own, with Harrington bound straight to the LAN:
 
@@ -203,22 +227,45 @@ export HARRINGTON_ACCESS_TOKEN=paste-your-token-here
 npm start
 ```
 
-and each device opens `http://HOST-LAN-ADDRESS:4173/login?token=YOUR-TOKEN`
-once.
+and each device opens `http://HOST-LAN-ADDRESS:4173/login` once and signs in.
+Devices that use a name instead of the IP address (such as
+`family-host.local`) need it in `HARRINGTON_ALLOWED_HOSTS` or
+`HARRINGTON_PUBLISHED_HOST`.
 
 **This still needs HTTPS for the microphone.** Over plain `http://` on the LAN,
 the tablet can browse, log records and play recordings, but cannot record or
-use live transcript, and the sign-in link travels unencrypted on your Wi-Fi.
-Use the token **together with** option 1 or 2: the mesh or the proxy provides
-HTTPS, the token makes sure only family devices that signed in can read or
-change data.
+use live transcript. Use the token **together with** option 1 or 2: the mesh or
+the proxy provides HTTPS, the token makes sure only family devices that signed
+in can read or change data.
+
+### What the token does not protect
+
+- **No limit on sign-in attempts.** Nothing slows down someone guessing. A
+  random 24-byte token (the command above) is what makes guessing hopeless;
+  never use a short or memorable one.
+- **The sign-in link is remembered.** `/login?token=...` stays in the
+  browser's history and address-bar suggestions, and in synced history on
+  every device signed in to the same browser account. Prefer the form; if you
+  used the link, delete that history entry.
+- **The cookie is a long-lived key.** It lasts 400 days, it is the same on
+  every device, and there is no way to sign out just one device: the only way
+  to sign out a lost tablet is to change the token, which signs out everyone.
+- **Plain HTTP is readable on the Wi-Fi.** Without HTTPS, the token (when you
+  sign in) and the cookie (on every request) cross the network unencrypted.
+- **`/api/health` is open.** It tells anyone who can reach the server that it
+  is Harrington, whether it is shared and whether the token is on; it shows no
+  family data.
+- **A signed-in device has full access.** Anyone holding one, a child
+  included, can read and change everything. The child-view PIN does not stop
+  that (see below).
 
 With Docker, the compose file publishes on `127.0.0.1` and sets
 `HARRINGTON_PUBLISHED_HOST: 127.0.0.1`. For option 1 or 2 keep that port
-mapping, change `HARRINGTON_PUBLISHED_HOST` to the name devices use, and put
-the token in a `.env` file next to `compose.yaml` (the repository's
-`.gitignore` already excludes `.env`) and reference it from the `environment:`
-block as `HARRINGTON_ACCESS_TOKEN: ${HARRINGTON_ACCESS_TOKEN}`.
+mapping, put Tailscale serve or Caddy in front of it as above, and change only
+`HARRINGTON_PUBLISHED_HOST` to the name devices open. Put the token in a `.env`
+file next to `compose.yaml` (the repository's `.gitignore` already excludes
+`.env`) and reference it from the `environment:` block as
+`HARRINGTON_ACCESS_TOKEN: ${HARRINGTON_ACCESS_TOKEN}`.
 
 ## Keeping the family's data safe
 
@@ -226,17 +273,40 @@ block as `HARRINGTON_ACCESS_TOKEN: ${HARRINGTON_ACCESS_TOKEN}`.
 
 `npm run backup` writes `backups/harrington-<timestamp>.tar.gz` with
 everything in the data directory, recordings included. Schedule it on the
-host. With cron (Linux and macOS), run `crontab -e` and add:
+host. Cron starts with an almost empty `PATH` and no exported variables, so
+the entry uses full paths and names the data directory the server uses. Find
+the paths with `command -v node` and `pwd` in the Harrington folder, then run
+`crontab -e` (Linux and macOS) and add one line (here node is
+`/usr/local/bin/node` and Harrington is in `/home/parent/harrington`):
 
 ```
-15 2 * * * cd /path/to/harrington && npm run backup >> backups/backup.log 2>&1
+15 2 * * * cd /home/parent/harrington && mkdir -p backups && HARRINGTON_DATA_DIR=/home/parent/harrington/data/private /usr/local/bin/node scripts/backup.mjs >> backups/backup.log 2>&1
 ```
 
-On Windows, use Task Scheduler to run `npm run backup` daily with the
-Harrington folder as the start directory. Copy the `backups/` folder to a
-second place (an external drive, another computer) every so often; a backup
-on the same disk does not survive that disk. See the README's "Backup and
-restore" section for how to restore.
+`mkdir -p backups` matters on a fresh clone: the shell opens
+`backups/backup.log` before the backup script runs, and fails if the folder is
+missing. If the server runs with a different `HARRINGTON_DATA_DIR`, use that
+path. Check the next morning that `backups/backup.log` says `Backed up`.
+
+With Docker, the data lives in the `harrington-data` volume, which Compose
+names `harrington_harrington-data` when the folder is called `harrington`
+(`docker volume ls` shows the exact name). Back it up with a throwaway
+container (`%` must be written `\%` inside a crontab):
+
+```
+15 2 * * * mkdir -p /home/parent/harrington/backups && /usr/bin/docker run --rm -v harrington_harrington-data:/data:ro -v /home/parent/harrington/backups:/backups alpine tar -czf /backups/harrington-docker-$(date +\%Y-\%m-\%dT\%H-\%M-\%S).tar.gz -C / data >> /home/parent/harrington/backups/backup.log 2>&1
+```
+
+To restore it: `docker compose down`, then
+`docker run --rm -v harrington_harrington-data:/data -v /home/parent/harrington/backups:/backups alpine sh -c 'rm -rf /data/* && tar -xzf /backups/FILE.tar.gz -C /'`,
+then `docker compose up -d`.
+
+On Windows, use Task Scheduler to run `node scripts\backup.mjs` daily, with
+the full path to `node.exe`, the Harrington folder as the start directory,
+and `HARRINGTON_DATA_DIR` set if the server uses one. Copy the `backups/`
+folder to a second place (an external drive, another computer) every so
+often; a backup on the same disk does not survive that disk. See the README's
+"Backup and restore" section for how to restore a plain install.
 
 ### Export before every upgrade
 
@@ -244,7 +314,7 @@ Before pulling a new version:
 
 1. In the app, press **Export** in the sidebar's family box and keep the
    `harrington-family-<date>.json` file.
-2. Run `npm run backup`.
+2. Run `npm run backup` (or the Docker backup command above).
 3. Stop Harrington, update (`git pull`, then `npm ci`), and start it again
    with the same environment variables.
 4. Open the app on the host and on one other device and check the learners
@@ -265,10 +335,12 @@ After option 1 or 2, on a tablet or phone that is **not** the host:
 
 1. Connect it to the mesh (option 1) or install the root certificate
    (option 2).
-2. Open the `https://` sign-in link, or the `https://` address if the token is
-   off. The address bar shows a padlock, not a warning.
-3. Open the **Guide** and check that it says Harrington is shared on your home
-   network (and, with the token, that the sidebar shows "signed in").
+2. Open `https://HOSTNAME/login` and sign in with the token (or open the
+   `https://` address if the token is off). The address bar shows a padlock,
+   not a warning.
+3. Open the **Guide** and check that it says Harrington is shared with your
+   other devices. With the token on, the sidebar on a computer or tablet shows
+   "signed in".
 4. On the dashboard press **Record what happened**, allow the microphone when
    the browser asks, speak for ten seconds, and stop.
 5. Check the recording plays back on the tablet, then open **Records** on the

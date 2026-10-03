@@ -7,7 +7,7 @@
 //   mock AI provider  -> 4311   tests/e2e/mock-ai-server.mjs
 //   app with AI       -> 4312   node server.mjs, AI pointed at the mock
 //   app without AI    -> 4313   node server.mjs, no provider (fail-closed)
-//   app, AI unreachable -> 4314 and app with an access token -> 4315
+//   app, AI unreachable -> 4314 and app with an access token -> 4316
 // Each app gets a fresh temporary HARRINGTON_DATA_DIR. Tests share one server
 // per project and reset the family state before each test, so they run serially.
 // Servers are never reused: a Harrington already listening on these ports could

@@ -6,10 +6,11 @@ Harrington is a self-hosted family learning platform. It shows the open
 daily literacy and numeracy choices, and keeps a record of what your child
 actually did.
 
-By default it runs on this computer only. It can also be shared on your home
-network from one host computer, so tablets and phones open it in a browser;
+By default it runs on this computer only. It can also be shared from one host
+computer with your other devices, so tablets and phones open it in a browser;
 [DEPLOYMENT.md](https://github.com/simgue/harrington/blob/main/docs/DEPLOYMENT.md)
-has the steps. Nothing leaves your home unless you configure an AI provider.
+has the steps. Family data stays on the computer that runs Harrington unless you
+configure an AI provider.
 
 The in-app **Guide** (sidebar on a computer, book icon at the top of the screen
 on a phone) covers the same ground in short form. This file is the longer
@@ -178,10 +179,10 @@ so the bell does not report curriculum changes.
 
 - Learners, progress, records, recordings and settings are stored in the
   private data folder (`data/private/`) on the computer that runs Harrington.
-  The server listens only on that computer by default. When it is shared on
-  your home network, each device can be asked to sign in once with the family
+  The server listens only on that computer by default. When it is shared with
+  your other devices, each device can be asked to sign in once with the family
   access token, and the in-app Guide says which applies.
-- Nothing leaves your home unless you configure an AI provider. If you do,
+- Nothing leaves your devices unless you configure an AI provider. If you do,
   lessons, tests, challenges and cards send it topic text and the topic's age
   from the curriculum; whole-subject tests, discussion analyses and progress
   reviews send your child's exact age instead. A discussion analysis sends the

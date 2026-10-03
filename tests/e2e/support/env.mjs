@@ -8,8 +8,9 @@ export const PORTS = {
   appAi: base + 2,
   appNoAi: base + 3,
   appAiUnreachable: base + 4,
-  // No AI, HARRINGTON_ACCESS_TOKEN set (HAR-25).
-  appToken: base + 5,
+  // No AI, HARRINGTON_ACCESS_TOKEN set (HAR-25). base+5 is left for another
+  // app instance (PR #37).
+  appToken: base + 6,
   // Nothing ever listens here: the app on appAiUnreachable points its AI
   // provider at this port to exercise "couldn't reach the AI provider".
   deadAi: base + 9,

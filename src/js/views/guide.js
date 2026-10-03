@@ -237,9 +237,9 @@ const guideSections = () => [
   ]},
   { h: 'Privacy', items: [
     ['Where data lives', isShared()
-      ? `Learners, progress, records, recordings and settings are stored in the private data folder ${storedOn()}. It is shared on your home network; other devices only show it in a browser. ${authEnabled() ? 'Each device signs in once with the family access token.' : 'No access token is set, so anyone on the network can open it.'}`
+      ? `Learners, progress, records, recordings and settings are stored in the private data folder ${storedOn()}. It is shared with your other devices, which only show it in a browser. ${authEnabled() ? 'Each device signs in once with the family access token.' : 'No access token is set, so anyone who can reach it can open it.'}`
       : 'Learners, progress, records, recordings and settings are stored in the private data folder on this computer. The server listens only on this computer by default.'],
-    ['What leaves your home', `Nothing, unless you configure an AI provider. If you do, lessons, tests, challenges and cards send it topic text and the topic’s age from the curriculum; whole-subject tests, discussion analyses and progress reviews send your child’s exact age instead. A discussion analysis sends the transcript; analyses and progress reviews send your notes only when you tick “Include my notes in this request”. Learner names are replaced with “the child” before any request is built. ${SPEECH_NOTE}`],
+    [isShared() ? 'What leaves your devices' : 'What leaves your home', `Nothing, unless you configure an AI provider. If you do, lessons, tests, challenges and cards send it topic text and the topic’s age from the curriculum; whole-subject tests, discussion analyses and progress reviews send your child’s exact age instead. A discussion analysis sends the transcript; analyses and progress reviews send your notes only when you tick “Include my notes in this request”. Learner names are replaced with “the child” before any request is built. ${SPEECH_NOTE}`],
     ['Not for the internet', `${authEnabled() ? 'The access token is the only sign-in, and Harrington does not encrypt traffic itself; use HTTPS from your network mesh or a local proxy (docs/DEPLOYMENT.md).' : 'There is no sign-in or encryption yet.'} Do not expose Harrington to the public internet.`],
   ]},
 ];

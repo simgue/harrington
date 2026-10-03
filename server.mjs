@@ -18,6 +18,8 @@ const host = (process.env.HARRINGTON_HOST || '').trim() || '127.0.0.1';
 // loopback only; this names the address other devices actually reach.
 const publishedHost = (process.env.HARRINGTON_PUBLISHED_HOST || '').trim() || host;
 const accessToken = (process.env.HARRINGTON_ACCESS_TOKEN || '').trim();
+const extraAllowedHosts = (process.env.HARRINGTON_ALLOWED_HOSTS || '')
+  .split(',').map((name) => name.trim().toLowerCase()).filter(Boolean);
 const MIN_TOKEN_LENGTH = 16;
 const SESSION_COOKIE = 'harrington_session';
 // Browsers cap a cookie's lifetime at 400 days; a tablet signs in once.
@@ -371,7 +373,30 @@ function isLoopbackHost(value) {
   return false;
 }
 
+const bindIsLoopback = isLoopbackHost(host);
 const hostIsLoopback = isLoopbackHost(publishedHost);
+// Shared: something other than this computer is meant to reach Harrington.
+const shared = !bindIsLoopback || !hostIsLoopback;
+
+// DNS rebinding: a web page on an attacker's domain can re-point that domain
+// at this server, and the browser then sends the attacker's name as Host. Once
+// Harrington is shared, it answers only to names the family uses. An IP
+// literal is always accepted: a rebinding attack never arrives as one.
+const allowedHosts = new Set(['localhost', publishedHost.toLowerCase(), host.toLowerCase(), ...extraAllowedHosts]);
+
+function hostHeaderName(req) {
+  const value = String(req.headers.host || '').trim().toLowerCase();
+  const bracketed = value.match(/^\[([^\]]+)\](?::\d+)?$/);
+  if (bracketed) return bracketed[1];
+  return value.replace(/:\d+$/, '').replace(/\.$/, '');
+}
+
+function hostAllowed(req) {
+  if (!shared) return true;
+  const name = hostHeaderName(req);
+  return isIP(name) !== 0 || allowedHosts.has(name);
+}
+
 const authEnabled = accessToken.length > 0;
 // The cookie holds a value derived from the token, never the token itself, so
 // changing HARRINGTON_ACCESS_TOKEN signs every device out.
@@ -423,25 +448,26 @@ function sendHtml(res, status, title, paragraphs, headers = {}) {
   send(res, status, body, { 'Content-Type': 'text/html; charset=utf-8', 'Referrer-Policy': 'no-referrer', ...headers });
 }
 
+const SIGN_IN_FORM = `<form method="post" action="/login">
+<p><label for="token">Family access token</label><br>
+<input id="token" name="token" type="password" autocomplete="current-password" required autofocus style="font:inherit;padding:.4rem;width:100%;max-width:24rem"></p>
+<p><button type="submit" style="font:inherit;padding:.4rem 1rem">Sign in</button></p>
+</form>`;
+
 const SIGN_IN_HELP = [
-  'This Harrington server asks each device to sign in once with the family access token.',
-  'On this device, open <code>/login?token=</code> followed by the token, for example <code>https://family-host.example/login?token=YOUR-TOKEN</code>. The token is the value of <code>HARRINGTON_ACCESS_TOKEN</code> on the computer that runs Harrington.',
-  'After that this browser stays signed in. See <code>docs/DEPLOYMENT.md</code> for the full steps.',
+  'This Harrington server asks each device to sign in once with the family access token: the value of <code>HARRINGTON_ACCESS_TOKEN</code> on the computer that runs Harrington.',
+  SIGN_IN_FORM,
+  'After that this browser stays signed in. <code>docs/DEPLOYMENT.md</code> has the full steps.',
 ];
 
 function sendUnauthorized(res) {
-  sendHtml(res, 401, 'Sign in to Harrington', SIGN_IN_HELP);
+  sendHtml(res, 401, 'Sign in to Harrington', ['Open <a href="/login">/login</a> on this device to sign in.', ...SIGN_IN_HELP]);
 }
 
-function handleLogin(req, res, url) {
-  if (!authEnabled) {
-    send(res, 303, '', { Location: '/' });
-    return;
-  }
-  const token = url.searchParams.get('token');
-  if (token === null || !safeEqual(token, accessToken)) {
-    sendHtml(res, 401, 'That sign-in link did not work', [
-      'The token in the link does not match this Harrington server. Check it for typos, or ask whoever runs the host computer for the current token.',
+function signIn(req, res, token) {
+  if (!safeEqual(token, accessToken)) {
+    sendHtml(res, 401, 'That token did not work', [
+      'It does not match this Harrington server. Check it for typos, or ask whoever runs the host computer for the current token.',
       ...SIGN_IN_HELP,
     ]);
     return;
@@ -454,8 +480,30 @@ function handleLogin(req, res, url) {
     'SameSite=Strict',
   ];
   if (requestIsHttps(req)) attributes.push('Secure');
-  // Redirecting drops the token from the address bar and the history entry.
+  // The redirect clears the token from the address bar. A ?token= link still
+  // stays in the browser's history, which is why the form is the main path.
   send(res, 303, '', { Location: '/', 'Set-Cookie': attributes.join('; '), 'Referrer-Policy': 'no-referrer' });
+}
+
+// GET /login shows the form; GET /login?token=... is the link convenience;
+// POST /login takes the form. All three use the same check and cookie.
+async function handleLogin(req, res, url) {
+  if (!authEnabled) {
+    send(res, 303, '', { Location: '/' });
+    return;
+  }
+  if (req.method === 'POST') {
+    const body = await readBody(req, 4096);
+    const token = new URLSearchParams(body.toString('utf8')).get('token');
+    signIn(req, res, token ?? '');
+    return;
+  }
+  const token = url.searchParams.get('token');
+  if (token === null) {
+    sendHtml(res, 200, 'Sign in to Harrington', SIGN_IN_HELP);
+    return;
+  }
+  signIn(req, res, token);
 }
 
 async function handleApi(req, res, url) {
@@ -614,7 +662,12 @@ async function serveStatic(req, res, url) {
   }
 }
 
-for (const [name, value] of [['HARRINGTON_HOST', host], ['HARRINGTON_PUBLISHED_HOST', publishedHost]]) {
+const hostSettings = [
+  ['HARRINGTON_HOST', host],
+  ['HARRINGTON_PUBLISHED_HOST', publishedHost],
+  ...extraAllowedHosts.map((name) => ['HARRINGTON_ALLOWED_HOSTS', name]),
+];
+for (const [name, value] of hostSettings) {
   if (!validHost(value)) {
     console.error(`${name} must be an IP address or a host name; got ${JSON.stringify(value)}`);
     process.exit(1);
@@ -630,7 +683,11 @@ await mkdir(dataDir, { recursive: true });
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', 'http://harrington.local');
-    if (url.pathname === '/login' && (req.method === 'GET' || req.method === 'HEAD')) handleLogin(req, res, url);
+    if (!hostAllowed(req)) {
+      send(res, 421, 'Harrington does not answer to this host name; add it to HARRINGTON_ALLOWED_HOSTS.\n', { 'Content-Type': 'text/plain; charset=utf-8' });
+      return;
+    }
+    if (url.pathname === '/login' && ['GET', 'HEAD', 'POST'].includes(req.method)) await handleLogin(req, res, url);
     else if (!(await handleApi(req, res, url))) await serveStatic(req, res, url);
   } catch (error) {
     console.error(error);
@@ -644,13 +701,21 @@ server.listen(port, host, () => {
   const shownHost = isIP(host) === 6 ? `[${host}]` : host;
   console.log(`Harrington listening at http://${shownHost}:${actualPort}`);
   console.log(`Family data directory: ${dataDir}`);
-  if (publishedHost !== host) console.log(`Published address: ${publishedHost}`);
-  console.log(hostIsLoopback
-    ? 'Address is loopback: only this computer can open Harrington.'
-    : 'Address is not loopback: other devices can open Harrington. Put HTTPS in front of it for the microphone (docs/DEPLOYMENT.md).');
+  console.log(bindIsLoopback
+    ? `Bind address ${host} is loopback: only this computer can connect to it directly.`
+    : `Bind address ${host} is not loopback: other devices can connect to it directly, unless a container or firewall stops them.`);
+  if (publishedHost !== host) {
+    console.log(hostIsLoopback
+      ? `Published address ${publishedHost} is loopback: the app tells people it runs on this computer only.`
+      : `Published address ${publishedHost}: other devices open Harrington there.`);
+  }
+  if (shared) {
+    console.log(`Answering to host names: ${[...allowedHosts].join(', ')}, and any IP address (HARRINGTON_ALLOWED_HOSTS adds more).`);
+    console.log('Other devices need HTTPS in front of Harrington for the microphone (docs/DEPLOYMENT.md).');
+  }
   console.log(authEnabled
-    ? 'Access token is on: each device signs in once at /login?token=...'
-    : `Access token is off${hostIsLoopback ? '' : ': anyone who can reach this address can read and change family data'}.`);
+    ? 'Access token is on: each device signs in once at /login.'
+    : `Access token is off${shared ? ': anyone who can reach this server can read and change family data' : ''}.`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -21,6 +21,10 @@ async function startServer() {
       HARRINGTON_HOST: '127.0.0.1',
       HARRINGTON_PORT: '0',
       HARRINGTON_DATA_DIR: dataDir,
+      // A parent's shell may export the deployment settings; tests choose their own.
+      HARRINGTON_ACCESS_TOKEN: '',
+      HARRINGTON_PUBLISHED_HOST: '',
+      HARRINGTON_ALLOWED_HOSTS: '',
       HARRINGTON_AI_BASE_URL: '',
       HARRINGTON_AI_MODEL: '',
       HARRINGTON_AI_API_KEY: '',
@@ -386,6 +390,10 @@ test('fetches an allowlisted taxonomy file from upstream and caches it on disk',
       HARRINGTON_HOST: '127.0.0.1',
       HARRINGTON_PORT: '0',
       HARRINGTON_DATA_DIR: isolatedDir,
+      // A parent's shell may export the deployment settings; tests choose their own.
+      HARRINGTON_ACCESS_TOKEN: '',
+      HARRINGTON_PUBLISHED_HOST: '',
+      HARRINGTON_ALLOWED_HOSTS: '',
       HARRINGTON_TAXONOMY_UPSTREAM: `http://127.0.0.1:${upstreamPort}`,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -450,6 +458,10 @@ async function spawnHarrington(extraEnv = {}) {
       HARRINGTON_HOST: '127.0.0.1',
       HARRINGTON_PORT: '0',
       HARRINGTON_DATA_DIR: dir,
+      // A parent's shell may export the deployment settings; tests choose their own.
+      HARRINGTON_ACCESS_TOKEN: '',
+      HARRINGTON_PUBLISHED_HOST: '',
+      HARRINGTON_ALLOWED_HOSTS: '',
       HARRINGTON_AI_BASE_URL: '',
       HARRINGTON_AI_MODEL: '',
       HARRINGTON_AI_API_KEY: '',
@@ -457,14 +469,15 @@ async function spawnHarrington(extraEnv = {}) {
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  let output = '';
   const url = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('AI test server did not start')), 5000);
-    let output = '';
     proc.stdout.on('data', (chunk) => {
       output += chunk.toString();
-      // Any bind address; the tests always connect over loopback.
+      // Any bind address; the tests always connect over loopback. The access
+      // token line is the last startup line, so the whole log is in by then.
       const match = output.match(/listening at http:\/\/\S+:(\d+)/);
-      if (match) {
+      if (match && /Access token is/.test(output)) {
         clearTimeout(timer);
         resolve(`http://127.0.0.1:${match[1]}`);
       }
@@ -481,6 +494,7 @@ async function spawnHarrington(extraEnv = {}) {
   return {
     url,
     dir,
+    output: () => output,
     async stop() {
       proc.kill('SIGTERM');
       await new Promise((resolve) => proc.once('exit', resolve));
@@ -697,7 +711,7 @@ describe('access token and bind address', { concurrency: false }, () => {
       const denied = await fetch(`${guarded.url}/api/state`);
       assert.equal(denied.status, 401);
       assert.match(denied.headers.get('content-type'), /text\/html/);
-      assert.match(await denied.text(), /\/login\?token=/);
+      assert.match(await denied.text(), /href="\/login"/);
 
       const wrong = await fetch(`${guarded.url}/api/state`, { headers: { Cookie: 'harrington_session=forged' } });
       assert.equal(wrong.status, 401);
@@ -721,11 +735,12 @@ describe('access token and bind address', { concurrency: false }, () => {
   test('login sets an HttpOnly SameSite=Strict cookie only for the right token', async () => {
     const guarded = await spawnHarrington({ HARRINGTON_ACCESS_TOKEN: TOKEN });
     try {
-      for (const query of ['', '?token=', '?token=wrong-token-0123456789', `?token=${TOKEN}x`]) {
+      for (const query of ['?token=', '?token=wrong-token-0123456789', `?token=${TOKEN}x`, `?token=${TOKEN.slice(0, -1)}`]) {
         const failed = await fetch(`${guarded.url}/login${query}`, { redirect: 'manual' });
         assert.equal(failed.status, 401, `login${query} should fail`);
         assert.equal(failed.headers.get('set-cookie'), null);
         assert.match(await failed.text(), /did not work/);
+        assert.equal(failed.headers.get('location'), null);
       }
 
       const ok = await fetch(`${guarded.url}/login?token=${encodeURIComponent(TOKEN)}`, { redirect: 'manual' });
@@ -789,6 +804,8 @@ describe('access token and bind address', { concurrency: false }, () => {
       const port = new URL(shared.url).port;
       const health = await (await fetch(`http://127.0.0.1:${port}/api/health`)).json();
       assert.equal(health.host, 'network');
+      assert.match(shared.output(), /Bind address 0\.0\.0\.0 is not loopback/);
+      assert.match(shared.output(), /anyone who can reach this server can read and change family data/);
     } finally {
       await shared.stop();
     }
@@ -797,12 +814,113 @@ describe('access token and bind address', { concurrency: false }, () => {
     try {
       const port = new URL(container.url).port;
       assert.equal((await (await fetch(`http://127.0.0.1:${port}/api/health`)).json()).host, 'loopback');
+      // The bind still reaches beyond this computer; the log must not say otherwise.
+      assert.match(container.output(), /Bind address 0\.0\.0\.0 is not loopback/);
+      assert.match(container.output(), /Published address 127\.0\.0\.1 is loopback/);
+      assert.match(container.output(), /anyone who can reach this server/);
+      assert.doesNotMatch(container.output(), /only this computer can connect/);
     } finally {
       await container.stop();
     }
 
-    for (const env of [{ HARRINGTON_HOST: 'not a host!' }, { HARRINGTON_PUBLISHED_HOST: 'http://x' }, { HARRINGTON_ACCESS_TOKEN: 'short' }]) {
+    for (const env of [{ HARRINGTON_HOST: 'not a host!' }, { HARRINGTON_PUBLISHED_HOST: 'http://x' }, { HARRINGTON_ALLOWED_HOSTS: 'ok.example, bad host' }, { HARRINGTON_ACCESS_TOKEN: 'short' }]) {
       await assert.rejects(spawnHarrington(env), /exited with 1/);
+    }
+  });
+});
+
+// fetch() always sends the real Host header, so these requests go through
+// node:http to send the name a browser would after DNS rebinding.
+function getWithHost(port, hostHeader, path = '/api/health') {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest({ host: '127.0.0.1', port, path, headers: { Host: hostHeader } }, (res) => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => resolve({ status: res.statusCode, text: async () => body }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+describe('sign-in form and host names', { concurrency: false }, () => {
+  const TOKEN = 'test-family-token-0123456789';
+
+  function postLogin(url, token, headers = {}) {
+    return fetch(`${url}/login`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
+      body: new URLSearchParams({ token }).toString(),
+    });
+  }
+
+  test('GET /login shows a password form and POST signs in with the same check', async () => {
+    const guarded = await spawnHarrington({ HARRINGTON_ACCESS_TOKEN: TOKEN });
+    try {
+      const form = await fetch(`${guarded.url}/login`);
+      assert.equal(form.status, 200);
+      const html = await form.text();
+      assert.match(html, /<form method="post" action="\/login">/);
+      assert.match(html, /type="password"/);
+
+      for (const token of ['', 'wrong-token-0123456789', `${TOKEN}x`, TOKEN.slice(0, -1)]) {
+        const failed = await postLogin(guarded.url, token);
+        assert.equal(failed.status, 401, `POST with ${JSON.stringify(token)} should fail`);
+        assert.equal(failed.headers.get('set-cookie'), null);
+      }
+      const noBody = await fetch(`${guarded.url}/login`, { method: 'POST', redirect: 'manual' });
+      assert.equal(noBody.status, 401);
+
+      const ok = await postLogin(guarded.url, TOKEN);
+      assert.equal(ok.status, 303);
+      assert.equal(ok.headers.get('location'), '/');
+      const setCookie = ok.headers.get('set-cookie');
+      assert.match(setCookie, /HttpOnly; SameSite=Strict/);
+      assert.doesNotMatch(setCookie, /Secure/);
+      assert.match((await postLogin(guarded.url, TOKEN, { 'X-Forwarded-Proto': 'https' })).headers.get('set-cookie'), /; Secure/);
+      const cookie = setCookie.split(';')[0];
+      assert.equal((await fetch(`${guarded.url}/api/state`, { headers: { Cookie: cookie } })).status, 200);
+    } finally {
+      await guarded.stop();
+    }
+  });
+
+  test('a loopback server answers to any host name, as before', async () => {
+    const local = await spawnHarrington();
+    try {
+      const response = await getWithHost(new URL(local.url).port, 'attacker.example');
+      assert.equal(response.status, 200);
+    } finally {
+      await local.stop();
+    }
+  });
+
+  test('a shared server answers only to the family\'s host names and IP addresses', async () => {
+    const sharedServer = await spawnHarrington({
+      HARRINGTON_HOST: '0.0.0.0',
+      HARRINGTON_PUBLISHED_HOST: 'family-host.example.ts.net',
+      HARRINGTON_ALLOWED_HOSTS: 'family-host, harrington.home.arpa',
+    });
+    try {
+      const port = new URL(sharedServer.url).port;
+      const get = (hostHeader, path) => getWithHost(port, hostHeader, path);
+      for (const name of [
+        `127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`, `192.168.1.20:${port}`,
+        'family-host.example.ts.net', 'FAMILY-HOST.example.ts.net.', `family-host:${port}`, 'harrington.home.arpa',
+      ]) {
+        assert.equal((await get(name)).status, 200, `${name} should be allowed`);
+      }
+      for (const name of ['attacker.example', `attacker.example:${port}`, 'family-host.example.ts.net.attacker.example']) {
+        for (const path of ['/api/health', '/', '/login']) {
+          const refused = await get(name, path);
+          assert.equal(refused.status, 421, `${name}${path} should be refused`);
+          assert.match(await refused.text(), /HARRINGTON_ALLOWED_HOSTS/);
+        }
+      }
+    } finally {
+      await sharedServer.stop();
     }
   });
 });

@@ -1,14 +1,20 @@
 // A second device on a server with HARRINGTON_ACCESS_TOKEN set (HAR-25):
-// it is told how to sign in, signs in once with the link, and its unload
-// beacon still saves with the cookie.
+// it is told how to sign in, signs in once with the form at /login, and its
+// unload beacon still saves with the cookie.
 import { test, expect } from '@playwright/test';
 import { ACCESS_TOKEN, URLS } from './support/env.mjs';
 
-test('a device signs in once with the link and then loads and saves family data', async ({ page }) => {
+test('a device signs in once with the form and then loads and saves family data', async ({ page }) => {
   await page.goto(URLS.appToken);
   await expect(page.getByText('This device is not signed in to Harrington yet.')).toBeVisible();
 
-  await page.goto(`${URLS.appToken}/login?token=${ACCESS_TOKEN}`);
+  await page.goto(`${URLS.appToken}/login`);
+  await page.getByLabel('Family access token').fill('not-the-family-token');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('heading', { name: 'That token did not work' })).toBeVisible();
+
+  await page.getByLabel('Family access token').fill(ACCESS_TOKEN);
+  await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(`${URLS.appToken}/`);
   // A fresh server: onboarding. The bind is loopback, so the banner says so.
   await expect(page.getByRole('heading', { name: 'Add your first student' })).toBeVisible();

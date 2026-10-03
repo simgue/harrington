@@ -180,7 +180,7 @@ test('access token: /api/* needs the sign-in cookie, static files stay open (HAR
       .toEqual({ ok: true, mode: 'self-hosted', host: 'loopback', authEnabled: true, signedIn: false });
     const denied = await visitor.get(`${URLS.appToken}/api/state`);
     expect(denied.status()).toBe(401);
-    expect(await denied.text()).toContain('/login?token=');
+    expect(await denied.text()).toContain('href="/login"');
     expect((await visitor.get(`${URLS.appToken}/`)).status()).toBe(200);
     expect((await visitor.get(`${URLS.appToken}/js/app.js`)).status()).toBe(200);
 

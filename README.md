@@ -272,8 +272,10 @@ always-on host runs `node server.mjs` with one data directory; every other
 device is a browser; never run two servers against a synced folder.
 
 - `HARRINGTON_HOST` (default `127.0.0.1`) chooses the bind address.
-- `HARRINGTON_ACCESS_TOKEN` makes every `/api/*` request need a sign-in
-  cookie; each device signs in once at `/login?token=...`.
+- `HARRINGTON_ACCESS_TOKEN` makes every `/api/*` request except
+  `/api/health` need a sign-in cookie; each device signs in once at `/login`.
+  Once shared, Harrington answers only to the family's host names and IP
+  addresses (`HARRINGTON_ALLOWED_HOSTS` adds names).
 - The microphone needs HTTPS on every device other than the host. The
   recommended setup is a WireGuard mesh such as Tailscale with its HTTPS
   certificates; a local reverse proxy with its own certificate authority

@@ -8,7 +8,7 @@
 //   node tests/e2e/start-app.mjs --port 4313          # no AI provider (fail-closed)
 //   node tests/e2e/start-app.mjs --port 4314 --ai-unreachable
 //                                     # AI configured, but nothing listens there
-//   node tests/e2e/start-app.mjs --port 4315 --token
+//   node tests/e2e/start-app.mjs --port 4316 --token
 //                                     # no AI provider, access token required
 import { spawn } from 'node:child_process';
 import { copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -49,6 +49,9 @@ const env = {
   HARRINGTON_AI_API_KEY: '',
   HARRINGTON_AI_TIMEOUT_MS: '15000',
   HARRINGTON_ACCESS_TOKEN: withToken ? ACCESS_TOKEN : '',
+  // Blank whatever deployment settings the shell exports.
+  HARRINGTON_PUBLISHED_HOST: '',
+  HARRINGTON_ALLOWED_HOSTS: '',
 };
 // The cache is already in the data dir, but if a test ever deletes it the
 // server should refetch from an upstream that works on this network.

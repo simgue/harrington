@@ -5,8 +5,10 @@ services:
     ports:
       - "127.0.0.1:4173:4173"
     environment:
-      # Matches the loopback port mapping above. To share Harrington on your
-      # network, follow docs/DEPLOYMENT.md and change both together.
+      # Matches the loopback port mapping above. To share Harrington with other
+      # devices (docs/DEPLOYMENT.md options 1 and 2), keep that mapping, put
+      # Tailscale serve or Caddy in front of it, and change only this value to
+      # the name devices open, such as family-host.tailnet-name.ts.net.
       HARRINGTON_PUBLISHED_HOST: 127.0.0.1
       # HARRINGTON_ACCESS_TOKEN: ${HARRINGTON_ACCESS_TOKEN}   # from .env, never committed
     volumes:

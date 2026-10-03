@@ -23,14 +23,18 @@ test('a shared server never claims to run on this computer only', () => {
     for (const text of [bannerText(), whereItRuns(), sidebarLine()]) {
       assert.doesNotMatch(text, /this computer only/);
     }
-    assert.match(bannerText(), /^Shared on your home network\./);
+    assert.match(bannerText(), /^Shared with your other devices\./);
+    // A mesh such as Tailscale reaches devices away from home.
+    for (const text of [bannerText(), whereItRuns(), sidebarLine()]) {
+      assert.doesNotMatch(text, /home/i);
+    }
     assert.equal(storedOn(), 'on the computer that runs Harrington');
   }
   setHosting({ host: 'network', authEnabled: false });
-  assert.match(bannerText(), /anyone on the network can open it/);
+  assert.match(bannerText(), /anyone who can reach it can open it/);
   setHosting({ host: 'network', authEnabled: true, signedIn: true });
   assert.match(bannerText(), /This device is signed in/);
-  assert.equal(sidebarLine(), 'Shared on your home network · signed in');
+  assert.equal(sidebarLine(), 'Shared with your devices · signed in');
 });
 
 test('a missing or odd health answer falls back to loopback copy', () => {
