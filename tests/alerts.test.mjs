@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import {
   picksStillOpen, noRecentEvidence, backupOverdue, welcome, buildAlerts, forLearner, bellLabel,
-  PICKS_DUE_HOUR, EVIDENCE_DAYS, BACKUP_DAYS,
+  PICKS_DUE_HOUR, EVIDENCE_DAYS, BACKUP_DAYS, NO_BACKUP_SNOOZE_DAYS, BACKUP_HELP_HREF,
 } from '../src/js/alerts.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -66,14 +66,19 @@ test('no evidence: a learner with no records is flagged only once added seven da
   assert.equal(noRecentEvidence({ now: MON_3PM, student: fresh, records: undefined }), null);
 });
 
-test('backup: flagged when older than seven days or missing, quiet when unknown', () => {
+test('backup: flagged when older than seven days or none recorded, quiet when unknown', () => {
   assert.equal(backupOverdue({ backupAgeDays: 0 }), null);
   assert.equal(backupOverdue({ backupAgeDays: BACKUP_DAYS }), null);
   const old = backupOverdue({ backupAgeDays: BACKUP_DAYS + 1 });
   assert.equal(old.title, 'Backup older than 7 days');
   assert.match(old.body, /8 days old.*npm run backup/);
   assert.equal(old.learnerId, null);
-  assert.equal(backupOverdue({ backupAgeDays: null }).title, 'No backup yet');
+  const none = backupOverdue({ backupAgeDays: null });
+  assert.equal(none.title, 'No backup recorded');
+  assert.equal(none.key, 'backup:none');
+  assert.equal(none.href, BACKUP_HELP_HREF);
+  assert.match(BACKUP_HELP_HREF, /docs\/DEPLOYMENT\.md#nightly-backup$/);
+  assert.equal(old.href, undefined);
   assert.equal(backupOverdue({ backupAgeDays: undefined }), null);
 });
 
@@ -100,6 +105,19 @@ test('buildAlerts: dismissals hold until the situation is new, backup snoozes a 
   // The next home day's picks and a new stale stretch come back.
   assert.deepEqual(keys({ dismissed, now: MON_3PM + DAY, records: { s_ada: [{ createdAt: lastAda + DAY }] } }).sort(),
     ['backup', 'evidence:s_ben:0', 'picks:s_ada:2026-10-06', 'picks:s_ben:2026-10-06', `evidence:s_ada:${lastAda + DAY}`].sort());
+});
+
+test('backup: "No backup recorded" snoozes for 30 days and never hides the age reminder', () => {
+  const base = { now: MON_3PM, students: [], welcomed: true };
+  const dismissed = { 'backup:none': MON_3PM };
+  const keys = (opts) => buildAlerts({ ...base, ...opts }).map(i => i.key);
+  assert.equal(NO_BACKUP_SNOOZE_DAYS, 30);
+  assert.deepEqual(keys({ backupAgeDays: null }), ['backup:none']);
+  assert.deepEqual(keys({ backupAgeDays: null, dismissed }), []);
+  assert.deepEqual(keys({ backupAgeDays: null, dismissed, now: MON_3PM + 29 * DAY }), []);
+  assert.deepEqual(keys({ backupAgeDays: null, dismissed, now: MON_3PM + 30 * DAY }), ['backup:none']);
+  // Once an archive exists and ages, the age reminder shows despite that dismissal.
+  assert.deepEqual(keys({ backupAgeDays: 9, dismissed, now: MON_3PM + DAY }), ['backup']);
 });
 
 test('forLearner keeps family-wide items under every filter', () => {

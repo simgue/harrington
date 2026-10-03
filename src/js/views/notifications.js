@@ -120,6 +120,7 @@ function notifRow(n, students, rerender) {
       <div class="flex-1 min-w-0">
         <p class="font-600 text-sm leading-snug">${esc(n.title)}</p>
         <p class="text-xs text-ink-soft mt-1 leading-relaxed">${esc(n.body)}</p>
+        ${n.href ? `<a href="${esc(n.href)}" target="_blank" rel="noopener" class="inline-block mt-1.5 text-xs font-medium text-brand-dark hover:underline">${esc(n.linkLabel || 'Learn more')}</a>` : ''}
         <p class="text-[11px] text-ink-faint mt-2">${who ? esc(who.name) : 'Whole family'}</p>
       </div>
       <button class="dismiss text-xs font-medium text-brand-dark shrink-0">Dismiss</button>

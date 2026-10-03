@@ -76,7 +76,8 @@ test('serves Harrington and reports self-hosted health', async () => {
   assert.match(await page.text(), /<title>Harrington/);
 });
 
-test('health reports the age in days of the newest backup archive', async () => {
+test('health reports the age in days of the newest archive in HARRINGTON_BACKUP_DIR', async () => {
+  // The server was started with HARRINGTON_BACKUP_DIR pointing here, not at the repo's backups/.
   const backups = join(dataDir, 'backups');
   const ageOf = async () => (await (await fetch(`${baseUrl}/api/health`)).json()).backupAgeDays;
   await mkdir(backups, { recursive: true });

@@ -227,7 +227,7 @@ const GUIDE_SECTIONS = [
   ]},
   { h: 'Notifications', items: [
     ['The bell', 'Lists what needs a parent, worked out on this computer without AI. It opens on the active learner; choose All learners to see everyone. Dismiss an item once it is handled.'],
-    ['What it watches', '“Today’s picks are still open” from 3 pm on a home day; “No evidence this week” when a learner has no record for 7 days; and a backup older than 7 days, or none yet (run npm run backup).'],
+    ['What it watches', '“Today’s picks are still open” from 3 pm on a home day; “No evidence this week” when a learner has no record for 7 days; a backup older than 7 days (run npm run backup); and, if no backup is recorded at all, a note that links to the backup runbook and stays quiet for 30 days once dismissed.'],
   ]},
   { h: 'Privacy', items: [
     ['Where data lives', 'Learners, progress, records, recordings and settings are stored in the private data folder on this computer. The server listens only on this computer by default.'],

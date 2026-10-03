@@ -538,7 +538,7 @@ downloads `GUIDE.md`.
 | ![Guide](screenshots/notifications/03-guide-full.jpg) | ![Printable guide](screenshots/onboarding/05-printable-guide.jpg) |
 
 **What the tests assert** (`notifications.spec.mjs`, `onboarding.spec.mjs`):
-the welcome and "No backup yet" with the bell named "Notifications, 2 new";
+the welcome and "No backup recorded" (with its runbook link) with the bell named "Notifications, 2 new";
 Dismiss all clears both and a reload keeps them dismissed; dismissing one
 keeps the other; a family with the old welcome is not welcomed again; open
 picks at 15:30 for the active learner, others behind "show all", and none
@@ -547,7 +547,7 @@ guide has ten entries and
 replays the tour; the printable guide opens in a new window; `GUIDE.md` is
 served.
 
-**Caveats.** The e2e server has no backups, so "No backup yet" is always
+**Caveats.** The e2e server has no backups, so "No backup recorded" is always
 there unless dismissed; the backup age rule is covered by `server.test.mjs`
 and `alerts.test.mjs`.
 
