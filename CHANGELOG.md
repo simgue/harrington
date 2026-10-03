@@ -43,6 +43,15 @@ tagged a release yet; everything below is on `main`.
   passed quiz; mastering a section's last topic this way passes the section,
   and its subject's last section passes the subject. Records and Insights
   label these checks "observed"; the child view never shows them (HAR-24).
+- Level-set workbook, from the learner selector next to Placement, works
+  without AI. For literacy and numeracy it asks "Can they…?" about one sheet
+  of topics at a time, starting a year below the learner's age, and the parent
+  marks each Yes, Not yet or Unsure. Yes marks the topic and its foundations
+  mastered as an undoable placement record. The walk moves up or down a year
+  and through the foundations of each Not yet until it can list where to
+  start. Unsure topics wait for an observation check. Sheets print, answers
+  save as you go so sittings resume, and the workbook suggests a pause at
+  twenty minutes (HAR-24).
 - Today's pick-one stops record evidence for the pick: the note and voice
   forms offer an opt-in "Mark curriculum coverage" checkbox, and a pick shows
   "Evidence recorded" only once a linked record claims coverage. Each stop

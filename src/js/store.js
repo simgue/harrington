@@ -526,7 +526,13 @@ export function levelsetFor(studentId) {
   return {
     lanes: v && v.lanes && typeof v.lanes === 'object' ? v.lanes : {},
     observe: v && Array.isArray(v.observe) ? v.observe : [],
+    lane: v && typeof v.lane === 'string' ? v.lane : null, // the tab last open
   };
+}
+export function setLevelsetLane(studentId, lane) {
+  const cur = levelsetFor(studentId);
+  state.levelset[studentId] = { ...cur, lane };
+  persist(); emit();
 }
 export function levelsetSession(studentId, lane) {
   return levelsetFor(studentId).lanes[lane] || null;
@@ -536,7 +542,7 @@ export function saveLevelsetSession(studentId, lane, session, { quiet = false } 
   const cur = levelsetFor(studentId);
   const lanes = { ...cur.lanes };
   if (session) lanes[lane] = session; else delete lanes[lane];
-  state.levelset[studentId] = { lanes, observe: cur.observe };
+  state.levelset[studentId] = { ...cur, lanes };
   persist();
   if (!quiet) emit();
 }
@@ -546,14 +552,14 @@ export function queueObservation(studentId, topicIds, { quiet = false } = {}) {
   const cur = levelsetFor(studentId);
   const observe = [...cur.observe];
   for (const id of [].concat(topicIds || [])) if (id && !observe.includes(id)) observe.push(id);
-  state.levelset[studentId] = { lanes: cur.lanes, observe };
+  state.levelset[studentId] = { ...cur, observe };
   persist();
   if (!quiet) emit();
 }
 export function unqueueObservation(studentId, topicIds, { quiet = false } = {}) {
   const cur = levelsetFor(studentId);
   const drop = new Set([].concat(topicIds || []));
-  state.levelset[studentId] = { lanes: cur.lanes, observe: cur.observe.filter(id => !drop.has(id)) };
+  state.levelset[studentId] = { ...cur, observe: cur.observe.filter(id => !drop.has(id)) };
   persist();
   if (!quiet) emit();
 }
@@ -651,7 +657,7 @@ export function applyObservation(studentId, { results = [], record = null, maste
   const topicId = results[0]?.topicId;
   const ls = levelsetFor(studentId);
   if (topicId && ls.observe.includes(topicId)) {
-    state.levelset[studentId] = { lanes: ls.lanes, observe: ls.observe.filter(id => id !== topicId) };
+    state.levelset[studentId] = { ...ls, observe: ls.observe.filter(id => id !== topicId) };
   }
   activityOf(studentId)[dateKeyLocal(at)] = true;
   persist(); emit();
