@@ -8,21 +8,24 @@
 //   node tests/e2e/start-app.mjs --port 4313          # no AI provider (fail-closed)
 //   node tests/e2e/start-app.mjs --port 4314 --ai-unreachable
 //                                     # AI configured, but nothing listens there
+//   node tests/e2e/start-app.mjs --port 4316 --token
+//                                     # no AI provider, access token required
 import { spawn } from 'node:child_process';
 import { copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CACHE_DIR, GITHUB_RAW_UPSTREAM, TAXONOMY_FILES, cacheIsComplete, ensureTaxonomyCache } from './support/taxonomy.mjs';
-import { URLS } from './support/env.mjs';
+import { ACCESS_TOKEN, URLS } from './support/env.mjs';
 
 const args = process.argv.slice(2);
 const unreachable = args.includes('--ai-unreachable');
 const withAi = args.includes('--ai') || unreachable;
+const withToken = args.includes('--token');
 const aiBase = unreachable ? `${URLS.deadAi}/v1` : `${URLS.mockAi}/v1`;
 const portArg = args[args.indexOf('--port') + 1];
 if (!args.includes('--port') || !portArg) {
-  console.error('usage: start-app.mjs --port <port> [--ai | --ai-unreachable]');
+  console.error('usage: start-app.mjs --port <port> [--ai | --ai-unreachable] [--token]');
   process.exit(2);
 }
 
@@ -31,7 +34,7 @@ const log = (msg) => console.log(`[e2e app ${portArg}] ${msg}`);
 
 const hadCache = await cacheIsComplete();
 const { upstream } = await ensureTaxonomyCache({ log });
-const dataDir = await mkdtemp(join(tmpdir(), `harrington-e2e-${unreachable ? 'ai-unreachable' : withAi ? 'ai' : 'noai'}-`));
+const dataDir = await mkdtemp(join(tmpdir(), `harrington-e2e-${unreachable ? 'ai-unreachable' : withAi ? 'ai' : withToken ? 'token' : 'noai'}-`));
 await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
 for (const name of TAXONOMY_FILES) await copyFile(join(CACHE_DIR, name), join(dataDir, 'taxonomy', name));
 log(`data dir ${dataDir} (taxonomy ${hadCache ? 'from cache' : `downloaded from ${upstream}`})`);
@@ -45,6 +48,10 @@ const env = {
   HARRINGTON_AI_MODEL: withAi ? 'mock' : '',
   HARRINGTON_AI_API_KEY: '',
   HARRINGTON_AI_TIMEOUT_MS: '15000',
+  HARRINGTON_ACCESS_TOKEN: withToken ? ACCESS_TOKEN : '',
+  // Blank whatever deployment settings the shell exports.
+  HARRINGTON_PUBLISHED_HOST: '',
+  HARRINGTON_ALLOWED_HOSTS: '',
 };
 // The cache is already in the data dir, but if a test ever deletes it the
 // server should refetch from an upstream that works on this network.

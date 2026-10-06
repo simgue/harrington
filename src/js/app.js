@@ -3,6 +3,7 @@ import * as store from './store.js';
 import { syncCurriculum } from './curriculum-sync.js';
 import { maybeShowWelcome } from './views/guide.js';
 import { el, refreshIcons, toast } from './ui.js';
+import { bannerText } from './hosting.js';
 import { renderShell } from './views/shell.js';
 import { graphHash, parseGraphHash } from './graph.js';
 import { commitNavigation } from './navigation.js';
@@ -146,7 +147,7 @@ function renderOnboard() {
         </div>
         <form id="f" class="bg-paper-card border border-paper-line rounded-2xl p-5 space-y-4">
           <div class="rounded-xl bg-[#fbecc4] border border-[#f2c14e] px-3.5 py-3 text-xs text-[#6b4d0e] leading-relaxed">
-            Runs on this computer only. Nothing leaves your home unless you configure an AI provider.
+            ${bannerText()}
           </div>
           <div>
             <label class="text-sm font-medium block mb-1.5">Student's name</label>

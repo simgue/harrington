@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -21,6 +21,10 @@ async function startServer() {
       HARRINGTON_HOST: '127.0.0.1',
       HARRINGTON_PORT: '0',
       HARRINGTON_DATA_DIR: dataDir,
+      // A parent's shell may export the deployment settings; tests choose their own.
+      HARRINGTON_ACCESS_TOKEN: '',
+      HARRINGTON_PUBLISHED_HOST: '',
+      HARRINGTON_ALLOWED_HOSTS: '',
       HARRINGTON_AI_BASE_URL: '',
       HARRINGTON_AI_MODEL: '',
       HARRINGTON_AI_API_KEY: '',
@@ -63,6 +67,8 @@ test('serves Harrington and reports self-hosted health', async () => {
   assert.deepEqual(await health.json(), {
     ok: true,
     mode: 'self-hosted',
+    host: 'loopback',
+    authEnabled: false,
     aiConfigured: false,
     taxonomyCached: false,
     stateVersion: 0,
@@ -384,6 +390,10 @@ test('fetches an allowlisted taxonomy file from upstream and caches it on disk',
       HARRINGTON_HOST: '127.0.0.1',
       HARRINGTON_PORT: '0',
       HARRINGTON_DATA_DIR: isolatedDir,
+      // A parent's shell may export the deployment settings; tests choose their own.
+      HARRINGTON_ACCESS_TOKEN: '',
+      HARRINGTON_PUBLISHED_HOST: '',
+      HARRINGTON_ALLOWED_HOSTS: '',
       HARRINGTON_TAXONOMY_UPSTREAM: `http://127.0.0.1:${upstreamPort}`,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -448,6 +458,10 @@ async function spawnHarrington(extraEnv = {}) {
       HARRINGTON_HOST: '127.0.0.1',
       HARRINGTON_PORT: '0',
       HARRINGTON_DATA_DIR: dir,
+      // A parent's shell may export the deployment settings; tests choose their own.
+      HARRINGTON_ACCESS_TOKEN: '',
+      HARRINGTON_PUBLISHED_HOST: '',
+      HARRINGTON_ALLOWED_HOSTS: '',
       HARRINGTON_AI_BASE_URL: '',
       HARRINGTON_AI_MODEL: '',
       HARRINGTON_AI_API_KEY: '',
@@ -455,13 +469,15 @@ async function spawnHarrington(extraEnv = {}) {
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  let output = '';
   const url = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('AI test server did not start')), 5000);
-    let output = '';
     proc.stdout.on('data', (chunk) => {
       output += chunk.toString();
-      const match = output.match(/http:\/\/127\.0\.0\.1:(\d+)/);
-      if (match) {
+      // Any bind address; the tests always connect over loopback. The access
+      // token line is the last startup line, so the whole log is in by then.
+      const match = output.match(/listening at http:\/\/\S+:(\d+)/);
+      if (match && /Access token is/.test(output)) {
         clearTimeout(timer);
         resolve(`http://127.0.0.1:${match[1]}`);
       }
@@ -471,10 +487,14 @@ async function spawnHarrington(extraEnv = {}) {
       clearTimeout(timer);
       reject(new Error(`AI test server exited with ${code}: ${output}`));
     });
+  }).catch(async (error) => {
+    await rm(dir, { recursive: true, force: true });
+    throw error;
   });
   return {
     url,
     dir,
+    output: () => output,
     async stop() {
       proc.kill('SIGTERM');
       await new Promise((resolve) => proc.once('exit', resolve));
@@ -654,6 +674,273 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
     } finally {
       await harrington.stop();
       upstream.close();
+    }
+  });
+});
+
+describe('access token and bind address', { concurrency: false }, () => {
+  const TOKEN = 'test-family-token-0123456789';
+
+  function loginCookie(response) {
+    const header = response.headers.get('set-cookie') || '';
+    return header.split(';')[0];
+  }
+
+  test('without a token every route stays open and health says so', async () => {
+    const open = await spawnHarrington();
+    try {
+      const health = await (await fetch(`${open.url}/api/health`)).json();
+      assert.equal(health.host, 'loopback');
+      assert.equal(health.authEnabled, false);
+      assert.equal('signedIn' in health, false);
+      assert.equal((await fetch(`${open.url}/api/state`)).status, 200);
+      const login = await fetch(`${open.url}/login?token=anything`, { redirect: 'manual' });
+      assert.equal(login.status, 303);
+      assert.equal(login.headers.get('set-cookie'), null);
+    } finally {
+      await open.stop();
+    }
+  });
+
+  test('with a token /api/* needs the cookie and static assets stay open', async () => {
+    const guarded = await spawnHarrington({ HARRINGTON_ACCESS_TOKEN: TOKEN });
+    try {
+      const health = await (await fetch(`${guarded.url}/api/health`)).json();
+      assert.deepEqual(health, { ok: true, mode: 'self-hosted', host: 'loopback', authEnabled: true, signedIn: false });
+
+      const denied = await fetch(`${guarded.url}/api/state`);
+      assert.equal(denied.status, 401);
+      assert.match(denied.headers.get('content-type'), /text\/html/);
+      assert.match(await denied.text(), /href="\/login"/);
+
+      const wrong = await fetch(`${guarded.url}/api/state`, { headers: { Cookie: 'harrington_session=forged' } });
+      assert.equal(wrong.status, 401);
+      const put = await fetch(`${guarded.url}/api/state`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'If-Match': '"v0"' },
+        body: JSON.stringify({ students: [] }),
+      });
+      assert.equal(put.status, 401);
+      assert.equal((await fetch(`${guarded.url}/api/taxonomy/topics.json`)).status, 401);
+
+      const page = await fetch(guarded.url);
+      assert.equal(page.status, 200);
+      assert.match(await page.text(), /<title>Harrington/);
+      assert.equal((await fetch(`${guarded.url}/js/app.js`)).status, 200);
+    } finally {
+      await guarded.stop();
+    }
+  });
+
+  test('login sets an HttpOnly SameSite=Strict cookie only for the right token', async () => {
+    const guarded = await spawnHarrington({ HARRINGTON_ACCESS_TOKEN: TOKEN });
+    try {
+      for (const query of ['?token=', '?token=wrong-token-0123456789', `?token=${TOKEN}x`, `?token=${TOKEN.slice(0, -1)}`]) {
+        const failed = await fetch(`${guarded.url}/login${query}`, { redirect: 'manual' });
+        assert.equal(failed.status, 401, `login${query} should fail`);
+        assert.equal(failed.headers.get('set-cookie'), null);
+        assert.match(await failed.text(), /did not work/);
+        assert.equal(failed.headers.get('location'), null);
+      }
+
+      const ok = await fetch(`${guarded.url}/login?token=${encodeURIComponent(TOKEN)}`, { redirect: 'manual' });
+      assert.equal(ok.status, 303);
+      assert.equal(ok.headers.get('location'), '/');
+      const setCookie = ok.headers.get('set-cookie');
+      assert.match(setCookie, /^harrington_session=[\w-]+;/);
+      assert.match(setCookie, /HttpOnly/);
+      assert.match(setCookie, /SameSite=Strict/);
+      assert.doesNotMatch(setCookie, /Secure/);
+      assert.equal(setCookie.includes(TOKEN), false, 'the cookie must not carry the token itself');
+
+      const proxied = await fetch(`${guarded.url}/login?token=${encodeURIComponent(TOKEN)}`, {
+        redirect: 'manual',
+        headers: { 'X-Forwarded-Proto': 'https' },
+      });
+      assert.match(proxied.headers.get('set-cookie'), /; Secure/);
+
+      const cookie = loginCookie(ok);
+      const health = await (await fetch(`${guarded.url}/api/health`, { headers: { Cookie: cookie } })).json();
+      assert.equal(health.signedIn, true);
+      assert.equal(health.stateVersion, 0);
+      const state = await fetch(`${guarded.url}/api/state`, { headers: { Cookie: `other=1; ${cookie}` } });
+      assert.equal(state.status, 200);
+    } finally {
+      await guarded.stop();
+    }
+  });
+
+  test('the unload beacon saves with the cookie and is refused without it', async () => {
+    const guarded = await spawnHarrington({ HARRINGTON_ACCESS_TOKEN: TOKEN });
+    try {
+      const login = await fetch(`${guarded.url}/login?token=${encodeURIComponent(TOKEN)}`, { redirect: 'manual' });
+      const cookie = loginCookie(login);
+      const beacon = { students: [{ id: 'b', name: 'Beacon Learner', birthYear: 2019 }], activeStudentId: 'b', version: 0 };
+
+      const anonymous = await fetch(`${guarded.url}/api/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'same-origin' },
+        body: JSON.stringify(beacon),
+      });
+      assert.equal(anonymous.status, 401);
+
+      const sent = await fetch(`${guarded.url}/api/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'same-origin', Cookie: cookie },
+        body: JSON.stringify(beacon),
+      });
+      assert.equal(sent.status, 204);
+      const loaded = await (await fetch(`${guarded.url}/api/state`, { headers: { Cookie: cookie } })).json();
+      assert.equal(loaded.version, 1);
+      assert.equal(loaded.students[0].name, 'Beacon Learner');
+    } finally {
+      await guarded.stop();
+    }
+  });
+
+  test('a non-loopback bind is reported and bad settings stop the server', async () => {
+    const shared = await spawnHarrington({ HARRINGTON_HOST: '0.0.0.0' });
+    try {
+      const port = new URL(shared.url).port;
+      const health = await (await fetch(`http://127.0.0.1:${port}/api/health`)).json();
+      assert.equal(health.host, 'network');
+      assert.match(shared.output(), /Bind address 0\.0\.0\.0 is not loopback/);
+      assert.match(shared.output(), /anyone who can reach this server can read and change family data/);
+    } finally {
+      await shared.stop();
+    }
+
+    const container = await spawnHarrington({ HARRINGTON_HOST: '0.0.0.0', HARRINGTON_PUBLISHED_HOST: '127.0.0.1' });
+    try {
+      const port = new URL(container.url).port;
+      assert.equal((await (await fetch(`http://127.0.0.1:${port}/api/health`)).json()).host, 'loopback');
+      // The bind still reaches beyond this computer; the log must not say otherwise.
+      assert.match(container.output(), /Bind address 0\.0\.0\.0 is not loopback/);
+      assert.match(container.output(), /Published address 127\.0\.0\.1 is loopback/);
+      assert.match(container.output(), /anyone who can reach this server/);
+      assert.doesNotMatch(container.output(), /only this computer can connect/);
+    } finally {
+      await container.stop();
+    }
+
+    for (const env of [{ HARRINGTON_HOST: 'not a host!' }, { HARRINGTON_PUBLISHED_HOST: 'http://x' }, { HARRINGTON_ALLOWED_HOSTS: 'ok.example, bad host' }, { HARRINGTON_ACCESS_TOKEN: 'short' }]) {
+      await assert.rejects(spawnHarrington(env), /exited with 1/);
+    }
+  });
+});
+
+// fetch() always sends the real Host header, so these requests go through
+// node:http to send the name a browser would after DNS rebinding.
+function getWithHost(port, hostHeader, path = '/api/health') {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest({ host: '127.0.0.1', port, path, headers: { Host: hostHeader } }, (res) => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => resolve({ status: res.statusCode, text: async () => body }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+describe('sign-in form and host names', { concurrency: false }, () => {
+  const TOKEN = 'test-family-token-0123456789';
+
+  function postLogin(url, token, headers = {}) {
+    return fetch(`${url}/login`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
+      body: new URLSearchParams({ token }).toString(),
+    });
+  }
+
+  test('GET /login shows a password form and POST signs in with the same check', async () => {
+    const guarded = await spawnHarrington({ HARRINGTON_ACCESS_TOKEN: TOKEN });
+    try {
+      const form = await fetch(`${guarded.url}/login`);
+      assert.equal(form.status, 200);
+      const html = await form.text();
+      assert.match(html, /<form method="post" action="\/login">/);
+      assert.match(html, /type="password"/);
+
+      for (const token of ['', 'wrong-token-0123456789', `${TOKEN}x`, TOKEN.slice(0, -1)]) {
+        const failed = await postLogin(guarded.url, token);
+        assert.equal(failed.status, 401, `POST with ${JSON.stringify(token)} should fail`);
+        assert.equal(failed.headers.get('set-cookie'), null);
+      }
+      const noBody = await fetch(`${guarded.url}/login`, { method: 'POST', redirect: 'manual' });
+      assert.equal(noBody.status, 401);
+      const oversized = await postLogin(guarded.url, `${TOKEN}${' '.repeat(5000)}`);
+      assert.equal(oversized.status, 413);
+      assert.equal(oversized.headers.get('set-cookie'), null);
+      assert.equal((await postLogin(guarded.url, ` ${TOKEN}\n`)).status, 303, 'a pasted token is trimmed');
+
+      const ok = await postLogin(guarded.url, TOKEN);
+      assert.equal(ok.status, 303);
+      assert.equal(ok.headers.get('location'), '/');
+      const setCookie = ok.headers.get('set-cookie');
+      assert.match(setCookie, /HttpOnly; SameSite=Strict/);
+      assert.doesNotMatch(setCookie, /Secure/);
+      assert.match((await postLogin(guarded.url, TOKEN, { 'X-Forwarded-Proto': 'https' })).headers.get('set-cookie'), /; Secure/);
+      const cookie = setCookie.split(';')[0];
+      assert.equal((await fetch(`${guarded.url}/api/state`, { headers: { Cookie: cookie } })).status, 200);
+    } finally {
+      await guarded.stop();
+    }
+  });
+
+  test('a loopback server answers to any host name, as before', async () => {
+    const local = await spawnHarrington();
+    try {
+      const response = await getWithHost(new URL(local.url).port, 'attacker.example');
+      assert.equal(response.status, 200);
+    } finally {
+      await local.stop();
+    }
+  });
+
+  test('a shared server answers only to the family\'s host names and IP addresses', async () => {
+    const sharedServer = await spawnHarrington({
+      HARRINGTON_HOST: '0.0.0.0',
+      HARRINGTON_PUBLISHED_HOST: 'family-host.example.ts.net',
+      HARRINGTON_ALLOWED_HOSTS: 'family-host, harrington.home.arpa',
+    });
+    try {
+      const port = new URL(sharedServer.url).port;
+      const get = (hostHeader, path) => getWithHost(port, hostHeader, path);
+      for (const name of [
+        `127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`, `192.168.1.20:${port}`,
+        'family-host.example.ts.net', 'FAMILY-HOST.example.ts.net.', `family-host:${port}`, 'harrington.home.arpa',
+      ]) {
+        assert.equal((await get(name)).status, 200, `${name} should be allowed`);
+      }
+      for (const name of [
+        'attacker.example', `attacker.example:${port}`, 'family-host.example.ts.net.attacker.example',
+        'evil-family-host.example.ts.net', 'other.example.ts.net',
+      ]) {
+        for (const path of ['/api/health', '/', '/login']) {
+          const refused = await get(name, path);
+          assert.equal(refused.status, 421, `${name}${path} should be refused`);
+          assert.match(await refused.text(), /HARRINGTON_ALLOWED_HOSTS/);
+        }
+      }
+    } finally {
+      await sharedServer.stop();
+    }
+  });
+
+  test('the Docker default (0.0.0.0 bind, loopback published) still refuses other names', async () => {
+    const container = await spawnHarrington({ HARRINGTON_HOST: '0.0.0.0', HARRINGTON_PUBLISHED_HOST: '127.0.0.1' });
+    try {
+      const port = new URL(container.url).port;
+      for (const name of [`127.0.0.1:${port}`, `localhost:${port}`]) {
+        assert.equal((await getWithHost(port, name)).status, 200, `${name} should be allowed`);
+      }
+      assert.equal((await getWithHost(port, 'attacker.example')).status, 421);
+    } finally {
+      await container.stop();
     }
   });
 });
