@@ -13,7 +13,7 @@ test.afterEach(async ({ request }) => {
   await request.delete('/api/settings/ai');
 });
 
-test('save a provider in the app, test it, see AI switch on, then remove it', async ({ page, gotoApp, mockAi, shot }) => {
+test('save a provider in the app, test it, see AI switch on, then remove it', async ({ page, gotoApp, mockAi, shot, request }) => {
   // Every response the page receives, to prove the key never comes back.
   const bodies = [];
   page.on('response', async (response) => {
@@ -38,6 +38,10 @@ test('save a provider in the app, test it, see AI switch on, then remove it', as
   await expect(page.getByLabel('Lessons')).toBeChecked();
   await expect(page.getByLabel('Mastery tests')).not.toBeChecked();
 
+  // The timeout's source before any save (the e2e apps set HARRINGTON_AI_TIMEOUT_MS).
+  const before = await (await request.get('/api/settings/ai')).json();
+  expect(before.source.timeoutMs).not.toBe('app');
+
   // Point it at the mock instead, through the custom preset.
   await page.getByRole('button', { name: 'OpenAI-compatible (custom)' }).click();
   await page.getByLabel('Base URL').fill(`${URLS.mockAi}/v1`);
@@ -48,6 +52,9 @@ test('save a provider in the app, test it, see AI switch on, then remove it', as
   await expect(page.getByText('Saved in Harrington')).toBeVisible();
   await expect(page.getByLabel('API key')).toHaveValue('');
   await expect(page.getByLabel('API key')).toHaveAttribute('placeholder', 'Saved, ends in …7Q2w');
+  // Only what the parent set is saved: the untouched timeout keeps its source.
+  const saved = await (await request.get('/api/settings/ai')).json();
+  expect(saved.source).toMatchObject({ baseUrl: 'app', model: 'app', apiKey: 'app', capabilities: 'app', timeoutMs: before.source.timeoutMs });
   await shot('ai-provider-saved');
 
   await mockAi.clear();
@@ -92,4 +99,21 @@ test('a bad base URL is refused with a plain message, and a provider error reads
   await request.post(`${URLS.mockAi}/__fail`, { data: { count: 1 } });
   await page.getByRole('button', { name: 'Test connection' }).click();
   await expect(page.getByText('Couldn’t connect: the provider answered with an error (HTTP 500).')).toBeVisible();
+});
+
+test('from another device without an access token the page is read-only, every control disabled', async ({ page, gotoApp, request }) => {
+  await request.put('/api/settings/ai', { data: { baseUrl: `${URLS.mockAi}/v1`, model: 'mock', apiKey: KEY } });
+  // What the server answers a device that is not this computer.
+  await page.route('**/api/settings/ai', async (route) => {
+    const response = await route.fetch();
+    route.fulfill({ response, json: { ...(await response.json()), canChange: false } });
+  });
+  await gotoApp({ seed: {}, hash: 'settings' });
+  await expect(page.getByText('AI provider settings can only be changed from the computer running Harrington, or from any signed-in device once an access token is set.')).toBeVisible();
+  const form = page.locator('form');
+  const controls = form.locator('input, button, select, textarea');
+  expect(await controls.count()).toBeGreaterThan(15);
+  for (const control of await controls.all()) await expect(control).toBeDisabled();
+  await expect(form.locator('input:enabled, button:enabled')).toHaveCount(0);
+  await expect(form.getByRole('button', { name: 'Remove', exact: true })).toHaveClass(/opacity-50/);
 });

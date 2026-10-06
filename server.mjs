@@ -358,7 +358,7 @@ function accessTokenEnabled() {
 // Repointing the provider would send it every later prompt, so without an
 // access token only the computer running Harrington may change it (or run
 // the connection test). The socket address decides; X-Forwarded-For does not.
-const LOCAL_ONLY = 'AI provider settings can only be changed from the computer running Harrington until an access token is set';
+const LOCAL_ONLY = 'AI provider settings can only be changed from the computer running Harrington, or from any signed-in device once an access token is set';
 function canChangeAiSettings(req) {
   return accessTokenEnabled() || isLoopbackAddress(req.socket.remoteAddress);
 }

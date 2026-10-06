@@ -182,7 +182,10 @@ Then open `http://127.0.0.1:4173`. No login is required. Private preview data is
 written under `data/private/` and excluded from Git.
 
 To use AI, open **AI provider** in the sidebar (or `#settings`) and set a
-provider there; no restart is needed. See [docs/AI-SETUP.md](docs/AI-SETUP.md).
+provider there; no restart is needed. Under Docker or Compose that page is
+read-only (the container sees the browser as another device): set an access
+token, or use the environment variables below. See
+[docs/AI-SETUP.md](docs/AI-SETUP.md).
 
 ### Optional local model (Ollama)
 

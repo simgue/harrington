@@ -105,9 +105,14 @@ directory, so it does include `secrets.json`: keep such a copy as private as
 the key itself.
 
 Until an access token protects Harrington, these settings can only be changed
-(and tested) from the computer running it; other devices can read the page but
-not save. Anything else could repoint the provider and receive every later
-prompt.
+(and tested) from the computer running it, or from any signed-in device once
+an access token is set; other devices can read the page but not save. Anything
+else could repoint the provider and receive every later prompt.
+
+**Under Docker or Compose the page is read-only, even at the host computer.**
+The container sees the browser as another device, so this is intended. There
+are two ways to set the provider there: set an access token (then any
+signed-in device can save here), or use the environment variables below.
 
 ### Or with environment variables (Docker and Compose)
 

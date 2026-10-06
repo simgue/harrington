@@ -1024,7 +1024,7 @@ describe('AI provider settings from another device', { concurrency: false }, () 
       const view = await (await fetch(`${remote}/api/settings/ai`)).json();
       assert.equal(view.canChange, false);
 
-      const LOCAL_ONLY = 'AI provider settings can only be changed from the computer running Harrington until an access token is set';
+      const LOCAL_ONLY = 'AI provider settings can only be changed from the computer running Harrington, or from any signed-in device once an access token is set';
       for (const response of [
         await put(remote),
         // A forged header changes nothing: the socket address decides.

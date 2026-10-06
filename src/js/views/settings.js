@@ -99,7 +99,7 @@ function settingsForm(s) {
         <input name="apiKey" type="password" spellcheck="false" autocomplete="new-password" class="${field} mt-1" placeholder="${esc(keyPlaceholder)}" />
       </label>
       <div class="flex flex-wrap items-center gap-2 mt-2" id="key-actions"></div>
-      <p class="text-xs text-ink-faint mt-1.5">Kept on the Harrington server only. It is never shown again, sent to this page, exported or backed up.</p>
+      <p class="text-xs text-ink-faint mt-1.5">Kept on the Harrington server only and never shown again or sent to this page. Export and <code>npm run backup</code> leave it out.</p>
     </div>
     <fieldset>
       <legend class="text-sm font-medium">Switched on</legend>
@@ -127,11 +127,6 @@ function settingsForm(s) {
   </form>`);
 
   form.querySelector('#status').replaceWith(statusCard(s));
-  // Without an access token, only the computer running Harrington may change these.
-  if (s.canChange === false) {
-    form.querySelector('#test-result').before(el(`<p class="text-sm text-[#a4473a]">AI provider settings can only be changed from the computer running Harrington until an access token is set.</p>`));
-    form.querySelectorAll('input, button').forEach((node) => { node.disabled = true; });
-  }
   const input = (name) => form.querySelector(`[name="${name}"]`);
   input('baseUrl').value = values.baseUrl || '';
   input('model').value = values.model || '';
@@ -188,15 +183,29 @@ function settingsForm(s) {
   }
   if (!keyActions.children.length) keyActions.remove();
 
+  // Save sends a field only when the parent changed it or it is already saved
+  // here, so a value from the server environment stays the environment's.
+  const sameSet = (a, b) => a.length === b.length && a.every((c) => b.includes(c));
   form.onsubmit = (e) => {
     e.preventDefault();
     const seconds = String(input('timeoutSeconds').value).trim();
-    const patch = {
-      baseUrl: input('baseUrl').value.trim() || null,
-      model: input('model').value.trim() || null,
+    const now = {
+      baseUrl: input('baseUrl').value.trim(),
+      model: input('model').value.trim(),
       capabilities: checked(),
       timeoutMs: seconds ? Math.round(Number(seconds) * 1000) : null,
     };
+    const changed = {
+      baseUrl: now.baseUrl !== s.baseUrl,
+      model: now.model !== s.model,
+      capabilities: !sameSet(now.capabilities, s.capabilities),
+      timeoutMs: now.timeoutMs !== null && Math.round(now.timeoutMs / 1000) !== Math.round(s.timeoutMs / 1000),
+    };
+    const patch = {};
+    for (const name of Object.keys(now)) {
+      if (!changed[name] && s.source[name] !== 'app') continue;
+      patch[name] = name === 'capabilities' ? now[name] : (now[name] || null);
+    }
     const key = input('apiKey').value.trim();
     if (key) patch.apiKey = key;
     run(form, () => backend.saveAiSettings(patch), 'AI settings saved');
@@ -221,6 +230,16 @@ function settingsForm(s) {
     result.replaceChildren(testLine(lastTest));
     await syncHealth();
   };
+
+  // Without an access token, only the computer running Harrington may change
+  // these. Last, so every control added above is covered.
+  if (s.canChange === false) {
+    form.querySelector('#test-result').before(el(`<p class="read-only-note text-sm text-[#a4473a]">AI provider settings can only be changed from the computer running Harrington, or from any signed-in device once an access token is set.</p>`));
+    form.querySelectorAll('input, button, select, textarea').forEach((node) => {
+      node.disabled = true;
+      node.classList.add('opacity-50', 'cursor-not-allowed');
+    });
+  }
 
   return form;
 }
