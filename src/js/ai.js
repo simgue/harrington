@@ -186,18 +186,20 @@ Return ONLY valid JSON (no markdown, no commentary) matching exactly this shape:
 Make "teach" have 3-5 steps. Keep language warm, concrete and age-appropriate. Use real, specific examples (numbers, words, objects) rather than generic filler. The parentTips must be specific to THIS topic, not generic teaching advice.`;
 }
 
-async function ask(prompt) {
-  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }]);
+// Every request names the capability it uses (see ai-capabilities.js); the
+// server refuses a capability the family has not switched on.
+async function ask(prompt, capability) {
+  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }], capability);
   const text = res?.content || res?.text || String(res);
   return toHtml(text);
 }
 
 export function aiExplain(topic) {
-  return ask(buildExplainPrompt(topic));
+  return ask(buildExplainPrompt(topic), 'explain');
 }
 
 export function aiQuiz(topic) {
-  return ask(`Create a short 4-question mini-quiz to check mastery of "${topic.name}" (${topic.subject}, ${ageBand(topic)}). Description: ${topic.description}. Mastery evidence: ${(topic.evidence||[]).join('; ')}. Mix question types (recall, apply, explain). Number the questions. After the questions add a short "**Answers**" section. Keep it concise and age-appropriate.`);
+  return ask(`Create a short 4-question mini-quiz to check mastery of "${topic.name}" (${topic.subject}, ${ageBand(topic)}). Description: ${topic.description}. Mastery evidence: ${(topic.evidence||[]).join('; ')}. Mix question types (recall, apply, explain). Number the questions. After the questions add a short "**Answers**" section. Keep it concise and age-appropriate.`, 'quiz');
 }
 
 // ---- Structured lesson generation ----
@@ -212,8 +214,8 @@ function parseJson(text) {
   return JSON.parse(s);
 }
 
-async function askJson(prompt) {
-  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }]);
+async function askJson(prompt, capability) {
+  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }], capability);
   const text = res?.content || res?.text || String(res);
   return parseJson(text);
 }
@@ -301,8 +303,8 @@ function normalizeTest(test) {
 // multiple_choice question WITHOUT seeing the proposed key, and we keep only the
 // questions where the independent answer agrees with ours. Questions that are
 // ambiguous, wrong, or unsolvable are removed. This is what guarantees the tests
-// aren't "flat out wrong".
-export async function verifyTest(test) {
+// aren't "flat out wrong". It runs under the capability of the test it checks.
+export async function verifyTest(test, capability = 'test') {
   if (!test || !Array.isArray(test.questions)) return test;
   const mc = test.questions
     .map((q, i) => ({ q, i }))
@@ -326,7 +328,7 @@ Return ONLY valid JSON (no markdown):
 
   let verdicts = {};
   try {
-    const res = await askJson(prompt);
+    const res = await askJson(prompt, capability);
     (res.results || []).forEach(r => { verdicts[r.n] = r; });
   } catch {
     // If verification fails entirely, fall back to the normalized test as-is.
@@ -356,7 +358,7 @@ Return ONLY valid JSON (no markdown):
 
 // A complete, ready-to-teach lesson for a single topic.
 export function aiLesson(topic) {
-  return askJson(buildLessonPrompt(topic));
+  return askJson(buildLessonPrompt(topic), 'lesson');
 }
 
 // Ready-to-print materials for a topic. The AI picks the 2-3 formats that need
@@ -382,7 +384,7 @@ Return ONLY valid JSON (no markdown) matching:
   ]
 }
 Use real, specific, age-appropriate content (actual numbers, words, examples) — never placeholders.`;
-  return askJson(prompt);
+  return askJson(prompt, 'printables');
 }
 
 // Detailed how-to for one specific activity or game idea.
@@ -401,7 +403,7 @@ Return ONLY valid JSON (no markdown) matching:
   "tip": "one tip to make it easier or harder"
 }
 Use specific, real examples. Keep it practical and age-appropriate.`;
-  return askJson(prompt);
+  return askJson(prompt, 'activity');
 }
 
 // A mastery test. `mode` is 'digital' (auto-gradable quiz) or 'physical'
@@ -456,7 +458,7 @@ Return ONLY valid JSON (no markdown) matching exactly:
   "questions": [ ... ${count} questions using the shapes above, ordered easiest-first ... ]
 }
 Use real, specific, age-appropriate content (actual numbers, words, examples) — never placeholders.`;
-  return askJson(prompt).then(normalizeTest).then(verifyTest).then(normalizeTest);
+  return askJson(prompt, 'test').then(normalizeTest).then(t => verifyTest(t, 'test')).then(normalizeTest);
 }
 
 // A timed "challenge" quiz taken AFTER a topic is mastered. Designed to stretch
@@ -480,7 +482,7 @@ Question shape:
 Return ONLY valid JSON (no markdown):
 { "title": "${topic.name} — Challenge", "questions": [ ...8 multiple_choice items... ] }
 Use real, specific, age-appropriate content — never placeholders.`;
-  return askJson(prompt).then(t => { t.questions = (t.questions || []).map(q => ({ ...q, type: 'multiple_choice' })); return t; }).then(normalizeTest).then(verifyTest).then(normalizeTest);
+  return askJson(prompt, 'challenge').then(t => { t.questions = (t.questions || []).map(q => ({ ...q, type: 'multiple_choice' })); return t; }).then(normalizeTest).then(t => verifyTest(t, 'challenge')).then(normalizeTest);
 }
 
 // Active-recall cards for a topic: short question -> concise answer prompts the
@@ -502,7 +504,7 @@ Rules:
 Return ONLY valid JSON (no markdown):
 { "cards": [ { "front": "...", "back": "...", "hint": "..." } ] }
 Use real, specific content — never placeholders.`;
-  return askJson(prompt).then(data => {
+  return askJson(prompt, 'recall').then(data => {
     const cards = (data && Array.isArray(data.cards)) ? data.cards : [];
     return cards
       .filter(c => c && c.front && c.back)
@@ -542,7 +544,7 @@ If the transcript is too short or unclear to judge, say so honestly and suggest 
 }
 
 export function aiDiscussionAnalysis(opts) {
-  return ask(buildDiscussionPrompt(opts));
+  return ask(buildDiscussionPrompt(opts), 'analysis');
 }
 
 // Teacher feedback based on a student's real progress + records. Records go
@@ -580,5 +582,5 @@ Keep the whole thing under 220 words, encouraging and jargon-free.`;
 }
 
 export function aiFeedback(opts) {
-  return ask(buildFeedbackPrompt(opts));
+  return ask(buildFeedbackPrompt(opts), 'review');
 }

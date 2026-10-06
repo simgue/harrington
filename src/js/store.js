@@ -1,5 +1,6 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
+import { AI_CAPABILITIES, capabilityOffMessage } from './ai-capabilities.js';
 
 export const MASTERY = {
   none:       { label: 'Not started', rank: 0, color: '#d2c6ad' },
@@ -38,20 +39,37 @@ function emit() { listeners.forEach(fn => fn(state)); }
 export function get() { return state; }
 
 // ---- Server connection ----
-let aiConfigured = false; // from /api/health; kept out of the persisted state
-export async function connect() {
-  const health = await backend.health();
+// From /api/health; kept out of the persisted state.
+let aiConfigured = false;
+let aiCapabilities = []; // the capabilities the server switched on
+function applyHealth(health) {
   aiConfigured = health?.aiConfigured === true;
+  // A server from before HARRINGTON_AI_CAPABILITIES reports no list: all on.
+  aiCapabilities = !aiConfigured ? []
+    : Array.isArray(health?.aiCapabilities) ? health.aiCapabilities : [...AI_CAPABILITIES];
+}
+export async function connect() {
+  applyHealth(await backend.health());
   state.user = { username: 'Family' };
   return state.user;
 }
-export function aiAvailable() { return aiConfigured; }
+// Whether `capability` (see ai-capabilities.js) can generate now. An array
+// asks for any of them; with none, any capability at all.
+export function aiAvailable(capability) {
+  if (!aiConfigured) return false;
+  if (capability == null) return aiCapabilities.length > 0;
+  return [].concat(capability).some(c => aiCapabilities.includes(c));
+}
+// A provider is set up but the family has not switched `capability` on yet.
+export function aiSwitchedOff(capability) {
+  return aiConfigured && !aiAvailable(capability);
+}
 // Rejects when /api/health itself fails, so callers can tell an outage from a missing provider.
-export async function refreshHealth() {
-  const before = aiConfigured;
-  aiConfigured = (await backend.health())?.aiConfigured === true;
-  if (aiConfigured !== before) emit();
-  return aiConfigured;
+export async function refreshHealth(capability) {
+  const before = `${aiConfigured}|${aiCapabilities}`;
+  applyHealth(await backend.health());
+  if (`${aiConfigured}|${aiCapabilities}` !== before) emit();
+  return aiAvailable(capability);
 }
 
 // ---- Persistence ----
@@ -1041,6 +1059,7 @@ export function setCalendarSettings(calendar) {
 // ---- Lesson cache (shared by this family) ----
 // Lessons are reusable teaching material keyed by topic/activity. Each key
 // prefix names a kind with a minimal shape; nothing that fails it is cached.
+// Each kind is also the name of the AI capability that writes it.
 const CACHE_KINDS = { 'topic:': 'lesson', 'print:': 'printables', 'act:': 'activity', 'recall:': 'recall' };
 const lessonCache = new Map();
 const existsMemo = new Map(); // key -> Promise<boolean>, for the no-provider "Open" upgrade
@@ -1145,7 +1164,8 @@ export function hasCachedLesson(id) {
 // `force` skips the cache (regenerate). `accept(fresh)` runs before saving
 // (views pass a trial render) and a throw there leaves the cache untouched.
 // Concurrent calls for one key share a single generation. Without a provider
-// a cache miss rejects as "not configured".
+// a cache miss rejects as "not configured"; each cache kind is also the
+// capability it needs, and a miss for one not switched on rejects as such.
 export function generateCached(id, generate, { force = false, accept = null } = {}) {
   if (inflight.has(id)) return inflight.get(id);
   const kind = cacheKind(id);
@@ -1154,7 +1174,8 @@ export function generateCached(id, generate, { force = false, accept = null } = 
       const cached = await getCachedLesson(id);
       if (cached) return cached;
     }
-    if (!aiAvailable()) throw new Error('AI is not configured');
+    if (!aiConfigured) throw new Error('AI is not configured');
+    if (kind && !aiAvailable(kind)) throw Object.assign(new Error(capabilityOffMessage(kind)), { capability: kind });
     const fresh = normalizeCached(kind, await generate());
     if (!isValidCached(kind, fresh)) throw invalidResult();
     if (accept) {

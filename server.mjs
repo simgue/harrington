@@ -1,8 +1,13 @@
 import { createReadStream } from 'node:fs';
-import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  MAX_TIMEOUT_MS, chatCompletion, knownCapabilities, readStoredAiSettings, resolveAiSettings, validTimeout,
+} from './lib/ai-provider.mjs';
+import { isLoopbackAddress } from './lib/loopback.mjs';
+import { AI_CAPABILITIES, capabilityOffMessage, parseCapabilities } from './src/js/ai-capabilities.js';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(repoRoot, 'src');
@@ -11,6 +16,8 @@ const lessonsDir = join(dataDir, 'lessons');
 const audioDir = join(dataDir, 'audio');
 const taxonomyDir = join(dataDir, 'taxonomy');
 const stateFile = join(dataDir, 'family-state.json');
+// AI provider settings saved from the app, including any API key (see aiSettings()).
+const secretsFile = join(dataDir, 'secrets.json');
 const host = process.env.HARRINGTON_HOST || '127.0.0.1';
 const configuredPort = Number.parseInt(process.env.HARRINGTON_PORT || process.env.PORT || '4173', 10);
 const port = Number.isInteger(configuredPort) && configuredPort >= 0 ? configuredPort : 4173;
@@ -20,7 +27,8 @@ const TAXONOMY_FILES = new Set(['topics.json', 'dependencies.json', 'clusters.js
 const TAXONOMY_UPSTREAM = process.env.HARRINGTON_TAXONOMY_UPSTREAM
   || 'https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@main/data';
 const AI_UNCONFIGURED = 'AI is not configured for this self-hosted Harrington server';
-const DEFAULT_AI_TIMEOUT_MS = 180_000;
+// Read once, to warn about unknown names at startup.
+const aiCapabilityConfig = parseCapabilities(process.env.HARRINGTON_AI_CAPABILITIES);
 
 const MIME = {
   '.css': 'text/css; charset=utf-8',
@@ -108,10 +116,12 @@ function enqueueWrite(path, task) {
   return operation;
 }
 
-async function writeFileAtomic(path, data) {
+async function writeFileAtomic(path, data, mode = null) {
   await mkdir(dataDir, { recursive: true });
   const tempPath = `${path}.${process.pid}.tmp`;
-  await writeFile(tempPath, data);
+  await writeFile(tempPath, data, mode ? { mode } : undefined);
+  // chmod as well: the mode given to writeFile is narrowed by the umask.
+  if (mode) await chmod(tempPath, mode);
   await rename(tempPath, path);
 }
 
@@ -224,41 +234,181 @@ function routeKey(pathname, prefix) {
   }
 }
 
-function envTrim(name) {
-  return (process.env[name] || '').trim();
+// ---- AI provider settings ----
+// The parent can set the provider in the app (Settings > AI provider). Those
+// values live in secrets.json in the data dir, apart from family-state.json so
+// export, import and backups never carry the API key, and win field by field
+// over the HARRINGTON_AI_* environment, which stays as the fallback.
+const MAX_API_KEY = 512;
+const MAX_MODEL = 200;
+const AI_PRESETS = [
+  { id: 'ollama', label: 'Ollama on this computer', baseUrl: 'http://127.0.0.1:11434/v1', model: '', cloud: false },
+  { id: 'gemini', label: 'Google Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash', cloud: true },
+  { id: 'custom', label: 'OpenAI-compatible (custom)', baseUrl: '', model: '', cloud: false },
+];
+const AI_SETTING_FIELDS = ['baseUrl', 'model', 'apiKey', 'timeoutMs', 'capabilities'];
+let secretsWarned = false;
+
+// The effective settings, read on every call (the file is tiny).
+async function aiSettings() {
+  return resolveAiSettings(await readStoredAiSettings(secretsFile, warnSecrets), process.env);
 }
 
-function aiSettings() {
-  const baseUrl = envTrim('HARRINGTON_AI_BASE_URL').replace(/\/+$/, '');
-  const model = envTrim('HARRINGTON_AI_MODEL');
-  const apiKey = envTrim('HARRINGTON_AI_API_KEY');
-  const timeoutRaw = Number.parseInt(envTrim('HARRINGTON_AI_TIMEOUT_MS'), 10);
+function warnSecrets(why) {
+  if (secretsWarned) return;
+  secretsWarned = true;
+  console.warn(`Stored AI settings (${secretsFile}) ${why}; using the environment instead`);
+}
+
+// What the settings page may see: never the key, only whether there is one
+// and, for a key long enough not to give much away, its last four characters.
+function publicAiSettings(settings) {
+  const { apiKey, source } = settings;
   return {
-    configured: Boolean(baseUrl && model),
-    baseUrl,
-    model,
-    apiKey,
-    timeoutMs: Number.isInteger(timeoutRaw) && timeoutRaw > 0 ? timeoutRaw : DEFAULT_AI_TIMEOUT_MS,
+    configured: settings.configured,
+    baseUrl: settings.baseUrl,
+    model: settings.model,
+    timeoutMs: settings.timeoutMs,
+    capabilities: settings.capabilitySetting,
+    hasApiKey: Boolean(apiKey),
+    apiKeyHint: apiKey && apiKey.length >= 8 ? apiKey.slice(-4) : null,
+    source,
+    presets: AI_PRESETS,
   };
 }
 
-function completionContent(payload) {
-  const choice = payload?.choices?.[0];
-  if (!choice) return '';
-  const content = choice.message?.content ?? choice.text;
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content.map((part) => {
-      if (typeof part === 'string') return part;
-      if (part && typeof part.text === 'string') return part.text;
-      return '';
-    }).join('');
+function settingError(message) {
+  return Object.assign(new Error(message), { statusCode: 400 });
+}
+
+// Applies one PUT body to the stored settings. An omitted field is
+// unchanged; null or "" removes it, so the environment value applies again.
+function applyAiSettings(current, body) {
+  const unknown = Object.keys(body).filter((key) => !AI_SETTING_FIELDS.includes(key));
+  if (unknown.length) throw settingError(`Unknown AI setting: ${unknown.join(', ')}`);
+  const next = { ...current };
+  const cleared = (value) => value === null || value === '' || (typeof value === 'string' && !value.trim());
+
+  if ('baseUrl' in body) {
+    if (cleared(body.baseUrl)) delete next.baseUrl;
+    else {
+      let url;
+      try { url = new URL(String(body.baseUrl).trim()); } catch { url = null; }
+      if (typeof body.baseUrl !== 'string' || !url || !['http:', 'https:'].includes(url.protocol)) {
+        throw settingError('The base URL must be an http:// or https:// address');
+      }
+      if (url.username || url.password) throw settingError('Put the API key in its own field, not in the base URL');
+      next.baseUrl = body.baseUrl.trim().replace(/\/+$/, '');
+    }
   }
-  return content == null ? '' : String(content);
+  if ('model' in body) {
+    if (cleared(body.model)) delete next.model;
+    else if (typeof body.model !== 'string' || body.model.trim().length > MAX_MODEL || /[\u0000-\u001f]/.test(body.model)) {
+      throw settingError('The model must be a short name such as the one the provider lists');
+    } else next.model = body.model.trim();
+  }
+  if ('apiKey' in body) {
+    if (cleared(body.apiKey)) delete next.apiKey;
+    else if (typeof body.apiKey !== 'string' || body.apiKey.trim().length > MAX_API_KEY || /[\u0000-\u001f\s]/.test(body.apiKey.trim())) {
+      throw settingError(`The API key must be at most ${MAX_API_KEY} characters, without spaces`);
+    } else next.apiKey = body.apiKey.trim();
+  }
+  if ('timeoutMs' in body) {
+    if (body.timeoutMs === null || body.timeoutMs === undefined) delete next.timeoutMs;
+    else if (!validTimeout(body.timeoutMs)) throw settingError(`The timeout must be a whole number of milliseconds up to ${MAX_TIMEOUT_MS}`);
+    else next.timeoutMs = body.timeoutMs;
+  }
+  if ('capabilities' in body) {
+    if (body.capabilities === null) delete next.capabilities;
+    else if (!Array.isArray(body.capabilities) || !body.capabilities.every((c) => typeof c === 'string' && AI_CAPABILITIES.includes(c))) {
+      throw settingError(`Capabilities must be a list drawn from: ${AI_CAPABILITIES.join(', ')}`);
+    } else next.capabilities = knownCapabilities(body.capabilities);
+  }
+  if (next.baseUrl && !next.model) throw settingError('Choose a model for this base URL');
+  return next;
+}
+
+function writeStoredAi(ai) {
+  const doc = { schemaVersion: 1, ai: { ...ai, updatedAt: Date.now() } };
+  // Owner-only: the file can hold an API key.
+  return writeFileAtomic(secretsFile, `${JSON.stringify(doc, null, 2)}\n`, 0o600);
+}
+
+// The browser sends Sec-Fetch-Site on every request; settings change only
+// from Harrington's own pages, and only as JSON.
+function refuseCrossSite(req, res, { json = false } = {}) {
+  const fetchSite = req.headers['sec-fetch-site'];
+  if (fetchSite !== undefined && fetchSite !== 'same-origin' && fetchSite !== 'none') {
+    sendJson(res, 403, { error: 'AI settings can only be changed from Harrington itself' });
+    return true;
+  }
+  if (json && !String(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) {
+    sendJson(res, 415, { error: 'AI settings must be sent as application/json' });
+    return true;
+  }
+  return false;
+}
+
+// Whether /api/* requires an access token. Nothing does yet; HAR-25 brings
+// the token gate, and this returns its flag once that lands.
+function accessTokenEnabled() {
+  return false;
+}
+
+// Repointing the provider would send it every later prompt, so without an
+// access token only the computer running Harrington may change it (or run
+// the connection test). The socket address decides; X-Forwarded-For does not.
+const LOCAL_ONLY = 'AI provider settings can only be changed from the computer running Harrington, or from any signed-in device once an access token is set';
+function canChangeAiSettings(req) {
+  return accessTokenEnabled() || isLoopbackAddress(req.socket.remoteAddress);
+}
+function refuseRemote(req, res) {
+  if (canChangeAiSettings(req)) return false;
+  sendJson(res, 403, { error: LOCAL_ONLY });
+  return true;
+}
+
+async function handleAiSettings(req, res, url) {
+  const view = async () => ({ ...publicAiSettings(await aiSettings()), canChange: canChangeAiSettings(req) });
+  if (url.pathname === '/api/settings/ai/test') {
+    if (req.method !== 'POST') return false;
+    if (refuseRemote(req, res) || refuseCrossSite(req, res)) return true;
+    sendJson(res, 200, await testAiConnection());
+    return true;
+  }
+  if (req.method === 'GET') {
+    sendJson(res, 200, await view());
+    return true;
+  }
+  if (req.method === 'PUT') {
+    if (refuseRemote(req, res) || refuseCrossSite(req, res, { json: true })) return true;
+    const body = await readJson(req);
+    await enqueueWrite(secretsFile, async () => writeStoredAi(applyAiSettings(await readStoredAiSettings(secretsFile, warnSecrets), body)));
+    sendJson(res, 200, await view());
+    return true;
+  }
+  if (req.method === 'DELETE') {
+    if (refuseRemote(req, res) || refuseCrossSite(req, res)) return true;
+    await enqueueWrite(secretsFile, () => unlink(secretsFile).catch((error) => { if (error.code !== 'ENOENT') throw error; }));
+    sendJson(res, 200, await view());
+    return true;
+  }
+  return false;
+}
+
+// One tiny completion with no learner data. The answer is a short category
+// and the provider's HTTP status at most: never the key or the provider's body.
+const TEST_ERRORS = { timeout: 'timed out', unreachable: 'unreachable', failed: 'provider error', invalid: 'invalid response' };
+async function testAiConnection() {
+  const settings = await aiSettings();
+  if (!settings.configured) return { ok: false, latencyMs: 0, error: 'not configured' };
+  const result = await chatCompletion(settings, [{ role: 'user', content: 'Reply with the single word OK.' }]);
+  if (result.ok) return { ok: true, latencyMs: result.latencyMs };
+  return { ok: false, latencyMs: result.latencyMs, ...(result.status ? { status: result.status } : {}), error: TEST_ERRORS[result.kind] };
 }
 
 async function handleAiChat(req, res) {
-  const settings = aiSettings();
+  const settings = await aiSettings();
   if (!settings.configured) {
     sendJson(res, 503, { error: AI_UNCONFIGURED });
     return;
@@ -268,49 +418,24 @@ async function handleAiChat(req, res) {
   if (!Array.isArray(body.messages)) {
     throw Object.assign(new Error('Request body must include a messages array'), { statusCode: 400 });
   }
-
-  const headers = { 'Content-Type': 'application/json' };
-  if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), settings.timeoutMs);
-  let response;
-  try {
-    response = await fetch(`${settings.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: settings.model,
-        messages: body.messages,
-      }),
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      sendJson(res, 504, { error: 'The AI provider timed out' });
-      return;
-    }
-    sendJson(res, 502, { error: 'The AI provider is unreachable' });
+  // Every prompt names its capability; a missing or unknown one is refused,
+  // never assumed.
+  const { capability } = body;
+  if (typeof capability !== 'string' || !AI_CAPABILITIES.includes(capability)) {
+    sendJson(res, 403, { error: 'AI requests must name a known capability, so Harrington refused this one' });
     return;
-  } finally {
-    clearTimeout(timer);
   }
-
-  if (!response.ok) {
-    await response.text().catch(() => '');
-    sendJson(res, 502, { error: 'The AI provider failed' });
+  if (!settings.capabilities.includes(capability)) {
+    sendJson(res, 403, { error: capabilityOffMessage(capability), capability });
     return;
   }
 
-  let payload;
-  try {
-    payload = await response.json();
-  } catch {
-    sendJson(res, 502, { error: 'The AI provider returned an invalid response' });
+  const result = await chatCompletion(settings, body.messages);
+  if (!result.ok) {
+    sendJson(res, result.httpStatus, { error: result.error });
     return;
   }
-
-  sendJson(res, 200, { content: completionContent(payload) });
+  sendJson(res, 200, { content: result.content });
 }
 
 async function taxonomyCached() {
@@ -348,10 +473,13 @@ async function loadTaxonomyFile(name) {
 
 async function handleApi(req, res, url) {
   if (url.pathname === '/api/health' && req.method === 'GET') {
+    const ai = await aiSettings();
     sendJson(res, 200, {
       ok: true,
       mode: 'self-hosted',
-      aiConfigured: aiSettings().configured,
+      aiConfigured: ai.configured,
+      aiSource: ai.aiSource,
+      aiCapabilities: ai.capabilities,
       taxonomyCached: await taxonomyCached(),
       ...(await stateHealth()),
     });
@@ -441,6 +569,10 @@ async function handleApi(req, res, url) {
     }
   }
 
+  if (url.pathname === '/api/settings/ai' || url.pathname === '/api/settings/ai/test') {
+    if (await handleAiSettings(req, res, url)) return true;
+  }
+
   if (url.pathname === '/api/ai' && req.method === 'POST') {
     await handleAiChat(req, res);
     return true;
@@ -502,6 +634,12 @@ server.listen(port, host, () => {
   const actualPort = typeof address === 'object' && address ? address.port : port;
   console.log(`Harrington listening at http://${host}:${actualPort}`);
   console.log(`Family data directory: ${dataDir}`);
+  if (aiCapabilityConfig.unknown.length) {
+    console.warn(`Ignoring unknown HARRINGTON_AI_CAPABILITIES entries: ${aiCapabilityConfig.unknown.join(', ')}`);
+  }
+  aiSettings().then((ai) => {
+    if (ai.configured) console.log(`AI (${ai.aiSource === 'app' ? 'set in the app' : 'from the environment'}) capabilities switched on: ${ai.capabilities.join(', ') || 'none'}`);
+  });
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

@@ -117,12 +117,14 @@ export function renderDashboard(params, { navigate }) {
 
   // Memory: active recall + spaced practice side by side.
   const memory = el(`<div class="grid md:grid-cols-2 gap-5 mb-5"></div>`);
-  const ai = store.aiAvailable();
+  const ai = store.aiAvailable('recall');
   // Recall cards are written by the AI provider, so without one nothing is reviewable.
   const dueRecall = ai ? store.recallDueCount(active.id) : 0;
   const recallEmpty = ai ? 'Practice recall on any topic; reviews show up here when they’re due.'
+    : store.aiSwitchedOff('recall') ? 'Recall cards aren’t switched on yet on this server. Once they are, reviews show up here when they’re due.'
     : 'Recall cards need a local AI provider. Once one is set up, reviews show up here when they’re due.';
-  const practiceEmpty = ai ? 'Missed test questions come back here on a spaced schedule until they stick.'
+  const practiceEmpty = store.aiAvailable('test') ? 'Missed test questions come back here on a spaced schedule until they stick.'
+    : store.aiSwitchedOff('test') ? 'Missed mastery-test questions come back here. Mastery tests aren’t switched on yet on this server.'
     : 'Missed mastery-test questions come back here. Mastery tests need a local AI provider.';
   const recallCard = el(`<button class="w-full text-left rounded-3xl ${dueRecall ? 'bg-lavender-light' : 'bg-paper-card shadow-soft'} p-5 flex items-center gap-4 card-hover">
     <span class="w-12 h-12 rounded-full bg-lavender flex items-center justify-center shrink-0"><i data-lucide="brain" class="w-5.5 h-5.5 text-lavender-deep"></i></span>
@@ -318,7 +320,7 @@ function todayCard(active, navigate) {
   }
 
   // refresher quick action (the quiz is written by the AI provider); none on rest days
-  if (extras.refresher && store.aiAvailable() && !restInfo(todayKey, familyCalendar())) {
+  if (extras.refresher && store.aiAvailable('test') && !restInfo(todayKey, familyCalendar())) {
     const t = extras.refresher;
     const ref = el(`<button class="relative w-full min-w-0 text-left flex items-center gap-3 p-4 rounded-3xl border-2 border-dashed border-butter card-hover bg-paper-card">
       ${stop(++stopNo, { fill: '#f2c14e', deep: '#2e2a24' }, 'dumbbell')}

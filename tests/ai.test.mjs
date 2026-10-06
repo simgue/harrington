@@ -33,6 +33,7 @@ globalThis.fetch = async (path, options = {}) => {
 const ai = await import('../src/js/ai.js');
 const store = await import('../src/js/store.js');
 const { loadTaxonomy } = await import('../src/js/data.js');
+const { AI_CAPABILITIES } = await import('../src/js/ai-capabilities.js');
 const { buildExplainPrompt, buildLessonPrompt, redactNames } = ai;
 
 const repoRoot = new URL('..', import.meta.url);
@@ -115,9 +116,46 @@ test(`no prompt function sends a learner name, with "${LEARNER}" in state`, asyn
       assert.ok(sent.length > 0, `${name} sent nothing to backend.chat`);
       assert.doesNotMatch(outgoing(), LEAK, `${name} sent a learner name`);
       assert.doesNotMatch(outgoing(), /\bSample\b/, `${name} sent a sibling's name`);
-      assert.ok(sent.every((body) => Object.keys(body).join() === 'messages'), `${name} sent more than the messages`);
+      assert.ok(sent.every((body) => Object.keys(body).join() === 'messages,capability'), `${name} sent more than the messages and its capability`);
     }
   }
+});
+
+// The capability each prompt function declares on /api/ai (HAR-26). The
+// server refuses a request without one, so a new builder must be listed here.
+const CAPABILITY_OF = {
+  aiExplain: ['explain'],
+  aiQuiz: ['quiz'],
+  aiLesson: ['lesson'],
+  aiPrintables: ['printables'],
+  aiActivityDetail: ['activity'],
+  aiMasteryTest: ['test'],
+  aiChallenge: ['challenge'],
+  aiRecallCards: ['recall'],
+  verifyTest: ['test'],
+  aiDiscussionAnalysis: ['analysis'],
+  aiFeedback: ['review'],
+};
+
+test('every prompt function declares its capability on every request', async () => {
+  const senders = Object.keys(PROMPT_CALLS).filter(name => !name.startsWith('build'));
+  assert.deepEqual(senders.filter(name => !(name in CAPABILITY_OF)), [], 'add new prompt functions to CAPABILITY_OF');
+  for (const name of senders) {
+    sent.length = 0;
+    await PROMPT_CALLS[name]();
+    assert.ok(sent.length > 0, `${name} sent nothing`);
+    for (const body of sent) {
+      assert.ok(AI_CAPABILITIES.includes(body.capability), `${name} sent capability ${JSON.stringify(body.capability)}`);
+      assert.ok(CAPABILITY_OF[name].includes(body.capability), `${name} sent "${body.capability}", expected ${CAPABILITY_OF[name]}`);
+    }
+  }
+  // A challenge's verification pass runs under "challenge", not "test".
+  sent.length = 0;
+  await ai.verifyTest({ questions: [{ type: 'multiple_choice', q: '2+3?', options: ['4', '5'], answer: 1 }] }, 'challenge');
+  assert.deepEqual(sent.map(b => b.capability), ['challenge']);
+  // Every capability the server knows is used by some prompt.
+  const used = new Set(Object.values(CAPABILITY_OF).flat());
+  assert.deepEqual(AI_CAPABILITIES.filter(c => !used.has(c)), []);
 });
 
 test('discussion analysis sends a redacted transcript and leaves notes out unless opted in', async () => {

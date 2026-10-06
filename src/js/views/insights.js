@@ -117,7 +117,7 @@ export function renderInsights(params, { navigate }) {
   </div>`);
   if (canTake) testCard.querySelector('#test').onclick = () => openMasteryTest(selSubject);
   const testBtn = testCard.querySelector('#test');
-  if (canTake) testBtn.replaceWith(gateAi(testBtn));
+  if (canTake) testBtn.replaceWith(gateAi(testBtn, { capability: 'test' }));
   root.appendChild(testCard);
 
   // AI feedback card
@@ -136,7 +136,7 @@ export function renderInsights(params, { navigate }) {
   // Records go out as counts and topic names unless the parent opts in here.
   const privacy = privacyControls({ hasNotes: subjectRecords().some(r => (r.note || '').trim()) });
   privacy.classList.replace('mt-2', 'mb-3');
-  if (store.aiAvailable()) out.before(privacy);
+  if (store.aiAvailable('review')) out.before(privacy);
   gen.onclick = async () => {
     const includeNotes = !!privacy.querySelector('.include-notes')?.checked;
     out.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-3"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Reviewing ${esc(active.name)}'s work${includeNotes ? ' (notes included)' : ''}\u2026</div>`;
@@ -159,7 +159,7 @@ export function renderInsights(params, { navigate }) {
     }
     refreshIcons();
   };
-  gen.replaceWith(gateAi(gen));
+  gen.replaceWith(gateAi(gen, { capability: 'review' }));
   root.appendChild(fbCard);
 
   // recommended next steps

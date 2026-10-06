@@ -17,7 +17,7 @@ async function expectNoFailureCopy(page) {
 
 test('health says AI is off and /api/ai answers 503', async ({ request }) => {
   expect((await (await request.get('/api/health')).json()).aiConfigured).toBe(false);
-  const res = await request.post('/api/ai', { data: { messages: [{ role: 'user', content: 'hi' }] } });
+  const res = await request.post('/api/ai', { data: { messages: [{ role: 'user', content: 'hi' }], capability: 'lesson' } });
   expect(res.status()).toBe(503);
 });
 

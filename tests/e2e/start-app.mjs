@@ -8,6 +8,8 @@
 //   node tests/e2e/start-app.mjs --port 4313          # no AI provider (fail-closed)
 //   node tests/e2e/start-app.mjs --port 4314 --ai-unreachable
 //                                     # AI configured, but nothing listens there
+//   node tests/e2e/start-app.mjs --port 4315 --ai --capabilities lesson
+//                                     # AI with only these capabilities switched on
 import { spawn } from 'node:child_process';
 import { copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -21,8 +23,9 @@ const unreachable = args.includes('--ai-unreachable');
 const withAi = args.includes('--ai') || unreachable;
 const aiBase = unreachable ? `${URLS.deadAi}/v1` : `${URLS.mockAi}/v1`;
 const portArg = args[args.indexOf('--port') + 1];
+const capabilities = args.includes('--capabilities') ? args[args.indexOf('--capabilities') + 1] || '' : '';
 if (!args.includes('--port') || !portArg) {
-  console.error('usage: start-app.mjs --port <port> [--ai | --ai-unreachable]');
+  console.error('usage: start-app.mjs --port <port> [--ai | --ai-unreachable] [--capabilities <list>]');
   process.exit(2);
 }
 
@@ -31,7 +34,7 @@ const log = (msg) => console.log(`[e2e app ${portArg}] ${msg}`);
 
 const hadCache = await cacheIsComplete();
 const { upstream } = await ensureTaxonomyCache({ log });
-const dataDir = await mkdtemp(join(tmpdir(), `harrington-e2e-${unreachable ? 'ai-unreachable' : withAi ? 'ai' : 'noai'}-`));
+const dataDir = await mkdtemp(join(tmpdir(), `harrington-e2e-${unreachable ? 'ai-unreachable' : capabilities ? 'ai-some' : withAi ? 'ai' : 'noai'}-`));
 await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
 for (const name of TAXONOMY_FILES) await copyFile(join(CACHE_DIR, name), join(dataDir, 'taxonomy', name));
 log(`data dir ${dataDir} (taxonomy ${hadCache ? 'from cache' : `downloaded from ${upstream}`})`);
@@ -45,6 +48,8 @@ const env = {
   HARRINGTON_AI_MODEL: withAi ? 'mock' : '',
   HARRINGTON_AI_API_KEY: '',
   HARRINGTON_AI_TIMEOUT_MS: '15000',
+  // Blank means every capability.
+  HARRINGTON_AI_CAPABILITIES: capabilities,
 };
 // The cache is already in the data dir, but if a test ever deletes it the
 // server should refetch from an upstream that works on this network.

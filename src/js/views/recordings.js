@@ -129,7 +129,7 @@ function renderAnalysis(container, r, student, topic) {
     }
   } else {
     const analyze = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyze &amp; get advice</button>`);
-    const gated = gateAi(analyze);
+    const gated = gateAi(analyze, { capability: 'analysis' });
     container.appendChild(gated);
     if (gated === analyze) container.appendChild(analysisOptIn(analyze, r, run));
   }
@@ -187,9 +187,9 @@ export function savedAnalysis(html) {
     <div class="ai-prose text-sm text-ink-soft">${html}</div>
   </div>`);
 }
-// Null without an AI provider, so both the Recordings and Records cards hide it.
+// Null when analysis cannot generate, so both the Recordings and Records cards hide it.
 export function regenerateButton() {
-  if (!store.aiAvailable()) return null;
+  if (!store.aiAvailable('analysis')) return null;
   return el(`<button class="mt-2 flex items-center gap-1.5 text-xs font-medium text-ink-faint hover:text-ink-soft"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>Regenerate</button>`);
 }
 

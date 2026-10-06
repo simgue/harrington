@@ -76,11 +76,11 @@ export function renderTopic(params, { navigate }) {
   const printBtn = lessonCta.querySelector('#openprint');
   lessonBtn.onclick = () => openLesson(t);
   printBtn.onclick = () => openPrintables(t);
-  if (!store.aiAvailable()) {
-    // Without a provider, show only what is already cached; one chip stands in for the rest.
-    lessonBtn.replaceWith(gateAi(lessonBtn, { cachedKey: 'topic:' + t.id }));
-    printBtn.replaceWith(gateAi(printBtn, { cachedKey: 'print:' + t.id, fallback: el('<span class="hidden"></span>') }));
-  }
+  // Without a provider (or with a capability off), show only what is already
+  // cached. One chip stands in for both unless the lesson itself can generate.
+  lessonBtn.replaceWith(gateAi(lessonBtn, { capability: 'lesson', cachedKey: 'topic:' + t.id }));
+  const printFallback = store.aiAvailable('lesson') ? null : el('<span class="hidden"></span>');
+  printBtn.replaceWith(gateAi(printBtn, { capability: 'printables', cachedKey: 'print:' + t.id, fallback: printFallback }));
   root.appendChild(lessonCta);
 
   // Two column layout
@@ -167,8 +167,9 @@ function masterySection(t, student) {
     const chBest = store.challengesFor(student.id, t.id).sort((a,b)=>(b.correct/b.total)-(a.correct/a.total))[0];
     const ch = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white font-medium text-sm transition-colors mb-2" style="background:${meta.color}"><i data-lucide="zap" class="w-4 h-4"></i>Try the challenge quiz</button>`);
     ch.onclick = () => openChallenge(t);
-    // Hidden without a provider; the retake button below already shows the chip.
-    if (store.aiAvailable()) {
+    // Hidden when it cannot generate; the retake button below shows a chip
+    // when tests cannot either.
+    if (store.aiAvailable('challenge')) {
       body.appendChild(ch);
       body.appendChild(el(`<p class="text-xs text-ink-faint mb-1">A timed, slightly harder stretch to keep them challenged.${chBest ? ` Best: ${chBest.correct}/${chBest.total}.` : ''}</p>`));
     }
@@ -182,7 +183,7 @@ function masterySection(t, student) {
   const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${passed ? 'bg-paper border border-paper-line text-ink-soft hover:border-brand/40' : 'text-white'} font-medium text-sm transition-colors" ${passed ? '' : `style="background:${meta.color}"`}>
     <i data-lucide="file-check-2" class="w-4 h-4"></i>${passed ? 'Retake topic test' : 'Take topic mastery test'}</button>`);
   btn.onclick = () => openMasteryTest(t.subject, null, t);
-  body.appendChild(gateAi(btn));
+  body.appendChild(gateAi(btn, { capability: 'test' }));
 
   return section('target', 'Topic mastery test', body);
 }
@@ -237,7 +238,7 @@ function sectionCheckSection(t, student) {
   const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${!canTake ? 'bg-paper border border-paper-line text-ink-faint cursor-not-allowed' : passed ? 'bg-paper border border-paper-line text-ink-soft hover:border-brand/40' : 'text-white'} font-medium text-sm transition-colors" ${canTake && !passed ? `style="background:${meta.color}"` : ''} ${!canTake ? 'disabled' : ''}>
     <i data-lucide="${!canTake ? 'lock' : 'clipboard-check'}" class="w-4 h-4"></i>${passed ? 'Retake section check' : !canTake ? 'Locked until topics mastered' : 'Take section check'}</button>`);
   if (canTake) btn.onclick = () => { if (!student) { toast('Add a student first', 'error'); return; } openMasteryTest(sec.subject, sec); };
-  body.appendChild(canTake ? gateAi(btn) : btn);
+  body.appendChild(canTake ? gateAi(btn, { capability: 'test' }) : btn);
   return section('clipboard-check', 'Section check', body);
 }
 
@@ -369,7 +370,7 @@ function linkRow(l) {
 
 function activitiesSection(t) {
   const body = el(`<div class="space-y-4"></div>`);
-  const ai = store.aiAvailable();
+  const ai = store.aiAvailable('activity');
   const mk = (title, icon, items, kind) => {
     const wrap = el(`<div><p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-2 flex items-center gap-1.5"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i>${title}</p><div class="grid sm:grid-cols-2 gap-2.5"></div></div>`);
     const g = wrap.querySelector('div.grid');
@@ -387,8 +388,8 @@ function activitiesSection(t) {
         <div class="flex items-center gap-2 mb-1"><i data-lucide="${esc(a.icon)}" class="w-4 h-4 text-brand-dark"></i><p class="font-600 text-sm flex-1">${esc(a.title)}</p></div>
         <p class="text-xs text-ink-soft leading-relaxed mb-2">${esc(a.body)}</p>
       </div>`);
-      idea.appendChild(aiUnavailableChip());
-      g.appendChild(gateAi(card, { cachedKey: activityCacheKey(t, a, kind), fallback: idea }));
+      idea.appendChild(aiUnavailableChip('activity'));
+      g.appendChild(gateAi(card, { capability: 'activity', cachedKey: activityCacheKey(t, a, kind), fallback: idea }));
     });
     return wrap;
   };
@@ -404,7 +405,10 @@ function aiSection(t) {
     <button id="quiz" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-paper border border-paper-line text-sm font-medium hover:border-brand/40 transition-colors"><i data-lucide="list-checks" class="w-4 h-4"></i>Make a mini-quiz</button>
   </div>`);
   const out = el(`<div class="mt-3"></div>`);
-  body.appendChild(gateAi(btns));
+  // Each helper has its own capability; one chip stands in when neither is on.
+  if (!store.aiAvailable('explain')) btns.querySelector('#explain').remove();
+  if (!store.aiAvailable('quiz')) btns.querySelector('#quiz').remove();
+  body.appendChild(gateAi(btns, { capability: ['explain', 'quiz'] }));
   body.appendChild(out);
 
   const run = async (fn, label) => {
@@ -420,8 +424,10 @@ function aiSection(t) {
     }
     refreshIcons();
   };
-  btns.querySelector('#explain').onclick = () => run(aiExplain, 'Writing a kid-friendly explanation\u2026');
-  btns.querySelector('#quiz').onclick = () => run(aiQuiz, 'Building a quick quiz\u2026');
+  const explain = btns.querySelector('#explain');
+  const quiz = btns.querySelector('#quiz');
+  if (explain) explain.onclick = () => run(aiExplain, 'Writing a kid-friendly explanation\u2026');
+  if (quiz) quiz.onclick = () => run(aiQuiz, 'Building a quick quiz\u2026');
   return section('bot', 'AI teaching helper', body);
 }
 

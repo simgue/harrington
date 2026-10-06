@@ -149,23 +149,26 @@ test('static files, 404s, traversal and methods', async ({ request }) => {
   expect((await request.post(`${URLS.appAi}/index.html`)).status()).toBe(405);
 });
 
-test('AI proxy: 400 without messages, 200 through the mock, 503 with no provider', async ({ request }) => {
-  const noMessages = await request.post(`${URLS.appAi}/api/ai`, { data: { model: 'small' } });
+test('AI proxy: 400 without messages, 403 without a capability, 200 through the mock, 503 with no provider', async ({ request }) => {
+  const noMessages = await request.post(`${URLS.appAi}/api/ai`, { data: { model: 'small', capability: 'explain' } });
   expect(noMessages.status()).toBe(400);
   expect(await noMessages.json()).toEqual({ error: 'Request body must include a messages array' });
 
-  const ok = await request.post(`${URLS.appAi}/api/ai`, { data: { messages: [{ role: 'user', content: 'Explain the topic "Counting" simply.' }], model: 'gpt-4o' } });
+  const noCapability = await request.post(`${URLS.appAi}/api/ai`, { data: { messages: [{ role: 'user', content: 'hi' }] } });
+  expect(noCapability.status()).toBe(403);
+
+  const ok = await request.post(`${URLS.appAi}/api/ai`, { data: { messages: [{ role: 'user', content: 'Explain the topic "Counting" simply.' }], capability: 'explain', model: 'gpt-4o' } });
   expect(ok.status()).toBe(200);
   expect((await ok.json()).content).toContain('sharing snacks');
 
-  const off = await request.post(`${URLS.appNoAi}/api/ai`, { data: { messages: [{ role: 'user', content: 'hi' }] } });
+  const off = await request.post(`${URLS.appNoAi}/api/ai`, { data: { messages: [{ role: 'user', content: 'hi' }], capability: 'explain' } });
   expect(off.status()).toBe(503);
   expect(await off.json()).toEqual({ error: 'AI is not configured for this self-hosted Harrington server' });
 });
 
 test('AI proxy reports a failing provider as 502 without leaking details', async ({ request }) => {
   await request.post(`${URLS.mockAi}/__fail`, { data: { count: 1 } });
-  const res = await request.post(`${URLS.appAi}/api/ai`, { data: { messages: [{ role: 'user', content: 'hi' }] } });
+  const res = await request.post(`${URLS.appAi}/api/ai`, { data: { messages: [{ role: 'user', content: 'hi' }], capability: 'explain' } });
   expect(res.status()).toBe(502);
   expect(await res.json()).toEqual({ error: 'The AI provider failed' });
 });
