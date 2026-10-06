@@ -103,14 +103,20 @@ test('the top-bar bell: open, filter by learner, dismiss, and the 30-day backup 
   await expect(bell).toHaveAccessibleName('Notifications, 1 new');
   await api.waitForState((s) => s.dismissedAlerts?.['backup:none'] && s.dismissedAlerts?.['picks:s_e2e_sage:2026-10-07']);
 
-  // 29 days later (a Thursday morning, picks not due yet) the backup note stays quiet...
+  // 29 days later (a Thursday morning, picks not due yet) the backup note stays
+  // quiet; by then every learner has "No evidence this week", so look for it by name.
+  const backupNote = async () => {
+    await page.reload();
+    await bell.click();
+    await modal(page).getByLabel('Show').selectOption('all');
+    await expect(modal(page).locator('#list > div').first()).toBeVisible();
+    const count = await modal(page).getByText('No backup recorded').count();
+    await closeModal(page);
+    return count;
+  };
   await at('2026-11-05T10:00:00Z');
-  await page.reload();
-  await expect(bell).toHaveAccessibleName('Notifications');
-  // ...and after 30 days it comes back once.
-  await at('2026-11-06T10:00:00Z');
-  await page.reload();
-  await expect(bell).toHaveAccessibleName('Notifications, 1 new');
-  await bell.click();
-  await expect(modal(page).getByText('No backup recorded')).toBeVisible();
+  expect(await backupNote()).toBe(0);
+  // ...and once 30 days have passed it comes back.
+  await at('2026-11-07T10:00:00Z');
+  expect(await backupNote()).toBe(1);
 });
