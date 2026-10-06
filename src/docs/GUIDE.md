@@ -190,7 +190,9 @@ so the bell does not report curriculum changes.
   "Include my notes in this request". Learner names are replaced with "the
   child" before any request is built. The live transcript is the exception
   described above.
-- There is no sign-in or encryption yet. Do not expose Harrington to the public
+- Harrington has no user accounts and does not encrypt traffic itself; the
+  optional family access token is the only sign-in, and HTTPS comes from a mesh
+  or proxy (docs/DEPLOYMENT.md). Do not expose Harrington to the public
   internet.
 
 ## What needs an AI provider

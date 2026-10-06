@@ -872,6 +872,10 @@ describe('sign-in form and host names', { concurrency: false }, () => {
       }
       const noBody = await fetch(`${guarded.url}/login`, { method: 'POST', redirect: 'manual' });
       assert.equal(noBody.status, 401);
+      const oversized = await postLogin(guarded.url, `${TOKEN}${' '.repeat(5000)}`);
+      assert.equal(oversized.status, 413);
+      assert.equal(oversized.headers.get('set-cookie'), null);
+      assert.equal((await postLogin(guarded.url, ` ${TOKEN}\n`)).status, 303, 'a pasted token is trimmed');
 
       const ok = await postLogin(guarded.url, TOKEN);
       assert.equal(ok.status, 303);
@@ -912,7 +916,10 @@ describe('sign-in form and host names', { concurrency: false }, () => {
       ]) {
         assert.equal((await get(name)).status, 200, `${name} should be allowed`);
       }
-      for (const name of ['attacker.example', `attacker.example:${port}`, 'family-host.example.ts.net.attacker.example']) {
+      for (const name of [
+        'attacker.example', `attacker.example:${port}`, 'family-host.example.ts.net.attacker.example',
+        'evil-family-host.example.ts.net', 'other.example.ts.net',
+      ]) {
         for (const path of ['/api/health', '/', '/login']) {
           const refused = await get(name, path);
           assert.equal(refused.status, 421, `${name}${path} should be refused`);
@@ -921,6 +928,19 @@ describe('sign-in form and host names', { concurrency: false }, () => {
       }
     } finally {
       await sharedServer.stop();
+    }
+  });
+
+  test('the Docker default (0.0.0.0 bind, loopback published) still refuses other names', async () => {
+    const container = await spawnHarrington({ HARRINGTON_HOST: '0.0.0.0', HARRINGTON_PUBLISHED_HOST: '127.0.0.1' });
+    try {
+      const port = new URL(container.url).port;
+      for (const name of [`127.0.0.1:${port}`, `localhost:${port}`]) {
+        assert.equal((await getWithHost(port, name)).status, 200, `${name} should be allowed`);
+      }
+      assert.equal((await getWithHost(port, 'attacker.example')).status, 421);
+    } finally {
+      await container.stop();
     }
   });
 });

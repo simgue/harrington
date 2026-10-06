@@ -301,6 +301,11 @@ To restore it: `docker compose down`, then
 `docker run --rm -v harrington_harrington-data:/data -v /home/parent/harrington/backups:/backups alpine sh -c 'rm -rf /data/* && tar -xzf /backups/FILE.tar.gz -C /'`,
 then `docker compose up -d`.
 
+`HARRINGTON_BACKUP_DIR` names the backup folder (default `backups/` in the
+Harrington folder); with Docker, mount the host folder your backups go to into
+the container (for example `/home/parent/harrington/backups:/backups`) and set
+`HARRINGTON_BACKUP_DIR=/backups`, so Harrington sees the same archives.
+
 On Windows, use Task Scheduler to run `node scripts\backup.mjs` daily, with
 the full path to `node.exe`, the Harrington folder as the start directory,
 and `HARRINGTON_DATA_DIR` set if the server uses one. Copy the `backups/`

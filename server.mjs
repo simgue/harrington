@@ -450,7 +450,7 @@ function sendHtml(res, status, title, paragraphs, headers = {}) {
 
 const SIGN_IN_FORM = `<form method="post" action="/login">
 <p><label for="token">Family access token</label><br>
-<input id="token" name="token" type="password" autocomplete="current-password" required autofocus style="font:inherit;padding:.4rem;width:100%;max-width:24rem"></p>
+<input id="token" name="token" type="password" autocomplete="current-password" required autofocus style="font:inherit;padding:.4rem;width:100%;max-width:24rem;box-sizing:border-box"></p>
 <p><button type="submit" style="font:inherit;padding:.4rem 1rem">Sign in</button></p>
 </form>`;
 
@@ -495,7 +495,8 @@ async function handleLogin(req, res, url) {
   if (req.method === 'POST') {
     const body = await readBody(req, 4096);
     const token = new URLSearchParams(body.toString('utf8')).get('token');
-    signIn(req, res, token ?? '');
+    // A pasted token often carries a stray space or newline.
+    signIn(req, res, (token ?? '').trim());
     return;
   }
   const token = url.searchParams.get('token');
