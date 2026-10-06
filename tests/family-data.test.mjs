@@ -12,7 +12,6 @@ let child;
 let dataDir;
 let baseUrl;
 let store;
-let syncCurriculum;
 const statusEvents = [];
 const realFetch = globalThis.fetch;
 const beacons = [];
@@ -76,7 +75,6 @@ before(async () => {
     },
   });
   store = await import('../src/js/store.js');
-  ({ syncCurriculum } = await import('../src/js/curriculum-sync.js'));
   const { loadTaxonomy } = await import('../src/js/data.js');
   await loadTaxonomy();
   store.onSaveStatus((event) => statusEvents.push(event.type));
@@ -92,20 +90,29 @@ after(async () => {
 describe('family data safety in the store', { concurrency: false }, () => {
   test('booting twice without changes does not write the state file', async () => {
     await store.loadAll();
-    syncCurriculum();
+    await store.flushSaves();
+    assert.equal((await serverState()).version, 0, 'a first boot writes nothing');
+    store.dismissAlerts(['welcome']);
     await store.flushSaves();
     const first = await serverState();
     assert.equal(first.version, 1);
-    assert.equal(first.curriculumSnapshot.version, 'v1-test');
+    assert.equal(typeof first.dismissedAlerts.welcome, 'number');
     const { mtimeMs } = await stat(stateFile());
 
     for (let boot = 0; boot < 2; boot += 1) {
       await store.loadAll();
-      syncCurriculum();
       await store.flushSaves();
     }
+    assert.deepEqual(Object.keys(store.dismissedAlerts()), ['welcome']);
     assert.equal((await serverState()).version, 1);
     assert.equal((await stat(stateFile())).mtimeMs, mtimeMs);
+
+    // A later dismissal keeps the welcome dismissed, however long ago it was.
+    const later = Date.now() + 61 * 24 * 60 * 60 * 1000;
+    store.dismissAlerts(['backup:none'], later);
+    assert.deepEqual(Object.keys(store.dismissedAlerts()).sort(), ['backup:none', 'welcome']);
+    await store.flushSaves();
+    assert.deepEqual(Object.keys((await serverState()).dismissedAlerts).sort(), ['backup:none', 'welcome']);
   });
 
   test('saves with If-Match and reloads when another device saved first', async () => {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
@@ -21,6 +21,7 @@ async function startServer() {
       HARRINGTON_HOST: '127.0.0.1',
       HARRINGTON_PORT: '0',
       HARRINGTON_DATA_DIR: dataDir,
+      HARRINGTON_BACKUP_DIR: join(dataDir, 'backups'),
       HARRINGTON_AI_BASE_URL: '',
       HARRINGTON_AI_MODEL: '',
       HARRINGTON_AI_API_KEY: '',
@@ -67,11 +68,52 @@ test('serves Harrington and reports self-hosted health', async () => {
     taxonomyCached: false,
     stateVersion: 0,
     stateBytes: 0,
+    backupAgeDays: null,
   });
 
   const page = await fetch(baseUrl);
   assert.equal(page.status, 200);
   assert.match(await page.text(), /<title>Harrington/);
+});
+
+test('health reports the age in days of the newest archive in HARRINGTON_BACKUP_DIR', async () => {
+  // The server was started with HARRINGTON_BACKUP_DIR pointing here, not at the repo's backups/.
+  const backups = join(dataDir, 'backups');
+  const ageOf = async () => (await (await fetch(`${baseUrl}/api/health`)).json()).backupAgeDays;
+  await mkdir(backups, { recursive: true });
+  assert.equal(await ageOf(), null, 'an empty folder has no backup');
+
+  const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000 - 60_000);
+  const archive = async (name, days) => {
+    await writeFile(join(backups, name), 'x');
+    await utimes(join(backups, name), daysAgo(days), daysAgo(days));
+  };
+  await archive('harrington-old.tar.gz', 12);
+  assert.equal(await ageOf(), 12);
+  await archive('harrington-newer.tar.gz', 3);
+  await archive('notes.txt', 0); // not a backup archive
+  assert.equal(await ageOf(), 3);
+  await rm(backups, { recursive: true, force: true });
+  assert.equal(await ageOf(), null);
+});
+
+test('health still answers when the backup folder cannot be read', async () => {
+  const backups = join(dataDir, 'backups');
+  const health = async () => {
+    const res = await fetch(`${baseUrl}/api/health`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.doesNotMatch(JSON.stringify(body), /backups/, 'no path in the health answer');
+    return body.backupAgeDays;
+  };
+  // A symlink loop (ELOOP).
+  await symlink('backups', backups);
+  assert.equal(await health(), null);
+  await rm(backups, { force: true });
+  // A file where the folder should be (ENOTDIR).
+  await writeFile(backups, 'not a folder');
+  assert.equal(await health(), null);
+  await rm(backups, { force: true });
 });
 
 function putState(value, ifMatch, url = baseUrl) {

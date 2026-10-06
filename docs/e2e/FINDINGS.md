@@ -36,7 +36,7 @@ so the numbers stay stable.
 | ~~F10~~ | ~~Activity instructions failure says "Couldn't create the lesson"~~ | Low | `ai-unreachable` | Fixed by HAR-13 |
 | ~~F11~~ | ~~Selecting a skill scrolls the page to the top~~ | Low | `map` | Fixed by HAR-21 (`68a94c9`) |
 | F12 | Recent growth lists topics set back to "Not started" | Low | `topic` | |
-| F13 | Notification bell has no accessible name | Low | `notifications` | |
+| ~~F13~~ | ~~Notification bell has no accessible name~~ | Low | `notifications` | Fixed by HAR-27 |
 | F14 | Icon-only delete and remove buttons have no accessible name | Low | `learners`, `records`, `calendar` | |
 | F15 | Dashboard says "1590 topics" where the map says "1,590" | Low | `dashboard` | |
 | F16 | The child-view PIN is stored and exported in plain text | Low | `data-safety` | |
@@ -231,7 +231,12 @@ Shown by `topic.spec.mjs` › "manual status: every transition… (finding F12)"
 
 ## F13. Notification bell has no accessible name
 
-**Low.** The bell (`notifications.js:16`) has only a `title`. With an unread
+**Fixed by HAR-27.** The bell is named "Notifications" or "Notifications, N
+new"; the badge is hidden from assistive technology. `notifications.spec.mjs`
+› "the bell is named \"Notifications\" with the count in words (F13, fixed
+by HAR-27)" finds it by role and name.
+
+Original report: **Low.** The bell (`notifications.js:16`) has only a `title`. With an unread
 badge its accessible name is the count ("1") instead of "Notifications", so
 a screen reader announces "1, button".
 

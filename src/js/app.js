@@ -1,6 +1,5 @@
 import { loadTaxonomy } from './data.js';
 import * as store from './store.js';
-import { syncCurriculum } from './curriculum-sync.js';
 import { maybeShowWelcome } from './views/guide.js';
 import { el, refreshIcons, toast } from './ui.js';
 import { renderShell } from './views/shell.js';
@@ -54,7 +53,6 @@ async function boot() {
     await Promise.all([store.connect(), store.loadAll()]);
     await loadTaxonomy();
     taxonomyReady = true;
-    try { syncCurriculum(); } catch (e) { console.warn('sync failed', e); }
   } catch (e) {
     console.error(e);
     renderError(e.message || 'Something went wrong while starting up.');

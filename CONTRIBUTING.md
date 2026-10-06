@@ -47,7 +47,7 @@ src/js/
   mastery.js          Mastery ladder logic, sections, stats
   scheduler.js        The day-by-day calendar plan
   adapt.js            Adaptivity engine (difficulty suggestions)
-  curriculum-sync.js  Detects upstream curriculum changes -> notifications
+  alerts.js           What the notification bell lists (open picks, evidence, backup)
   ai.js               All AI helpers (lessons, tests, recall, feedback, etc.)
   recorder.js         Voice recording + live transcript
   ui.js               DOM helpers, modals, toasts, icons
