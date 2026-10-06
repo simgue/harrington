@@ -163,10 +163,12 @@ function pruneEmpty(value) {
 //   { kind: 'other', key }                         anything else (not re-applied)
 // Empty containers are ignored. Pure, so it can be tested without a server.
 export function diffDocuments(base, local) {
-  const b = objectOr(pruneEmpty(base), {});
-  const l = objectOr(pruneEmpty(local), {});
+  const b = objectOr(base, {});
+  const l = objectOr(local, {});
   const changes = [];
-  const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+  // Pruned only for comparing: the payloads keep their values as they are
+  // (a day's offers keep their empty `picks`, which pickDaily writes into).
+  const same = (x, y) => JSON.stringify(pruneEmpty(x)) === JSON.stringify(pruneEmpty(y));
   for (const key of new Set([...Object.keys(b), ...Object.keys(l)])) {
     if (same(b[key], l[key])) continue;
     if (key === 'progress') {
@@ -240,7 +242,7 @@ function reapplyBookkeeping(c) {
   } else if (c.kind === 'offers') {
     const days = state.daily[c.studentId] = state.daily[c.studentId] || {};
     if (days[c.day]) return false;
-    days[c.day] = c.entry;
+    days[c.day] = { picks: {}, ...c.entry };
   } else if (c.kind === 'notification') {
     const n = c.notification;
     // As in syncCurriculum: the welcome note only into an empty list, one
@@ -1064,6 +1066,7 @@ export function saveDailyOffers(studentId, dateKey, offers) {
 export function pickDaily(studentId, dateKey, lane, topicId) {
   const day = dailyFor(studentId, dateKey);
   if (!day) return;
+  day.picks = day.picks || {};
   day.picks[lane] = topicId || null;
   persist(); emit();
 }

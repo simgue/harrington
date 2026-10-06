@@ -305,8 +305,9 @@ bookkeeping (curriculum snapshot, welcome or curriculum notification, and a
 day's daily offers written while rendering) is put back only where the
 fresh document lacks it, silently, so two tabs opened together no longer
 conflict. `data-safety.spec.mjs` › "two tabs: the losing tab says which
-change it discarded…", "…from the dashboard…" and "two tabs opened together
-on the dashboard…" (F17, fixed); unit tests in `store-conflict.test.mjs`.
+change it discarded…", "a first dashboard render that loses is put back
+silently, can be picked…" and "two tabs opened together on the dashboard…"
+(F17, fixed); unit tests in `store-conflict.test.mjs`.
 
 Original report: **Medium.** Two problems around HAR-10's conflict reload, both visible in
 `screenshots/data-safety/03-conflict-toast.jpg`, where the losing tab shows

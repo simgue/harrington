@@ -76,6 +76,8 @@ test('a new day holding only offers is bookkeeping; a pick is not', () => {
   const base = { daily: { s1: { '2026-10-01': { offers: { literacy: ['x'] }, picks: {} } } } };
   const offers = { daily: { s1: { '2026-10-07': { offers: { literacy: ['a', 'b'] }, picks: {} } } } };
   assert.deepEqual(store.diffDocuments(base, offers).map((c) => c.kind), ['offers']);
+  // The payload keeps the day as written, empty picks included.
+  assert.deepEqual(store.diffDocuments(base, offers)[0].entry, { offers: { literacy: ['a', 'b'] }, picks: {} });
   assert.equal(store.describeDiscarded(store.diffDocuments(base, offers)), '');
   const picked = { daily: { s1: { '2026-10-07': { offers: { literacy: ['a', 'b'] }, picks: { literacy: 'a' } } } } };
   assert.deepEqual(store.diffDocuments(base, picked).map((c) => c.kind), ['other']);
@@ -149,7 +151,11 @@ test('offers written while rendering never raise a conflict', async () => {
   // The sibling's offers for the day stay; a day the fresh copy lacks is put back.
   assert.deepEqual(store.dailyFor('s1', '2026-10-07').offers.literacy, ['other']);
   await store.flushSaves();
-  assert.deepEqual(server.doc.daily.s1['2026-10-08'].offers.literacy, ['next']);
+  assert.deepEqual(server.doc.daily.s1['2026-10-08'], { offers: { literacy: ['next'] }, picks: {} });
+  // The day re-applied from the losing tab can still be picked.
+  store.pickDaily('s1', '2026-10-08', 'literacy', 'next');
+  await store.flushSaves();
+  assert.equal(server.doc.daily.s1['2026-10-08'].picks.literacy, 'next');
 });
 
 test('a change for a learner removed elsewhere gets no Try again', async () => {
@@ -162,6 +168,23 @@ test('a change for a learner removed elsewhere gets no Try again', async () => {
   const [conflict] = events.filter((e) => e.type === 'conflict');
   assert.equal(conflict.retry, null);
   assert.equal(store.describeDiscarded(conflict.discarded), 'e marked learning');
+});
+
+test('Try again re-applies changes for present learners only', async () => {
+  const gone = store.addStudent('Fern Sample', 2019);
+  await store.flushSaves();
+  otherTabSaves((doc) => ({ students: doc.students.filter((s) => s.id !== gone) }));
+  events.length = 0;
+  store.setStatus(gone, 'f', 'learning');
+  store.setStatus('s1', 'g', 'practicing');
+  await store.flushSaves();
+  const [conflict] = events.filter((e) => e.type === 'conflict');
+  assert.ok(conflict.retry, 'the present learner\'s change can be re-applied');
+  conflict.retry();
+  await store.flushSaves();
+  assert.equal(server.doc.progress.s1.g.status, 'practicing');
+  assert.equal(server.doc.progress[gone]?.f, undefined, 'nothing is written for the removed learner');
+  assert.ok(!server.doc.students.some((s) => s.id === gone));
 });
 
 test('a change that cannot simply be re-applied gets no Try again', async () => {
