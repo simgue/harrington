@@ -164,14 +164,14 @@ test('stepping stones, memory cards, subjects, recordings folder', async ({ page
   await closeModal(page);
 });
 
-test('a 3-year-old gets no daily choices and no stepping stones (finding F3)', async ({ page, gotoApp, shot }) => {
+test('a 3-year-old gets the youngest band\'s daily choices and stepping stones (F3, fixed)', async ({ page, gotoApp, shot }) => {
   await gotoApp({ seed: { active: 'wren' } });
   await expect(page.getByRole('heading', { name: "Wren Example's Wednesday" })).toBeVisible();
   await expect(page.getByText(/age 3/)).toBeVisible();
-  await expect(page.getByRole('group', { name: 'Literacy: pick one' })).toHaveCount(0);
-  await expect(page.getByRole('group', { name: 'Numeracy: pick one' })).toHaveCount(0);
-  // The empty state wrongly says everything is mastered.
-  await expect(page.getByText('Everything available is mastered — explore the map to go further.')).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Literacy: pick one' }).locator('button[aria-pressed]')).toHaveCount(2);
+  await expect(page.getByRole('group', { name: 'Numeracy: pick one' }).locator('button[aria-pressed]')).toHaveCount(2);
+  await expect(page.locator('#next > button')).toHaveCount(4);
+  await expect(page.getByText('Everything available is mastered — explore the map to go further.')).toHaveCount(0);
   await shot('dashboard-three-year-old');
 });
 
@@ -183,10 +183,11 @@ test('a 9-year-old sees older material and the same layout', async ({ page, goto
   await shot('dashboard-nine-year-old', { full: false });
 });
 
-test('the preview banner says AI is not connected even when it is (finding F4)', async ({ page, request, gotoApp }) => {
+test('the preview banner says an AI provider is set up when /api/health says so (F4, fixed)', async ({ page, request, gotoApp }) => {
   await gotoApp({ seed: {} });
   expect((await (await request.get('/api/health')).json()).aiConfigured).toBe(true);
-  await expect(page.getByText('Self-hosted preview · family data stays on this server · AI and shared-family features are not connected yet')).toBeVisible();
+  await expect(page.getByText('Self-hosted preview · family data stays on this server · AI provider set up')).toBeVisible();
+  await expect(page.getByText(/connected/)).toHaveCount(0);
 });
 
 test('HAR-17: a pick offers Note and Voice; the coverage claim is off by default; only a claimed record shows "Evidence recorded"', async ({ page, api, gotoApp, shot }) => {

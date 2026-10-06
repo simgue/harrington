@@ -128,6 +128,8 @@ test('quest log, calendar, insights, records and recordings show chips', async (
 
 test('dashboard and child view hide what needs AI', async ({ page, gotoApp, shot }) => {
   await gotoApp({ seed: { progress: { [ONE.id]: 'mastered' } } });
+  // The preview banner reads /api/health (F4).
+  await expect(page.getByText('Self-hosted preview · family data stays on this server · No AI provider set up; everything else works')).toBeVisible();
   // No refresher stop on Today's path; the recall card is disabled and says why.
   await expect(page.getByRole('button', { name: /Refresher quiz · / })).toHaveCount(0);
   const recall = page.getByRole('button', { name: /^Active recall/ });

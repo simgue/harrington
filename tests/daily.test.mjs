@@ -316,3 +316,20 @@ test('a quiet interests save persists without re-rendering', async () => {
   assert.equal(emits, 0);
   assert.equal(store.interestsFor('s-quiet').text, 'typing');
 });
+
+// ---- Learners younger than the taxonomy (finding F3) ----
+
+test('ageCeiling never drops below the youngest band', async () => {
+  const { ageCeiling } = await import('../src/js/daily.js');
+  const age = ctx().topicAge;
+  assert.equal(ageCeiling(3, topics, age), 6, 'youngest band here is 6');
+  assert.equal(ageCeiling(6, topics, age), 7);
+  assert.equal(ageCeiling(3, [], age), 4);
+});
+
+test('a 3-year-old gets options from the youngest band', () => {
+  const day = buildDailyChoices(topics, ctx({ age: 3 }));
+  assert.equal(day.literacy.options.length, 2);
+  assert.equal(day.numeracy.options.length, 2);
+  assert.ok(!day.literacy.options.some((t) => t.id === 'essay'));
+});
