@@ -344,8 +344,8 @@ After option 1 or 2, on a tablet or phone that is **not** the host:
    `https://` address if the token is off). The address bar shows a padlock,
    not a warning.
 3. Open the **Guide** and check that it says Harrington is shared with your
-   other devices. With the token on, the sidebar on a computer or tablet shows
-   "signed in".
+   other devices. With the token on, "signed in" shows in the sidebar on a
+   computer or tablet, or under "Family data" in the learner menu on a phone.
 4. On the dashboard press **Record what happened**, allow the microphone when
    the browser asks, speak for ten seconds, and stop.
 5. Check the recording plays back on the tablet, then open **Records** on the
