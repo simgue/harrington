@@ -71,7 +71,7 @@ test('create one record of each type, filter, rate, link, delete', async ({ page
 
   // Delete (with confirm).
   page.once('dialog', (d) => { expect(d.message()).toBe('Delete this record?'); d.accept(); });
-  await card(page, 'Where does the sun go at night?').locator('button.del').click();
+  await page.getByRole('button', { name: 'Delete record Where does the sun go at night?' }).click();
   await expect(page.getByText('Where does the sun go at night?')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'All (3)' })).toBeVisible();
   const state = await api.waitForState((s) => s.records?.[ROWAN]?.length === 3);
@@ -198,7 +198,7 @@ test('recordings folder: grouping, play, delete', async ({ page, api, gotoApp, s
   expect((await played).status()).toBe(200);
 
   page.once('dialog', (d) => { expect(d.message()).toBe('Delete this recording?'); d.accept(); });
-  await m.locator('div.rounded-xl', { hasText: 'Unlinked chat' }).locator('button.del').click();
+  await m.getByRole('button', { name: 'Delete recording Unlinked chat' }).click();
   await expect(m).toContainText('2 recordings in 2 groups.');
   await api.waitForState((s) => s.records?.[ROWAN]?.length === 2);
   await expect.poll(async () => (await page.request.get('/api/audio/e2e-b.webm')).status()).toBe(404);

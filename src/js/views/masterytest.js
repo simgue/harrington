@@ -1,6 +1,6 @@
 import { SUBJECTS, getData } from '../data.js';
 import * as store from '../store.js';
-import { el, esc, refreshIcons, toast, openModal, fmtDate, countOf } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal, fmtDate } from '../ui.js';
 import { aiMasteryTest } from '../ai.js';
 import { aiErrorBlock } from '../ai-status.js';
 import { studentStats } from '../mastery.js';
@@ -8,6 +8,7 @@ import { openChallenge } from './challenge.js';
 import { award } from '../game.js';
 import { isCorrect } from '../grading.js';
 import { GROWTH, stageForArea, stageForStatus } from '../meadow.js';
+import { countLabel, formatCount } from '../format.js';
 
 const PASS = 90;
 
@@ -101,8 +102,8 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
 
     ${!isTopic && !childSafe ? `<div class="rounded-xl border border-paper-line bg-paper p-3.5 mb-4">
       <p class="text-xs text-ink-soft"><span class="font-600">Progress so far:</span> ${isSection
-        ? `${secStats.mastered} of ${countOf(secStats.total, 'topic')} in this section marked mastered.`
-        : `${stats.mastered} of ${countOf(stats.total, 'topic')} marked mastered (${stats.pct}%).`}</p>
+        ? `${formatCount(secStats.mastered)} of ${countLabel(secStats.total, 'topic')} in this section marked mastered.`
+        : `${formatCount(stats.mastered)} of ${countLabel(stats.total, 'topic')} marked mastered (${stats.pct}%).`}</p>
     </div>` : ''}
 
     ${childSafe ? '' : `<p class="text-sm font-600 mb-2">How would you like to give the test?</p>
@@ -394,7 +395,7 @@ function renderResult(stage, subject, student, test, graded, m, digitalReview) {
       <i data-lucide="${passed ? 'party-popper' : 'refresh-cw'}" class="w-9 h-9" style="color:${passed ? '#3f6b3b' : '#a4473a'}"></i>
     </div>
     <p class="text-4xl font-700 font-display" style="color:${passed ? '#3f6b3b' : '#a4473a'}">${graded.pct}%</p>
-    <p class="text-sm text-ink-soft mt-1">${graded.earned} of ${countOf(graded.total, 'point')}</p>
+    <p class="text-sm text-ink-soft mt-1">${formatCount(graded.earned)} of ${countLabel(graded.total, 'point')}</p>
     <p class="mt-3 font-600 text-lg">${passed
       ? (isTopic ? `${esc(topic.name)} mastered!` : isSection ? `${esc(section.domain)} mastered!` : `${subject} mastered!`)
       : 'Not quite mastered yet'}</p>

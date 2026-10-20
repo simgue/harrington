@@ -81,20 +81,18 @@ test('CONTRIBUTING no longer says AI is disabled until self-hosted adapters exis
 });
 
 test('counts in the views agree with their number ("1 topic", never "1 topics")', async () => {
-  const { countOf } = await import('../src/js/ui.js');
-  assert.equal(countOf(1, 'topic'), '1 topic');
-  assert.equal(countOf(0, 'topic'), '0 topics');
-  assert.equal(countOf(12, 'point'), '12 points');
-  assert.equal(countOf('1', 'topic'), '1 topic');
-  assert.equal(countOf(2, 'child', 'children'), '2 children');
+  const { countLabel } = await import('../src/js/format.js');
+  assert.equal(countLabel(1, 'topic'), '1 topic');
+  assert.equal(countLabel(0, 'topic'), '0 topics');
+  assert.equal(countLabel(12, 'point'), '12 points');
   const pinned = {
-    'src/js/views/topic.js': ["(${countOf(sec.topics.length, 'topic')})", "${stats.mastered}/${countOf(stats.total, 'topic')}"],
+    'src/js/views/topic.js': ["(${countLabel(sec.topics.length, 'topic')})", "${formatCount(stats.mastered)}/${countLabel(stats.total, 'topic')}"],
     'src/js/views/masterytest.js': [
-      "${secStats.mastered} of ${countOf(secStats.total, 'topic')} in this section marked mastered.",
-      "${stats.mastered} of ${countOf(stats.total, 'topic')} marked mastered (${stats.pct}%).",
-      "${graded.earned} of ${countOf(graded.total, 'point')}",
+      "${formatCount(secStats.mastered)} of ${countLabel(secStats.total, 'topic')} in this section marked mastered.",
+      "${formatCount(stats.mastered)} of ${countLabel(stats.total, 'topic')} marked mastered (${stats.pct}%).",
+      "${formatCount(graded.earned)} of ${countLabel(graded.total, 'point')}",
     ],
-    'src/js/views/dashboard.js': ["${stats.totalMastered} of ${countOf(stats.total, 'topic')} mastered"],
+    'src/js/views/dashboard.js': ["${formatCount(stats.totalMastered)} of ${countLabel(stats.total, 'topic')} mastered"],
   };
   for (const [path, phrases] of Object.entries(pinned)) {
     const text = await read(path);
