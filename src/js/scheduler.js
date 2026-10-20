@@ -5,6 +5,7 @@
 import { getData, SUBJECTS, orderTopics, topicAge, hardPrereqs } from './data.js';
 import { LANES } from './daily.js';
 import { isUnlocked } from './mastery.js';
+import { countLabel } from './format.js';
 import * as store from './store.js';
 import { normalizeCalendar } from './store.js';
 
@@ -257,8 +258,8 @@ export function weeksBetween(fromKey, toKey) {
 export function paceSummary(plan, startKey, pace, name = 'your student') {
   const ramp = plan && plan.ramp;
   if (!ramp || !ramp.count) return `No catch-up topics: the track starts at ${name}'s own age.`;
-  const n = `${ramp.count} catch-up topic${ramp.count === 1 ? '' : 's'}`;
-  const wk = (k) => { const w = weeksBetween(startKey, k); return `${w} week${w === 1 ? '' : 's'}`; };
+  const n = countLabel(ramp.count, 'catch-up topic');
+  const wk = (k) => countLabel(weeksBetween(startKey, k), 'week');
   if (normalizePace(pace) === 'mixed') {
     return `Mixed: two catch-up topics to one own-age topic. ${n} finish in about ${wk(ramp.lastKey)}, with own-age topics from the first week.`;
   }

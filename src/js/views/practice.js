@@ -3,6 +3,7 @@ import * as store from '../store.js';
 import { el, refreshIcons, toast, openModal } from '../ui.js';
 import { award, XP } from '../game.js';
 import { isCorrect } from '../grading.js';
+import { countLabel, formatCount } from '../format.js';
 
 // Spaced retry of mastery-test questions the student previously missed —
 // extends the same expanding-interval schedule used for recall cards to
@@ -43,10 +44,10 @@ export function openTopicPractice(topic) {
     <div class="w-16 h-16 rounded-full bg-brand-light flex items-center justify-center mx-auto mb-4"><i data-lucide="check-check" class="w-8 h-8 text-brand-dark"></i></div>
     <p class="font-600 text-lg">Nothing to practice for this topic today</p>
     <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto">${queued.length
-      ? `${queued.length} missed question${queued.length > 1 ? 's' : ''} from ${esc(topic.name)} come${queued.length > 1 ? '' : 's'} back on ${next}.`
+      ? `${countLabel(queued.length, 'missed question')} from ${esc(topic.name)} come${queued.length === 1 ? 's' : ''} back on ${next}.`
       : `Questions missed on a ${esc(topic.name)} test come back here for retries. None are queued.`}</p>
     ${due
-      ? `<button id="allqueue" class="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-paper-line font-medium hover:border-brand/40 transition-colors"><i data-lucide="repeat" class="w-4 h-4"></i>Practice all due retries (${due})</button>`
+      ? `<button id="allqueue" class="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-paper-line font-medium hover:border-brand/40 transition-colors"><i data-lucide="repeat" class="w-4 h-4"></i>Practice all due retries (${formatCount(due)})</button>`
       : `<p class="text-xs text-ink-faint mt-4">No retries are due on other topics either.</p>`}
   </div>`);
   const all = empty.querySelector('#allqueue');
