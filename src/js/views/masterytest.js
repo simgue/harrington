@@ -8,6 +8,7 @@ import { openChallenge } from './challenge.js';
 import { award } from '../game.js';
 import { isCorrect } from '../grading.js';
 import { GROWTH, stageForArea, stageForStatus } from '../meadow.js';
+import { countLabel, formatCount } from '../format.js';
 
 const PASS = 90;
 
@@ -101,8 +102,8 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
 
     ${!isTopic && !childSafe ? `<div class="rounded-xl border border-paper-line bg-paper p-3.5 mb-4">
       <p class="text-xs text-ink-soft"><span class="font-600">Progress so far:</span> ${isSection
-        ? `${secStats.mastered} of ${secStats.total} topics in this section marked mastered.`
-        : `${stats.mastered} of ${stats.total} topics marked mastered (${stats.pct}%).`}</p>
+        ? `${formatCount(secStats.mastered)} of ${countLabel(secStats.total, 'topic')} in this section marked mastered.`
+        : `${formatCount(stats.mastered)} of ${countLabel(stats.total, 'topic')} marked mastered (${stats.pct}%).`}</p>
     </div>` : ''}
 
     ${childSafe ? '' : `<p class="text-sm font-600 mb-2">How would you like to give the test?</p>

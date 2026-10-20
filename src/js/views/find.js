@@ -7,6 +7,7 @@ import { SKILL_STATE_CHROME } from '../graph.js';
 import { buildTopicPath, searchTopics } from '../finder.js';
 import { growthChip, stageForSkillState } from '../meadow.js';
 import { el, esc, fmtDateTime, refreshIcons, toast } from '../ui.js';
+import { countLabel, formatCount } from '../format.js';
 import { keyOf } from '../scheduler.js';
 import { graphParamsForTopic } from './graph.js';
 import { openMoveTopic, planTopicOn } from './calendar.js';
@@ -23,7 +24,7 @@ export function renderFind(params, { navigate }) {
     <div class="mb-5">
       <p class="text-[11px] uppercase tracking-[0.18em] text-ink-faint font-medium mb-1">Topic finder</p>
       <h1 class="font-display text-2xl sm:text-3xl font-600">Find a topic</h1>
-      <p class="text-ink-soft text-sm mt-1 leading-relaxed max-w-2xl">Type what ${esc(active?.name || 'your learner')} wants to learn. Harrington looks through the ${d.meta.topics.toLocaleString()} topics of the curriculum map on this computer, without AI, and shows the way there from what is already mastered.</p>
+      <p class="text-ink-soft text-sm mt-1 leading-relaxed max-w-2xl">Type what ${esc(active?.name || 'your learner')} wants to learn. Harrington looks through the ${countLabel(d.meta.topics, 'topic')} of the curriculum map on this computer, without AI, and shows the way there from what is already mastered.</p>
     </div>`));
   if (!active) {
     root.appendChild(el(`<p class="text-ink-soft">Add a student to use the topic finder.</p>`));
@@ -147,7 +148,7 @@ function pathSection(target, active, navigate) {
   const done = path.remaining === 0;
   summary.textContent = done
     ? `${active.name} has already mastered this topic.`
-    : `${path.remaining} step${path.remaining === 1 ? '' : 's'} to go for ${active.name}, counting the topic itself. Only required foundations are listed; helpful ones are on the topic page.`;
+    : `${countLabel(path.remaining, 'step')} to go for ${active.name}, counting the topic itself. Only required foundations are listed; helpful ones are on the topic page.`;
 
   if (path.startsFrom.length) {
     section.appendChild(el(`<p class="text-sm text-ink-soft mt-2"><span class="font-600 text-ink">Builds on</span> ${path.startsFrom.map((t) => esc(t.name)).join(', ')} (mastered).</p>`));
@@ -162,7 +163,7 @@ function pathSection(target, active, navigate) {
 
   if (!done) {
     const list = el(`<ol class="find-steps mt-4 space-y-2"></ol>`);
-    const more = el(`<details class="mt-2"><summary class="text-sm font-medium text-brand-dark cursor-pointer">Show ${path.steps.length - STEPS_SHOWN} more steps</summary><ol class="mt-2 space-y-2" start="${STEPS_SHOWN + 1}"></ol></details>`);
+    const more = el(`<details class="mt-2"><summary class="text-sm font-medium text-brand-dark cursor-pointer">Show ${countLabel(path.steps.length - STEPS_SHOWN, 'more step', 'more steps')}</summary><ol class="mt-2 space-y-2" start="${STEPS_SHOWN + 1}"></ol></details>`);
     path.steps.forEach((step, i) => {
       const row = stepRow(step, i + 1, path.next, d, navigate);
       (i < STEPS_SHOWN ? list : more.querySelector('ol')).appendChild(row);
@@ -234,7 +235,7 @@ function nextStepCard(topic, active, navigate) {
 function logSection(log, active, navigate, d) {
   const section = el(`<section class="mb-5" aria-labelledby="find-log-h">
     <h2 id="find-log-h" class="font-600 mb-1">Request log</h2>
-    <p class="text-xs text-ink-faint mb-3">What was asked for ${esc(active.name)}, newest first. The last ${store.REQUEST_LOG_MAX} are kept, with the family's data.</p>
+    <p class="text-xs text-ink-faint mb-3">What was asked for ${esc(active.name)}, newest first. The last ${formatCount(store.REQUEST_LOG_MAX)} are kept, with the family's data.</p>
   </section>`);
   if (!log.length) {
     section.appendChild(el(`<p class="text-sm text-ink-soft">No requests yet.</p>`));
@@ -252,6 +253,6 @@ function logSection(log, active, navigate, d) {
     list.appendChild(item);
   }
   section.appendChild(list);
-  if (log.length > LOG_SHOWN) section.appendChild(el(`<p class="text-xs text-ink-faint mt-2">Showing the latest ${LOG_SHOWN} of ${log.length}.</p>`));
+  if (log.length > LOG_SHOWN) section.appendChild(el(`<p class="text-xs text-ink-faint mt-2">Showing the latest ${formatCount(LOG_SHOWN)} of ${formatCount(log.length)}.</p>`));
   return section;
 }
