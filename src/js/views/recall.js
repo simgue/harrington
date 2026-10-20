@@ -4,6 +4,7 @@ import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiRecallCards } from '../ai.js';
 import { aiErrorBlock, gateAi, generateAnotherButton, offerRetrySave, regenerateInto } from '../ai-status.js';
 import { award, XP } from '../game.js';
+import { countLabel } from '../format.js';
 
 // Cards are cached per topic (shared, like lessons) so retrieval practice is
 // instant. Stored as { cards }; generateCached also reads the older bare arrays.
@@ -18,7 +19,7 @@ export async function cardsForTopic(topic) {
 }
 
 function droppedNote(dropped) {
-  return el(`<p class="recall-dropped text-xs text-ink-faint mb-3">${dropped === 1 ? '1 card couldn’t be shown and was left out.' : `${dropped} cards couldn’t be shown and were left out.`}</p>`);
+  return el(`<p class="recall-dropped text-xs text-ink-faint mb-3">${countLabel(dropped, 'card')} couldn’t be shown and ${dropped === 1 ? 'was' : 'were'} left out.</p>`);
 }
 
 // The child view never shows provider wording (HAR-15), so failures read neutrally there.
