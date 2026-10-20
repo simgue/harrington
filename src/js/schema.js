@@ -1,7 +1,7 @@
 // The family document's data format. SCHEMA_VERSION is the format this code
 // writes; MIGRATIONS[n] turns a document at schema n into schema n + 1. The
 // store runs them on load and on import, and server.mjs stamps a new document.
-// Dependency-free so the server can import it as is.
+// Dependency-free (pin.js is plain JS too) so the server can import it as is.
 //
 // schemaVersion changes only when the meaning of an existing field changes. A
 // new top-level field needs no bump: the store keeps fields it does not know
@@ -10,9 +10,10 @@
 // To add a migration: append it to MIGRATIONS (SCHEMA_VERSION follows), add
 // tests/fixtures/schema/v<old>.input.json with its v<old>.expected.json, and
 // update the expected file of every older fixture (tests/schema.test.mjs).
-// Migrations are synchronous. One that needs outside input, such as a salt
+// Migrations are synchronous. One that needs outside input, such as the salt
 // for hashing the child-view PIN, reads it from `context`, which the caller
 // passes to migrateDocument.
+import { migratePinSettings } from './pin.js';
 
 // Each entry: (doc, context) => doc at the next schema. It receives a copy and
 // may change it; migrateDocument sets schemaVersion afterwards.
@@ -20,6 +21,13 @@ export const MIGRATIONS = [
   // 0 -> 1: documents from before schemaVersion existed already have the
   // schema 1 shape; they only gain the field.
   (doc) => doc,
+  // 1 -> 2: the child-view PIN is kept only as a salted hash (PR #38):
+  // settings.parentPin becomes parentPinHash and parentPinSalt, and a
+  // malformed hash or salt is dropped. context.salt fixes the salt in tests;
+  // otherwise each family gets a random one.
+  (doc, { salt } = {}) => (doc.settings === undefined
+    ? doc
+    : { ...doc, settings: migratePinSettings(doc.settings, { salt }) }),
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

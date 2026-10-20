@@ -1,5 +1,4 @@
 {
-  "schemaVersion": 1,
   "version": 12,
   "updatedAt": 1700000400000,
   "students": [
@@ -34,5 +33,6 @@
   },
   "tests": {},
   "notifications": [],
-  "graphView": "atlas"
+  "graphView": "atlas",
+  "schemaVersion": 2
 }

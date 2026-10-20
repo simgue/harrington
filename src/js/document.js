@@ -147,12 +147,25 @@ function interestsProblem(interests) {
   return null;
 }
 
-function settingsProblem(settings) {
+// From data format 2 (schema.js step 1 -> 2) the child-view PIN is kept only
+// as a salted hash (pin.js); a plain PIN belongs to formats 0 and 1.
+const PIN_HASHED_FROM_SCHEMA = 2;
+function settingsProblem(settings, schemaVersion) {
   if (absent(settings)) return null;
   if (!isObject(settings)) return 'The file\'s settings are not in the expected shape.';
   const pin = settings.parentPin;
+  const hashed = Number.isSafeInteger(schemaVersion) && schemaVersion >= PIN_HASHED_FROM_SCHEMA;
+  if (hashed && 'parentPin' in settings) {
+    return 'The file keeps the child-view PIN in plain text, which this data format does not allow.';
+  }
   if (!absent(pin) && pin !== '' && !((typeof pin === 'string' || typeof pin === 'number') && /^\d{4}$/.test(String(pin)))) {
     return 'The file\'s child-view PIN is not four digits.';
+  }
+  if (!absent(settings.parentPinHash) && !(typeof settings.parentPinHash === 'string' && /^[0-9a-f]{64}$/.test(settings.parentPinHash))) {
+    return 'The file\'s child-view PIN hash is not 64 lowercase hex characters.';
+  }
+  if (!absent(settings.parentPinSalt) && !(typeof settings.parentPinSalt === 'string' && /^[0-9a-f]{32}$/.test(settings.parentPinSalt))) {
+    return 'The file\'s child-view PIN salt is not 32 lowercase hex characters.';
   }
   const cal = settings.calendar;
   if (absent(cal)) return null;
@@ -194,5 +207,5 @@ export function validateDocument(doc) {
     || listsProblem(doc, 'challenges', 'challenge result', challengeProblem)
     || gameProblem(doc.game)
     || interestsProblem(doc.interests)
-    || settingsProblem(doc.settings);
+    || settingsProblem(doc.settings, doc.schemaVersion);
 }

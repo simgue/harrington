@@ -255,7 +255,8 @@ To restore, stop Harrington, replace `data/private/` with the archive's
 contents (`tar -xzf backups/harrington-<timestamp>.tar.gz -C data`), and start
 it again. With Docker, back up the `harrington-data` volume instead.
 
-In the app, **Export** in the sidebar's family box downloads
+In the app, **Export** in the sidebar's family box (on a phone, at the bottom
+of the learner selector) downloads
 `harrington-family-<date>.json`: the full family document plus `exportedAt`
 and `taxonomyVersion`. **Import** checks a file, previews its learners and
 record counts, and after you confirm replaces the family data on this server.
@@ -263,19 +264,22 @@ The check (`src/js/document.js`) covers learner fields (id, name, birth year
 and month, start date, a hex color), the active learner, progress statuses,
 records (type, rating, bounded text, numeric dates), test and challenge
 results (scores and counts as numbers), XP and badges, interests, calendar
-settings, the child-view PIN and notifications, and says what it refused.
-Other fields are not checked. A learner color outside the palette is moved to
-the nearest palette color, and the preview says how many were. The server
-applies the same check to every save and answers 422 with the reason. The
-JSON file does not contain recordings, so keep a `data/private/` backup too.
+settings, the child-view PIN hash and salt and notifications, and says what
+it refused. Other fields are not checked. A learner color outside the palette
+is moved to the nearest palette color, and the preview says how many were.
+The server applies the same check to every save and answers 422 with the
+reason. The JSON file does not contain recordings, so keep a
+`data/private/` backup too. The child-view PIN is stored and exported only as
+a salted SHA-256 hash; a plain PIN in an older file is hashed when it is
+loaded or imported.
 
-The family document carries `schemaVersion`, its data format (currently 1).
+The family document carries `schemaVersion`, its data format (currently 2).
 Older documents and exports are migrated when they are loaded or imported
-(`src/js/schema.js`), and a load that migrated saves the result once. A file
-from a newer version of Harrington is refused at import; a document from a
-newer version already on the server opens read-only, with a banner, and
-nothing is saved until this Harrington is updated. Top-level fields this
-version does not know are kept as they are.
+(`src/js/schema.js`; step 1 to 2 hashes a plain PIN), and a load that
+migrated saves the result once. A file from a newer version of Harrington is
+refused at import; a document from a newer version already on the server
+opens read-only, with a banner, and nothing is saved until this Harrington is
+updated. Top-level fields this version does not know are kept as they are.
 
 Saves are versioned: if another tab or device saved first, Harrington reloads
 the latest data and says so instead of overwriting it. Changes still pending

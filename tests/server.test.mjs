@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
+import { SCHEMA_VERSION } from '../src/js/schema.js';
 
 const repoRoot = new URL('..', import.meta.url);
 let child;
@@ -90,7 +91,7 @@ test('persists versioned family state on the Harrington server', async () => {
   assert.equal(empty.status, 200);
   assert.equal(empty.headers.get('etag'), '"v0"');
   // A new document is at the current data format (src/js/schema.js).
-  assert.deepEqual(await empty.json(), { schemaVersion: 1, version: 0 });
+  assert.deepEqual(await empty.json(), { schemaVersion: SCHEMA_VERSION, version: 0 });
 
   const state = {
     students: [{ id: 'student-1', name: 'Sample Learner', birthYear: 2018 }],
@@ -256,6 +257,8 @@ test('refuses a save the app could not render (422) or a data format it does not
     [{ students: [learner], game: { v1: { xp: '<b>' } } }, 'The file\'s XP is not a number of zero or more.'],
     [{ students: 'nope' }, 'The file has no learner list.'],
     [{ schemaVersion: 'one', students: [] }, 'schemaVersion must be a whole number'],
+    [{ schemaVersion: SCHEMA_VERSION, students: [learner], settings: { parentPin: '2468' } }, 'The file keeps the child-view PIN in plain text, which this data format does not allow.'],
+    [{ students: [learner], settings: { parentPinHash: 'X'.repeat(64), parentPinSalt: 'a'.repeat(32) } }, 'The file\'s child-view PIN hash is not 64 lowercase hex characters.'],
   ]) {
     const response = await putState(body, tag);
     assert.equal(response.status, 422, error);
@@ -269,16 +272,16 @@ test('refuses a save the app could not render (422) or a data format it does not
   });
   assert.equal(beacon.status, 422);
 
-  const newer = await putState({ schemaVersion: 2, students: [] }, tag);
+  const newer = await putState({ schemaVersion: SCHEMA_VERSION + 1, students: [] }, tag);
   assert.equal(newer.status, 409);
-  assert.match((await newer.json()).error, /reads family data up to format 1; the save is format 2/);
+  assert.match((await newer.json()).error, new RegExp(`reads family data up to format ${SCHEMA_VERSION}; the save is format ${SCHEMA_VERSION + 1}`));
 
-  // Once the stored document is format 1, a save without the field (format 0) is refused.
-  assert.equal((await putState({ schemaVersion: 1, students: [learner] }, tag)).status, 204);
+  // Once the stored document is at the current format, an older save is refused.
+  assert.equal((await putState({ schemaVersion: SCHEMA_VERSION, students: [learner] }, tag)).status, 204);
   const stored = await current();
   const older = await putState({ students: [learner] }, `"v${stored.version}"`);
   assert.equal(older.status, 409);
-  assert.match((await older.json()).error, /family data is format 1; this save is format 0/);
+  assert.match((await older.json()).error, new RegExp(`family data is format ${SCHEMA_VERSION}; this save is format 0`));
   assert.deepEqual(await current(), stored, 'nothing refused was written');
   // Leave the store as later tests expect: back to a document without the field.
   await writeFile(join(dataDir, 'family-state.json'), JSON.stringify({ ...before, version: stored.version }));

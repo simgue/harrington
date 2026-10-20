@@ -2,6 +2,7 @@
 import * as backend from './backend.js';
 import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, schemaVersionOf } from './schema.js';
 import { BOOKKEEPING_FIELDS, LEARNER_KEYS, MIN_BIRTH_YEAR, documentFields, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
+import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
 
 export { MIN_BIRTH_YEAR };
 
@@ -34,7 +35,7 @@ let state = {
   daily: {},          // studentId -> { 'yyyy-mm-dd': { offers: {literacy:[topicId], numeracy:[topicId]}, picks: {literacy, numeracy} } }
   interests: {},      // studentId -> { chips: [label], text: '' }  (what the learner is into, parent-entered)
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
-  settings: {},       // family-wide: { parentPin, calendar: { homeDays:[0-6], breaks:[{start, end, label}] } }
+  settings: {},       // family-wide: { parentPinHash, parentPinSalt, calendar: { homeDays:[0-6], breaks:[{start, end, label}] } }
 };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -107,28 +108,40 @@ function applyDocument(data) {
   state.notifications = Array.isArray(doc.notifications) ? doc.notifications : [];
   state.curriculumSnapshot = doc.curriculumSnapshot || null;
   state.graphView = doc.graphView === 'list' ? 'list' : 'atlas';
-  state.settings = objectOr(doc.settings, {});
+  const settings = objectOr(doc.settings, {});
+  // Schema step 1 -> 2 hashes a plain PIN (schema.js, pin.js). A current
+  // document that still carries one (a hand edit) is hashed here as well, so
+  // no save writes it back. A read-only (newer) document is never touched.
+  state.settings = readOnly ? settings : migratePinSettings(settings);
   stateVersion = Number.isSafeInteger(doc.version) ? doc.version : 0;
-  return !readOnly && schemaVersionOf(doc) !== schemaVersionOf(raw);
+  return !readOnly && (schemaVersionOf(doc) !== schemaVersionOf(raw) || state.settings !== settings);
 }
 
-// Loading never writes, with one exception: a document a migration changed is
-// saved once, right away, as a normal versioned save. (When the synced
-// snapshot of PR #35 lands, markSynced() runs before this save, on the
-// migrated document.)
+// Loading never writes, with one exception: a document a migration changed
+// (a schema step, or a plain PIN hashed) is saved once, right away, as a
+// normal versioned save. (When the synced snapshot of PR #35 lands,
+// markSynced() runs before this save, on the migrated document.) If the
+// migration is all this tab has to save and another tab saved first (two tabs
+// open during the upgrade), the conflict reload is not worth a toast: the
+// reloaded document is migrated again.
+let migrationOnly = false;
 function saveIfMigrated(migrated) {
-  if (!migrated) return;
+  if (!migrated) return Promise.resolve(true);
+  const pending = dirty;
   dirty = true;
-  flushSaves();
+  migrationOnly = !pending;
+  return flushSaves();
 }
 
 export async function loadAll() {
+  let migrated;
   try {
-    saveIfMigrated(applyDocument(await backend.loadState()));
+    migrated = applyDocument(await backend.loadState());
   } catch (e) {
     console.warn('load failed', e);
     throw e;
   }
+  await saveIfMigrated(migrated);
 }
 
 // Saves are always in the format this code writes (see schema.js), with every
@@ -159,12 +172,13 @@ function reloadFromServer(doc) {
   dirty = false;
   // A pending beacon carried the version we are discarding, so it cannot land.
   unconfirmedBeacon = null;
-  const migrated = applyDocument(doc);
+  const quiet = migrationOnly;
+  migrationOnly = false;
+  saveIfMigrated(applyDocument(doc));
   const present = new Set(state.students.map(s => s.id));
   pendingAudioDeletes = pendingAudioDeletes.filter(item => !present.has(item.studentId));
   emit();
-  saveStatus({ type: 'conflict' });
-  saveIfMigrated(migrated);
+  if (!quiet) saveStatus({ type: 'conflict' });
 }
 
 // Deletes recordings of learners whose removal the server has accepted.
@@ -223,6 +237,7 @@ async function saveWith(makeData) {
       try {
         const next = await backend.saveState(data, stateVersion, newWriteId());
         stateVersion = Math.max(stateVersion, next);
+        if (!dirty) migrationOnly = false;
         deleteRemovedAudio();
         saveStatus({ type: 'saved' });
         return true;
@@ -268,6 +283,7 @@ export function flushSaves() {
 
 function persist() {
   if (readOnly) { saveStatus({ type: 'read-only' }); return; }
+  migrationOnly = false;
   dirty = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSaves, 400);
@@ -330,8 +346,13 @@ function countOf(value) {
 export async function exportDocument() {
   await flushSaves();
   const meta = { exportedAt: new Date().toISOString(), taxonomyVersion: state.curriculumSnapshot?.version || null };
-  if (dirty) return { ...snapshotData(), version: stateVersion, ...meta, unsavedChanges: true };
-  return { ...migrateDocument(await backend.loadState()), ...meta };
+  const doc = dirty
+    ? { ...snapshotData(), version: stateVersion, ...meta, unsavedChanges: true }
+    : { ...migrateDocument(await backend.loadState()), ...meta };
+  // Never a plain PIN in the file, even one another device just saved (a
+  // newer data format is exported as it is).
+  if (!isUnwritableSchema(doc)) doc.settings = migratePinSettings(doc.settings);
+  return doc;
 }
 
 // Checks an export (or a raw family-state.json) before import with the same
@@ -367,6 +388,8 @@ export function importDocument(doc) {
   if (!check.ok) return Promise.reject(new Error(check.error));
   const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = migrateDocument(doc);
   data.students = data.students.map(s => ({ ...s, color: paletteColor(s.color) }));
+  // Step 1 -> 2 hashed an older export's plain PIN; this catches a hand edit.
+  if (data.settings !== undefined) data.settings = migratePinSettings(objectOr(data.settings, {}));
   clearTimeout(saveTimer);
   saveTimer = null;
   dirty = false;
@@ -1016,15 +1039,13 @@ export function isChildViewOpen() { return childViewOpen; }
 export function setChildViewOpen(open) { childViewOpen = !!open; }
 
 // A four-digit PIN that keeps the child view from closing with one tap. A
-// family-device convenience, not authentication.
-export function parentPin() {
-  // String() so a hand-edited numeric value in the data file still matches.
-  const pin = state.settings?.parentPin;
-  return pin == null || pin === '' ? null : String(pin);
-}
+// family-device convenience, not authentication; only a salted hash is kept
+// (pin.js).
+export function hasParentPin() { return hasPin(state.settings); }
+export function checkParentPin(pin) { return verifyPin(pin, state.settings); }
 export function setParentPin(pin) {
-  if (!/^\d{4}$/.test(String(pin))) return false;
-  state.settings = { ...state.settings, parentPin: String(pin) };
+  if (!PIN_PATTERN.test(String(pin))) return false;
+  state.settings = pinSettings(state.settings, pin);
   persist();
   return true;
 }

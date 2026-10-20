@@ -38,12 +38,14 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 const load = async (doc) => { served = doc; puts.length = 0; beacons.length = 0; await store.loadAll(); await store.flushSaves(); await settle(); };
 
 test('the schema is the length of the migration chain', () => {
-  assert.equal(SCHEMA_VERSION, 1);
+  assert.equal(SCHEMA_VERSION, 2);
   assert.equal(MIGRATIONS.length, SCHEMA_VERSION);
 });
 
 // Every vN.input.json is a document at schema N; migrating it must give its
-// vN.expected.json, which is always at the current schema.
+// vN.expected.json, which is always at the current schema. The PIN step's salt
+// is injected so the expected hash is fixed.
+const FIXTURE_CONTEXT = { context: { salt: 'a'.repeat(32) } };
 const inputs = (await readdir(fixturesDir)).filter((f) => /^v\d+\.input\.json$/.test(f)).sort();
 test('the fixtures cover every older schema', () => {
   assert.deepEqual(inputs, Array.from({ length: SCHEMA_VERSION }, (_, n) => `v${n}.input.json`));
@@ -53,7 +55,7 @@ for (const input of inputs) {
     const doc = await readFixture(input);
     const expected = await readFixture(input.replace('.input.', '.expected.'));
     assert.equal(schemaVersionOf(doc), Number(input.match(/\d+/)[0]));
-    const migrated = migrateDocument(doc);
+    const migrated = migrateDocument(doc, FIXTURE_CONTEXT);
     assert.deepEqual(migrated, expected);
     assert.equal(migrated.schemaVersion, SCHEMA_VERSION);
     assert.deepEqual(doc, await readFixture(input), 'the input document is not changed in place');
@@ -105,6 +107,49 @@ test('a load that migrates saves once, right away, as a versioned save', async (
   assert.equal(puts[0].schemaVersion, SCHEMA_VERSION);
   assert.equal(served.version, 13, 'saved against the loaded version');
   assert.equal(store.isReadOnly(), false);
+});
+
+test('step 1 -> 2 hashes a plain PIN on load, saves once, and keeps the PIN usable', async () => {
+  await load({ ...(await readFixture('v1.input.json')), version: 70 });
+  assert.equal(puts.length, 1);
+  assert.equal(puts[0].schemaVersion, 2);
+  assert.equal('parentPin' in puts[0].settings, false);
+  assert.match(puts[0].settings.parentPinHash, /^[0-9a-f]{64}$/);
+  assert.match(puts[0].settings.parentPinSalt, /^[0-9a-f]{32}$/);
+  assert.deepEqual(puts[0].settings.calendar, { homeDays: [1, 2, 3, 4], breaks: [] });
+  assert.equal(store.checkParentPin('2468'), true);
+  assert.equal(store.checkParentPin('1111'), false);
+});
+
+test('a current document with a hand-edited plain PIN is hashed and saved once too', async () => {
+  const doc = await readFixture('v1.expected.json');
+  const { parentPinHash: _h, parentPinSalt: _s, ...settings } = doc.settings;
+  await load({ ...doc, settings: { ...settings, parentPin: '1357' }, version: 80 });
+  assert.equal(puts.length, 1);
+  assert.equal('parentPin' in puts[0].settings, false);
+  assert.equal(store.checkParentPin('1357'), true);
+});
+
+test('a newer document\'s plain PIN is left alone and never written', async () => {
+  const doc = { ...(await readFixture('v1.expected.json')), schemaVersion: SCHEMA_VERSION + 1, version: 90 };
+  doc.settings = { parentPin: '2468' };
+  await load(doc);
+  assert.equal(store.isReadOnly(), true);
+  assert.deepEqual(store.get().settings, { parentPin: '2468' });
+  assert.equal(puts.length, 0);
+});
+
+test('import refuses a plain PIN at the current format, and a malformed hash or salt', () => {
+  const current = { schemaVersion: SCHEMA_VERSION, students: [] };
+  assert.equal(store.inspectImport({ ...current, settings: { parentPin: '2468' } }).error,
+    'The file keeps the child-view PIN in plain text, which this data format does not allow.');
+  assert.equal(store.inspectImport({ ...current, settings: { parentPinHash: 'A'.repeat(64), parentPinSalt: 'a'.repeat(32) } }).error,
+    'The file\'s child-view PIN hash is not 64 lowercase hex characters.');
+  assert.equal(store.inspectImport({ ...current, settings: { parentPinHash: 'a'.repeat(64), parentPinSalt: 7 } }).error,
+    'The file\'s child-view PIN salt is not 32 lowercase hex characters.');
+  // An older export with a plain PIN imports (and is hashed by step 1 -> 2).
+  assert.equal(store.inspectImport({ schemaVersion: 1, students: [], settings: { parentPin: '2468' } }).ok, true);
+  assert.equal(store.inspectImport({ ...current, settings: { parentPinHash: 'a'.repeat(64), parentPinSalt: 'b'.repeat(32) } }).ok, true);
 });
 
 test('a load that does not migrate never writes', async () => {
