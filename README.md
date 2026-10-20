@@ -252,11 +252,14 @@ is more than 7 days old. With no archive at all it shows "No backup recorded"
 once, with a link to this section; under Docker, where backups are of the
 volume, dismiss it and it stays quiet for 30 days.
 
-In the app, **Export** in the sidebar's family box downloads
+In the app, **Export** in the sidebar's family box (on a phone, at the bottom
+of the learner selector) downloads
 `harrington-family-<date>.json`: the full family document plus `exportedAt`
 and `taxonomyVersion`. **Import** checks a file, previews its learners and
 record counts, and after you confirm replaces the family data on this server.
 The JSON file does not contain recordings, so keep a `data/private/` backup too.
+The child-view PIN is stored and exported only as a salted SHA-256 hash; a
+plain PIN in an older file is hashed when it is loaded or imported.
 
 Saves are versioned: if another tab or device saved first, Harrington reloads
 the latest data and says so instead of overwriting it. Changes still pending

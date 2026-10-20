@@ -1,5 +1,6 @@
 import * as store from '../store.js';
 import { el, esc, initials, openModal, refreshIcons, toast } from '../ui.js';
+import { countLabel } from '../format.js';
 import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
 import { openPlacement } from './placement.js';
@@ -117,29 +118,46 @@ function studentSwitcher(navigate, compact = false) {
   return btn;
 }
 
+// Below lg the learner's actions get a line of their own: 44px-tall labeled
+// buttons that share the row's width (a fourth action still fits). On a
+// desktop they are the same 24px icons as before, at the end of the row.
+const rowActionCls = 'h-11 lg:w-6 lg:h-6 rounded-full flex items-center justify-center gap-1.5 bg-paper-card lg:bg-transparent text-ink-faint';
+const rowActionLabel = (text) => `<span class="lg:hidden text-xs font-medium">${text}</span>`;
+
 function openStudentMenu(navigate) {
   const state = store.get();
   const body = el(`<div class="p-5">
     <div class="flex items-center justify-between mb-4">
       <h3 class="font-display text-lg font-600">Students</h3>
-      <button id="add" class="text-sm font-medium text-brand-dark flex items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i>Add</button>
+      <button id="add" class="h-11 lg:h-auto px-3 -mr-3 lg:p-0 lg:mr-0 rounded-full text-sm font-medium text-brand-dark flex items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i>Add</button>
     </div>
     <div id="list" class="space-y-2"></div>
+    <div class="lg:hidden mt-5 pt-4 border-t border-paper-line">
+      <p class="text-xs font-600 text-ink-soft mb-2">Family data</p>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="m-export" class="flex items-center justify-center gap-1.5 h-11 rounded-full bg-paper text-sm font-medium text-ink hover:bg-paper-deep transition-colors" title="Export family data">
+          <i data-lucide="download" class="w-4 h-4"></i>Export</button>
+        <button id="m-import" class="flex items-center justify-center gap-1.5 h-11 rounded-full bg-paper text-sm font-medium text-ink hover:bg-paper-deep transition-colors" title="Import family data">
+          <i data-lucide="upload" class="w-4 h-4"></i>Import</button>
+      </div>
+    </div>
   </div>`);
   const list = body.querySelector('#list');
   state.students.forEach(s => {
     const age = store.studentAge(s);
     const isActive = s.id === state.activeStudentId;
-    const row = el(`<div class="flex items-center gap-3 p-2 pr-3 rounded-full ${isActive ? 'bg-brand-light shadow-[0_0_0_2px_#f2c14e]' : 'bg-paper'}">
+    const row = el(`<div class="flex flex-wrap lg:flex-nowrap items-center gap-x-3 gap-y-2 p-2 lg:pr-3 rounded-3xl lg:rounded-full ${isActive ? 'bg-brand-light shadow-[0_0_0_2px_#f2c14e]' : 'bg-paper'}">
       <span class="w-10 h-10 rounded-full flex items-center justify-center text-white font-display text-base font-600" style="background:${esc(s.color)}">${esc(initials(s.name))}</span>
       <div class="flex-1 min-w-0">
         <p class="font-600 text-sm truncate">${esc(s.name)}</p>
         <p class="text-xs text-ink-faint">Age ${age} · born ${bornLabel(s)}</p>
       </div>
-      ${isActive ? '<span class="text-xs font-medium text-brand-dark px-2 py-0.5 rounded-full bg-brand/10">Active</span>' : '<button class="select text-xs font-medium text-brand px-3 py-1.5 rounded-full bg-paper-card hover:bg-brand-light">Switch</button>'}
-      <button class="place text-ink-faint hover:text-brand-dark p-1" title="Placement: mark earlier topics mastered" aria-label="Placement for ${esc(s.name)}"><i data-lucide="list-checks" class="w-4 h-4"></i></button>
-      <button class="edit text-ink-faint hover:text-brand-dark p-1" title="Edit learner" aria-label="Edit ${esc(s.name)}"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-      <button class="del text-ink-faint hover:text-[#a4473a] p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+      ${isActive ? '<span class="text-xs font-medium text-brand-dark px-2 py-0.5 rounded-full bg-brand/10">Active</span>' : '<button class="select h-11 lg:h-auto px-4 lg:px-3 lg:py-1.5 text-xs font-medium text-brand rounded-full bg-paper-card hover:bg-brand-light">Switch</button>'}
+      <div class="w-full lg:w-auto grid grid-cols-[repeat(auto-fit,minmax(44px,1fr))] gap-1.5 lg:flex lg:items-center lg:gap-3 lg:shrink-0">
+        <button class="place ${rowActionCls} hover:text-brand-dark" title="Placement: mark earlier topics mastered" aria-label="Placement for ${esc(s.name)}"><i data-lucide="list-checks" class="w-4 h-4"></i>${rowActionLabel('Placement')}</button>
+        <button class="edit ${rowActionCls} hover:text-brand-dark" title="Edit learner" aria-label="Edit ${esc(s.name)}"><i data-lucide="pencil" class="w-4 h-4"></i>${rowActionLabel('Edit')}</button>
+        <button class="del ${rowActionCls} hover:text-[#a4473a]" title="Remove learner" aria-label="Remove learner ${esc(s.name)}"><i data-lucide="trash-2" class="w-4 h-4"></i>${rowActionLabel('Remove')}</button>
+      </div>
     </div>`);
     row.querySelector('.place').addEventListener('click', () => { m.close(); openPlacement(s); });
     row.querySelector('.edit').addEventListener('click', () => { m.close(); openEditStudent(s); });
@@ -150,6 +168,9 @@ function openStudentMenu(navigate) {
     list.appendChild(row);
   });
   body.querySelector('#add').onclick = () => { m.close(); openAddStudent(); };
+  // Phones have no sidebar, so Export and Import live here below lg.
+  body.querySelector('#m-export').onclick = () => { m.close(); exportFamilyData(); };
+  body.querySelector('#m-import').onclick = () => { m.close(); pickImportFile(); };
   const m = openModal(body);
 }
 
@@ -317,7 +338,6 @@ function pickImportFile() {
 }
 
 function openImportPreview(doc, learners) {
-  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const body = el(`<div class="p-5">
     <h3 class="font-display text-lg font-600 mb-1">Import family data?</h3>
     <p class="text-sm text-ink-faint mb-4">This replaces all family data on this server with the file${doc.exportedAt ? ` exported ${esc(new Date(doc.exportedAt).toLocaleString())}` : ''}. Recordings are not part of the file.</p>
@@ -332,7 +352,7 @@ function openImportPreview(doc, learners) {
   learners.forEach(l => {
     list.appendChild(el(`<div class="flex items-center justify-between gap-3 px-3 py-2 rounded-2xl bg-paper">
       <span class="text-sm font-600 truncate">${esc(l.name)}</span>
-      <span class="text-xs text-ink-faint shrink-0">${plural(l.topics, 'topic')} · ${plural(l.records, 'record')} · ${plural(l.tests, 'test')}</span>
+      <span class="text-xs text-ink-faint shrink-0">${countLabel(l.topics, 'topic')} · ${countLabel(l.records, 'record')} · ${countLabel(l.tests, 'test')}</span>
     </div>`));
   });
   body.querySelector('#cancel').onclick = () => m.close();

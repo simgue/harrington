@@ -58,11 +58,11 @@ test('remove a learner asks first; cancel keeps them, OK removes them', async ({
 
   // Cancel the confirm: nothing changes.
   page.once('dialog', (d) => { expect(d.message()).toBe('Remove Wren Example? This deletes their progress and records.'); d.dismiss(); });
-  await studentRow(page, 'Wren Example').locator('button').last().click();
+  await modal(page).getByRole('button', { name: 'Remove learner Wren Example' }).click();
   await expect(modal(page).getByText('Wren Example', { exact: true })).toBeVisible();
 
   page.once('dialog', (d) => d.accept());
-  await studentRow(page, 'Wren Example').locator('button').last().click();
+  await modal(page).getByRole('button', { name: 'Remove learner Wren Example' }).click();
   await expect(page.locator('#modal-root > div')).toHaveCount(0);
   await openSwitcher(page);
   await expect(modal(page).getByText('Wren Example', { exact: true })).toHaveCount(0);
@@ -72,12 +72,15 @@ test('remove a learner asks first; cancel keeps them, OK removes them', async ({
   expect(state.students.map((s) => s.name)).toEqual(['Rowan Example', 'Sage Example']);
 });
 
-test('the learner delete button is icon-only with no accessible name (finding F14)', async ({ page, gotoApp }) => {
+test('the learner remove button is named for the learner (F14)', async ({ page, gotoApp }) => {
   await gotoApp({ seed: {} });
   await openSwitcher(page);
   const del = studentRow(page, 'Wren Example').locator('button').last();
-  // Finding: the delete button has no accessible name.
-  await expect(del).toHaveAccessibleName('');
+  await expect(del).toHaveAccessibleName('Remove learner Wren Example');
+  await expect(modal(page).getByRole('button', { name: 'Remove learner Rowan Example' })).toBeVisible();
+  // Desktop keeps the small icons.
+  const box = await del.boundingBox();
+  expect(box.width).toBeLessThanOrEqual(28);
 });
 
 test('HAR-22: edit a learner; a birth month makes the age exact', async ({ page, api, gotoApp, shot }) => {
