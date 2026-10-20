@@ -3,6 +3,7 @@ import { graphParamsForTopic } from './graph.js';
 import * as store from '../store.js';
 import { growthChip, growthIcon, stageForStatus } from '../meadow.js';
 import { el, esc, refreshIcons, toast, fmtDateTime } from '../ui.js';
+import { countLabel, formatCount } from '../format.js';
 import { isUnlocked, blockingPrereqs, MASTERY, sectionForTopic, topicsMasteryStats, sectionTestReady } from '../mastery.js';
 import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';
@@ -219,7 +220,7 @@ function sectionCheckSection(t, student) {
   const passed = !!(last && last.passed);
   const ready = student ? sectionTestReady(student.id, sec) : false;
 
-  body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-1">Part of <span class="font-600 text-ink">${esc(sec.domain)} · Age ${esc(sec.age)}</span> (${sec.topics.length} topics).</p>`));
+  body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-1">Part of <span class="font-600 text-ink">${esc(sec.domain)} · Age ${esc(sec.age)}</span> (${countLabel(sec.topics.length, 'topic')}).</p>`));
   body.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${passed
     ? `Section check passed with ${last.pct}%.`
     : ready
@@ -229,7 +230,7 @@ function sectionCheckSection(t, student) {
   if (student) {
     body.appendChild(el(`<div class="flex items-center gap-2 mb-3">
       <div class="h-1.5 rounded-full bg-paper-line overflow-hidden flex-1"><div class="mbar h-full rounded-full" style="width:${Math.round((stats.mastered/(stats.total||1))*100)}%;background:${meta.color}"></div></div>
-      <span class="text-[11px] text-ink-faint shrink-0">${stats.mastered}/${stats.total} topics</span>
+      <span class="text-[11px] text-ink-faint shrink-0">${formatCount(stats.mastered)}/${countLabel(stats.total, 'topic')}</span>
     </div>`));
   }
 
