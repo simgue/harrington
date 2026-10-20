@@ -1,5 +1,7 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
+import { formatCount } from './format.js';
+import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
 
 export const MASTERY = {
   none:       { label: 'Not started', rank: 0, color: '#d2c6ad' },
@@ -30,7 +32,7 @@ let state = {
   daily: {},          // studentId -> { 'yyyy-mm-dd': { offers: {literacy:[topicId], numeracy:[topicId]}, picks: {literacy, numeracy} } }
   interests: {},      // studentId -> { chips: [label], text: '' }  (what the learner is into, parent-entered)
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
-  settings: {},       // family-wide: { parentPin, calendar: { homeDays:[0-6], breaks:[{start, end, label}] } }
+  settings: {},       // family-wide: { parentPinHash, parentPinSalt, calendar: { homeDays:[0-6], breaks:[{start, end, label}] } }
 };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -112,19 +114,42 @@ function documentFields(data) {
   return fields;
 }
 
+// Returns true when it migrated the PIN, which the caller then saves.
 function applyDocument(data) {
-  Object.assign(state, documentFields(data));
+  const fields = documentFields(data);
+  const settings = fields.settings;
+  // A plain PIN (from before it was hashed, or saved by an older tab) is
+  // hashed as the document is applied, so no save writes it back.
+  fields.settings = migratePinSettings(settings);
+  Object.assign(state, fields);
   stateVersion = versionOf(data);
+  // After the migration: the migrated document is the synced snapshot, so a
+  // later conflict never reports the PIN migration as a lost change.
   markSynced();
+  return fields.settings !== settings;
+}
+
+// Saves the PIN migration applyDocument made, once and right away (a load that
+// migrated nothing never writes). If that is all this tab has to save and
+// another tab saved first (two tabs open during the upgrade), the conflict
+// reload is not worth a toast: the reloaded document is migrated again.
+let migrationOnly = false;
+function persistMigration() {
+  const pending = dirty;
+  dirty = true;
+  migrationOnly = !pending;
+  return flushSaves();
 }
 
 export async function loadAll() {
+  let migrated;
   try {
-    applyDocument(await backend.loadState());
+    migrated = applyDocument(await backend.loadState());
   } catch (e) {
     console.warn('load failed', e);
     throw e;
   }
+  if (migrated) await persistMigration();
 }
 
 function snapshotData() {
@@ -286,7 +311,7 @@ export function describeDiscarded(changes, nameOf = id => id) {
   }
   const unique = [...new Set(parts)];
   if (unique.length <= 3) return unique.join(', ');
-  return `${unique.slice(0, 3).join(', ')} and ${unique.length - 3} more`;
+  return `${unique.slice(0, 3).join(', ')} and ${formatCount(unique.length - 3)} more`;
 }
 
 // True when every change can be put back on a fresh document as it is.
@@ -342,15 +367,20 @@ function reloadFromServer(doc) {
   dirty = false;
   // A pending beacon carried the version we are discarding, so it cannot land.
   unconfirmedBeacon = null;
+  const quiet = migrationOnly;
+  migrationOnly = false;
   let changes = [];
   try { changes = diffDocuments(JSON.parse(syncedJson || 'null'), JSON.parse(JSON.stringify(snapshotData()))); }
   catch (e) { console.warn('could not compare with the saved copy', e); }
-  applyDocument(doc);
+  const migrated = applyDocument(doc);
   const present = new Set(state.students.map(s => s.id));
   pendingAudioDeletes = pendingAudioDeletes.filter(item => !present.has(item.studentId));
   const discarded = changes.filter(c => !isBookkeeping(c));
-  if (reapply(changes.filter(c => isBookkeeping(c) && c.kind !== 'activity'))) persist();
+  const reapplied = reapply(changes.filter(c => isBookkeeping(c) && c.kind !== 'activity'));
+  // persistMigration saves the whole document, re-applied bookkeeping included.
+  if (migrated) persistMigration(); else if (reapplied) persist();
   emit();
+  if (quiet) return; // only our PIN migration was lost: the reload migrated again
   if (!discarded.length && changes.length) return; // only bookkeeping lost: nothing to tell
   const retry = discarded.some(forPresentLearner) && canReapply(discarded)
     ? () => { if (reapply(changes)) { persist(); emit(); } }
@@ -417,6 +447,7 @@ async function saveWith(makeData) {
         const next = await backend.saveState(data, stateVersion, newWriteId());
         stateVersion = Math.max(stateVersion, next);
         markSynced(sent);
+        if (!dirty) migrationOnly = false;
         deleteRemovedAudio();
         saveStatus({ type: 'saved' });
         return true;
@@ -459,6 +490,7 @@ export function flushSaves() {
 }
 
 function persist() {
+  migrationOnly = false;
   dirty = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSaves, 400);
@@ -521,8 +553,12 @@ function countOf(value) {
 export async function exportDocument() {
   await flushSaves();
   const meta = { exportedAt: new Date().toISOString(), taxonomyVersion: state.curriculumSnapshot?.version || null };
-  if (dirty) return { ...snapshotData(), version: stateVersion, ...meta, unsavedChanges: true };
-  return { ...(await backend.loadState()), ...meta };
+  const doc = dirty
+    ? { ...snapshotData(), version: stateVersion, ...meta, unsavedChanges: true }
+    : { ...(await backend.loadState()), ...meta };
+  // Never a plain PIN in the file, even one another device just saved.
+  doc.settings = migratePinSettings(doc.settings);
+  return doc;
 }
 
 // Checks an export (or a raw family-state.json) before import. Returns
@@ -562,6 +598,8 @@ export function importDocument(doc) {
   const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = doc;
   // Colors end up in style attributes, so only palette colors are imported.
   data.students = data.students.map(s => (PALETTE.includes(s.color) ? s : { ...s, color: PALETTE[0] }));
+  // An older export may carry the PIN in plain text; only its hash is saved.
+  if (data.settings !== undefined) data.settings = migratePinSettings(objectOr(data.settings, {}));
   clearTimeout(saveTimer);
   saveTimer = null;
   dirty = false;
@@ -1208,15 +1246,13 @@ export function isChildViewOpen() { return childViewOpen; }
 export function setChildViewOpen(open) { childViewOpen = !!open; }
 
 // A four-digit PIN that keeps the child view from closing with one tap. A
-// family-device convenience, not authentication.
-export function parentPin() {
-  // String() so a hand-edited numeric value in the data file still matches.
-  const pin = state.settings?.parentPin;
-  return pin == null || pin === '' ? null : String(pin);
-}
+// family-device convenience, not authentication; only a salted hash is kept
+// (pin.js).
+export function hasParentPin() { return hasPin(state.settings); }
+export function checkParentPin(pin) { return verifyPin(pin, state.settings); }
 export function setParentPin(pin) {
-  if (!/^\d{4}$/.test(String(pin))) return false;
-  state.settings = { ...state.settings, parentPin: String(pin) };
+  if (!PIN_PATTERN.test(String(pin))) return false;
+  state.settings = pinSettings(state.settings, pin);
   persist();
   return true;
 }

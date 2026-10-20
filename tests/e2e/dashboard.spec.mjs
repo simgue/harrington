@@ -6,7 +6,7 @@ import { TODAY_KEY } from './support/env.mjs';
 
 const ROWAN = LEARNERS.rowan.id;
 
-test('hero greeting and every dashboard section for a 6-year-old; no day-one refresher (F5 fixed by HAR-18; finding F15)', async ({ page, gotoApp, shot, errors }) => {
+test('hero greeting and every dashboard section for a 6-year-old; no day-one refresher (F5 fixed by HAR-18; F15)', async ({ page, gotoApp, shot, errors }) => {
   await gotoApp({
     seed: {
       progress: { [TOPICS.oneToOne.id]: 'learning' },
@@ -18,9 +18,8 @@ test('hero greeting and every dashboard section for a 6-year-old; no day-one ref
   });
   await expect(page.getByText('Good morning')).toBeVisible();
   await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
-  await expect(page.getByText(/October 7 · age 6 · 0 of 1,?590 topics mastered/)).toBeVisible();
-  // Finding F15: the hero prints the raw number where the map says "1,590".
-  await expect(page.getByText('0 of 1590 topics mastered', { exact: false })).toBeVisible();
+  // F15: the same grouped count as the map's "1,590".
+  await expect(page.getByText('October 7 · age 6 · 0 of 1,590 topics mastered')).toBeVisible();
   for (const label of ['Record what happened', 'Note', 'Open map', "Rowan Example's view"]) {
     await expect(page.locator('header.meadow-hero').getByRole('button', { name: label })).toBeVisible();
   }
