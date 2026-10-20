@@ -681,9 +681,13 @@ open; Export downloads and Import opens the preview from the learner
 selector (F6); the learner row's buttons, Switch and Add, and the record,
 recording and calendar-extra delete buttons are at least 44 × 44 px, and at
 360 px the learner menu does not scroll sideways or cut a name off (F14); the
-"Include my notes" checkbox is at least 20 px with a 44 px label that ticks it.
+"Include my notes" checkbox is at least 20 px with a 44 px label that ticks it;
+the top-bar bell opens on the active learner, filters by learner, dismisses
+items, and keeps "No backup recorded" quiet for 30 days (HAR-27).
 
-![Learner selector with Export and Import](screenshots/mobile/13-learner-menu-family-data.jpg)
+| Learner selector with Export and Import | Notifications bell |
+| --- | --- |
+| ![Learner selector with Export and Import](screenshots/mobile/13-learner-menu-family-data.jpg) | ![Notifications bell](screenshots/mobile/15-notifications.jpg) |
 
 ---
 
