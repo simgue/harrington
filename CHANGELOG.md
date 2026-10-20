@@ -74,6 +74,25 @@ tagged a release yet; everything below is on `main`.
 - The in-app Guide and `src/docs/GUIDE.md` no longer say the child's name is
   sent to the AI provider; README, SECURITY and both guides state the same
   data, including which requests carry the learner's exact age (HAR-19).
+- Export and Import are reachable on a phone or tablet, at the bottom of the
+  learner selector, with the same preview and confirm as on a computer
+  (e2e finding F6).
+- Icon-only buttons are named for what they act on ("Remove learner …",
+  "Delete record …", "Delete recording …", "Remove extra …"). On a phone
+  every tap target there is at least 44 px: the learner selector's
+  placement, edit and remove buttons get a labeled line of their own (so the
+  name is no longer cut off), Switch and Add grow, the delete and remove
+  buttons get a 44 px hit area around the same icon, and the "Include my
+  notes" checkbox is larger in a 44 px clickable label (e2e finding F14).
+- Counts are printed one way everywhere ("1,590", American grouping whatever
+  the browser's locale) with the right singular or plural: the dashboard said
+  "1590 topics" where the map said "1,590", and the map said "1 domains"
+  and "1 required skill still sit" (e2e finding F15).
+- The child-view PIN is stored and exported only as a salted SHA-256 hash
+  (a random salt per family); a plain PIN from an older family document,
+  another tab's save or an export is hashed whenever a document is applied,
+  so no save writes it back, and a malformed hash or salt is dropped. SECURITY and both guides say plainly
+  that a 4-digit PIN is a gentle barrier, not a lock (e2e finding F16).
 
 ## Forked from Homestead (2026-08-11)
 
