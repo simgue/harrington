@@ -117,16 +117,15 @@ function documentFields(data) {
 // Returns true when it migrated the PIN, which the caller then saves.
 function applyDocument(data) {
   const fields = documentFields(data);
-  const settings = fields.settings;
   // A plain PIN (from before it was hashed, or saved by an older tab) is
   // hashed as the document is applied, so no save writes it back.
-  fields.settings = migratePinSettings(settings);
-  Object.assign(state, fields);
+  const settings = migratePinSettings(fields.settings);
+  Object.assign(state, fields, { settings });
   stateVersion = versionOf(data);
   // After the migration: the migrated document is the synced snapshot, so a
   // later conflict never reports the PIN migration as a lost change.
   markSynced();
-  return fields.settings !== settings;
+  return settings !== fields.settings;
 }
 
 // Saves the PIN migration applyDocument made, once and right away (a load that
@@ -367,18 +366,17 @@ function reloadFromServer(doc) {
   dirty = false;
   // A pending beacon carried the version we are discarding, so it cannot land.
   unconfirmedBeacon = null;
-  const quiet = migrationOnly;
-  migrationOnly = false;
   let changes = [];
   try { changes = diffDocuments(JSON.parse(syncedJson || 'null'), JSON.parse(JSON.stringify(snapshotData()))); }
   catch (e) { console.warn('could not compare with the saved copy', e); }
+  const quiet = migrationOnly;
+  migrationOnly = false;
   const migrated = applyDocument(doc);
   const present = new Set(state.students.map(s => s.id));
   pendingAudioDeletes = pendingAudioDeletes.filter(item => !present.has(item.studentId));
   const discarded = changes.filter(c => !isBookkeeping(c));
-  const reapplied = reapply(changes.filter(c => isBookkeeping(c) && c.kind !== 'activity'));
-  // persistMigration saves the whole document, re-applied bookkeeping included.
-  if (migrated) persistMigration(); else if (reapplied) persist();
+  if (reapply(changes.filter(c => isBookkeeping(c) && c.kind !== 'activity'))) persist();
+  if (migrated) persistMigration();
   emit();
   if (quiet) return; // only our PIN migration was lost: the reload migrated again
   if (!discarded.length && changes.length) return; // only bookkeeping lost: nothing to tell

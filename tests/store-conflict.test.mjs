@@ -6,7 +6,7 @@ import { test } from 'node:test';
 // conflict over its own boot writes (curriculum snapshot, welcome note).
 
 // A tiny stand-in for the server's versioned document.
-const server = { doc: { version: 1, students: [{ id: 's1', name: 'Rowan Sample' }] }, puts: [] };
+const server = { doc: { version: 1, students: [{ id: 's1', name: 'Rowan Sample' }] }, puts: [], failNextPut: false };
 const reply = (status, body, version) => ({
   ok: status < 300, status,
   headers: new Headers(version ? { ETag: `"v${version}"` } : {}),
@@ -15,6 +15,7 @@ const reply = (status, body, version) => ({
 globalThis.fetch = async (path, options = {}) => {
   if (path === '/api/health') return reply(200, { aiConfigured: false, stateVersion: server.doc.version });
   if (path === '/api/state' && options.method === 'PUT') {
+    if (server.failNextPut) { server.failNextPut = false; return reply(500, { error: 'down' }); }
     const sent = Number(/"v(\d+)"/.exec(options.headers['If-Match'])[1]);
     server.puts.push(sent);
     if (sent !== server.doc.version) return reply(412, server.doc);
@@ -185,6 +186,47 @@ test('Try again re-applies changes for present learners only', async () => {
   assert.equal(server.doc.progress.s1.g.status, 'practicing');
   assert.equal(server.doc.progress[gone]?.f, undefined, 'nothing is written for the removed learner');
   assert.ok(!server.doc.students.some((s) => s.id === gone));
+});
+
+test('a reload that migrates a plain PIN syncs the migrated copy, so a later loss still offers Try again', async () => {
+  // Another device (an older tab) saves a plain PIN; this tab reloads it and
+  // hashes it, and the migration's own save fails, so the tab stays on the
+  // migrated copy without having saved it.
+  otherTabSaves((doc) => ({ settings: { ...doc.settings, parentPin: '2468' } }));
+  server.failNextPut = true;
+  events.length = 0;
+  await store.handlePageVisible();
+  // Wait for the migration's save to fail; flushing again would save it.
+  while (!events.some((e) => e.type === 'failed')) await new Promise((r) => setTimeout(r, 1));
+  assert.equal(store.get().settings.parentPin, undefined, 'the PIN is hashed on reload');
+  // The other device saves again, and this tab's next change loses.
+  otherTabSaves((doc) => ({ progress: { ...doc.progress, s1: { ...doc.progress.s1, n: { status: 'learning', updatedAt: 3 } } } }));
+  events.length = 0;
+  store.setStatus('s1', 'm', 'practicing');
+  await store.flushSaves();
+  const [conflict] = events.filter((e) => e.type === 'conflict');
+  // The hashed PIN is not a lost change: it was applied before the copy was synced.
+  assert.deepEqual(conflict.discarded.map((c) => c.kind), ['status']);
+  assert.ok(conflict.retry, 'Try again is offered');
+  assert.doesNotMatch(store.describeDiscarded(conflict.discarded), /other changes/);
+  await store.flushSaves();
+});
+
+test('pickDaily works on a day stored without picks', () => {
+  store.get().daily.s1 = { ...store.get().daily.s1, '2026-10-10': { offers: { literacy: ['x'] } } };
+  store.pickDaily('s1', '2026-10-10', 'literacy', 'x');
+  assert.equal(store.dailyFor('s1', '2026-10-10').picks.literacy, 'x');
+});
+
+test('an offers day put back after a conflict always has picks', async () => {
+  // A day without picks (an older document) is offers-only bookkeeping; put
+  // back on the fresh copy, it gains an empty picks object.
+  store.get().daily.s1['2026-10-11'] = { offers: { literacy: ['y'] } };
+  otherTabSaves(() => ({ graphView: 'atlas' }));
+  store.setGraphView(store.graphView() === 'list' ? 'atlas' : 'list');
+  await store.flushSaves();
+  await store.flushSaves();
+  assert.deepEqual(server.doc.daily.s1['2026-10-11'], { offers: { literacy: ['y'] }, picks: {} });
 });
 
 test('a change that cannot simply be re-applied gets no Try again', async () => {
