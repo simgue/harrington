@@ -21,6 +21,7 @@
 // stop and resume anywhere. Pure, so it can be tested without the store;
 // views/levelset.js wires it to the family's data.
 import { canTheyPrompt, assessmentQuestion } from './phrasing.js';
+import { countLabel } from './format.js';
 
 export const ANSWERS = {
   yes: { label: 'Yes', icon: 'check' },
@@ -242,9 +243,9 @@ export function sheetTitle(sheet, laneLabel) {
 
 // The Records title for the placement a sheet makes.
 export function levelsetTitle({ count, own = count, laneLabel, sheet }) {
-  const extra = count > own ? `, plus ${count - own} prerequisite${count - own === 1 ? '' : 's'}` : '';
+  const extra = count > own ? `, plus ${countLabel(count - own, 'prerequisite')}` : '';
   const where = sheet.kind === 'foundations' ? 'foundations sheet' : `age ${sheet.level} sheet`;
-  return `Level-set workbook: marked ${own} ${laneLabel.toLowerCase()} topic${own === 1 ? '' : 's'} mastered (${where})${extra}`;
+  return `Level-set workbook: marked ${countLabel(own, `${laneLabel.toLowerCase()} topic`)} mastered (${where})${extra}`;
 }
 
 // Elapsed time in a sitting, and whether to suggest a pause.

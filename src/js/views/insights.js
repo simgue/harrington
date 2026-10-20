@@ -9,6 +9,7 @@ import { fmtDate } from '../ui.js';
 import { applySuggestion, dismissSuggestion } from '../adapt.js';
 import { privacyControls, notesIncludedLine } from './recordings.js';
 import { modeLabel } from '../observe.js';
+import { countLabel } from '../format.js';
 import { sectionLabel } from './observation.js';
 
 let selSubject = 'Mathematics';
@@ -206,7 +207,7 @@ function observedChecksCard(student, subject, navigate) {
   const passed = results.filter(t => t.scope === 'topic' && t.passed).length;
   const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 mb-5">
     <h2 class="font-600 flex items-center gap-2 mb-1"><i data-lucide="eye" class="w-4.5 h-4.5 text-brand-dark"></i>Observation checks</h2>
-    <p class="text-xs text-ink-soft mb-3">Mastery you checked by watching, with no quiz. ${passed} topic${passed === 1 ? '' : 's'} mastered this way in ${esc(subject)}.</p>
+    <p class="text-xs text-ink-soft mb-3">Mastery you checked by watching, with no quiz. ${countLabel(passed, 'topic')} mastered this way in ${esc(subject)}.</p>
     <div class="obs-list space-y-1.5"></div>
   </div>`);
   const list = card.querySelector('.obs-list');

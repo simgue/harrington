@@ -7,6 +7,7 @@ import * as store from '../store.js';
 import { LANES } from '../daily.js';
 import { el, esc, refreshIcons, toast } from '../ui.js';
 import * as ls from '../levelset.js';
+import { countLabel } from '../format.js';
 
 // A sitting runs while the parent keeps answering, per learner and lane:
 // key -> { start, base, last }, where base is the time saved before this
@@ -133,7 +134,7 @@ function sheetCard(student, lane, session, sitting, d) {
     </div>
     <p class="text-xs text-ink-faint mb-4">${sheet.kind === 'foundations'
       ? 'What the Not yet topics build on. Answer these to find where to start.'
-      : `${rows.length} topic${rows.length === 1 ? '' : 's'}. Can they…? Answer from what you have seen.`}</p>
+      : `${countLabel(rows.length, 'topic')}. Can they…? Answer from what you have seen.`}</p>
     <div class="ls-rows space-y-2.5"></div>
     <p class="ls-left text-xs text-ink-faint mt-3"></p>
     <button id="ls-save" class="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"><i data-lucide="check" class="w-4 h-4"></i>Save this sheet and continue</button>
@@ -201,7 +202,7 @@ function sheetCard(student, lane, session, sitting, d) {
     const next = ls.completeSheet(makeCtx(student.id, lane), session, { recordId });
     store.saveLevelsetSession(student.id, session.lane, { ...next, elapsedMs: sitting.base + (Date.now() - sitting.start) });
     const n = effects.master.length;
-    toast(n ? `Sheet saved: ${n} topic${n === 1 ? '' : 's'} marked mastered. Undo it from Records.` : 'Sheet saved.', 'success');
+    toast(n ? `Sheet saved: ${countLabel(n, 'topic')} marked mastered. Undo it from Records.` : 'Sheet saved.', 'success');
   };
   return card;
 }
@@ -245,7 +246,7 @@ function historyCard(student, lane, session) {
     </div>`);
     row.querySelector('.reopen').onclick = () => {
       const later = saved.filter(x => x.i > i).length;
-      if (!confirm(`Change your answers on this sheet? What it marked mastered is undone${later ? `, and the ${later} sheet${later === 1 ? '' : 's'} after it ${later === 1 ? 'is' : 'are'} undone and removed` : ''}.`)) return;
+      if (!confirm(`Change your answers on this sheet? What it marked mastered is undone${later ? `, and the ${countLabel(later, 'sheet')} after it ${later === 1 ? 'is' : 'are'} undone and removed` : ''}.`)) return;
       const { session: reopened, recordIds } = ls.reopenSheet(session, i);
       recordIds.forEach(id => store.undoPlacement(student.id, id));
       const unsure = session.sheets.slice(i).flatMap(x => x.ids).filter(id => session.answers[id] === 'unsure');
