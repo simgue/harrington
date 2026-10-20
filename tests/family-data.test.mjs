@@ -2,6 +2,7 @@
 // relative fetches from the store are routed to a spawned server.mjs.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -512,5 +513,112 @@ describe('family data safety in the store', { concurrency: false }, () => {
     assert.equal(store.inspectImport({ students: [{ id: 'x' }] }).ok, false);
     assert.equal(store.inspectImport({ students: [], records: [] }).ok, false);
     await assert.rejects(store.importDocument([]));
+  });
+
+  test('a plain PIN is hashed on load and on import, and never exported', async () => {
+    const plain = (doc) => JSON.stringify(doc).includes('"parentPin"');
+    // An older family document on the server.
+    const before = await otherDevicePut((doc) => ({ ...doc, settings: { ...doc.settings, parentPin: '2468' } }));
+    assert.equal(before.settings.parentPin, '2468');
+    await store.loadAll();
+    await store.flushSaves();
+    const migrated = await serverState();
+    assert.equal(plain(migrated), false);
+    assert.match(migrated.settings.parentPinHash, /^[0-9a-f]{64}$/);
+    assert.deepEqual(migrated.settings.calendar, before.settings.calendar);
+    assert.equal(store.checkParentPin('2468'), true);
+    assert.equal(store.checkParentPin('1111'), false);
+    const exported = await store.exportDocument();
+    assert.equal(plain(exported), false);
+    assert.equal(JSON.stringify(exported).includes('"2468"'), false);
+
+    // An older export file with the PIN in plain text.
+    const oldFile = { ...JSON.parse(JSON.stringify(exported)), settings: { ...exported.settings, parentPin: '1357' } };
+    delete oldFile.settings.parentPinHash;
+    delete oldFile.settings.parentPinSalt;
+    assert.equal(await store.importDocument(oldFile), true);
+    const imported = await serverState();
+    assert.equal(plain(imported), false);
+    assert.equal(JSON.stringify(imported).includes('"1357"'), false);
+    assert.equal(store.checkParentPin('1357'), true);
+    assert.equal(store.checkParentPin('2468'), false);
+  });
+
+  const plainPin = (doc) => JSON.stringify(doc).includes('"parentPin"');
+  const withPlainPin = (pin) => (doc) => {
+    const { parentPinHash: _h, parentPinSalt: _s, ...settings } = doc.settings || {};
+    return { ...doc, settings: { ...settings, parentPin: pin } };
+  };
+
+  test('export hashes a plain PIN another device saved since this tab loaded', async () => {
+    await store.loadAll();
+    await store.flushSaves();
+    const other = await otherDevicePut(withPlainPin('8642'));
+    assert.equal(other.settings.parentPin, '8642');
+    // This tab has nothing pending, so the export is the server copy.
+    const exported = await store.exportDocument();
+    assert.equal(exported.unsavedChanges, undefined);
+    assert.equal(plainPin(exported), false);
+    assert.equal(JSON.stringify(exported).includes('"8642"'), false);
+    assert.match(exported.settings.parentPinHash, /^[0-9a-f]{64}$/);
+  });
+
+  test('a conflict reload hashes a plain PIN another device saved, and saves the hash', async () => {
+    await store.loadAll();
+    await store.flushSaves();
+    const id = store.get().students[0].id;
+    await otherDevicePut(withPlainPin('9753'));
+    statusEvents.length = 0;
+    store.setStatus(id, 'count-to-5', 'practicing');
+    await store.flushSaves(); // 412: reloads the other device's document
+    assert.deepEqual(statusEvents, ['conflict']);
+    assert.equal(plainPin(store.get().settings), false);
+    assert.equal(store.checkParentPin('9753'), true);
+    await store.flushSaves(); // the migration's own save
+    const saved = await serverState();
+    assert.equal(plainPin(saved), false);
+    assert.match(saved.settings.parentPinHash, /^[0-9a-f]{64}$/);
+  });
+
+  test('two tabs migrating the same plain PIN: the losing tab reloads without a toast', async () => {
+    await otherDevicePut(withPlainPin('1470'));
+    const salt = '0'.repeat(32);
+    // The other tab migrates and saves just before this tab's migration save.
+    const wrapped = globalThis.fetch;
+    let raced = false;
+    globalThis.fetch = async (path, options = {}) => {
+      if (!raced && path === '/api/state' && options.method === 'PUT') {
+        raced = true;
+        await otherDevicePut((doc) => {
+          const { parentPin: _p, ...settings } = doc.settings;
+          return { ...doc, settings: { ...settings, parentPinSalt: salt, parentPinHash: createHash('sha256').update(`${salt}:1470`).digest('hex') } };
+        });
+      }
+      return wrapped(path, options);
+    };
+    statusEvents.length = 0;
+    try {
+      await store.loadAll(); // migrates and saves at once: 412, reload
+      await store.flushSaves();
+    } finally {
+      globalThis.fetch = wrapped;
+    }
+    assert.equal(raced, true);
+    assert.equal(statusEvents.includes('conflict'), false);
+    assert.equal(store.get().settings.parentPinSalt, salt);
+    assert.equal(store.checkParentPin('1470'), true);
+    assert.equal(plainPin(await serverState()), false);
+  });
+
+  test('a load that migrates the PIN saves once, at once; a load with nothing to migrate never writes', async () => {
+    await otherDevicePut(withPlainPin('2580'));
+    const before = (await serverState()).version;
+    await store.loadAll(); // no flushSaves: the migration save is not debounced
+    const after = await serverState();
+    assert.equal(after.version, before + 1);
+    assert.equal(plainPin(after), false);
+    await store.loadAll();
+    await store.flushSaves();
+    assert.equal((await serverState()).version, before + 1);
   });
 });
