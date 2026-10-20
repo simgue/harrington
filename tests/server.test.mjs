@@ -11,6 +11,7 @@ const repoRoot = new URL('..', import.meta.url);
 let child;
 let dataDir;
 let baseUrl;
+let serverLog = ''; // everything the main server prints after it starts
 
 async function startServer() {
   dataDir = await mkdtemp(join(tmpdir(), 'harrington-test-'));
@@ -40,7 +41,7 @@ async function startServer() {
         resolve(`http://127.0.0.1:${match[1]}`);
       }
     });
-    child.stderr.on('data', (chunk) => { output += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { output += chunk.toString(); serverLog += chunk.toString(); });
     child.once('exit', (code) => {
       clearTimeout(timer);
       reject(new Error(`server exited with ${code}: ${output}`));
@@ -114,6 +115,11 @@ test('health still answers when the backup folder cannot be read', async () => {
   await writeFile(backups, 'not a folder');
   assert.equal(await health(), null);
   await rm(backups, { force: true });
+  // One log line for the first unreadable folder, naming the error code, never the path.
+  const lines = serverLog.split('\n').filter((line) => line.includes('Cannot read the backup folder'));
+  assert.equal(lines.length, 1, serverLog);
+  assert.match(lines[0], /\(ELOOP\)/);
+  assert.ok(!serverLog.includes(dataDir), 'the log names no path');
 });
 
 function putState(value, ifMatch, url = baseUrl) {
