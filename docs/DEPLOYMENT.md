@@ -280,13 +280,15 @@ the paths with `command -v node` and `pwd` in the Harrington folder, then run
 `/usr/local/bin/node` and Harrington is in `/home/parent/harrington`):
 
 ```
-15 2 * * * cd /home/parent/harrington && mkdir -p backups && HARRINGTON_DATA_DIR=/home/parent/harrington/data/private /usr/local/bin/node scripts/backup.mjs >> backups/backup.log 2>&1
+15 2 * * * cd /home/parent/harrington && mkdir -p backups && HARRINGTON_DATA_DIR=/home/parent/harrington/data/private HARRINGTON_BACKUP_DIR=/home/parent/harrington/backups /usr/local/bin/node scripts/backup.mjs >> backups/backup.log 2>&1
 ```
 
 `mkdir -p backups` matters on a fresh clone: the shell opens
 `backups/backup.log` before the backup script runs, and fails if the folder is
 missing. If the server runs with a different `HARRINGTON_DATA_DIR`, use that
-path. Check the next morning that `backups/backup.log` says `Backed up`.
+path. `HARRINGTON_BACKUP_DIR` is where the archives go (default `backups/` in
+the Harrington folder); naming it in the line keeps them in one known place.
+Check the next morning that `backups/backup.log` says `Backed up`.
 
 With Docker, the data lives in the `harrington-data` volume, which Compose
 names `harrington_harrington-data` when the folder is called `harrington`
@@ -301,10 +303,13 @@ To restore it: `docker compose down`, then
 `docker run --rm -v harrington_harrington-data:/data -v /home/parent/harrington/backups:/backups alpine sh -c 'rm -rf /data/* && tar -xzf /backups/FILE.tar.gz -C /'`,
 then `docker compose up -d`.
 
-`HARRINGTON_BACKUP_DIR` names the backup folder (default `backups/` in the
-Harrington folder); with Docker, mount the host folder your backups go to into
-the container (for example `/home/parent/harrington/backups:/backups`) and set
-`HARRINGTON_BACKUP_DIR=/backups`, so Harrington sees the same archives.
+For now only `scripts/backup.mjs` reads `HARRINGTON_BACKUP_DIR`. The Docker
+image does not include `scripts/` and `compose.yaml` mounts no backup folder,
+so with Docker the volume backup above is the whole story. Once the backup
+reminder from PR #36 lands, the server will read the newest archive's age from
+`HARRINGTON_BACKUP_DIR`; a Docker family will then mount the host folder its
+backups go to (for example `/home/parent/harrington/backups:/backups`) and set
+`HARRINGTON_BACKUP_DIR=/backups`.
 
 On Windows, use Task Scheduler to run `node scripts\backup.mjs` daily, with
 the full path to `node.exe`, the Harrington folder as the start directory,
@@ -317,8 +322,9 @@ often; a backup on the same disk does not survive that disk. See the README's
 
 Before pulling a new version:
 
-1. In the app, press **Export** in the sidebar's family box and keep the
-   `harrington-family-<date>.json` file.
+1. In the app, press **Export** and keep the `harrington-family-<date>.json`
+   file. On a computer it is in the sidebar's family box; on a phone, or a
+   tablet held upright, it is at the bottom of the learner selector.
 2. Run `npm run backup` (or the Docker backup command above).
 3. Stop Harrington, update (`git pull`, then `npm ci`), and start it again
    with the same environment variables.
@@ -344,8 +350,10 @@ After option 1 or 2, on a tablet or phone that is **not** the host:
    `https://` address if the token is off). The address bar shows a padlock,
    not a warning.
 3. Open the **Guide** and check that it says Harrington is shared with your
-   other devices. With the token on, "signed in" shows in the sidebar on a
-   computer or tablet, or under "Family data" in the learner menu on a phone.
+   other devices. With the token on, "signed in" shows under "Private family
+   space" in the sidebar on a wide screen, or under "Family data" at the
+   bottom of the learner selector on a phone or a tablet held upright (they
+   have no sidebar).
 4. On the dashboard press **Record what happened**, allow the microphone when
    the browser asks, speak for ten seconds, and stop.
 5. Check the recording plays back on the tablet, then open **Records** on the

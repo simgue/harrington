@@ -78,8 +78,9 @@ test('export and import from the learner menu on a phone (F6)', async ({ page, g
   const menu = modal(page);
   await expect(menu.getByRole('heading', { name: 'Students' })).toBeVisible();
   await expect(menu.getByText('Family data')).toBeVisible();
-  // Phones have no sidebar, so the sharing and sign-in line lives here (HAR-25).
-  await expect(menu.locator('#m-hosting')).toHaveText('Saved by Harrington');
+  // Phones have no sidebar, so a shared server's sign-in line shows here
+  // (HAR-25); this test server is loopback-only, so there is none.
+  await expect(menu.locator('#m-hosting')).toHaveCount(0);
   await noHorizontalOverflow(page);
   await shot('learner-menu-family-data', { full: false });
 

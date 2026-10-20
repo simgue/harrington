@@ -931,6 +931,20 @@ describe('sign-in form and host names', { concurrency: false }, () => {
     }
   });
 
+  test('a loopback bind behind a published mesh name counts as shared', async () => {
+    // The Tailscale serve setup: Harrington on 127.0.0.1, devices on the .ts.net name.
+    const meshed = await spawnHarrington({ HARRINGTON_HOST: '127.0.0.1', HARRINGTON_PUBLISHED_HOST: 'family-host.example.ts.net' });
+    try {
+      const port = new URL(meshed.url).port;
+      assert.equal((await (await fetch(`${meshed.url}/api/health`)).json()).host, 'network');
+      assert.equal((await getWithHost(port, 'family-host.example.ts.net')).status, 200);
+      assert.equal((await getWithHost(port, 'attacker.example')).status, 421);
+      assert.match(meshed.output(), /anyone who can reach this server/);
+    } finally {
+      await meshed.stop();
+    }
+  });
+
   test('the Docker default (0.0.0.0 bind, loopback published) still refuses other names', async () => {
     const container = await spawnHarrington({ HARRINGTON_HOST: '0.0.0.0', HARRINGTON_PUBLISHED_HOST: '127.0.0.1' });
     try {
