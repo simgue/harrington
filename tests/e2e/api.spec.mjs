@@ -191,6 +191,12 @@ test('saved lessons listing: keys and saved times by prefix, never content; 400 
     expect(rejected.status()).toBe(400);
     expect(await rejected.json()).toEqual({ error: 'prefix must be one of topic:, print: or recall:' });
   }
+  // Bounded: at most 200 newest entries, and `limit` is clamped.
+  const one = await request.get(`${URLS.appAi}/api/lessons?prefix=${encodeURIComponent('print:')}&limit=1`);
+  expect((await one.json()).lessons).toEqual([lessons[0]]);
+  const badLimit = await request.get(`${URLS.appAi}/api/lessons?prefix=${encodeURIComponent('print:')}&limit=all`);
+  expect(badLimit.status()).toBe(400);
+  expect(await badLimit.json()).toEqual({ error: 'limit must be a whole number' });
   const noAi = await request.get(`${URLS.appNoAi}/api/lessons?prefix=topic:`);
   expect(noAi.status()).toBe(200);
   expect(Array.isArray((await noAi.json()).lessons)).toBe(true);

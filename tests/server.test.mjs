@@ -411,6 +411,32 @@ test('lists saved lesson keys and times by prefix, without content', async () =>
   assert.equal(post.status, 405);
 });
 
+test('caps the saved lessons listing at the newest 200 and clamps limit', async () => {
+  const put = (key) => fetch(`${baseUrl}/api/lessons/${encodeURIComponent(key)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ objective: key }),
+  });
+  for (let i = 0; i < 210; i++) assert.equal((await put(`recall:cap-${i}`)).status, 204);
+  await new Promise(resolve => setTimeout(resolve, 25)); // a later mtime than every entry above
+  assert.equal((await put('recall:cap-newest')).status, 204);
+  const list = async (query) => fetch(`${baseUrl}/api/lessons?prefix=recall:${query}`);
+
+  const all = (await (await list('')).json()).lessons;
+  assert.equal(all.length, 200, 'bounded without a limit');
+  assert.equal(all[0].key, 'recall:cap-newest', 'newest first');
+  assert.ok(all.every((e, i) => i === 0 || all[i - 1].savedAt >= e.savedAt), 'ordered by saved time');
+
+  assert.deepEqual((await (await list('&limit=3')).json()).lessons, all.slice(0, 3));
+  assert.equal((await (await list('&limit=5000')).json()).lessons.length, 200, 'a larger limit is clamped');
+  assert.equal((await (await list('&limit=0')).json()).lessons.length, 1, 'a limit below 1 is clamped');
+  for (const bad of ['-1', 'ten', '2.5', '']) {
+    const res = await list(`&limit=${bad}`);
+    assert.equal(res.status, 400, `limit ${JSON.stringify(bad)}`);
+    assert.deepEqual(await res.json(), { error: 'limit must be a whole number' });
+  }
+});
+
 test('rejects invalid writes and leaves AI disabled by default', async () => {
   const invalid = await fetch(`${baseUrl}/api/state`, {
     method: 'PUT',

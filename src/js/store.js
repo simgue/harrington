@@ -1153,7 +1153,7 @@ function knownRecallIds(topicId) {
 
 // Reads each due topic's card set once per session (never generating) and
 // drops orphaned schedule entries. Resolves to how many were dropped.
-export async function reconcileRecallDue(studentId) {
+async function reconcileRecallDue(studentId) {
   const topics = new Set(dueRecallCards(studentId).map(c => recallTopicOf(c.id, c)));
   let dropped = 0;
   for (const topicId of topics) {
@@ -1204,9 +1204,16 @@ export async function saveCachedLesson(id, data) {
 export function isUnsavedCached(id) { return unsaved.has(id); }
 
 // Tries again to store a generated value the server refused. No AI call.
-export async function retrySaveCached(id) {
-  if (!unsaved.has(id)) return true;
-  return saveCachedLesson(id, lessonCache.get(id));
+// Concurrent retries for one key share a single save.
+const retrying = new Map(); // key -> Promise<boolean>
+export function retrySaveCached(id) {
+  if (!unsaved.has(id)) return Promise.resolve(true);
+  if (!retrying.has(id)) {
+    const save = saveCachedLesson(id, lessonCache.get(id));
+    retrying.set(id, save);
+    save.finally(() => retrying.delete(id)).catch(() => {});
+  }
+  return retrying.get(id);
 }
 
 // Saved entries under the given prefixes, newest first, that pass their
@@ -1214,7 +1221,8 @@ export async function retrySaveCached(id) {
 // it makes no further request). At most `limit`; [] when the listing fails.
 export async function savedLessons(prefixes, limit = 8) {
   let listed;
-  try { listed = (await Promise.all(prefixes.map(p => backend.listLessons(p)))).flat(); }
+  // A few more than `limit`, since entries that fail their validator are skipped.
+  try { listed = (await Promise.all(prefixes.map(p => backend.listLessons(p, limit * 3)))).flat(); }
   catch { return []; }
   listed = listed.filter(e => typeof e?.key === 'string' && prefixes.some(p => e.key.startsWith(p)));
   listed.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));

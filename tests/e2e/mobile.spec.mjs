@@ -100,15 +100,11 @@ test('export and import from the learner menu on a phone (F6)', async ({ page, g
 });
 
 // F14: every target named below is at least 44 × 44 px on a phone.
-// Sizes are compared in whole CSS pixels: layout can land a 44px box at
-// 43.9999px depending on where sub-pixel offsets fall, which is not a smaller target.
-const px = (n) => Math.round(n);
-
 async function expectTapTarget(locator, name) {
   const box = await locator.boundingBox();
   expect(box, name).not.toBeNull();
-  expect(px(box.width), `${name} width`).toBeGreaterThanOrEqual(44);
-  expect(px(box.height), `${name} height`).toBeGreaterThanOrEqual(44);
+  expect(box.width, `${name} width`).toBeGreaterThanOrEqual(44);
+  expect(box.height, `${name} height`).toBeGreaterThanOrEqual(44);
 }
 
 test('learner menu: 44px targets with names, names not cut off (F14)', async ({ page, gotoApp, shot }) => {
@@ -170,7 +166,7 @@ test('the "Include my notes" opt-in is a comfortable target and its label toggle
   expect(size.width).toBeGreaterThanOrEqual(20);
   expect(size.height).toBeGreaterThanOrEqual(20);
   const label = page.locator('label', { hasText: 'Include my notes in this request' });
-  expect(px((await label.boundingBox()).height)).toBeGreaterThanOrEqual(44);
+  expect((await label.boundingBox()).height).toBeGreaterThanOrEqual(44);
   await label.getByText('Include my notes in this request').click();
   await expect(box).toBeChecked();
 });

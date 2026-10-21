@@ -14,8 +14,12 @@ function generateCards(topic) {
 }
 // Every card is checked before the session starts, so a malformed one is left
 // out (and counted) instead of breaking the session when it is reached.
+// `fresh` is true when this call generated the set (nothing valid was cached).
 export async function cardsForTopic(topic) {
-  return store.recallCardsOf(await store.generateCached(recallKey(topic), generateCards(topic)));
+  let fresh = false;
+  const generate = generateCards(topic);
+  const value = await store.generateCached(recallKey(topic), () => { fresh = true; return generate(); });
+  return { ...store.recallCardsOf(value), fresh };
 }
 
 function droppedNote(dropped) {
@@ -64,6 +68,9 @@ export async function openRecall(topic) {
     // New cards reuse positional ids, so the old schedule is dropped for every learner.
     onShow: (fresh) => { store.resetRecallTopic(topic.id); track(store.recallCardsOf(fresh).cards); },
   });
+  // A fresh set reuses positional ids, so any schedule left from a set that
+  // was lost (never saved, or cleared) would attach to different questions.
+  if (set.fresh) store.resetRecallTopic(topic.id);
   track(set.cards);
   stage.replaceChildren(session(set));
   refreshIcons();
@@ -98,6 +105,10 @@ export async function openDueRecall() {
       const topic = d.byId.get(topicId);
       if (!topic) continue;
       const set = await cardsForTopic(topic);
+      if (!store.isChildViewOpen()) offerRetrySave(recallKey(topic));
+      // A freshly generated set is not the one these entries were scheduled
+      // against: start it over, as regenerate does, and skip it today.
+      if (set.fresh) { store.resetRecallTopic(topic.id); continue; }
       // Due entries whose card no longer exists (an older, longer card set, or
       // a malformed card) are dropped.
       store.dropOrphanRecall(student.id, topic.id, set.cards);

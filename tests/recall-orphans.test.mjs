@@ -20,21 +20,30 @@ const store = await import('../src/js/store.js');
 
 const legacyRecord = { box: 0, due: 0, reps: 1, lapses: 0, last: 0 }; // no topicId
 const card = (topic, i) => ({ id: `${topic}::${i}`, front: `Q${i}?`, back: `A${i}` });
+// These tests never call reconcileRecallDue: recallDueCount must start the
+// prune itself. They only let the event loop run so its cache read can land.
+const tick = () => new Promise(resolve => setImmediate(resolve));
+async function settle(turns = 20) { for (let i = 0; i < turns; i++) await tick(); }
+async function until(check, turns = 200) {
+  for (let i = 0; i < turns; i++) { if (check()) return; await tick(); }
+  assert.fail('recallDueCount never pruned the orphans');
+}
 
 test('recallDueCount prunes legacy orphan due entries before "Due today" is ever opened', async () => {
   const sid = 's-legacy';
   store.get().recall[sid] = Object.fromEntries(Array.from({ length: 7 }, (_, i) => [`legacy-topic::${i}`, { ...legacyRecord }]));
   lessons.set('recall:legacy-topic', [card('legacy-topic', 0), card('legacy-topic', 1)]);
 
-  // The first count has not read the card set yet; reading it prunes the five orphans.
+  // The first count has not read the card set yet; the read it starts prunes the five orphans.
   assert.equal(store.recallDueCount(sid), 7);
-  await store.reconcileRecallDue(sid); // the count already started it; this waits for it
-  assert.equal(store.recallDueCount(sid), 2);
+  await until(() => Object.keys(store.get().recall[sid]).length === 2);
   assert.deepEqual(Object.keys(store.get().recall[sid]).sort(), ['legacy-topic::0', 'legacy-topic::1']);
+  assert.equal(store.recallDueCount(sid), 2);
   // One cache read per topic per session, however often the count is shown.
   const before = reads;
   store.recallDueCount(sid);
-  await store.reconcileRecallDue(sid);
+  store.recallDueCount(sid);
+  await settle();
   assert.equal(reads, before);
 });
 
@@ -42,8 +51,9 @@ test('a topic whose card set is not saved keeps its due entries', async () => {
   const sid = 's-uncached';
   for (let i = 0; i < 3; i++) store.ensureRecallCard(sid, `uncached-topic::${i}`, 'uncached-topic');
   assert.equal(store.recallDueCount(sid), 3);
-  assert.equal(await store.reconcileRecallDue(sid), 0);
+  await settle();
   assert.equal(store.recallDueCount(sid), 3);
+  assert.equal(Object.keys(store.get().recall[sid]).length, 3);
 });
 
 test('a card set already read this session corrects the count at once', async () => {
@@ -53,7 +63,7 @@ test('a card set already read this session corrects the count at once', async ()
   lessons.set('recall:known-topic', { cards: [card('known-topic', 0), { id: 'known-topic::1', front: 'no back' }] });
   await store.getCachedLesson('recall:known-topic');
   assert.equal(store.recallDueCount(sid), 1, 'counted without waiting for the prune');
-  await store.reconcileRecallDue(sid);
+  await until(() => Object.keys(store.get().recall[sid]).length === 1);
   assert.deepEqual(Object.keys(store.get().recall[sid]), ['known-topic::0']);
 });
 
@@ -71,5 +81,5 @@ test('"Due today" and the due count prune through the same helper', async () => 
   assert.match(recall, /store\.dropOrphanRecall\(/);
   assert.doesNotMatch(recall, /store\.dropRecallCards\(/, 'no second, inline orphan check in the view');
   const storeSrc = await readFile(new URL('../src/js/store.js', import.meta.url), 'utf8');
-  assert.match(storeSrc, /export async function reconcileRecallDue[\s\S]*?dropOrphanRecall\(/);
+  assert.match(storeSrc, /async function reconcileRecallDue[\s\S]*?dropOrphanRecall\(/);
 });

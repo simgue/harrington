@@ -1,6 +1,20 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
-import { buttons, installFakeDom, waitFor } from './fake-dom.mjs';
+import { installFakeDom } from './support/fake-dom.mjs';
+
+// Resolves once `check()` returns something truthy, polling the event loop.
+async function waitFor(check, { timeout = 2000 } = {}) {
+  const start = Date.now();
+  for (;;) {
+    const value = check();
+    if (value) return value;
+    if (Date.now() - start > timeout) throw new Error('waitFor timed out');
+    await new Promise(resolve => setImmediate(resolve));
+  }
+}
+
+// Buttons under `root` whose text includes `label`.
+const buttons = (root, label) => root.querySelectorAll('button').filter(b => b.textContent.includes(label));
 
 // View-level wiring of the generated-content caches, driven through a minimal
 // fake document: recall regenerate resets the schedule, a first generation the
@@ -72,6 +86,7 @@ async function reset({ ai = true } = {}) {
   failPuts = false;
   store.forgetCachedLessons();
   store.setChildViewOpen(false);
+  for (const sid of learners) store.get().recall[sid] = {};
   modalRoot().replaceChildren();
   toastRoot().replaceChildren();
   await store.refreshHealth();
@@ -105,6 +120,28 @@ test('a successful recall regenerate resets the topic schedule for every learner
   assert.equal(store.recallState(learners[0], `${TOPIC.id}::0`).lapses, 0);
   assert.equal(store.recallState(learners[1], `${TOPIC.id}::0`), null, 'the lapse on the old card 0 is not inherited');
   assert.equal(store.dueRecallCards(learners[0], { topicId: TOPIC.id }).length, 2);
+});
+
+test('a fresh first recall generation starts the topic schedule over for every learner; a cached open does not', async () => {
+  await reset();
+  // Left over from a set that was never saved (or was cleared): positional ids, different questions.
+  for (const sid of learners) for (let i = 0; i < 5; i++) store.ensureRecallCard(sid, `${TOPIC.id}::${i}`, TOPIC.id);
+  store.gradeRecall(learners[1], `${TOPIC.id}::0`, TOPIC.id, 'again');
+  aiReply = { cards: [{ front: 'New 0?', back: 'N0' }, { front: 'New 1?', back: 'N1' }] };
+  openRecall(TOPIC);
+  await waitFor(() => stageText().includes('Card 1 of 2'));
+  assert.equal(calls.ai, 1);
+  assert.equal(store.recallState(learners[1], `${TOPIC.id}::0`), null, 'the lost set\'s lapse is not inherited');
+  for (const sid of learners) assert.equal(store.recallState(sid, `${TOPIC.id}::4`), null);
+  assert.equal(store.recallState(learners[0], `${TOPIC.id}::0`).lapses, 0, 'the active learner starts the new set fresh');
+
+  // Opening the now cached set again keeps the schedule.
+  store.gradeRecall(learners[0], `${TOPIC.id}::1`, TOPIC.id, 'again');
+  modalRoot().replaceChildren();
+  openRecall(TOPIC);
+  await waitFor(() => stageText().includes('Card 1 of 2'));
+  assert.equal(calls.ai, 1);
+  assert.equal(store.recallState(learners[0], `${TOPIC.id}::1`).lapses, 1);
 });
 
 test('a failed recall regenerate keeps the schedule and the previous cards', async () => {
@@ -170,13 +207,15 @@ test('a first lesson generation the server will not store stays on screen, and R
   await waitFor(() => stageText().includes('Count on from a number'));
   assert.equal(calls.ai, 1);
 
-  // Retry save while the server still refuses: the toast comes back. Then it goes through.
+  // Reopening the unsaved lesson replaced its toast instead of stacking a second one.
   const retry = () => buttons(toastRoot(), 'Retry save');
-  const offered = retry().length;
-  retry().at(-1).click();
-  await waitFor(() => retry().length > offered);
+  assert.equal(retry().length, 1);
+  // Retry save while the server still refuses: the toast comes back, still only one.
+  const first = retry()[0];
+  first.click();
+  await waitFor(() => retry().length === 1 && retry()[0] !== first);
   failPuts = false;
-  retry().at(-1).click();
+  retry()[0].click();
   await waitFor(() => !store.isUnsavedCached('topic:' + TOPIC.id));
   assert.deepEqual(lessons.get('topic:' + TOPIC.id), LESSON);
   assert.ok(toastRoot().textContent.includes('Saved'));

@@ -381,8 +381,9 @@ async function loadTaxonomyFile(name) {
 // ---- Saved lessons listing ----
 // Keys and saved times for one cache prefix, never content. Read-only.
 const LESSON_LIST_PREFIXES = new Set(['topic:', 'print:', 'recall:']);
+const LESSON_LIST_MAX = 200; // the newest entries; a `limit` above this is clamped
 
-async function listLessons(prefix) {
+async function listLessons(prefix, limit) {
   const names = await readdir(lessonsDir).catch((error) => {
     if (error.code === 'ENOENT') return [];
     throw error;
@@ -403,7 +404,15 @@ async function listLessons(prefix) {
       throw error;
     }
   }));
-  return listed.filter(Boolean).sort((a, b) => b.savedAt - a.savedAt || a.key.localeCompare(b.key));
+  return listed.filter(Boolean).sort((a, b) => b.savedAt - a.savedAt || a.key.localeCompare(b.key)).slice(0, limit);
+}
+
+// `limit` is optional: absent means LESSON_LIST_MAX, and any whole number is
+// clamped to 1..LESSON_LIST_MAX. Anything else is a 400.
+function lessonListLimit(raw) {
+  if (raw === null) return LESSON_LIST_MAX;
+  if (!/^\d+$/.test(raw)) throw Object.assign(new Error('limit must be a whole number'), { statusCode: 400 });
+  return Math.min(LESSON_LIST_MAX, Math.max(1, Number.parseInt(raw, 10)));
 }
 
 async function handleLessonList(req, res, url) {
@@ -412,7 +421,8 @@ async function handleLessonList(req, res, url) {
     sendJson(res, 400, { error: 'prefix must be one of topic:, print: or recall:' });
     return;
   }
-  sendJson(res, 200, { lessons: await listLessons(prefix) });
+  const limit = lessonListLimit(url.searchParams.get('limit'));
+  sendJson(res, 200, { lessons: await listLessons(prefix, limit) });
 }
 
 async function handleApi(req, res, url) {

@@ -17,8 +17,9 @@ export function refreshIcons() {
 }
 
 // `action: { label, onClick }` adds a button and keeps the toast up longer;
-// clicking it dismisses the toast and runs onClick.
-export function toast(msg, kind = 'default', { action = null } = {}) {
+// clicking it dismisses the toast and runs onClick. A toast with an `id`
+// replaces one already showing with the same id instead of stacking.
+export function toast(msg, kind = 'default', { action = null, id = null } = {}) {
   const root = document.getElementById('toast-root');
   const colors = {
     default: 'bg-ink text-white',
@@ -31,9 +32,13 @@ export function toast(msg, kind = 'default', { action = null } = {}) {
     setTimeout(() => t.remove(), 300);
   };
   if (action) {
-    const btn = el(`<button class="ml-2 underline underline-offset-2 font-600">${esc(action.label)}</button>`);
+    const btn = el(`<button class="ml-2 px-2 min-h-[44px] lg:min-h-0 lg:px-0 underline underline-offset-2 font-600">${esc(action.label)}</button>`);
     btn.onclick = () => { hide(); action.onClick(); };
     t.appendChild(btn);
+  }
+  if (id) {
+    t.setAttribute('data-toast-id', id);
+    [...root.children].filter(n => n.getAttribute('data-toast-id') === id).forEach(n => n.remove());
   }
   root.appendChild(t);
   requestAnimationFrame(() => { t.classList.remove('opacity-0', 'translate-y-2'); });

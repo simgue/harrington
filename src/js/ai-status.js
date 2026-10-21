@@ -65,10 +65,11 @@ export function generateAnotherButton(onRegen) {
 export function offerRetrySave(key) {
   if (!store.isUnsavedCached(key)) return;
   toast('Generated, but not saved on this server', 'error', {
+    id: 'unsaved:' + key,
     action: {
       label: 'Retry save',
       onClick: async () => {
-        if (await store.retrySaveCached(key)) toast('Saved', 'success');
+        if (await store.retrySaveCached(key)) toast('Saved', 'success', { id: 'unsaved:' + key });
         else offerRetrySave(key);
       },
     },

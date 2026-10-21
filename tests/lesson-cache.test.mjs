@@ -381,6 +381,11 @@ test('a first generation the server will not store is returned, kept for the ses
   assert.equal(calls.ai, 1);
   assert.equal(await store.retrySaveCached('topic:t-cache'), false, 'still refused');
   failPuts = false;
+  // Two quick Retry save clicks share one PUT.
+  const puts = calls.put;
+  const [a, b] = await Promise.all([store.retrySaveCached('topic:t-cache'), store.retrySaveCached('topic:t-cache')]);
+  assert.deepEqual([a, b], [true, true]);
+  assert.equal(calls.put, puts + 1);
   assert.equal(await store.retrySaveCached('topic:t-cache'), true);
   assert.deepEqual(lessons.get('topic:t-cache'), LESSON);
   assert.equal(store.isUnsavedCached('topic:t-cache'), false);
@@ -411,9 +416,14 @@ test('savedLessons lists only valid entries, newest first, without any AI call',
     'topic:': [{ key: 'topic:a', savedAt: 3 }, { key: 'topic:bad', savedAt: 5 }],
     'print:': [{ key: 'print:a', savedAt: 4 }],
   };
+  const limits = [];
   globalThis.fetch = async (path, options) => {
     const url = String(path);
-    if (url.startsWith('/api/lessons?prefix=')) return json(200, { lessons: listing[decodeURIComponent(url.split('=')[1])] });
+    if (url.startsWith('/api/lessons?')) {
+      const params = new URL(url, 'http://harrington.test').searchParams;
+      limits.push(params.get('limit'));
+      return json(200, { lessons: listing[params.get('prefix')] });
+    }
     return fetchBefore(path, options);
   };
   try {
@@ -422,6 +432,7 @@ test('savedLessons lists only valid entries, newest first, without any AI call',
     lessons.set('print:a', { printables: [{ type: 'worksheet', content: { problems: ['1 + 1'] } }] });
     assert.deepEqual(await store.savedLessons(['topic:', 'print:']), [{ key: 'print:a', savedAt: 4 }, { key: 'topic:a', savedAt: 3 }]);
     assert.deepEqual((await store.savedLessons(['topic:', 'print:'], 1)).map(e => e.key), ['print:a']);
+    assert.ok(limits.every(l => /^\d+$/.test(l)), 'every listing request asks for a bounded page');
     assert.equal(calls.ai, 0);
   } finally {
     globalThis.fetch = fetchBefore;
