@@ -634,7 +634,7 @@ function renderQuestLog(topic, { active, navigate, prereqsOf, unlocksOf, byId, s
 
   // Phones stack the quest log under a tall tree; this takes the parent back
   // up to the selected node. Hidden where the log sits beside the tree.
-  const back = el(`<button type="button" class="quest-back-to-tree items-center gap-1.5 mx-4 mt-3 px-3 py-1.5 rounded-full border border-paper-line bg-paper text-xs font-medium text-ink-soft hover:text-ink"><i data-lucide="arrow-up" class="w-3.5 h-3.5"></i>Back to tree</button>`);
+  const back = el(`<button type="button" class="quest-back-to-tree items-center gap-1.5 min-h-11 mx-4 mt-3 px-3 py-1.5 rounded-full border border-paper-line bg-paper text-xs font-medium text-ink-soft hover:text-ink"><i data-lucide="arrow-up" class="w-3.5 h-3.5"></i>Back to tree</button>`);
   back.onclick = onBackToTree;
   panel.appendChild(back);
 

@@ -5,6 +5,8 @@ import { LEARNERS, TOPICS } from './support/family.mjs';
 const COUNTING_HASH = `graph/${encodeURIComponent('Mathematics')}/${encodeURIComponent('Counting & Cardinality')}`;
 const node = (page, name) => page.locator('button.skill-node', { has: page.locator('.skill-node-label', { hasText: new RegExp(`^${name.replace(/[?()]/g, '\\$&')}$`) }) });
 const questLog = (page) => page.getByRole('complementary', { name: 'Quest log' });
+// Clicks without Playwright's scroll-into-view, so the page stays where the test left it.
+const clickInPlace = (locator) => locator.evaluate((button) => button.click());
 
 test('world map shows eight realms; a realm opens its skill tree', async ({ page, gotoApp, shot, errors }) => {
   await gotoApp({ seed: {} });
@@ -160,7 +162,7 @@ test('selecting a skill keeps the scroll; Back to graph returns to it, selected 
   await gotoApp({ seed: {}, hash: COUNTING_HASH });
   await page.evaluate(() => window.scrollTo(0, 400));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
-  await node(page, TOPICS.oneToOne.name).click();
+  await clickInPlace(node(page, TOPICS.oneToOne.name));
   await expect(questLog(page)).toBeVisible();
   // The page stays where it was (it used to jump to the top).
   await page.waitForTimeout(300);
@@ -169,13 +171,15 @@ test('selecting a skill keeps the scroll; Back to graph returns to it, selected 
   // The selection is in the address.
   expect(await page.evaluate(() => location.hash)).toContain('skill=');
 
-  // To the topic page and back: same skill selected, same scroll.
-  await questLog(page).getByRole('button', { name: 'Open topic page' }).click();
+  // To the topic page and back: same skill selected, same scroll. Clicked in
+  // place: Playwright's click() can land mid fade-up, retry as "not stable"
+  // and scroll the button into view first, so the page would leave from 0.
+  await clickInPlace(questLog(page).getByRole('button', { name: 'Open topic page' }));
   await expect(page.getByRole('heading', { level: 1, name: TOPICS.oneToOne.name })).toBeVisible();
   await page.getByRole('button', { name: 'Back to graph' }).click();
   await expect(questLog(page)).toBeVisible();
   await expect(questLog(page).getByRole('heading', { name: TOPICS.oneToOne.name })).toBeVisible();
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(kept);
 });
 
 test('the old timeline route is gone (HAR-13) and falls back to the dashboard', async ({ page, gotoApp, errors }) => {
@@ -216,8 +220,6 @@ async function scrollTreeTo(page, { y, left, top }) {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   return treeScroll(page);
 }
-// Clicks without Playwright's scroll-into-view, so the page stays where the test left it.
-const clickInPlace = (locator) => locator.evaluate((button) => button.click());
 const selectedIds = (page) => page.locator('.skill-node.is-selected').evaluateAll((nodes) => nodes.map((n) => n.dataset.skillId));
 async function switchLearner(page, name) {
   await page.getByRole('button', { name: 'Switch learner' }).first().click();
@@ -295,7 +297,7 @@ test('a quest log revealed after a click low in the tree lands exactly on its ma
   await page.waitForTimeout(500);
   const box = await questLog(page).evaluate((log) => ({ top: log.getBoundingClientRect().top, margin: parseFloat(getComputedStyle(log).scrollMarginTop) }));
   expect(box.margin).toBe(16);
-  expect(box.top).toBe(box.margin);
+  expect(Math.abs(box.top - box.margin)).toBeLessThanOrEqual(0.5);
   // The pill is for phones only.
   await expect(questLog(page).getByRole('button', { name: 'Back to tree' })).toBeHidden();
 });

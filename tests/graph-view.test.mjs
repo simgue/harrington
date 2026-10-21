@@ -192,6 +192,27 @@ test('scoped restore: Back to graph restores the window, tree and quest log only
   assert.equal(questLog().scrollTop, 0);
 });
 
+test('a second render between navigation and the restore frame keeps the saved scroll', () => {
+  navigate('graph', { ...COUNTING, skill: 'cnt-2' });
+  settle();
+  window.scrollByUser(430);
+  scrollTree(170, 50);
+  questLog().querySelectorAll('button').find((button) => button.textContent.includes('Open topic page')).click();
+
+  window.scrollTo({ top: 0 });
+  backToGraph('cnt-2');
+  // A store emit (a status write, a health refresh) lands before the frame:
+  // the newer tree takes over the pending restore, so the saved scroll that
+  // the first render consumed is not lost.
+  store.setStatus(nine, 'cnt-4', 'learning');
+  assert.equal(pendingFrames(), 2);
+  settle();
+  assert.equal(window.scrollY, 430);
+  assert.equal(scroller().scrollLeft, 170);
+  assert.equal(scroller().scrollTop, 50);
+  assert.deepEqual(selectedIds(), ['cnt-2']);
+});
+
 test('a status write keeps the quest log scrolled where it was (N4)', () => {
   navigate('graph', { ...COUNTING, skill: 'cnt-1' });
   settle();
@@ -247,7 +268,7 @@ test('Back to an entry chosen for another learner clears its selection (item 5)'
   assert.equal(questLog(), null);
   assert.equal(window.location.hash, '#' + graphHash(COUNTING), 'the hash drops it in place');
   settle();
-  assert.equal(window.scrollY, 0, 'the old scroll is not applied to the new learner');
+  assert.equal(window.scrollY, 0, "the app's own restore is skipped for the new learner (a browser may still restore the window natively)");
 
   // Forward and Back again stay cleared for this learner.
   window.forward();
