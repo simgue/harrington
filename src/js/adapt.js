@@ -21,17 +21,6 @@ export function evaluateChallenge(studentId, challenge) {
       subject, domain,
       reason: `Aced the ${domain} challenge (${pct}%${perQ <= 15 ? ', and fast' : ''}). Future ${domain} work can be pitched harder to keep them challenged.`,
     });
-    // Only notify when a genuinely new suggestion was created (not a duplicate).
-    if (created) {
-      const student = store.get().students.find(s => s.id === studentId);
-      const name = student ? student.name : 'Your student';
-      store.addNotification({
-        type: 'suggestion',
-        title: `New adaptive suggestion for ${name}`,
-        body: `${name} is excelling in ${domain} (${subject}). Harrington suggests pitching future ${domain} work harder. Review and approve it under Insights → Adaptive suggestions.`,
-        meta: { subject, domain, studentId },
-      });
-    }
     return !!created;
   }
   return false;
