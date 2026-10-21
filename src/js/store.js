@@ -2,6 +2,7 @@
 import * as backend from './backend.js';
 import { getData } from './data.js';
 import { pruneDismissed } from './alert-dismissals.js';
+import { normalizeSession } from './levelset.js';
 import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
 
 export const MASTERY = {
@@ -560,8 +561,8 @@ export function undoPlacement(studentId, recordId) {
 export function levelsetFor(studentId) {
   const v = state.levelset[studentId];
   return {
-    lanes: v && v.lanes && typeof v.lanes === 'object' ? v.lanes : {},
-    observe: v && Array.isArray(v.observe) ? v.observe : [],
+    lanes: v && v.lanes && typeof v.lanes === 'object' && !Array.isArray(v.lanes) ? v.lanes : {},
+    observe: v && Array.isArray(v.observe) ? v.observe.filter(id => typeof id === 'string') : [],
     lane: v && typeof v.lane === 'string' ? v.lane : null, // the tab last open
   };
 }
@@ -570,8 +571,10 @@ export function setLevelsetLane(studentId, lane) {
   state.levelset[studentId] = { ...cur, lane };
   persist(); emit();
 }
+// A malformed stored session reads as none, so the route starts over
+// instead of crashing.
 export function levelsetSession(studentId, lane) {
-  return levelsetFor(studentId).lanes[lane] || null;
+  return normalizeSession(levelsetFor(studentId).lanes[lane]);
 }
 // `quiet` saves without re-rendering, for a click that updates its own row.
 export function saveLevelsetSession(studentId, lane, session, { quiet = false } = {}) {
@@ -657,6 +660,10 @@ export function lastTopicTest(studentId, topicId) {
   return (state.tests[studentId] || []).filter(t => t.scope === 'topic' && t.topicId === topicId)
     .sort((a, b) => b.createdAt - a.createdAt)[0] || null;
 }
+// True when any topic result (a quiz or an observation) for the topic passed.
+export function topicTestPassed(studentId, topicId) {
+  return (state.tests[studentId] || []).some(t => t.scope === 'topic' && t.topicId === topicId && t.passed);
+}
 export function addTestResult(studentId, result) {
   state.tests[studentId] = state.tests[studentId] || [];
   const full = { id: 't_' + Math.random().toString(36).slice(2, 9), createdAt: Date.now(), scope: 'subject', ...result };
@@ -670,8 +677,8 @@ export function addTestResult(studentId, result) {
 // Saves an evidence checklist in one persist + emit: the test-shaped results
 // (topic, plus any section or subject it completes), an assessment record
 // for Records, and, on a full pass, the topic marked mastered exactly as a
-// passed topic test does. A topic waiting in the level-set observation queue
-// leaves it.
+// passed topic test does; today's picks stay, as they do for a quiz. A topic
+// waiting in the level-set observation queue leaves it.
 export function applyObservation(studentId, { results = [], record = null, masterTopicId = null }) {
   const at = Date.now();
   const tests = state.tests[studentId] = state.tests[studentId] || [];
@@ -688,7 +695,6 @@ export function applyObservation(studentId, { results = [], record = null, maste
   if (masterTopicId) {
     const p = state.progress[studentId] = state.progress[studentId] || {};
     if (p[masterTopicId]?.status !== 'mastered') p[masterTopicId] = { status: 'mastered', updatedAt: at };
-    forgetTodaysChoices(studentId);
   }
   const topicId = results[0]?.topicId;
   const ls = levelsetFor(studentId);

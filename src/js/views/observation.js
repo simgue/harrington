@@ -92,12 +92,13 @@ export function saveObservation(student, topic, items, ticked, note = '') {
   const topicResult = observedResult(topic, ticked);
   let rollup = { section: null, subject: null };
   if (topicResult.passed) {
-    const mastered = (id) => id === topic.id || store.statusOf(student.id, id) === 'mastered';
+    // Only topics with a passed topic result count, never placed or hand-set ones.
+    const topicPassed = (id) => id === topic.id || store.topicTestPassed(student.id, id);
     const subjectPassed = !!store.lastTest(student.id, topic.subject)?.passed;
     rollup = observedRollup({
       section: sectionForTopic(topic),
       sections: subjectSections(topic.subject),
-      mastered,
+      topicPassed,
       sectionPassed: (id) => store.sectionPassed(student.id, id),
       subjectPassed,
     });

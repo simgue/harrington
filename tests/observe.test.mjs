@@ -32,35 +32,35 @@ test('an observed result has the test shape, and only a full tick passes', () =>
 
 const sec = (id, ids) => ({ id, subject: 'Mathematics', topics: ids.map(i => ({ id: i })) });
 
-test('a section is observed-mastered once all its topics are mastered', () => {
+test('a section is observed-mastered once every topic in it has a passed topic result', () => {
   const s1 = sec('M|Counting|5', ['a', 'b']);
   const s2 = sec('M|Adding|6', ['c']);
   const sections = [s1, s2];
 
-  const notYet = observedRollup({ section: s1, sections, mastered: (id) => id === 'a' });
+  const notYet = observedRollup({ section: s1, sections, topicPassed: (id) => id === 'a' });
   assert.deepEqual(notYet, { section: null, subject: null }, 'b is still open');
 
-  const done = observedRollup({ section: s1, sections, mastered: (id) => id === 'a' || id === 'b' });
+  const done = observedRollup({ section: s1, sections, topicPassed: (id) => id === 'a' || id === 'b' });
   assert.deepEqual(done.section, {
     scope: 'section', mode: 'observed', subject: 'Mathematics', sectionId: 'M|Counting|5', topicId: null,
     score: 2, total: 2, pct: 100, passed: true,
   });
   assert.equal(done.subject, null, 'the other section is not passed yet');
 
-  const already = observedRollup({ section: s1, sections, mastered: () => true, sectionPassed: (id) => id === s1.id });
+  const already = observedRollup({ section: s1, sections, topicPassed: () => true, sectionPassed: (id) => id === s1.id });
   assert.equal(already.section, null, 'a passed section is not passed again');
 });
 
 test('passing the last open section by observation passes the subject capstone', () => {
   const s1 = sec('M|Counting|5', ['a']);
   const s2 = sec('M|Adding|6', ['c']);
-  const r = observedRollup({ section: s2, sections: [s1, s2], mastered: () => true, sectionPassed: (id) => id === s1.id });
+  const r = observedRollup({ section: s2, sections: [s1, s2], topicPassed: () => true, sectionPassed: (id) => id === s1.id });
   assert.equal(r.section.sectionId, s2.id);
   assert.deepEqual(r.subject, {
     scope: 'subject', mode: 'observed', subject: 'Mathematics', sectionId: null, topicId: null,
     score: 2, total: 2, pct: 100, passed: true,
   });
-  const passedBefore = observedRollup({ section: s2, sections: [s1, s2], mastered: () => true, sectionPassed: (id) => id === s1.id, subjectPassed: true });
+  const passedBefore = observedRollup({ section: s2, sections: [s1, s2], topicPassed: () => true, sectionPassed: (id) => id === s1.id, subjectPassed: true });
   assert.equal(passedBefore.subject, null);
 });
 
@@ -91,6 +91,47 @@ test('applyObservation saves results, record and mastery in one emit, and leaves
   store.applyObservation(sid, { results: [observedResult({ ...topic, id: 'x' }, [true, false])], record: null });
   assert.equal(store.statusOf(sid, 'x'), 'none');
   assert.equal(store.lastTopicTest(sid, 'x').passed, false);
+});
+
+test('placed or hand-set siblings do not count toward an observed section pass', () => {
+  const sid = 's-placed-siblings';
+  const ids = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'];
+  store.applyPlacement(sid, { topicIds: ids, title: 'Placement', subject: 'Mathematics', maxAge: 5 });
+  const section = sec('M|Counting|5', [...ids, 'obs']);
+  const topicPassed = (id) => id === 'obs' || store.topicTestPassed(sid, id);
+  assert.ok(ids.every(id => store.statusOf(sid, id) === 'mastered'), 'the eight are mastered by placement');
+  assert.deepEqual(observedRollup({ section, sections: [section], topicPassed }), { section: null, subject: null });
+  // Once each sibling has its own passed result (quiz or observation), it counts.
+  for (const id of ids) store.addTestResult(sid, { scope: 'topic', subject: 'Mathematics', topicId: id, mode: 'observed', score: 1, total: 1, pct: 100, passed: true });
+  assert.equal(observedRollup({ section, sections: [section], topicPassed }).section.score, 9);
+});
+
+test('an observed pass keeps today\'s picks, as a quiz pass does', () => {
+  const sid = 's-observe-daily';
+  const now = new Date();
+  const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  store.saveDailyOffers(sid, key, { literacy: ['l1', 'l2'], numeracy: ['count-10', 'n2'] });
+  store.pickDaily(sid, key, 'numeracy', 'count-10');
+  store.applyObservation(sid, { results: [observedResult(topic, [true])], masterTopicId: 'count-10', record: null });
+  assert.equal(store.statusOf(sid, 'count-10'), 'mastered');
+  assert.deepEqual(store.dailyFor(sid, key).offers.numeracy, ['count-10', 'n2']);
+  assert.equal(store.dailyFor(sid, key).picks.numeracy, 'count-10');
+});
+
+test('a malformed stored workbook session reads as none', () => {
+  const sid = 's-bad-session';
+  store.saveLevelsetSession(sid, 'numeracy', { version: 2, sheets: [{ kind: 'section', ids: 'nope' }], answers: {} }, { quiet: true });
+  assert.equal(store.levelsetSession(sid, 'numeracy'), null);
+  store.saveLevelsetSession(sid, 'numeracy', { version: 2, lane: 'numeracy', sheets: [], answers: {} }, { quiet: true });
+  assert.deepEqual(store.levelsetSession(sid, 'numeracy').sheets, []);
+});
+
+test('confirming the workbook writes one placement record with source placement', () => {
+  const sid = 's-confirm';
+  const rec = store.applyPlacement(sid, { topicIds: ['a', 'b'], title: 'Level-set workbook: marked 1 numeracy topic mastered', subject: 'Mathematics', maxAge: 6, levelset: { lane: 'numeracy' } });
+  assert.deepEqual(rec.placement.levelset, { lane: 'numeracy' });
+  assert.equal(store.recordsFor(sid).filter(r => r.placement).length, 1);
+  for (const id of ['a', 'b']) assert.equal(store.progressFor(sid)[id].source, 'placement');
 });
 
 test('child-safe phrasing: the parent sheet asks "Can they…?", the child card "Can you…?"', () => {

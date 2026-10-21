@@ -175,7 +175,7 @@ const GUIDE_SECTIONS = [
   { h: 'Getting started', items: [
     ['Start Harrington', 'Run the Harrington server and open its local address. There is no account and no sign-in.'],
     ['Add a learner', 'Enter a name, birth year and, if you like, birth month. Harrington uses the age to suggest age-appropriate topics and to build the calendar; with the month the age is exact. Add more learners, switch between them, or edit a name, birthday or color with the pencil button, from the selector at the top of the sidebar (or the round button at the top right on a phone).'],
-    ['Level-set workbook', 'Works without AI. In the learner selector, press the clipboard button beside a learner (next to Placement). For literacy, then numeracy, it shows a short sheet of topics from one year below their age, with “Can they…?” questions. Mark each Yes, Not yet or Unsure, then save the sheet. Yes marks the topic and what it builds on as mastered, and each saved sheet is one record you can undo. All Yes moves up a year and all Not yet moves down one; then it asks about the foundations of each Not yet until it can say where to start. Unsure topics wait for an observation check on their topic page. Print the sheet if you prefer paper. Answers save as you go, so you can stop and resume; it shows the sitting’s time and suggests a pause at twenty minutes.'],
+    ['Level-set workbook', 'Works without AI. In the learner selector, press Workbook beside a learner (next to Placement). For literacy, then numeracy, it goes one area at a time, starting each area at its topics for about one year below their age; a sheet is never more than twelve topics, with “Can they…?” questions. Mark each Yes, Not yet or Unsure and save the sheet; saving keeps your answers and marks nothing. All Yes moves that area up a year and all Not yet moves it down one; one area never stops another. Then it asks about the foundations of each Not yet until it can say where to start. At the end it lists, subject by subject, everything your Yes answers would mark mastered, and confirming writes it as one record you can undo. Unsure topics then wait for an observation check on their topic page. Print a sheet if you prefer paper. Answers save as you go, so you can stop and resume; it shows the sitting’s time and suggests a pause at twenty minutes.'],
     ['Navigate', 'The sidebar (or the bottom bar on a phone) has Dashboard, Calendar, Map, Records and Insights. Guide is in the sidebar, or behind the book icon at the top of the screen on a phone. The child view opens from the dashboard.'],
   ]},
   { h: 'Dashboard', items: [
@@ -204,7 +204,7 @@ const GUIDE_SECTIONS = [
   ]},
   { h: 'Topic page', items: [
     ['Works today', 'Description, what mastery looks like, a quick-check prompt, how the topic connects, records for the topic, activity ideas, reference links and manual status.'],
-    ['Check by observation', 'Works without AI. Ask the suggested question or watch your child at work, then tick each piece of evidence you see; add a typed or voice note if you like. Every item ticked marks the topic mastered, just like passing a quiz. Fewer ticks are kept in Records and change nothing. Mastering the last topic of a section this way passes the section, and the last section passes the subject. Records and Insights label these “observed”; your child’s view never shows them.'],
+    ['Check by observation', 'Works without AI. Ask the suggested question or watch your child at work, then tick each piece of evidence you see; add a typed or voice note if you like. Every item ticked marks the topic mastered, just like passing a quiz. Fewer ticks are kept in Records and change nothing. A section passes once every topic in it has passed a quiz or an observation check (topics marked by placement or by hand do not count), and the last section passes the subject. Records and Insights label these “observed”; your child’s view never shows them.'],
     ['Reference links', 'Khan Academy, BBC Bitesize and Wikipedia searches, plus YouTube searches. YouTube results are not filtered for children, so supervise.'],
     ['Needs AI', `Full lesson, print & go, the topic mastery test, challenge, recall cards, “Explain simply”, “Make a mini-quiz”, and step-by-step activity instructions. ${NEEDS_AI}`],
   ]},
@@ -226,7 +226,7 @@ const GUIDE_SECTIONS = [
   { h: 'Insights', items: [
     ['Subject summary', 'How many topics are mastered, practicing, learning or not started in each subject.'],
     ['Recommended next', 'The best unlocked topics to work on in that subject.'],
-    ['Observation checks', 'Topics, sections and subjects you checked by watching, each labelled “observed”.'],
+    ['Observation checks', 'Topics, sections and subjects you checked by watching, each labeled “observed”.'],
     ['Needs AI', `Progress reviews, subject tests and adaptive suggestions. ${NEEDS_AI}`],
   ]},
   { h: 'Notifications', items: [

@@ -24,24 +24,26 @@ export function observedResult(topic, ticked) {
 /**
  * What a passed observation completes beyond the topic itself.
  *
- * A section is observed-mastered once every topic in it is mastered, so an
- * observation that masters the last open topic also passes the section; one
- * that passes the last open section also passes the subject.
+ * A section is observed-mastered once every topic in it has a passed topic
+ * result (a quiz or an observation), so an observation that passes the last
+ * one also passes the section; one that passes the last open section also
+ * passes the subject. Topics mastered by placement or set by hand have no
+ * such result and do not count: the section stays for its own check.
  *
  * opts: {
  *   section,                // { id, subject, topics: [{ id }] } holding the topic, or null
  *   sections,               // every section of the subject
- *   mastered(topicId),      // true when mastered, counting the observed topic
+ *   topicPassed(topicId),   // a passed topic result exists, counting this observation
  *   sectionPassed(id),      // the stored section result
  *   subjectPassed,          // true when the subject capstone is already passed
  * }
  * Returns { section: result|null, subject: result|null }.
  */
-export function observedRollup({ section = null, sections = [], mastered = () => false, sectionPassed = () => false, subjectPassed = false } = {}) {
+export function observedRollup({ section = null, sections = [], topicPassed = () => false, sectionPassed = () => false, subjectPassed = false } = {}) {
   const out = { section: null, subject: null };
   if (!section || !section.topics.length) return out;
   if (!sectionPassed(section.id)) {
-    if (!section.topics.every(t => mastered(t.id))) return out;
+    if (!section.topics.every(t => topicPassed(t.id))) return out;
     const n = section.topics.length;
     out.section = {
       scope: 'section', mode: OBSERVED, subject: section.subject, sectionId: section.id, topicId: null,

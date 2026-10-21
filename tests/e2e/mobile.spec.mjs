@@ -12,6 +12,7 @@ const ROUTES = [
   ['topic', `topic/${TOPICS.oneToOne.id}`],
   ['records', 'records'],
   ['insights', 'insights'],
+  ['levelset', `levelset/${LEARNERS.rowan.id}`],
 ];
 
 for (const [name, hash] of ROUTES) {
@@ -146,6 +147,40 @@ test('learner menu at 360 px: no sideways scroll and the full name shows (F14)',
   await expectTapTarget(menu.getByRole('button', { name: 'Level-set workbook for Wren Example' }), 'Workbook at 360 px');
   expect((await menu.getByRole('button', { name: 'Placement for Wren Example' }).locator('svg').boundingBox()).width, 'Placement icon at 360 px').toBeGreaterThanOrEqual(15);
   await shot('learner-menu-360', { full: false });
+});
+
+test('level-set workbook on a phone: a sheet, 44 px answers, no sideways scroll (HAR-24)', async ({ page, gotoApp, shot, errors }) => {
+  await gotoApp({ seed: {}, hash: `levelset/${LEARNERS.rowan.id}` });
+  await page.getByRole('tab', { name: /Numeracy/ }).click();
+  await page.getByRole('button', { name: 'Start the numeracy workbook' }).click();
+  const groups = page.getByRole('radiogroup');
+  await expect(groups.first()).toBeVisible();
+  await noHorizontalOverflow(page);
+  for (const name of ['Yes', 'Not yet', 'Unsure']) {
+    await expectTapTarget(groups.first().getByRole('radio', { name, exact: true }), `${name} answer`);
+  }
+  await expectTapTarget(page.getByRole('tab', { name: /Literacy/ }), 'Literacy tab');
+  await groups.first().getByRole('radio', { name: 'Yes', exact: true }).click();
+  await expect(groups.first().getByRole('radio', { name: 'Yes', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await shot('levelset-sheet', { full: false });
+  expect(errors).toEqual([]);
+});
+
+test('observation check on a phone: the checklist fits and saves (HAR-24)', async ({ page, api, gotoApp, shot, errors }) => {
+  await gotoApp({ seed: {}, hash: `topic/${TOPICS.oneToOne.id}` });
+  await page.getByRole('button', { name: 'Check mastery by observation' }).click();
+  const m = modal(page);
+  await expect(m.getByRole('heading', { name: 'Check mastery by observation' })).toBeVisible();
+  await noHorizontalOverflow(page);
+  const boxes = m.getByRole('checkbox');
+  await expect(boxes).toHaveCount(3);
+  await expectTapTarget(m.locator('#ob-items label').first(), 'evidence row');
+  await boxes.first().check();
+  await shot('observation-checklist', { full: false });
+  await m.getByRole('button', { name: 'Save observation' }).click();
+  await expectToast(page, 'Observation saved: 1 of 3 seen');
+  await api.waitForState((s) => (s.tests?.[LEARNERS.rowan.id] || []).some((t) => t.mode === 'observed'));
+  expect(errors).toEqual([]);
 });
 
 test('record, recording and calendar extra delete buttons are 44px targets (F14)', async ({ page, api, gotoApp }) => {

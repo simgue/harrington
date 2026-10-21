@@ -198,7 +198,7 @@ export function renderInsights(params, { navigate }) {
   return root;
 }
 
-// Recent evidence-checklist results in a subject, each labelled "observed".
+// Recent evidence-checklist results in a subject, each labeled "observed".
 function observedChecksCard(student, subject, navigate) {
   const d = getData();
   const results = store.testsFor(student.id, subject).filter(t => t.mode === 'observed')
