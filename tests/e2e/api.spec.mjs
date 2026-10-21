@@ -1,7 +1,7 @@
 // HTTP API smoke against both app servers (no browser).
 import { test as base, expect } from '@playwright/test';
 import { Api } from './fixtures.mjs';
-import { URLS } from './support/env.mjs';
+import { ACCESS_TOKEN, URLS } from './support/env.mjs';
 import { familyState } from './support/family.mjs';
 
 const test = base.extend({
@@ -168,4 +168,34 @@ test('AI proxy reports a failing provider as 502 without leaking details', async
   const res = await request.post(`${URLS.appAi}/api/ai`, { data: { messages: [{ role: 'user', content: 'hi' }] } });
   expect(res.status()).toBe(502);
   expect(await res.json()).toEqual({ error: 'The AI provider failed' });
+});
+
+test('access token: /api/* needs the sign-in cookie, static files stay open (HAR-25)', async ({ playwright }) => {
+  const visitor = await playwright.request.newContext();
+  try {
+    const open = await (await visitor.get(`${URLS.appAi}/api/health`)).json();
+    expect(open).toMatchObject({ host: 'loopback', authEnabled: false });
+
+    expect(await (await visitor.get(`${URLS.appToken}/api/health`)).json())
+      .toEqual({ ok: true, mode: 'self-hosted', host: 'loopback', authEnabled: true, signedIn: false });
+    const denied = await visitor.get(`${URLS.appToken}/api/state`);
+    expect(denied.status()).toBe(401);
+    expect(await denied.text()).toContain('href="/login"');
+    expect((await visitor.get(`${URLS.appToken}/`)).status()).toBe(200);
+    expect((await visitor.get(`${URLS.appToken}/js/app.js`)).status()).toBe(200);
+
+    const wrong = await visitor.get(`${URLS.appToken}/login?token=not-the-family-token`, { maxRedirects: 0 });
+    expect(wrong.status()).toBe(401);
+    expect(wrong.headers()['set-cookie']).toBeUndefined();
+
+    const login = await visitor.get(`${URLS.appToken}/login?token=${ACCESS_TOKEN}`, { maxRedirects: 0 });
+    expect(login.status()).toBe(303);
+    expect(login.headers()['set-cookie']).toMatch(/HttpOnly; SameSite=Strict/);
+    // The request context keeps the cookie, like a browser would.
+    const health = await (await visitor.get(`${URLS.appToken}/api/health`)).json();
+    expect(health).toMatchObject({ signedIn: true, aiConfigured: false, taxonomyCached: true });
+    expect((await visitor.get(`${URLS.appToken}/api/state`)).status()).toBe(200);
+  } finally {
+    await visitor.dispose();
+  }
 });
