@@ -522,13 +522,14 @@ the box is ticked, and then carries it with "the child".
 ## 11. Notifications and guide
 
 **Notifications** (the bell beside the logo, or in the phone's top bar) list
-family-wide news. On first run there is one: "Your curriculum is ready". A
-curriculum that changed since the last visit adds "Curriculum updated — n new
-topics".
+what needs a parent, computed from the family's data: today's picks still
+open after 3 pm on a home day, a learner with no evidence for a week, and a
+missing or week-old backup. A welcome item shows once. The bell opens on the
+active learner; "All learners" shows everyone. Each item can be dismissed.
 
-| Unread | Curriculum update |
+| First run | Open picks |
 | --- | --- |
-| ![Notifications](screenshots/notifications/01-notifications-unread.jpg) | ![Updated](screenshots/notifications/02-curriculum-updated.jpg) |
+| ![Notifications](screenshots/notifications/01-notifications-first-run.jpg) | ![Open picks](screenshots/notifications/02-notifications-open-picks.jpg) |
 
 The **Guide** (sidebar, or the book icon on a phone) summarizes what works
 today and what needs AI, replays the tour, prints the full guide and
@@ -539,13 +540,18 @@ downloads `GUIDE.md`.
 | ![Guide](screenshots/notifications/03-guide-full.jpg) | ![Printable guide](screenshots/onboarding/05-printable-guide.jpg) |
 
 **What the tests assert** (`notifications.spec.mjs`, `onboarding.spec.mjs`):
-one welcome item and a "1" badge; Mark all read clears it; a second boot adds
-nothing; clicking one marks only that one; the empty state; an older saved
-curriculum snapshot raises the update item; the guide has ten entries and
+the welcome and "No backup recorded" (with its README link) with the bell named "Notifications, 2 new";
+Dismiss all clears both and a reload keeps them dismissed; dismissing one
+keeps the other; a family with the old welcome is not welcomed again; open
+picks at 15:30 for the active learner, others behind "show all", and none
+before 3 pm or once picked; "No evidence this week" after 8 quiet days; the
+guide has ten entries and
 replays the tour; the printable guide opens in a new window; `GUIDE.md` is
 served.
 
-**Caveats.** The bell's accessible name is its unread count (F13).
+**Caveats.** The e2e server has no backups, so "No backup recorded" is always
+there unless dismissed; the backup age rule is covered by `server.test.mjs`
+and `alerts.test.mjs`.
 
 ---
 
@@ -675,9 +681,13 @@ open; Export downloads and Import opens the preview from the learner
 selector (F6); the learner row's buttons, Switch and Add, and the record,
 recording and calendar-extra delete buttons are at least 44 × 44 px, and at
 360 px the learner menu does not scroll sideways or cut a name off (F14); the
-"Include my notes" checkbox is at least 20 px with a 44 px label that ticks it.
+"Include my notes" checkbox is at least 20 px with a 44 px label that ticks it;
+the top-bar bell opens on the active learner, filters by learner, dismisses
+items, and keeps "No backup recorded" quiet for 30 days (HAR-27).
 
-![Learner selector with Export and Import](screenshots/mobile/13-learner-menu-family-data.jpg)
+| Learner selector with Export and Import | Notifications bell |
+| --- | --- |
+| ![Learner selector with Export and Import](screenshots/mobile/13-learner-menu-family-data.jpg) | ![Notifications bell](screenshots/mobile/15-notifications.jpg) |
 
 ---
 
