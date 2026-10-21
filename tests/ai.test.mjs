@@ -9,6 +9,8 @@ import { test } from 'node:test';
 // answered here too, so nothing reaches the network.
 const sent = [];
 const COMPLETION = JSON.stringify({ objective: 'ok', questions: [], results: [], cards: [], printables: [], materials: [] });
+// A test can set the next reply; null means COMPLETION.
+let nextCompletion = null;
 const TAXONOMY = {
   'topics.json': { topics: [
     { id: 'count-to-5', name: 'Count to 5', subject: 'Mathematics', domain: 'Number', ageRangeStart: 4, ageRangeEnd: 6, description: 'Count five objects.', evidence: [] },
@@ -21,7 +23,7 @@ globalThis.fetch = async (path, options = {}) => {
   const json = (body, ok = true) => ({ ok, status: ok ? 200 : 404, headers: new Headers({ ETag: '"v1"' }), json: async () => body });
   if (url === '/api/ai') {
     sent.push(JSON.parse(options.body));
-    return json({ content: COMPLETION });
+    return json({ content: nextCompletion ?? COMPLETION });
   }
   if (url.startsWith('/api/taxonomy/')) {
     const body = TAXONOMY[url.slice('/api/taxonomy/'.length)];
@@ -317,4 +319,19 @@ test('lesson generators and callers do not interpolate learner names into prompt
   // Generation is gated in store.generateCached, which showGenerated wraps (see lesson-cache.test.mjs).
   assert.match(lesson, /showGenerated\(/);
   assert.doesNotMatch(lesson, /aiLesson\(topic\);\s*\n\s*await store\.saveCachedLesson/);
+});
+
+test('a mastery test keeps positive points and gives anything else 1, so a score always saves', async () => {
+  nextCompletion = JSON.stringify({ title: 'T', questions: [
+    { type: 'short_answer', q: 'Half a point', answer: 'a', points: 0.5 },
+    { type: 'task', q: 'Text points', answer: 'b', points: 'two' },
+    { type: 'short_answer', q: 'Negative', answer: 'c', points: -1 },
+    { type: 'short_answer', q: 'None', answer: 'd' },
+  ] });
+  try {
+    const test = await ai.aiMasteryTest({ subject: 'Mathematics', age: 6, topicNames: ['Count to 5'], mode: 'digital', topic });
+    assert.deepEqual(test.questions.map((q) => q.points), [0.5, 1, 1, 1]);
+  } finally {
+    nextCompletion = null;
+  }
 });

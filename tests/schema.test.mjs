@@ -212,3 +212,14 @@ test('import moves an off-palette learner color to the nearest palette color and
   assert.equal(await store.importDocument(doc), true);
   assert.deepEqual(puts.at(-1).students.map((s) => s.color), ['#a4473a', store.PALETTE[3]]);
 });
+
+test('a dangling active learner becomes the first learner, on load and on import', async () => {
+  const doc = await readFixture('v1.expected.json');
+  await load({ ...doc, activeStudentId: 's_gone', version: 100 });
+  assert.equal(store.get().activeStudentId, 's_older1');
+  store.setGraphView(store.graphView() === 'list' ? 'atlas' : 'list');
+  await store.flushSaves();
+  assert.equal(puts.at(-1).activeStudentId, 's_older1');
+  assert.equal(await store.importDocument({ ...doc, activeStudentId: 'nobody' }), true);
+  assert.equal(puts.at(-1).activeStudentId, 's_older1');
+});

@@ -209,8 +209,9 @@ function normalizeTest(test) {
       continue;
     }
 
-    // short_answer / task pass through (carry `answer` for the key).
-    if (question.q) out.push(question);
+    // short_answer / task pass through (carry `answer` for the key). Points
+    // feed the stored score: a positive number or 1.
+    if (question.q) out.push({ ...question, points: Number.isFinite(question.points) && question.points > 0 ? question.points : 1 });
   }
   if (out.length) test.questions = out;
   return test;

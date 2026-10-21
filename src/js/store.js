@@ -99,6 +99,14 @@ let unknownFields = {};
 let readOnly = false;
 export function isReadOnly() { return readOnly; }
 
+// The document's active learner if it is one of its learners, else the
+// first learner: a dangling id would show "No student" and every save would be
+// refused (document.js).
+function activeOf(doc) {
+  const students = Array.isArray(doc?.students) ? doc.students : [];
+  return students.some(s => s?.id === doc.activeStudentId) ? doc.activeStudentId : students[0]?.id ?? null;
+}
+
 // Applies a document from the server or an import. Returns true when a
 // migration changed it, so the caller can save the migrated document once.
 function applyDocument(data) {
@@ -108,7 +116,7 @@ function applyDocument(data) {
   unknownFields = Object.fromEntries(Object.entries(doc)
     .filter(([key]) => !documentFields.includes(key) && !BOOKKEEPING_FIELDS.includes(key) && !RETIRED_FIELDS.includes(key)));
   state.students = Array.isArray(doc.students) ? doc.students : [];
-  state.activeStudentId = doc.activeStudentId || (state.students[0] && state.students[0].id) || null;
+  state.activeStudentId = activeOf(doc);
   for (const key of LEARNER_KEYS) state[key] = objectOr(doc[key], {});
   state.notifications = Array.isArray(doc.notifications) ? doc.notifications : [];
   state.dismissedAlerts = objectOr(doc.dismissedAlerts, {});
@@ -366,9 +374,17 @@ export async function exportDocument() {
 // rules the server applies to every save (document.js). Returns
 // { ok, error?, learners: [{ name, topics, records, tests }], colorsAdjusted }
 // for the preview.
+// An imported file's dangling active learner is moved to its first learner.
+function withValidActive(doc) {
+  if (!Array.isArray(doc.students) || doc.activeStudentId == null) return doc;
+  const active = activeOf(doc);
+  return active === doc.activeStudentId ? doc : { ...doc, activeStudentId: active };
+}
+
 export function inspectImport(doc) {
   const fail = (error) => ({ ok: false, error, learners: [] });
   if (!isObject(doc)) return fail('The file is not a Harrington family export.');
+  doc = withValidActive(doc);
   if (schemaVersionOf(doc) === null) return fail('The file\'s data format version is not a number.');
   if (isNewerSchema(doc)) {
     return fail(`The file comes from a newer version of Harrington (data format ${doc.schemaVersion}; this one reads up to ${SCHEMA_VERSION}). Update Harrington, then import it.`);
@@ -393,7 +409,7 @@ export function importDocument(doc) {
   if (readOnly) return Promise.reject(new Error(READ_ONLY_MESSAGE));
   const check = inspectImport(doc);
   if (!check.ok) return Promise.reject(new Error(check.error));
-  const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = migrateDocument(doc);
+  const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = migrateDocument(withValidActive(doc));
   data.students = data.students.map(s => ({ ...s, color: paletteColor(s.color) }));
   // Step 1 -> 2 hashed an older export's plain PIN; this catches a hand edit.
   if (data.settings !== undefined) data.settings = migratePinSettings(objectOr(data.settings, {}));

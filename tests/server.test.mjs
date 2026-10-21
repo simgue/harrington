@@ -320,12 +320,18 @@ test('refuses a save the app could not render (422) or a data format it does not
   });
   assert.equal(beacon.status, 422);
 
-  const newer = await putState({ schemaVersion: SCHEMA_VERSION + 1, students: [] }, tag);
+  // AI questions can carry fractional points: a fractional score saves.
+  const fractional = await putState({ students: [learner], tests: { v1: [{ id: 't', score: 2.5, total: 3.5, pct: 71, passed: false }] } }, tag);
+  assert.equal(fractional.status, 204);
+  const afterFractional = await current();
+  const tag2 = `"v${afterFractional.version}"`;
+
+  const newer = await putState({ schemaVersion: SCHEMA_VERSION + 1, students: [] }, tag2);
   assert.equal(newer.status, 409);
   assert.match((await newer.json()).error, new RegExp(`reads family data up to format ${SCHEMA_VERSION}; the save is format ${SCHEMA_VERSION + 1}`));
 
   // Once the stored document is at the current format, an older save is refused.
-  assert.equal((await putState({ schemaVersion: SCHEMA_VERSION, students: [learner] }, tag)).status, 204);
+  assert.equal((await putState({ schemaVersion: SCHEMA_VERSION, students: [learner] }, tag2)).status, 204);
   const stored = await current();
   const older = await putState({ students: [learner] }, `"v${stored.version}"`);
   assert.equal(older.status, 409);

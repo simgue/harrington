@@ -27,11 +27,25 @@ const current = () => ({
   students: [{ id: 's_new', name: 'Sample Fourteen', birthYear: 2018, birthMonth: 4, color: store.PALETTE[2], startDate: '2026-09-01' }],
   activeStudentId: 's_new',
   progress: { s_new: { 'count-to-5': { status: 'learning', updatedAt: 1_700_000_200_000 } } },
-  records: { s_new: [{ id: 'r1', type: 'discussion', title: 'Talked', note: 'n', rating: 4, transcript: 't', analysis: '<p>a</p>', createdAt: 1_700_000_300_000, duration: 61.5 }] },
+  records: { s_new: [
+    { id: 'r1', type: 'discussion', title: 'Talked', note: 'n', rating: 4, transcript: 't', analysis: '<p>a</p>', createdAt: 1_700_000_300_000, duration: 61.5 },
+    { id: 'r2', type: 'assessment', title: 'Placement', placement: { subject: 'Mathematics', topicIds: ['count-to-5'], previous: {}, at: 1, undoneAt: null } },
+  ] },
   tests: { s_new: [{ id: 't1', scope: 'topic', subject: 'Mathematics', score: 9, total: 10, pct: 90, passed: true, createdAt: 1_700_000_400_000 }] },
   challenges: { s_new: [{ id: 'c1', topicId: 'count-to-5', correct: 5, total: 6, answered: 6, seconds: 88, createdAt: 1_700_000_500_000 }] },
   game: { s_new: { xp: 120, badges: { first: 1_700_000_600_000 } } },
-  notifications: [{ id: 'n1', type: 'welcome', title: 'Welcome', body: 'Hi', read: false, createdAt: 1_700_000_000_000 }],
+  notifications: [
+    { id: 'n1', type: 'welcome', title: 'Welcome', body: 'Hi', read: false, createdAt: 1_700_000_000_000 },
+    { id: 'n2', type: 'curriculum', title: 'New topics', meta: { sampleNames: ['Rhymes'], addedBySubject: { English: ['rhymes'] } } },
+  ],
+  suggestions: { s_new: [{ id: 'g1', kind: 'advance', subject: 'Mathematics', domain: 'Counting', status: 'pending' }] },
+  plan: { s_new: { moves: { 'count-to-5': '2026-09-02' }, done: { '2026-09-01': true }, extras: { '2026-09-03': [{ id: 'x1', title: 'Extra' }] } } },
+  daily: { s_new: { '2026-09-01': { offers: { literacy: ['rhymes'], numeracy: ['count-to-5'] }, picks: { literacy: 'rhymes' } } } },
+  adaptations: { s_new: { 'Mathematics|Counting': { level: 'advanced', since: 1 } } },
+  recall: { s_new: {} },
+  practice: { s_new: {} },
+  activity: { s_new: { '2026-09-01': true } },
+  dismissedAlerts: { welcome: 1_700_000_000_000 },
   interests: { s_new: { chips: ['Bridges', 'Frogs'], text: 'Asks how things work' } },
   settings: { parentPin: '2468', calendar: { homeDays: [1, 2, 3, 4], breaks: [{ start: '2026-12-21', end: '2027-01-01', label: 'Winter break' }] } },
 });
@@ -86,7 +100,6 @@ test('refuses two learners with the same id', () => {
 });
 
 const mapCases = [
-  ['an active learner who is not in the file', (d) => { d.activeStudentId = 's_gone'; }, 'The file\'s active learner is not one of its learners.'],
   ['a record type with markup', (d) => { d.records.s_new[0].type = '<img src=x onerror=alert(1)>'; }, 'A record in the file (records item 1) has a type other than observation, question, discussion, assessment, recording, note.'],
   ['a record rating of 6', (d) => { d.records.s_new[0].rating = 6; }, 'A record in the file (records item 1) has a rating outside 1 to 5.'],
   ['a record rating as text', (d) => { d.records.s_new[0].rating = '5'; }, 'A record in the file (records item 1) has a rating outside 1 to 5.'],
@@ -97,7 +110,39 @@ const mapCases = [
   ['a learner\'s records that are not a list', (d) => { d.records.s_new = { r1: {} }; }, 'The file\'s "records" section is not in the expected shape.'],
   ['a test score with markup', (d) => { d.tests.s_new[0].pct = '<img src=x onerror=alert(1)>'; }, 'A test result in the file (tests item 1) has a score outside 0 to 100%.'],
   ['a test score of 101', (d) => { d.tests.s_new[0].pct = 101; }, 'A test result in the file (tests item 1) has a score outside 0 to 100%.'],
-  ['a fractional test total', (d) => { d.tests.s_new[0].total = 2.5; }, 'A test result in the file (tests item 1) has a total that is not a whole number.'],
+  ['a negative test total', (d) => { d.tests.s_new[0].total = -1; }, 'A test result in the file (tests item 1) has a total that is not a number of zero or more.'],
+  ['a test score as text', (d) => { d.tests.s_new[0].score = '9'; }, 'A test result in the file (tests item 1) has a score that is not a number of zero or more.'],
+  ['a test date as text', (d) => { d.tests.s_new[0].createdAt = 'yesterday'; }, 'A test result in the file (tests item 1) has a date that is not a number.'],
+  ['a record that is null', (d) => { d.records.s_new = [null]; }, 'A record in the file (records item 1) is not a record.'],
+  ['a record that is a number', (d) => { d.records.s_new = [5]; }, 'A record in the file (records item 1) is not a record.'],
+  ['a test result that is null', (d) => { d.tests.s_new = [null]; }, 'A test result in the file (tests item 1) is not a test result.'],
+  ['a test result that is a number', (d) => { d.tests.s_new = [5]; }, 'A test result in the file (tests item 1) is not a test result.'],
+  ['a challenge result that is null', (d) => { d.challenges.s_new = [null]; }, 'A challenge result in the file (challenges item 1) is not a challenge result.'],
+  ['a challenge result that is a number', (d) => { d.challenges.s_new = [5]; }, 'A challenge result in the file (challenges item 1) is not a challenge result.'],
+  ['a learner\'s game that is null', (d) => { d.game.s_new = null; }, 'The file\'s "game" section is not in the expected shape.'],
+  ['a learner\'s game that is a number', (d) => { d.game.s_new = 5; }, 'The file\'s "game" section is not in the expected shape.'],
+  ['a placement without topic ids', (d) => { d.records.s_new[1].placement = { subject: 'Mathematics' }; }, 'A record in the file (records item 2) has a placement that is not in the expected shape.'],
+  ['a placement that is text', (d) => { d.records.s_new[1].placement = 'yes'; }, 'A record in the file (records item 2) has a placement that is not in the expected shape.'],
+  ['suggestions that are a number', (d) => { d.suggestions.s_new = 5; }, 'The file\'s "suggestions" section is not in the expected shape.'],
+  ['suggestions that are text', (d) => { d.suggestions.s_new = 'x'; }, 'The file\'s "suggestions" section is not in the expected shape.'],
+  ['suggestions that are an object', (d) => { d.suggestions.s_new = {}; }, 'The file\'s "suggestions" section is not in the expected shape.'],
+  ['a suggestion that is not an object', (d) => { d.suggestions.s_new = [5]; }, 'The file\'s "suggestions" section is not in the expected shape.'],
+  ['a plan that is a number', (d) => { d.plan.s_new = 5; }, 'The file\'s "plan" section is not in the expected shape.'],
+  ['a plan that is text', (d) => { d.plan.s_new = 'x'; }, 'The file\'s "plan" section is not in the expected shape.'],
+  ['plan moves that are a number', (d) => { d.plan.s_new.moves = 5; }, 'The file\'s "plan" section is not in the expected shape.'],
+  ['plan extras for a day that are not a list', (d) => { d.plan.s_new.extras['2026-09-03'] = { id: 'x1' }; }, 'The file\'s "plan" section is not in the expected shape.'],
+  ['daily choices that are a number', (d) => { d.daily.s_new = 5; }, 'The file\'s "daily" section is not in the expected shape.'],
+  ['a day\'s choices that are text', (d) => { d.daily.s_new['2026-09-01'] = 'x'; }, 'The file\'s "daily" section is not in the expected shape.'],
+  ['daily offers for a lane that are not a list', (d) => { d.daily.s_new['2026-09-01'].offers.literacy = 'rhymes'; }, 'The file\'s "daily" section is not in the expected shape.'],
+  ['adaptations that are a list', (d) => { d.adaptations.s_new = []; }, 'The file\'s "adaptations" section is not in the expected shape.'],
+  ['recall that is a number', (d) => { d.recall.s_new = 5; }, 'The file\'s "recall" section is not in the expected shape.'],
+  ['practice that is text', (d) => { d.practice.s_new = 'x'; }, 'The file\'s "practice" section is not in the expected shape.'],
+  ['activity that is a list', (d) => { d.activity.s_new = ['2026-09-01']; }, 'The file\'s "activity" section is not in the expected shape.'],
+  ['notification details that are text', (d) => { d.notifications[1].meta = 'x'; }, 'Notification 2 in the file has details that are not in the expected shape.'],
+  ['notification sample names that are not a list', (d) => { d.notifications[1].meta.sampleNames = 'Rhymes'; }, 'Notification 2 in the file has sample names that are not a list of text.'],
+  ['notification sample names that are not text', (d) => { d.notifications[1].meta.sampleNames = [{}]; }, 'Notification 2 in the file has sample names that are not a list of text.'],
+  ['notification added topics that are not lists', (d) => { d.notifications[1].meta.addedBySubject = { English: 'rhymes' }; }, 'Notification 2 in the file has added topics that are not lists.'],
+  ['dismissed alerts with a text date', (d) => { d.dismissedAlerts = { welcome: 'yesterday' }; }, 'The file\'s dismissed alerts are not in the expected shape.'],
   ['a test pass mark as text', (d) => { d.tests.s_new[0].passed = 'yes'; }, 'A test result in the file (tests item 1) has a pass mark that is not true or false.'],
   ['a challenge count as text', (d) => { d.challenges.s_new[0].correct = '<b>5</b>'; }, 'A challenge result in the file (challenges item 1) has a correct count that is not a whole number.'],
   ['a negative challenge time', (d) => { d.challenges.s_new[0].seconds = -1; }, 'A challenge result in the file (challenges item 1) has a time that is not a number.'],
@@ -130,3 +175,15 @@ for (const [label, mutate, error] of mapCases) {
     assert.deepEqual(store.inspectImport(doc), { ok: false, error, learners: [] });
   });
 }
+
+test('a fractional test score and total pass (AI questions can carry fractional points)', () => {
+  const doc = current();
+  Object.assign(doc.tests.s_new[0], { score: 2.5, total: 3.5 });
+  assert.equal(store.inspectImport(doc).ok, true);
+});
+
+test('an active learner who is not in the file becomes the first learner', () => {
+  const doc = current();
+  doc.activeStudentId = 's_gone';
+  assert.equal(store.inspectImport(doc).ok, true);
+});

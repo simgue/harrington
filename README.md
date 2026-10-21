@@ -266,11 +266,15 @@ of the learner selector) downloads
 and `taxonomyVersion`. **Import** checks a file, previews its learners and
 record counts, and after you confirm replaces the family data on this server.
 The check (`src/js/document.js`) covers learner fields (id, name, birth year
-and month, start date, a hex color), the active learner, progress statuses,
-records (type, rating, bounded text, numeric dates), test and challenge
-results (scores and counts as numbers), XP and badges, interests, calendar
-settings, the child-view PIN hash and salt and notifications, and says what
-it refused. Other fields are not checked. A learner color outside the palette
+and month, start date, a hex color), progress statuses, records (type,
+rating, bounded text, numeric dates, a placement's topic list), test and
+challenge results (scores and counts as numbers), XP and badges, the shape of
+each learner's suggestions, plan (moves, done days, extras lists), daily
+choices (offers lists), adaptations, recall, practice and activity,
+interests, calendar settings, the child-view PIN hash and salt, dismissed
+alerts and notifications (including their details), and says what it
+refused. Other fields are not checked. An active learner that is not in the
+file becomes its first learner. A learner color outside the palette
 is moved to the nearest palette color, and the preview says how many were.
 The server applies the same check to every save and answers 422 with the
 reason. The JSON file does not contain recordings, so keep a

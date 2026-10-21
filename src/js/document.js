@@ -76,14 +76,17 @@ function recordProblem(r) {
   }
   if (!absent(r.createdAt) && !isFiniteNumber(r.createdAt)) return 'has a date that is not a number';
   if (!absent(r.duration) && !(isFiniteNumber(r.duration) && r.duration >= 0)) return 'has a duration that is not a number';
+  if (!absent(r.placement) && !(isObject(r.placement) && Array.isArray(r.placement.topicIds))) return 'has a placement that is not in the expected shape';
   return null;
 }
 
 function testProblem(t) {
   if (!isObject(t)) return 'is not a test result';
   if (!absent(t.pct) && !(isFiniteNumber(t.pct) && t.pct >= 0 && t.pct <= 100)) return 'has a score outside 0 to 100%';
+  // AI-written questions can carry fractional points, so a score is any
+  // number of zero or more (no view shows it; pct is what is rendered).
   for (const field of ['score', 'total']) {
-    if (!absent(t[field]) && !isCount(t[field])) return `has a ${field} that is not a whole number`;
+    if (!absent(t[field]) && !(isFiniteNumber(t[field]) && t[field] >= 0)) return `has a ${field} that is not a number of zero or more`;
   }
   if (!absent(t.passed) && typeof t.passed !== 'boolean') return 'has a pass mark that is not true or false';
   if (!absent(t.createdAt) && !isFiniteNumber(t.createdAt)) return 'has a date that is not a number';
@@ -105,7 +108,48 @@ function notificationProblem(n) {
     if (textProblem(n[field], 2_000)) return `has a ${field} that is not text`;
   }
   if (!absent(n.read) && typeof n.read !== 'boolean') return 'has a read mark that is not true or false';
+  const meta = n.meta;
+  if (!absent(meta)) {
+    if (!isObject(meta)) return 'has details that are not in the expected shape';
+    if (!absent(meta.sampleNames) && !(Array.isArray(meta.sampleNames) && meta.sampleNames.every(x => typeof x === 'string'))) {
+      return 'has sample names that are not a list of text';
+    }
+    if (!absent(meta.addedBySubject) && !(isObject(meta.addedBySubject) && Object.values(meta.addedBySubject).every(Array.isArray))) {
+      return 'has added topics that are not lists';
+    }
+  }
   return null;
+}
+
+// Per-learner maps the views read without checking: each learner's value
+// must have the shape the store's helpers assume (suggestions a list, the
+// others objects), plus the nested lists the dashboard and calendar walk.
+const LEARNER_OBJECTS = ['plan', 'daily', 'adaptations', 'recall', 'practice', 'activity'];
+function learnerMapsProblem(doc) {
+  const shape = (key) => `The file's "${key}" section is not in the expected shape.`;
+  for (const value of Object.values(doc.suggestions || {})) {
+    if (!(Array.isArray(value) && value.every(isObject))) return shape('suggestions');
+  }
+  for (const key of LEARNER_OBJECTS) {
+    for (const value of Object.values(doc[key] || {})) if (!isObject(value)) return shape(key);
+  }
+  for (const plan of Object.values(doc.plan || {})) {
+    for (const part of ['moves', 'done', 'extras']) if (!absent(plan[part]) && !isObject(plan[part])) return shape('plan');
+    if (!Object.values(plan.extras || {}).every(Array.isArray)) return shape('plan');
+  }
+  for (const days of Object.values(doc.daily || {})) {
+    for (const day of Object.values(days)) {
+      if (!isObject(day)) return shape('daily');
+      if (!absent(day.offers) && !(isObject(day.offers) && Object.values(day.offers).every(Array.isArray))) return shape('daily');
+    }
+  }
+  return null;
+}
+
+function dismissedAlertsProblem(dismissed) {
+  if (absent(dismissed)) return null;
+  const ok = isObject(dismissed) && Object.values(dismissed).every(at => isFiniteNumber(at) && at >= 0);
+  return ok ? null : 'The file\'s dismissed alerts are not in the expected shape.';
 }
 
 // Each learner's list in `section` must be an array whose items pass `check`.
@@ -206,7 +250,9 @@ export function validateDocument(doc) {
     const problem = notificationProblem(n);
     if (problem) return `Notification ${i + 1} in the file ${problem}.`;
   }
-  return progressProblem(doc.progress)
+  return learnerMapsProblem(doc)
+    || dismissedAlertsProblem(doc.dismissedAlerts)
+    || progressProblem(doc.progress)
     || listsProblem(doc, 'records', 'record', recordProblem)
     || listsProblem(doc, 'tests', 'test result', testProblem)
     || listsProblem(doc, 'challenges', 'challenge result', challengeProblem)
