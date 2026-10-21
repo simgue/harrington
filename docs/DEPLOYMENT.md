@@ -303,13 +303,15 @@ To restore it: `docker compose down`, then
 `docker run --rm -v harrington_harrington-data:/data -v /home/parent/harrington/backups:/backups alpine sh -c 'rm -rf /data/* && tar -xzf /backups/FILE.tar.gz -C /'`,
 then `docker compose up -d`.
 
-For now only `scripts/backup.mjs` reads `HARRINGTON_BACKUP_DIR`. The Docker
-image does not include `scripts/` and `compose.yaml` mounts no backup folder,
-so with Docker the volume backup above is the whole story. Once the backup
-reminder from PR #36 lands, the server will read the newest archive's age from
-`HARRINGTON_BACKUP_DIR`; a Docker family will then mount the host folder its
-backups go to (for example `/home/parent/harrington/backups:/backups`) and set
-`HARRINGTON_BACKUP_DIR=/backups`.
+The server reads the same folder: the notification bell warns when the newest
+archive in `HARRINGTON_BACKUP_DIR` (default `backups/`) is more than a week
+old, or when there is none. Run the server with the same value the backup
+uses. The Docker image does not include `scripts/` and `compose.yaml` mounts
+no backup folder, so with Docker the volume backup above is the backup; to
+let the bell see those archives, mount the host folder they go to (for
+example `/home/parent/harrington/backups:/backups`) and set
+`HARRINGTON_BACKUP_DIR=/backups`. Otherwise dismiss "No backup recorded" and
+it stays quiet for 30 days.
 
 On Windows, use Task Scheduler to run `node scripts\backup.mjs` daily, with
 the full path to `node.exe`, the Harrington folder as the start directory,
