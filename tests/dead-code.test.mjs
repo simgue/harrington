@@ -34,6 +34,13 @@ test(`no module uses another module's export without importing it`, async () => 
   assert.match(stdout, /^Unreachable modules from src\/js\/app\.js \(0\)$/m, stdout);
   assert.match(stdout, /^Namespace member uses with no namespace import \(0\)$/m, stdout);
   assert.match(stdout, /^Namespace members the target module does not export \(0\)$/m, stdout);
+  assert.match(stdout, /^Imports never referenced \(0\)$/m, stdout);
+});
+
+test('--root with no directory prints usage', async () => {
+  const result = await promisify(execFile)(process.execPath, [script, '--root']).catch((err) => err);
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /^Usage: node scripts\/dead-code\.mjs \[--root <dir>\]/);
 });
 
 // ---- Fixtures: a tiny src/js tree in a scratch directory per case ----
@@ -130,4 +137,24 @@ test('fixture: a member the target does not export is reported', async () => {
   assert.equal(code, 1);
   assert.deepEqual(section(stdout, 'Namespace members the target module does not export'),
     ['src/js/views/a.js: store.renamedAway (src/js/store.js exports no renamedAway)']);
+});
+
+test('fixture: destructuring a namespace call or property is not a member read of the namespace', async () => {
+  const { stdout } = await fixture({
+    // From PR #33's levelset.js: the names come from what get() returns.
+    a: `import * as store from '../store.js';\nexport const x = () => { const { session, ids } = store.get(); return [session, ids]; };`,
+    b: `import * as store from '../store.js';\nexport const y = () => { const { alpha } = store?.get; return alpha; };`,
+  });
+  assertClean(stdout);
+});
+
+test('fixture: destructuring the namespace itself still reads its members', async () => {
+  const { stdout, code } = await fixture({
+    a: `import * as store from '../store.js';\nexport const x = () => { const { get } = store; return get(); };`,
+    b: `import * as store from '../store.js';\nexport const y = () => { const { gone } = store; return gone; };`,
+  });
+  assert.equal(code, 1);
+  assert.deepEqual(section(stdout, 'Namespace members the target module does not export'),
+    ['src/js/views/b.js: store.gone (src/js/store.js exports no gone)']);
+  assert.deepEqual(section(stdout, 'Imports never referenced'), []);
 });

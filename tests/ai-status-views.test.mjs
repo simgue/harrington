@@ -8,12 +8,27 @@
 // click opens a modal, each clickable in that modal too), and the click must
 // not reach /api/ai or end in the "none is set up" error, which is what a
 // live AI control shows without a provider.
+//
+// Two things keep the sweep honest. Views that keep state at module level
+// (the calendar's selected day, insights' selected subject, the records
+// filter) are reset before
+// every fresh render, and each click checks that the i-th clickable still has
+// the label it had when the controls were counted: if a render drifts, the
+// test fails instead of clicking something else, or nothing.
+//
+// Only click activations are swept. No submit, change or keydown handler
+// starts AI work today; a view that adds one needs a case of its own.
+//
+// Gates covered: every gateAi/aiUnavailableChip call in the views below,
+// including the calendar's scheduled-topic row, extras and refresher cards,
+// the topic page's section check ('topic (section ready)') and insights'
+// final subject test (a passed Mathematics test unlocks "Retake test").
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { after, before, test } from 'node:test';
 import { installFakeDom } from './support/fake-dom.mjs';
 
-const document = installFakeDom();
+const { document } = installFakeDom();
 
 // The clock is pinned to a Wednesday (as in the E2E suite), so the calendar
 // plans a home day whatever day the test runs.
@@ -45,14 +60,21 @@ const STATE = {
   progress: { [STUDENT.id]: {
     [MASTERED.id]: { status: 'mastered', updatedAt: NOW - 86_400_000 },
     [LEARNING.id]: { status: 'learning', updatedAt: NOW - 3_600_000 },
+    // The only topic of its section, so the section check is ready.
+    t_sounds: { status: 'mastered', updatedAt: NOW - 86_400_000 },
   } },
+  // A passed final test: insights offers "Retake test" for Mathematics.
+  tests: { [STUDENT.id]: [
+    { id: 't_final', scope: 'subject', subject: 'Mathematics', pct: 95, passed: true, createdAt: NOW - 172_800_000 },
+  ] },
   records: { [STUDENT.id]: [
     { id: 'r1', type: 'discussion', title: 'Talked about sharing', note: 'Split grapes.', topicId: MASTERED.id, createdAt: NOW - 7_200_000 },
     { id: 'r2', type: 'recording', title: 'Bedtime counting', transcript: 'one two three', topicId: MASTERED.id, createdAt: NOW - 3_600_000 },
     { id: 'r3', type: 'observation', title: 'Counted the stairs', note: 'Got to 12.', rating: 4, topicId: LEARNING.id, createdAt: NOW - 1_800_000 },
   ] },
   // Today's extras on the calendar: one of every kind.
-  plan: { [STUDENT.id]: { moves: {}, done: {}, extras: { [TODAY]: [
+  // A topic scheduled on the pinned day renders the calendar's topic row.
+  plan: { [STUDENT.id]: { moves: { t_rote: TODAY }, done: {}, extras: { [TODAY]: [
     { id: 'x_lesson', kind: 'lesson', topicId: LEARNING.id, title: LEARNING.name, subject: 'Mathematics' },
     { id: 'x_retest', kind: 'retest', topicId: MASTERED.id, title: MASTERED.name, subject: 'Mathematics' },
     { id: 'x_challenge', kind: 'challenge', topicId: MASTERED.id, title: MASTERED.name, subject: 'Mathematics' },
@@ -137,6 +159,19 @@ after(() => {
   console.warn = realConsoleWarn;
 });
 
+// The child view picks its challenge topic with Math.random; every render
+// starts from the same seed so the same controls come back.
+const realRandom = Math.random;
+function seedRandom(seed = 7) {
+  Math.random = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+after(() => { Math.random = realRandom; });
+
 async function mount(view) {
   app.replaceChildren();
   modalRoot.replaceChildren();
@@ -144,6 +179,10 @@ async function mount(view) {
   for (const node of document.body.children) if (!['app', 'modal-root', 'toast-root'].includes(node.id)) node.remove();
   if (store.isChildViewOpen()) store.setChildViewOpen?.(false);
   await store.loadAll();
+  seedRandom();
+  await view.reset?.();
+  app.replaceChildren();
+  modalRoot.replaceChildren();
   const node = await view.render();
   if (node && !node.isConnected) app.appendChild(node);
   await settle();
@@ -161,15 +200,19 @@ function clickables(root) {
 const label = (node) => `<${node.localName}${node.id ? `#${node.id}` : ''}> "${node.textContent.replace(/\s+/g, ' ').trim().slice(0, 60)}"`;
 
 // Click the i-th clickable (then the j-th in the modal it opened), on a fresh
-// render, and say what AI work it started.
-async function clickPath(view, path) {
+// render, and say what AI work it started. `expected` holds the label each
+// step had when the controls were counted; any other element there is drift.
+async function clickPath(view, path, expected) {
   let root = await mount(view);
   const before = aiCalls.length;
   const steps = [];
-  for (const index of path) {
+  for (const [step, index] of path.entries()) {
     const target = clickables(root)[index];
-    if (!target) return { steps, aiStarted: false, opened: null };
-    steps.push(label(target));
+    const want = expected[step];
+    if (!target || label(target) !== want) {
+      throw new Error(`render drifted: clickable ${index} should be ${want}, found ${target ? label(target) : 'nothing'} (after ${steps.join(' > ') || 'a fresh render'})`);
+    }
+    steps.push(want);
     const modalsBefore = modalRoot.children.length;
     try { target.click(); } catch (err) { stray.push(err); }
     await settle();
@@ -182,15 +225,14 @@ async function clickPath(view, path) {
 
 async function liveAiControls(view) {
   const live = [];
-  const root = await mount(view);
-  const count = clickables(root).length;
-  for (let i = 0; i < count; i += 1) {
-    const first = await clickPath(view, [i]);
+  const labels = clickables(await mount(view)).map(label);
+  for (let i = 0; i < labels.length; i += 1) {
+    const first = await clickPath(view, [i], [labels[i]]);
     if (first.aiStarted) { live.push(first.steps.join(' > ')); continue; }
     if (!first.opened) continue;
-    const inner = clickables(first.opened).length;
-    for (let j = 0; j < inner; j += 1) {
-      const second = await clickPath(view, [i, j]);
+    const inner = clickables(first.opened).map(label);
+    for (let j = 0; j < inner.length; j += 1) {
+      const second = await clickPath(view, [i, j], [labels[i], inner[j]]);
       if (second.aiStarted) live.push(second.steps.join(' > '));
     }
   }
@@ -198,6 +240,15 @@ async function liveAiControls(view) {
 }
 
 const routeView = (render, params = {}) => ({ scope: 'app', render: () => render(params, { navigate }) });
+// Render once and click `pick` to put a view's module-level state back
+// (navigate is a no-op here, so the click only changes that state).
+const resetBy = (render, pick) => async () => {
+  const node = render({}, { navigate });
+  app.appendChild(node);
+  const target = clickables(node).find(pick);
+  assert.ok(target, 'reset control not found');
+  target.click();
+};
 const modalView = (open) => ({ scope: 'modal', render: async () => { await open(); } });
 
 // Cached content for the modal views, so they open on real content and the
@@ -208,13 +259,14 @@ LESSONS.set(`recall:${MASTERED.id}`, { cards: [{ front: 'What comes after two?',
 
 // Keyed by test name; `file` is the view module under test.
 const VIEWS = {
-  calendar: { file: 'calendar', ...routeView(renderCalendar) },
+  calendar: { file: 'calendar', ...routeView(renderCalendar), reset: resetBy(renderCalendar, (node) => node.id === 'today') },
   // LEARNING has no cached lesson, so the quest log's lesson button stays a chip.
   'graph (skill tree and quest log)': { file: 'graph', ...routeView(renderGraph, { subject: 'Mathematics', domain: 'Counting & Cardinality', skill: LEARNING.id }) },
   'topic (mastered)': { file: 'topic', ...routeView(renderTopic, { id: MASTERED.id }) },
   'topic (learning)': { file: 'topic', ...routeView(renderTopic, { id: LEARNING.id }) },
-  insights: { file: 'insights', ...routeView(renderInsights) },
-  records: { file: 'records', ...routeView(renderRecords) },
+  'topic (section ready)': { file: 'topic', ...routeView(renderTopic, { id: 't_sounds' }) },
+  insights: { file: 'insights', ...routeView(renderInsights), reset: resetBy(renderInsights, (node) => node.localName === 'button' && node.textContent.trim() === 'Mathematics') },
+  records: { file: 'records', ...routeView(renderRecords), reset: resetBy(renderRecords, (node) => /^All \(/.test(node.textContent.trim())) },
   'recall section card': { file: 'recall', scope: 'app', render: () => recallSectionCard(LEARNING, STUDENT) },
   'recordings library': { file: 'recordings', ...modalView(() => openRecordingsLibrary()) },
   'lesson (cached)': { file: 'lesson', ...modalView(() => openLesson(MASTERED)) },
@@ -252,18 +304,32 @@ const KNOWN_FAILURES = {
   'mastery test': 'masterytest.js: opened without a provider, "Create the test" is live and there is no chip (fails on click with the "none is set up" error)',
 };
 
+async function problemsOf(view) {
+  const root = await mount(view);
+  const problems = [];
+  if (view.chip !== false && !chips(root).length) problems.push('no "Needs a local AI provider" chip');
+  if (UNCONFIGURED.test(document.body.textContent)) problems.push('renders the "none is set up" error on its own');
+  for (const path of await liveAiControls(view)) problems.push(`starts AI work: ${path}`);
+  return problems;
+}
+
 for (const [name, view] of Object.entries(VIEWS)) {
   const known = KNOWN_FAILURES[name];
   test(`no AI provider: ${name} ${view.chip === false ? 'has' : 'shows the chip and'} no live AI control`, { todo: known }, async () => {
     stray.length = 0;
-    const root = await mount(view);
-    const problems = [];
-    if (view.chip !== false && !chips(root).length) problems.push('no "Needs a local AI provider" chip');
-    if (UNCONFIGURED.test(document.body.textContent)) problems.push('renders the "none is set up" error on its own');
-    for (const path of await liveAiControls(view)) problems.push(`starts AI work: ${path}`);
+    const problems = await problemsOf(view);
     assert.deepEqual(problems, [], `${name}:\n  ${problems.join('\n  ')}${stray.length ? `\n(also seen: ${stray.slice(0, 3).map(String).join('; ')})` : ''}`);
   });
 }
+
+// A todo that starts passing does not fail the run, so a fixed view would
+// keep its entry forever. This does fail: remove the entry once it is fixed.
+test('every known failure still fails', async () => {
+  for (const name of Object.keys(KNOWN_FAILURES)) {
+    assert.ok(VIEWS[name], `KNOWN_FAILURES names no case: ${name}`);
+    assert.notDeepEqual(await problemsOf(VIEWS[name]), [], `${name} gates now: remove it from KNOWN_FAILURES`);
+  }
+});
 
 // The sweep is only worth something if it can fail: with a provider, the same
 // views have live AI controls and it finds them.

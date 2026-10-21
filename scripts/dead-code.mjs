@@ -18,6 +18,10 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootArg = process.argv.indexOf('--root');
+if (rootArg !== -1 && !process.argv[rootArg + 1]) {
+  console.error('Usage: node scripts/dead-code.mjs [--root <dir>]');
+  process.exit(2);
+}
 const root = rootArg === -1
   ? resolve(dirname(fileURLToPath(import.meta.url)), '..')
   : resolve(process.argv[rootArg + 1]);
@@ -125,7 +129,7 @@ for (const [file, code] of sources) {
       if (imported === '*') {
         if (!local) { note(target, '*', file); continue; }
         const accesses = [...body.matchAll(new RegExp(`${ref(local).source}\\??\\.(\\w+)`, 'g'))].map((m) => m[1]);
-        for (const m of body.matchAll(new RegExp(`\\{([\\w$\\s,:]*)\\}\\s*=\\s*${local}\\b`, 'g'))) {
+        for (const m of body.matchAll(new RegExp(`\\{([\\w$\\s,:]*)\\}\\s*=\\s*${local}\\b(?!\\s*\\??\\.)`, 'g'))) {
           accesses.push(...m[1].split(',').map((s) => s.split(':')[0].trim()).filter(Boolean));
         }
         for (const name of accesses) note(target, name, file);
@@ -148,7 +152,7 @@ for (const [file, code] of sources) {
 // Members read off a namespace: `ns.a`, `ns?.a`, and `const { a, b: c } = ns`.
 function namespaceMembers(code, local) {
   const members = [...code.matchAll(new RegExp(`${ref(local).source}\\s*\\??\\.\\s*([\\w$]+)`, 'g'))].map((m) => m[1]);
-  for (const m of code.matchAll(new RegExp(`\\{([\\w$\\s,:]*)\\}\\s*=\\s*${local}\\b`, 'g'))) {
+  for (const m of code.matchAll(new RegExp(`\\{([\\w$\\s,:]*)\\}\\s*=\\s*${local}\\b(?!\\s*\\??\\.)`, 'g'))) {
     members.push(...m[1].split(',').map((s) => s.split(':')[0].trim()).filter(Boolean));
   }
   return members;

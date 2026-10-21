@@ -3,7 +3,8 @@
 // [attr="v"], compound, descendant, comma lists), events, and inert layout
 // (every size and scroll offset is 0). Enough for the views to build their
 // nodes; not a browser. installFakeDom() puts document, window and friends on
-// globalThis and returns the document.
+// globalThis and returns { document, window } (the same shape as PR #43's
+// helper, which this file will merge with).
 
 const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
 const RAW_TEXT = new Set(['script', 'style', 'textarea', 'title']);
@@ -472,5 +473,5 @@ export function installFakeDom() {
   for (const [key, value] of Object.entries(globals)) {
     Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
   }
-  return document;
+  return { document, window };
 }

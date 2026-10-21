@@ -6,6 +6,7 @@
 //
 // Runs in two projects: `desktop` (AI pointed at the mock) and `no-ai` (no
 // provider, where the views take their gated branches).
+import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.mjs';
 import { TOPICS } from './support/family.mjs';
 
@@ -30,6 +31,16 @@ const ROUTES = [
   ['records', 'records', 'Records'],
   ['insights', 'insights', 'Teacher Insights'],
 ];
+
+// Every route app.js registers has a case here (onboard has its own test).
+test('every registered route has a case', () => {
+  const app = readFileSync(new URL('../../src/js/app.js', import.meta.url), 'utf8');
+  const table = app.match(/const views = \{([^}]*)\}/);
+  expect(table, 'route table in src/js/app.js').toBeTruthy();
+  const registered = [...table[1].matchAll(/^\s*(\w+):/gm)].map((m) => m[1]);
+  const covered = new Set([...ROUTES.map(([, hash]) => hash.split(/[/?]/)[0] || 'dashboard'), 'onboard']);
+  expect(registered.filter((name) => !covered.has(name))).toEqual([]);
+});
 
 // The view's own content: the shell has no <main>, so it is the element after
 // the "Self-hosted preview" banner (finding F20).
@@ -62,6 +73,17 @@ function pageErrors(page) {
   return errors;
 }
 
+// A view that throws while rendering usually fails the region assertion
+// first; say what the page logged so the cause is in the report.
+async function withErrors(errors, check) {
+  try {
+    await check();
+  } catch (err) {
+    if (errors.length) err.message += `\n\nPage errors:\n  ${errors.join('\n  ')}`;
+    throw err;
+  }
+}
+
 for (const [name, hash, heading, seed = {}, text = null] of ROUTES) {
   test(`route renders without errors: ${name}`, async ({ page, gotoApp }) => {
     const errors = pageErrors(page);
@@ -76,8 +98,10 @@ for (const [name, hash, heading, seed = {}, text = null] of ROUTES) {
       },
       hash,
     });
-    await expect(page.getByRole('navigation', { name: 'Main' }).first()).toBeAttached();
-    await expectRendered(page, viewContent(page), heading, text);
+    await withErrors(errors, async () => {
+      await expect(page.getByRole('navigation', { name: 'Main' }).first()).toBeAttached();
+      await expectRendered(page, viewContent(page), heading, text);
+    });
     expect(errors).toEqual([]);
   });
 }
@@ -85,6 +109,6 @@ for (const [name, hash, heading, seed = {}, text = null] of ROUTES) {
 test('route renders without errors: onboard (no learners yet)', async ({ page, gotoApp }) => {
   const errors = pageErrors(page);
   await gotoApp({ seed: null, hash: 'onboard' });
-  await expectRendered(page, page.locator('#app'), 'Add your first student');
+  await withErrors(errors, () => expectRendered(page, page.locator('#app'), 'Add your first student'));
   expect(errors).toEqual([]);
 });
