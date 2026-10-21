@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +11,8 @@ const lessonsDir = join(dataDir, 'lessons');
 const audioDir = join(dataDir, 'audio');
 const taxonomyDir = join(dataDir, 'taxonomy');
 const stateFile = join(dataDir, 'family-state.json');
+// Where `npm run backup` (scripts/backup.mjs) writes its archives.
+const backupDir = resolve(process.env.HARRINGTON_BACKUP_DIR || join(repoRoot, 'backups'));
 const host = process.env.HARRINGTON_HOST || '127.0.0.1';
 const configuredPort = Number.parseInt(process.env.HARRINGTON_PORT || process.env.PORT || '4173', 10);
 const port = Number.isInteger(configuredPort) && configuredPort >= 0 ? configuredPort : 4173;
@@ -207,6 +209,36 @@ async function stateHealth() {
   }
 }
 
+// Whole days since the newest backup archive was written, or null when there
+// is none. A folder that cannot be read (missing, permission denied, a symlink
+// loop) also reads as null: the health check must never fail over a backup
+// folder. Unexpected errors are logged once, by code only (no path).
+let backupReadWarned = false;
+async function backupAgeDays() {
+  let names;
+  try {
+    names = await readdir(backupDir);
+  } catch (error) {
+    if (error.code !== 'ENOENT' && !backupReadWarned) {
+      backupReadWarned = true;
+      console.warn(`Cannot read the backup folder (${error.code || 'unknown error'}); reporting no backup.`);
+    }
+    return null;
+  }
+  let newest = 0;
+  for (const name of names) {
+    if (!/^harrington-.+\.tar\.gz$/.test(name)) continue;
+    try {
+      const details = await stat(join(backupDir, name));
+      if (details.isFile()) newest = Math.max(newest, details.mtimeMs);
+    } catch {
+      // Removed while we were looking; skip it.
+    }
+  }
+  if (!newest) return null;
+  return Math.max(0, Math.floor((Date.now() - newest) / (24 * 60 * 60 * 1000)));
+}
+
 function keyPath(directory, key, extension) {
   const encoded = Buffer.from(key, 'utf8').toString('base64url');
   if (!encoded || encoded.length > 500) {
@@ -354,6 +386,7 @@ async function handleApi(req, res, url) {
       aiConfigured: aiSettings().configured,
       taxonomyCached: await taxonomyCached(),
       ...(await stateHealth()),
+      backupAgeDays: await backupAgeDays(),
     });
     return true;
   }
