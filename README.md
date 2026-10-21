@@ -272,6 +272,11 @@ after a restore, enter the key again under Settings > AI provider.
 To restore, stop Harrington, replace `data/private/` with the archive's
 contents (`tar -xzf backups/harrington-<timestamp>.tar.gz -C data`), and start
 it again. With Docker, back up the `harrington-data` volume instead.
+Set `HARRINGTON_BACKUP_DIR` to write somewhere else; the server reads the same
+variable, and the notification bell reminds you when the newest archive there
+is more than 7 days old. With no archive at all it shows "No backup recorded"
+once, with a link to this section; under Docker, where backups are of the
+volume, dismiss it and it stays quiet for 30 days.
 
 In the app, **Export** in the sidebar's family box (on a phone, at the bottom
 of the learner selector) downloads
@@ -308,7 +313,7 @@ the open-source **Marble Skill Taxonomy** once, caches it under
 - https://github.com/withmarbleapp/os-taxonomy
 
 The first launch needs the network for that download. Later launches use the
-on-disk cache. The app notifies you when topics are added or removed upstream.
+on-disk cache; it does not update on its own.
 
 ## Licensing
 

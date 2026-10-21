@@ -11,6 +11,11 @@ const AI_HELP_HREF = 'https://github.com/simgue/harrington/blob/main/README.md#o
 const section = (page, title) => page.locator('div.rounded-2xl', { has: page.getByRole('heading', { level: 2, name: title, exact: true }) });
 const offChips = (scope) => scope.getByRole('link', { name: 'Not switched on yet' });
 
+// The settings test below may save over the environment; leave the app as it started.
+test.afterEach(async ({ request }) => {
+  await request.delete('/api/settings/ai');
+});
+
 test('health lists only lessons; /api/ai refuses every other capability with 403', async ({ request }) => {
   const health = await (await request.get('/api/health')).json();
   expect(health).toMatchObject({ aiConfigured: true, aiCapabilities: ['lesson'] });
@@ -69,4 +74,38 @@ test('printables cached earlier still open with printables switched off', async 
   await page.getByRole('button', { name: 'Print & go', exact: true }).click();
   await expect(modal(page).getByText('Cached counting sheet')).toBeVisible();
   expect(await mockAi.kinds()).toEqual([]);
+});
+
+test('settings on an environment-configured server: saving one box keeps the environment values', async ({ page, gotoApp, request }) => {
+  const sources = async () => (await (await request.get('/api/settings/ai')).json()).source;
+  const envSources = { baseUrl: 'env', model: 'env', apiKey: 'none', timeoutMs: 'env', capabilities: 'env' };
+  expect(await sources()).toEqual(envSources);
+
+  await gotoApp({ seed: {}, hash: 'settings' });
+  await expect(page.getByText('Configured from the server environment')).toBeVisible();
+
+  // Saving with nothing changed writes nothing.
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('No changes to save')).toBeVisible();
+  expect(await sources()).toEqual(envSources);
+
+  // One capability box: only the capabilities are saved in the app.
+  await page.getByLabel('Recall cards').check();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('AI settings saved')).toBeVisible();
+  expect(await sources()).toEqual({ ...envSources, capabilities: 'app' });
+  const saved = await (await request.get('/api/settings/ai')).json();
+  expect(saved.capabilities).toEqual(['lesson', 'recall']);
+
+  // Only the base URL: it saves, with the model shown (from the environment) kept beside it.
+  const envModel = saved.model;
+  await page.getByLabel('Base URL').fill(saved.baseUrl.replace('127.0.0.1', 'localhost'));
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  // The first save's toast may still be up, so wait on the server instead.
+  await expect.poll(async () => (await sources()).baseUrl).toBe('app');
+  await expect(page.getByText('Choose a model for this base URL')).toHaveCount(0);
+  const after = await (await request.get('/api/settings/ai')).json();
+  expect(after.source).toEqual({ ...envSources, baseUrl: 'app', model: 'app', capabilities: 'app' });
+  expect(after.model).toBe(envModel);
+  expect(after.baseUrl).toBe(saved.baseUrl.replace('127.0.0.1', 'localhost'));
 });

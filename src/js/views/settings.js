@@ -114,7 +114,7 @@ function settingsForm(s) {
       </label>
       <p class="text-xs text-ink-faint mt-1">How long to wait for one answer. Local models can take a few minutes for a lesson.</p>
     </details>
-    <div class="flex flex-wrap items-center gap-2">
+    <div id="actions" class="flex flex-wrap items-center gap-2">
       <button type="submit" class="px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors">Save</button>
       <button type="button" id="test" class="${secondary}">Test connection</button>
       ${stored ? `<button type="button" id="remove-all" class="${secondary}">Remove saved settings</button>` : ''}
@@ -206,8 +206,13 @@ function settingsForm(s) {
       if (!changed[name] && s.source[name] !== 'app') continue;
       patch[name] = name === 'capabilities' ? now[name] : (now[name] || null);
     }
+    // A saved base URL needs a saved model: keep the one shown, even when it
+    // came from the environment.
+    if (patch.baseUrl && !patch.model && now.model) patch.model = now.model;
     const key = input('apiKey').value.trim();
     if (key) patch.apiKey = key;
+    // Nothing changed: write nothing, so no empty settings file appears.
+    if (!Object.keys(patch).length) { toast('No changes to save'); return; }
     run(form, () => backend.saveAiSettings(patch), 'AI settings saved');
   };
   form.querySelector('#remove-all')?.addEventListener('click', () => {
@@ -234,7 +239,7 @@ function settingsForm(s) {
   // Without an access token, only the computer running Harrington may change
   // these. Last, so every control added above is covered.
   if (s.canChange === false) {
-    form.querySelector('#test-result').before(el(`<p class="read-only-note text-sm text-[#a4473a]">AI provider settings can only be changed from the computer running Harrington, or from any signed-in device once an access token is set.</p>`));
+    form.querySelector('#actions').before(el(`<p class="read-only-note text-sm text-[#a4473a]">AI provider settings can only be changed from the computer running Harrington, or from any signed-in device once an access token is set.</p>`));
     form.querySelectorAll('input, button, select, textarea').forEach((node) => {
       node.disabled = true;
       node.classList.add('opacity-50', 'cursor-not-allowed');

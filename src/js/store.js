@@ -1,6 +1,8 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
 import { AI_CAPABILITIES, capabilityOffMessage } from './ai-capabilities.js';
+import { getData } from './data.js';
+import { pruneDismissed } from './alert-dismissals.js';
 import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
 
 export const MASTERY = {
@@ -23,8 +25,8 @@ let state = {
   challenges: {},     // studentId -> [ {id, topicId, subject, domain, correct, total, seconds, createdAt} ]
   adaptations: {},    // studentId -> { 'Subject|Domain': { level:'advanced', since } }
   suggestions: {},    // studentId -> [ {id, kind, subject, domain, reason, status, createdAt} ]
-  notifications: [],  // family-wide: [ {id, type, title, body, meta, read, createdAt} ]
-  curriculumSnapshot: null, // {version, generatedAt, topicIds:[...], count}
+  notifications: [],  // legacy log from before the bell was computed (alerts.js); kept, read only to skip the welcome
+  dismissedAlerts: {}, // family-wide: { alertKey: dismissedAt } (see alerts.js)
   recall: {},         // studentId -> { cardId -> { topicId, box, due, reps, lapses, last } }
   practice: {},       // studentId -> { itemId -> { topicId, subject, q, type, options, answer, box, due, reps, lapses, last } }
   activity: {},       // studentId -> { 'yyyy-mm-dd': true }  (days with recall/lesson/mastery activity)
@@ -43,8 +45,10 @@ export function get() { return state; }
 // From /api/health; kept out of the persisted state.
 let aiConfigured = false;
 let aiCapabilities = []; // the capabilities the server switched on
+let backupAgeDays;        // days since the newest backup, null for none
 function applyHealth(health) {
   aiConfigured = health?.aiConfigured === true;
+  backupAgeDays = health?.backupAgeDays;
   // A server from before HARRINGTON_AI_CAPABILITIES reports no list: all on.
   aiCapabilities = !aiConfigured ? []
     : Array.isArray(health?.aiCapabilities) ? health.aiCapabilities : [...AI_CAPABILITIES];
@@ -65,6 +69,7 @@ export function aiAvailable(capability) {
 export function aiSwitchedOff(capability) {
   return aiConfigured && !aiAvailable(capability);
 }
+export function backupAge() { return backupAgeDays; }
 // Rejects when /api/health itself fails, so callers can tell an outage from a missing provider.
 export async function refreshHealth(capability) {
   const before = `${aiConfigured}|${aiCapabilities}`;
@@ -108,7 +113,7 @@ function applyDocument(data) {
   state.activeStudentId = doc.activeStudentId || (state.students[0] && state.students[0].id) || null;
   for (const key of LEARNER_KEYS) state[key] = objectOr(doc[key], {});
   state.notifications = Array.isArray(doc.notifications) ? doc.notifications : [];
-  state.curriculumSnapshot = doc.curriculumSnapshot || null;
+  state.dismissedAlerts = objectOr(doc.dismissedAlerts, {});
   state.graphView = doc.graphView === 'list' ? 'list' : 'atlas';
   const settings = objectOr(doc.settings, {});
   // A plain PIN (from before it was hashed, or saved by an older tab) is
@@ -153,7 +158,7 @@ function snapshotData() {
     adaptations: state.adaptations,
     suggestions: state.suggestions,
     notifications: state.notifications,
-    curriculumSnapshot: state.curriculumSnapshot,
+    dismissedAlerts: state.dismissedAlerts,
     recall: state.recall,
     practice: state.practice,
     activity: state.activity,
@@ -350,7 +355,9 @@ function countOf(value) {
 // the export is this tab's copy, flagged with unsavedChanges.
 export async function exportDocument() {
   await flushSaves();
-  const meta = { exportedAt: new Date().toISOString(), taxonomyVersion: state.curriculumSnapshot?.version || null };
+  let taxonomyVersion = null;
+  try { taxonomyVersion = getData().meta.version; } catch { /* taxonomy not loaded */ }
+  const meta = { exportedAt: new Date().toISOString(), taxonomyVersion };
   const doc = dirty
     ? { ...snapshotData(), version: stateVersion, ...meta, unsavedChanges: true }
     : { ...(await backend.loadState()), ...meta };
@@ -992,30 +999,18 @@ export function grantBadge(studentId, badgeId) {
 }
 export function earnedBadges(studentId) { return gameOf(studentId).badges; }
 
-// ---- Notifications (family-wide) ----
-export function notifications() { return state.notifications; }
-export function unreadCount() { return state.notifications.filter(n => !n.read).length; }
-export function addNotification(n) {
-  const full = { id: 'n_' + Math.random().toString(36).slice(2, 9), read: false, createdAt: Date.now(), ...n };
-  state.notifications.unshift(full);
-  // keep the list from growing without bound
-  if (state.notifications.length > 100) state.notifications = state.notifications.slice(0, 100);
-  persist(); emit();
-  return full;
-}
-export function markNotificationRead(id) {
-  const n = state.notifications.find(x => x.id === id);
-  if (n) n.read = true;
+// ---- Notification bell (family-wide; items are computed in alerts.js) ----
+// True when the family saw the old first-run welcome, so the bell skips its own.
+export function welcomed() { return state.notifications.length > 0; }
+export function dismissedAlerts() { return state.dismissedAlerts; }
+// Records a dismissal for each key. Expired snoozes and past days' picks are
+// dropped so the map stays small; permanent dismissals are kept.
+export function dismissAlerts(keys, now = Date.now()) {
+  const next = pruneDismissed(state.dismissedAlerts, now);
+  keys.forEach(key => { next[key] = now; });
+  state.dismissedAlerts = next;
   persist(); emit();
 }
-export function markAllNotificationsRead() {
-  state.notifications.forEach(n => { n.read = true; });
-  persist(); emit();
-}
-
-// ---- Curriculum snapshot (for detecting repo updates) ----
-export function getCurriculumSnapshot() { return state.curriculumSnapshot; }
-export function setCurriculumSnapshot(snap) { state.curriculumSnapshot = snap; persist(); }
 
 export function graphView() {
   return state.graphView === 'list' ? 'list' : 'atlas';
