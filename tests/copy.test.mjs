@@ -93,10 +93,15 @@ test('counts in the views agree with their number ("1 topic", never "1 topics")'
       "${formatCount(graded.earned)} of ${countLabel(graded.total, 'point')}",
     ],
     'src/js/views/dashboard.js': ["${formatCount(stats.totalMastered)} of ${countLabel(stats.total, 'topic')} mastered"],
+    'src/js/alerts.js': [
+      "The last record was ${countLabel(Math.floor((now - last) / DAY_MS), 'day')} ago.",
+      "Backup older than ${countLabel(BACKUP_DAYS, 'day')}",
+      "The newest backup is ${countLabel(backupAgeDays, 'day')} old.",
+    ],
   };
   for (const [path, phrases] of Object.entries(pinned)) {
     const text = await read(path);
     for (const phrase of phrases) assert.ok(text.includes(phrase), `${path} lost: ${phrase}`);
-    assert.doesNotMatch(text, /\$\{[^}]*(total|length)\} (topics|points)\b/, `${path} has an unpluralized count`);
+    assert.doesNotMatch(text, /\$\{[^}]*(total|length|DAY_MS\)|_DAYS|Days)\} (topics|points|days)\b/, `${path} has an unpluralized count`);
   }
 });
