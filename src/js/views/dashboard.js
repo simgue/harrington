@@ -227,7 +227,7 @@ export function renderDashboard(params, { navigate }) {
   </section>`);
   recCard.querySelector('#allrec').onclick = () => navigate('records');
   const recWrap = recCard.querySelector('#rec');
-  if (recentRecords.length === 0) recWrap.appendChild(el(`<p class="text-sm text-ink-faint">No records yet — voice, photo or a quick note all count.</p>`));
+  if (recentRecords.length === 0) recWrap.appendChild(el(`<p class="text-sm text-ink-faint">No records yet — a voice recording or a quick note both count.</p>`));
   recentRecords.forEach(r => {
     recWrap.appendChild(el(`<div class="text-sm rounded-2xl bg-paper p-3">
       <div class="flex items-center gap-2 text-xs text-ink-faint mb-0.5"><span class="capitalize font-600 text-brand">${r.type}</span><span>·</span><span>${fmtDateTime(r.createdAt)}</span></div>
