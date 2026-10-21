@@ -41,6 +41,8 @@ const env = {
   HARRINGTON_HOST: '127.0.0.1',
   HARRINGTON_PORT: String(portArg),
   HARRINGTON_DATA_DIR: dataDir,
+  // No backups unless a test writes one, whatever the developer's backups/ holds.
+  HARRINGTON_BACKUP_DIR: join(dataDir, 'backups'),
   HARRINGTON_AI_BASE_URL: withAi ? aiBase : '',
   HARRINGTON_AI_MODEL: withAi ? 'mock' : '',
   HARRINGTON_AI_API_KEY: '',
