@@ -107,8 +107,9 @@ test('an imported analysis renders as text, not markup', async ({ page, api, got
   expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
 });
 
-test('a newer data format opens read-only: a banner, Import disabled, nothing saved', async ({ page, api, gotoApp, errors }) => {
-  // Another Harrington, one data format ahead, saved this document.
+// Another Harrington, one data format ahead, saved this document; the page
+// gets it straight from the route, and any write is recorded, not stored.
+async function serveNewerDocument(page, api) {
   const doc = { ...familyState({ learners: ['rowan'], active: 'rowan' }), schemaVersion: SCHEMA_VERSION + 1, levelset: { future: true } };
   await api.putState({ ...doc, schemaVersion: SCHEMA_VERSION }); // the server here only stores its own format
   const writes = [];
@@ -118,18 +119,45 @@ test('a newer data format opens read-only: a banner, Import disabled, nothing sa
     writes.push(method);
     return route.fulfill({ status: 204, headers: { ETag: '"v8"' } });
   });
+  return writes;
+}
+
+test('a newer data format opens read-only: a banner, Import disabled, nothing saved', async ({ page, api, gotoApp, errors }) => {
+  const writes = await serveNewerDocument(page, api);
   await gotoApp({ seed: null, hash: `topic/${TOPICS.oneToOne.id}` });
   await expect(page.locator('.read-only-banner')).toContainText('saved by a newer version of Harrington');
   await expect(importButton(page)).toBeDisabled();
 
-  // A change shows on the page but never reaches the server, not even on hide.
+  // A change says it was not saved (never "Marked as …") and never reaches
+  // the server, not even when the page is hidden.
   await setTopicStatus(page, 'Learning');
-  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await expectToast(page, 'Not saved. This family data was saved by a newer version of Harrington.');
+  await expect(page.getByText(/^Marked as/)).toHaveCount(0);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('pagehide'));
+  });
   await page.waitForTimeout(800);
   expect(writes).toEqual([]);
   expect(errors).toEqual([]);
 });
 
+test('read-only at 390 px: the banner leaves the top bar tappable; Export works, Import is disabled', async ({ page, api, gotoApp, errors }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const writes = await serveNewerDocument(page, api);
+  await gotoApp({ seed: null });
+  await expect(page.locator('.read-only-banner')).toBeVisible();
+  // Playwright refuses to click a covered element, so this fails if the banner sits over the top bar.
+  await page.getByRole('button', { name: 'Switch learner' }).filter({ visible: true }).click();
+  const menu = modal(page);
+  await expect(menu.getByRole('button', { name: 'Export', exact: true })).toBeEnabled();
+  await expect(menu.getByRole('button', { name: 'Import', exact: true })).toBeDisabled();
+  const [download] = await Promise.all([page.waitForEvent('download'), menu.getByRole('button', { name: 'Export', exact: true }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^harrington-family-/);
+  expect(writes).toEqual([]);
+  expect(errors).toEqual([]);
+});
 test('two tabs: the second save loses and reloads the first one\'s data, after a success toast (finding F17)', async ({ page, context, api, gotoApp, shot }) => {
   await gotoApp({ seed: {}, hash: `topic/${TOPICS.oneToOne.id}` });
   const other = await context.newPage();

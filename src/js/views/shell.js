@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { el, esc, initials, openModal, refreshIcons, toast } from '../ui.js';
+import { el, esc, initials, openModal, refreshIcons, toast, holdConfirmations } from '../ui.js';
 import { countLabel } from '../format.js';
 import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
@@ -170,7 +170,9 @@ function openStudentMenu(navigate) {
   body.querySelector('#add').onclick = () => { m.close(); openAddStudent(); };
   // Phones have no sidebar, so Export and Import live here below lg.
   body.querySelector('#m-export').onclick = () => { m.close(); exportFamilyData(); };
-  body.querySelector('#m-import').onclick = () => { m.close(); pickImportFile(); };
+  const phoneImport = body.querySelector('#m-import');
+  phoneImport.onclick = () => { m.close(); pickImportFile(); };
+  disableImportIfReadOnly(phoneImport);
   const m = openModal(body);
 }
 
@@ -290,13 +292,8 @@ function accountBox() {
   box.querySelector('#export').onclick = exportFamilyData;
   const importButton = box.querySelector('#import');
   importButton.onclick = pickImportFile;
-  // A newer data format is open read-only: importing would overwrite it.
-  if (store.isReadOnly()) {
-    importButton.disabled = true;
-    importButton.classList.add('opacity-50', 'cursor-not-allowed');
-    importButton.title = 'Update Harrington to import family data';
-    showReadOnly();
-  }
+  disableImportIfReadOnly(importButton);
+  if (store.isReadOnly()) showReadOnly();
   return box;
 }
 
@@ -324,7 +321,16 @@ async function exportFamilyData() {
   }
 }
 
+// A newer data format is open read-only: importing would overwrite it.
+function disableImportIfReadOnly(button) {
+  if (!store.isReadOnly()) return;
+  button.disabled = true;
+  button.classList.add('opacity-50', 'cursor-not-allowed');
+  button.title = 'Update Harrington to import family data';
+}
+
 function pickImportFile() {
+  if (store.isReadOnly()) { toast(store.READ_ONLY_MESSAGE, 'error'); return; }
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'application/json,.json';
@@ -379,15 +385,32 @@ let tooLargeBanner = null;
 let readOnlyBanner = null;
 
 // The family data is from a newer Harrington: nothing is saved (store.js
-// isReadOnly), so say so for as long as the page is open.
+// isReadOnly), so say so for as long as the page is open. The banner sits in
+// the page flow above #app, not over it, so the phone's sticky top bar (the
+// learner selector, with Export and Import) stays tappable.
 function showReadOnly() {
   if (readOnlyBanner || typeof document === 'undefined') return;
-  readOnlyBanner = el(`<div role="alert" class="read-only-banner fixed top-0 inset-x-0 z-[98] bg-[#8a6412] text-white px-4 py-2.5 text-sm font-medium text-center flex items-center justify-center gap-2">
+  readOnlyBanner = el(`<div role="alert" class="read-only-banner bg-[#8a6412] text-white px-4 py-2.5 text-sm font-medium text-center flex items-center justify-center gap-2">
     <i data-lucide="lock" class="w-4 h-4 shrink-0"></i>
     <span>${esc(store.READ_ONLY_MESSAGE)}</span>
   </div>`);
-  document.body.appendChild(readOnlyBanner);
+  const app = document.getElementById('app');
+  if (app) app.before(readOnlyBanner);
+  else document.body.prepend(readOnlyBanner);
   refreshIcons();
+}
+
+// A change the store refused because the data is read-only: say so, and keep
+// the action's own confirmation ("Record saved") from showing.
+const NOT_SAVED = `Not saved. ${store.READ_ONLY_MESSAGE}`;
+let lastNotSaved = 0;
+function reportBlockedWrite() {
+  showReadOnly();
+  holdConfirmations();
+  // One toast per burst of blocked writes (a click can persist twice).
+  if (Date.now() - lastNotSaved < 1500) return;
+  lastNotSaved = Date.now();
+  toast(NOT_SAVED, 'error');
 }
 let retryToast = null;
 
@@ -406,18 +429,19 @@ function showTooLarge() {
   refreshIcons();
 }
 
-// reason: the server's explanation when it refused the data itself (422, 409).
+// reason: the server's explanation when it refused the data itself (422,
+// 409). The same data would be refused again, so there is no Retry then.
 function showRetry(reason = null) {
   if (retryToast) return;
   const root = document.getElementById('toast-root');
   if (!root) return;
   retryToast = el(`<div role="alert" class="px-4 py-2.5 rounded-lg text-sm font-medium bg-[#a4473a] text-white shadow-lg flex items-center gap-3">
     <span>${reason ? `Harrington refused these changes: ${esc(reason)}` : 'Could not save changes to Harrington.'}</span>
-    <button class="underline font-600">Retry</button>
+    ${reason ? '<button class="dismiss underline font-600">Dismiss</button>' : '<button class="retry underline font-600">Retry</button>'}
   </div>`);
   retryToast.querySelector('button').onclick = () => {
     retryToast?.remove(); retryToast = null;
-    store.flushSaves();
+    if (!reason) store.flushSaves();
   };
   root.appendChild(retryToast);
 }
@@ -429,5 +453,5 @@ store.onSaveStatus(({ type, error }) => {
   else if (type === 'too-large') showTooLarge();
   else if (type === 'failed') showRetry();
   else if (type === 'rejected') showRetry(error?.message || null);
-  else if (type === 'read-only') showReadOnly();
+  else if (type === 'read-only') reportBlockedWrite();
 });

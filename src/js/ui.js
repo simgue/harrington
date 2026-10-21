@@ -16,7 +16,17 @@ export function refreshIcons() {
   iconTimer = setTimeout(() => { try { window.lucide?.createIcons(); } catch (e) {} }, 10);
 }
 
+// While the store refuses a write (read-only family data), the action's own
+// confirmation would claim it worked: holdConfirmations() drops success and
+// default toasts until the current task ends. Error toasts still show.
+let confirmationsHeld = false;
+export function holdConfirmations() {
+  confirmationsHeld = true;
+  setTimeout(() => { confirmationsHeld = false; }, 0);
+}
+
 export function toast(msg, kind = 'default') {
+  if (confirmationsHeld && kind !== 'error') return;
   const root = document.getElementById('toast-root');
   const colors = {
     default: 'bg-ink text-white',
