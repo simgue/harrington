@@ -14,7 +14,12 @@ export const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges
 // anything that compares documents never drift. Keys a document carries that
 // are not listed here (from a newer Harrington) are kept through load and save.
 export const documentFields = ['schemaVersion', 'students', 'activeStudentId', ...LEARNER_KEYS,
-  'notifications', 'curriculumSnapshot', 'graphView', 'settings'];
+  'notifications', 'dismissedAlerts', 'graphView', 'settings'];
+
+// Top-level keys an earlier Harrington saved and this one has retired (PR #36
+// replaced curriculumSnapshot with computed alerts). They are dropped on the
+// next save rather than kept as unknown fields.
+export const RETIRED_FIELDS = ['curriculumSnapshot'];
 
 // Bookkeeping the server adds (version, updatedAt, writeId) or an export adds
 // (exportedAt, taxonomyVersion, unsavedChanges); never family data.
