@@ -187,3 +187,11 @@ test('an active learner who is not in the file becomes the first learner', () =>
   doc.activeStudentId = 's_gone';
   assert.equal(store.inspectImport(doc).ok, true);
 });
+
+test('the record types and mastery statuses checked match the ones the app writes', async () => {
+  const { RECORD_TYPES, MASTERY_STATUSES } = await import('../src/js/document.js');
+  const { TYPES } = await import('../src/js/views/records.js');
+  // 'note' is the label the record views fall back to for an older record.
+  assert.deepEqual([...RECORD_TYPES].sort(), [...Object.keys(TYPES), 'note'].sort());
+  assert.deepEqual([...MASTERY_STATUSES].sort(), Object.keys(store.MASTERY).sort());
+});

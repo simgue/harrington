@@ -794,6 +794,10 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
       HARRINGTON_AI_MODEL: 'llama3.2',
     });
     const note = 'Zebulon got stuck carrying the one.\nHe   counted on his fingers twice before he trusted the answer.';
+    // One long line, and lines whose 300-character cut falls mid-line.
+    const longLine = `Zebulon ${'worked through the place value chart slowly and carefully, '.repeat(40)}end.`;
+    const longLines = Array.from({ length: 12 }, (_, i) => `Line ${i}: Zebulon sorted the counters into tens and ones again.`).join('\n');
+    const redacted = (text) => text.replaceAll('Zebulon', 'the child');
     const ask = async (content, extra = {}) => {
       const response = await fetch(`${harrington.url}/api/ai`, {
         method: 'POST',
@@ -807,7 +811,12 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
       const put = await fetch(`${harrington.url}/api/state`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'If-Match': '"v0"' },
-        body: JSON.stringify({ students: [{ id: 's1', name: 'Zebulon Quixote' }], records: { s1: [{ id: 'r1', type: 'observation', note, title: 'Carrying' }] } }),
+        body: JSON.stringify({ students: [{ id: 's1', name: 'Zebulon Quixote' }], records: { s1: [
+          { id: 'r1', type: 'observation', note, title: 'Carrying' },
+          { id: 'r2', type: 'observation', note: longLine, title: 'Long' },
+          { id: 'r3', type: 'observation', note: longLines, title: 'Lines' },
+          { id: 'r4', type: 'observation', note: 'Fractions', title: 'Short' },
+        ] } }),
       });
       assert.equal(put.status, 204);
       // As the browser sends it: the name already redacted, whitespace reflowed.
@@ -819,6 +828,20 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
       assert.equal(await ask(`Notes: ${sent}`, { includeNotes: true }), `Notes: ${sent}`);
       // Anything else is untouched.
       assert.equal(await ask('Count to five with the child.'), 'Count to five with the child.');
+
+      // Cut where the browser cuts: the progress review's 300 characters and a
+      // discussion's 1500, of a single long line and of lines cut mid-line.
+      for (const [text, cut] of [[longLine, 300], [longLine, 1500], [longLines, 300]]) {
+        const sentNote = redacted(text).slice(0, cut);
+        assert.equal((await ask(`- [observation] Count to 5: ${sentNote}`)).trimEnd(), '- [observation] Count to 5: [note removed]', `${cut} of ${text.slice(0, 20)}`);
+      }
+      // A one-word note is also topic text: it is not matched on its own.
+      assert.equal(await ask('Write a lesson on Fractions for age 7. Subject: Fractions'), 'Write a lesson on Fractions for age 7. Subject: Fractions');
+
+      // Only the boolean true opts in.
+      for (const includeNotes of ['true', 1, 'yes', {}]) {
+        assert.equal(await ask(`Notes: ${sent}`, { includeNotes }), 'Notes: [note removed]', JSON.stringify(includeNotes));
+      }
     } finally {
       await harrington.stop();
       upstream.close();

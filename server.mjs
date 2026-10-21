@@ -338,9 +338,12 @@ function completionContent(payload) {
 
 const AI_ROLES = new Set(['system', 'user', 'assistant']);
 const NOTE_REMOVED = '[note removed]';
-// A whole note is matched from this length; any note line from NOTE_LINE_MIN.
-const NOTE_MIN = 8;
-const NOTE_LINE_MIN = 20;
+// A whole note, and any note line, is matched from this length: a shorter
+// note ("Fractions") is also ordinary topic text and would blank it.
+const NOTE_MIN = 20;
+// The browser cuts a note at these lengths before it goes into a prompt
+// (summarizeRecords and the progress review at 300, a discussion at 1500).
+const NOTE_CUTS = [300, 1500];
 
 // Only { role, content } with string content is forwarded. The app never
 // sends anything else, so an object or array content, or tool_calls, is a 400.
@@ -362,20 +365,26 @@ function storedLearners(doc) {
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Patterns for every stored parent note: the whole note (as the browser would
-// send it, names already redacted) and each line of NOTE_LINE_MIN characters
-// or more, with any run of whitespace matching any other. Longest first.
+// Patterns for every stored parent note, as the browser would send it (names
+// already redacted): the whole note, its first 300 and 1500 characters (where
+// the browser cuts it, from the note as stored and as trimmed), and each line,
+// every piece of NOTE_MIN characters or more, with any run of whitespace
+// matching any other. Longest first.
 function notePatterns(doc, names) {
   const pieces = new Set();
+  const add = (piece) => { const text = piece.trim(); if (text.length >= NOTE_MIN) pieces.add(text); };
   const records = doc.records && typeof doc.records === 'object' ? doc.records : {};
   for (const list of Object.values(records)) {
     for (const record of Array.isArray(list) ? list : []) {
       if (typeof record?.note !== 'string') continue;
-      const note = redactNames(record.note, names).trim();
-      if (note.length >= NOTE_MIN) pieces.add(note);
-      for (const line of note.split('\n')) {
-        if (line.trim().length >= NOTE_LINE_MIN) pieces.add(line.trim());
+      const asStored = redactNames(record.note, names);
+      const trimmed = redactNames(record.note.trim(), names);
+      add(trimmed);
+      for (const cut of NOTE_CUTS) {
+        add(asStored.slice(0, cut));
+        add(trimmed.slice(0, cut));
       }
+      for (const line of trimmed.split('\n')) add(line);
     }
   }
   return [...pieces]

@@ -7,7 +7,8 @@ import { aiErrorBlock, gateAi } from '../ai-status.js';
 import { savedAnalysis, regenerateButton, analysisOptIn, notesIncludedLine } from './recordings.js';
 import { coverageFields } from '../daily.js';
 
-const TYPES = {
+// Exported for the test that keeps document.js RECORD_TYPES in step.
+export const TYPES = {
   observation: { icon: 'eye', label: 'Observation', color: '#2f6285', hint: 'What you noticed as they worked' },
   question: { icon: 'help-circle', label: 'Question', color: '#8a6412', hint: 'Something they asked or wondered' },
   discussion: { icon: 'messages-square', label: 'Discussion', color: '#5b4a86', hint: 'A conversation you had together' },
@@ -232,11 +233,11 @@ export function openRecordForm(studentId, topic = null, options = {}) {
       </div>` : `<input type="hidden" name="topicId" value="${esc(topic.id)}" />`}
       <div>
         <label class="text-sm font-medium block mb-1.5">Title <span class="text-ink-faint font-normal">(optional)</span></label>
-        <input name="title" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+        <input name="title" maxlength="1000" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
       </div>
       <div>
         <label class="text-sm font-medium block mb-1.5">Notes</label>
-        <textarea name="note" rows="4" placeholder="What happened? What did they say or ask?" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none"></textarea>
+        <textarea name="note" rows="4" maxlength="50000" placeholder="What happened? What did they say or ask?" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none"></textarea>
       </div>
       ${coverageClaimField(coverageTopics)}
       <div>

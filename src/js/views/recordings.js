@@ -179,9 +179,8 @@ export function analysisOptIn(btn, r, run) {
 }
 
 // The saved AI summary block, shared with the Records page so both cards render it alike.
-// Trust boundary: `html` is inserted raw. It is safe only because ai.js toHtml() escapes
-// model output before it is stored; an imported or hand-edited state file bypasses that,
-// so sanitize here if analysis can arrive from anywhere else.
+// Stored analysis can come from an import or a hand-edited file, so it goes
+// through analysisHtml() (ui.js): only the tags toHtml() writes survive.
 export function savedAnalysis(html) {
   return el(`<div class="rounded-xl bg-brand-light/40 border border-brand/20 p-3.5 mt-1">
     <p class="text-[11px] font-600 uppercase tracking-wide text-brand-dark mb-1.5 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i>AI summary &amp; advice</p>

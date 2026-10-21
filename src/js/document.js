@@ -6,6 +6,8 @@
 // short reason a parent can act on. Fields an older document may lack are
 // optional; anything present must have the shape the views read.
 
+import { HASH_PATTERN, SALT_PATTERN } from './pin.js';
+
 // Per-learner maps keyed by learner id.
 export const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
   'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests'];
@@ -25,9 +27,9 @@ export const RETIRED_FIELDS = ['curriculumSnapshot'];
 // (exportedAt, taxonomyVersion, unsavedChanges); never family data.
 export const BOOKKEEPING_FIELDS = ['version', 'updatedAt', 'writeId', 'exportedAt', 'taxonomyVersion', 'unsavedChanges'];
 
-const MASTERY_STATUSES = ['none', 'learning', 'practicing', 'mastered'];
+export const MASTERY_STATUSES = ['none', 'learning', 'practicing', 'mastered'];
 // 'note' is the label the record views fall back to for an older record.
-const RECORD_TYPES = ['observation', 'question', 'discussion', 'assessment', 'recording', 'note'];
+export const RECORD_TYPES = ['observation', 'question', 'discussion', 'assessment', 'recording', 'note'];
 export const MIN_BIRTH_YEAR = 1990;
 const NAME_MAX = 100;
 // Generous bounds: they stop a hostile file, not a long transcript.
@@ -210,10 +212,10 @@ function settingsProblem(settings, schemaVersion) {
   if (!absent(pin) && pin !== '' && !((typeof pin === 'string' || typeof pin === 'number') && /^\d{4}$/.test(String(pin)))) {
     return 'The file\'s child-view PIN is not four digits.';
   }
-  if (!absent(settings.parentPinHash) && !(typeof settings.parentPinHash === 'string' && /^[0-9a-f]{64}$/.test(settings.parentPinHash))) {
+  if (!absent(settings.parentPinHash) && !(typeof settings.parentPinHash === 'string' && HASH_PATTERN.test(settings.parentPinHash))) {
     return 'The file\'s child-view PIN hash is not 64 lowercase hex characters.';
   }
-  if (!absent(settings.parentPinSalt) && !(typeof settings.parentPinSalt === 'string' && /^[0-9a-f]{32}$/.test(settings.parentPinSalt))) {
+  if (!absent(settings.parentPinSalt) && !(typeof settings.parentPinSalt === 'string' && SALT_PATTERN.test(settings.parentPinSalt))) {
     return 'The file\'s child-view PIN salt is not 32 lowercase hex characters.';
   }
   const cal = settings.calendar;

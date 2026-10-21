@@ -223,3 +223,12 @@ test('a dangling active learner becomes the first learner, on load and on import
   assert.equal(await store.importDocument({ ...doc, activeStudentId: 'nobody' }), true);
   assert.equal(puts.at(-1).activeStudentId, 's_older1');
 });
+
+test('a migrating load saves by itself: one PUT after loadAll(), no flush needed', async () => {
+  served = { ...(await readFixture('v1.input.json')), version: 110 };
+  puts.length = 0;
+  await store.loadAll();
+  await settle();
+  assert.equal(puts.length, 1);
+  assert.equal(puts[0].schemaVersion, SCHEMA_VERSION);
+});
