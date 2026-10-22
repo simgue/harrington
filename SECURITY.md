@@ -12,9 +12,29 @@ your report and work on a fix as quickly as we reasonably can.
 - Harrington includes a small local server. It binds to `127.0.0.1` by default
   and stores family state, lesson caches, and recordings under
   `data/private/` (or `HARRINGTON_DATA_DIR`).
-- The preview does not yet include application authentication. Do not bind it to
-  a public interface or expose it to the internet without a trusted
-  authentication reverse proxy.
+- `HARRINGTON_HOST` changes the bind address. When Harrington is shared with
+  other devices, set `HARRINGTON_ACCESS_TOKEN`: every `/api/*` request except
+  `/api/health` then needs an HttpOnly, SameSite=Strict cookie that a one-time
+  sign-in at `/login` sets (a password form, or a `?token=` link; compared in
+  constant time; the cookie is derived from the token, never the token
+  itself). Once shared, the server answers only to the family's host names
+  and IP addresses (`421` otherwise) to stop DNS rebinding. Harrington does
+  not terminate TLS; put a WireGuard mesh with HTTPS (such as Tailscale) or a
+  local reverse proxy with an internal certificate authority in front of it.
+  [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) has the steps. There are no user
+  accounts, and the token is a single family secret: do not expose Harrington
+  to the public internet.
+- What the token does not protect:
+  - there is no limit on sign-in attempts, so the token must be long and
+    random;
+  - a `?token=` sign-in link stays in browser history, address-bar
+    suggestions and synced history (the form avoids this);
+  - the cookie is a 400-day credential, identical on every device, and the
+    only way to sign out one device is to change the token for everyone;
+  - over plain HTTP the token and the cookie cross the network in clear;
+  - `/api/health` is open and reveals whether the server is shared and
+    whether the token is on (no family data);
+  - anyone holding a signed-in device, a child included, has full access.
 - AI generation is disabled until `HARRINGTON_AI_BASE_URL` and
   `HARRINGTON_AI_MODEL` are set. When they are set, topic text (never a child's
   name) is sent only to that configured OpenAI-compatible endpoint. Names of

@@ -2,6 +2,7 @@
 import * as backend from './backend.js';
 import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, schemaVersionOf } from './schema.js';
 import { BOOKKEEPING_FIELDS, LEARNER_KEYS, RETIRED_FIELDS, MIN_BIRTH_YEAR, documentFields, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
+import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 import { getData } from './data.js';
 import { pruneDismissed } from './alert-dismissals.js';
 import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
@@ -49,6 +50,8 @@ let aiConfigured = false; // from /api/health; kept out of the persisted state
 let backupAgeDays;        // from /api/health: days since the newest backup, null for none
 export async function connect() {
   const health = await backend.health();
+  setHosting(health);
+  if (health?.authEnabled === true && health.signedIn !== true) throw new Error(SIGN_IN_MESSAGE);
   aiConfigured = health?.aiConfigured === true;
   backupAgeDays = health?.backupAgeDays;
   state.user = { username: 'Family' };
