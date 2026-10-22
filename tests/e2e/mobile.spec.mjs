@@ -231,8 +231,9 @@ test('the top-bar bell: open, filter by learner, dismiss, and the 30-day backup 
   await gotoApp({ seed: { extra: { dismissedAlerts: { welcome: Date.parse('2026-10-01T00:00:00Z') } } } });
   const bell = page.locator('header').getByRole('button', { name: /^Notifications/ });
   await expect(bell).toBeVisible();
-  // Rowan's and Sage's picks, and the missing backup (Wren, 3, has nothing to pick).
-  await expect(bell).toHaveAccessibleName('Notifications, 3 new');
+  // Each learner's picks (Wren, 3, gets the youngest band's choices: F3, #35)
+  // and the missing backup.
+  await expect(bell).toHaveAccessibleName('Notifications, 4 new');
   await bell.click();
   const m = modal(page);
   await expect(m.getByLabel('Show')).toHaveValue('s_e2e_rowan');
@@ -246,9 +247,9 @@ test('the top-bar bell: open, filter by learner, dismiss, and the 30-day backup 
   await m.getByRole('button', { name: "Dismiss: Today's picks are still open for Sage Example" }).click();
   await expect(m.getByText("Today's picks are still open for Sage Example")).toHaveCount(0);
   await m.getByRole('button', { name: 'Dismiss: No backup recorded' }).click();
-  await expect(m.locator('#list > div')).toHaveCount(1);
+  await expect(m.locator('#list > div')).toHaveCount(2);
   await closeModal(page);
-  await expect(bell).toHaveAccessibleName('Notifications, 1 new');
+  await expect(bell).toHaveAccessibleName('Notifications, 2 new');
   await api.waitForState((s) => s.dismissedAlerts?.['backup:none'] && s.dismissedAlerts?.['picks:s_e2e_sage:2026-10-07']);
 
   // 29 days later (a Thursday morning, picks not due yet) the backup note stays
