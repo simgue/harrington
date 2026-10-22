@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
-import { installFakeDom } from './support/fake-dom.mjs';
+import { installFakeDom } from './fake-dom.mjs';
 
 // Resolves once `check()` returns something truthy, polling the event loop.
 async function waitFor(check, { timeout = 2000 } = {}) {
