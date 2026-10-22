@@ -221,8 +221,23 @@ test('no horizontal overflow: topic finder with a path', async ({ page, gotoApp,
   await page.getByLabel('What does Rowan Example want to learn?').fill('how to tell the time');
   await page.getByRole('button', { name: 'Find', exact: true }).click();
   await page.getByRole('region', { name: /^Closest topics for/ }).getByRole('button', { name: /Telling Time: Hours and Half Hours/ }).click();
-  await expect(page.getByRole('group', { name: 'Next ready step' })).toBeVisible();
+  const next = page.getByRole('group', { name: 'Next ready step' });
+  await expect(next).toBeVisible();
   await noHorizontalOverflow(page);
   await shot('find');
+  // Every finder action is a 44px target on a phone.
+  for (const name of ['Open topic page', 'Add to today', 'Plan it', 'Find on skill tree']) {
+    await expectTapTarget(next.getByRole('button', { name, exact: true }), name);
+  }
+  const path = page.getByRole('region', { name: 'Telling Time: Hours and Half Hours' });
+  await expectTapTarget(path.getByRole('button', { name: 'Open requested topic' }), 'Open requested topic');
+  await expectTapTarget(path.getByRole('button', { name: 'Requested topic on skill tree' }), 'Requested topic on skill tree');
+  await expectTapTarget(path.locator('li.find-step button.step-open').first(), 'a step name');
+
+  // A long unbroken request wraps instead of widening the page.
+  await page.getByLabel('What does Rowan Example want to learn?').fill('x'.repeat(80));
+  await page.getByRole('button', { name: 'Find', exact: true }).click();
+  await expect(page.getByText('No close match')).toBeVisible();
+  await noHorizontalOverflow(page);
   expect(errors).toEqual([]);
 });

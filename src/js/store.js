@@ -967,7 +967,7 @@ export function requestsFor(studentId) {
 // Logs a request; returns the new entry, or null for empty text.
 export function logRequest(studentId, text, topicId = null) {
   const entry = { id: 'rq_' + Math.random().toString(36).slice(2, 10), text: String(text || ''), createdAt: Date.now(), topicId };
-  const list = cleanRequests([entry, ...(state.requests[studentId] || [])]);
+  const list = cleanRequests([entry, ...cleanRequests(state.requests[studentId])]);
   if (!list.some(r => r.id === entry.id)) return null;
   state.requests[studentId] = list;
   persist(); emit();

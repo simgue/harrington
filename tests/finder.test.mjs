@@ -6,8 +6,24 @@ import {
 } from '../src/js/finder.js';
 import { resolveSkillNodeState } from '../src/js/graph.js';
 
-// Quiet saves for store.js (no server in this file).
-globalThis.fetch = async () => ({ ok: true, status: 200, headers: new Headers({ ETag: '"v1"' }), json: async () => ({}) });
+// A small taxonomy served to data.js (for planTopicOn), and quiet saves for
+// store.js (no server in this file).
+const PLAN_TAXONOMY = {
+  topics: [
+    { id: 'on-track', name: 'Area of rectangles', subject: 'Mathematics', domain: 'Measurement', ageRangeStart: 8, ageRangeEnd: 9 },
+    { id: 'off-track', name: 'Rock pools', subject: 'Science', domain: 'Ocean Life', ageRangeStart: 5, ageRangeEnd: 6 },
+  ],
+  dependencies: [],
+};
+const json = (body) => ({ ok: true, status: 200, headers: new Headers({ ETag: '"v1"' }), json: async () => body });
+globalThis.fetch = async (url) => {
+  const path = String(url);
+  if (path.endsWith('/topics.json')) return json({ topics: PLAN_TAXONOMY.topics });
+  if (path.endsWith('/dependencies.json')) return json({ dependencies: PLAN_TAXONOMY.dependencies });
+  if (path.endsWith('/clusters.json')) return json({ clusters: [] });
+  if (path.endsWith('/manifest.json')) return json(null);
+  return json({});
+};
 
 const topic = (id, name, extra = {}) => ({
   id, name, subject: 'Mathematics', domain: 'Measurement', ageRangeStart: 6, ageRangeEnd: 7, centrality: 0, description: '', evidence: [], ...extra,
@@ -47,6 +63,9 @@ test('request phrasing is dropped; the topic words remain', () => {
   assert.deepEqual(queryTerms('  Fractions!! fractions? '), ['fraction']);
   assert.deepEqual(queryTerms("What's a volcano?"), ['volcano']);
   assert.deepEqual(queryTerms('xylophone lessons for beginners'), ['xylophone']);
+  assert.deepEqual(queryTerms('a b c fractions'), ['fraction'], 'one-letter words are dropped');
+  assert.deepEqual(queryTerms('how does a clock work'), ['clock'], '"how … work" is phrasing');
+  assert.deepEqual(queryTerms('teamwork at work'), ['teamwork', 'work'], 'without "how", work is a topic word');
 });
 
 test('an empty or all-phrasing request returns no terms and no results', () => {
@@ -109,6 +128,42 @@ test('results are capped by limit, and ranking is deterministic', () => {
   const a = searchTopics(TOPICS, 'fractions half time', { age: 6, limit: 3 });
   assert.equal(a.results.length, 3);
   assert.deepEqual(ids(a), ids(searchTopics(TOPICS, 'fractions half time', { age: 6, limit: 3 })));
+});
+
+// A fuller fixture for rarity: six "work" names among many topics, so the
+// request's topic word, not "work", decides the ranking.
+const WORK_TOPICS = [
+  topic('v-what', 'What Is a Volcano', { subject: 'Science', domain: 'Volcanoes & Earthquakes', description: 'A mountain where melted rock comes up' }),
+  topic('v-inside', 'Inside a Volcano', { subject: 'Science', domain: 'Volcanoes & Earthquakes', ageRangeStart: 7, ageRangeEnd: 9, description: 'Magma chambers and vents' }),
+  topic('t-hours', 'Telling Time: Hours and Half Hours', { ageRangeStart: 5, ageRangeEnd: 6, description: 'Read the hour and half hour, and draw clock hands' }),
+  topic('t-minutes', 'Telling Time: Minutes', { description: 'Tell the time to five minutes on a clock face' }),
+  topic('w-machines', 'How Machines Work', { subject: 'Science', domain: 'Forces & Motion', description: 'Levers and pulleys do work' }),
+  topic('w-together', 'Working Together', { subject: 'Personal & Social Development', domain: 'Friendship & Cooperation', description: 'Sharing work in a group' }),
+  topic('w-energy', 'Work and Energy', { subject: 'Science', domain: 'Energy', description: 'Work is force times distance' }),
+  topic('w-team', 'Teamwork at Work', { subject: 'Life Skills', domain: 'Entrepreneurship', description: 'Roles at work' }),
+  topic('w-sci', 'Working Scientifically', { subject: 'Science', domain: 'Scientific Inquiry', description: 'Plan and carry out work safely' }),
+  topic('w-jobs', 'Jobs and Work', { subject: 'Life Skills', domain: 'Money & Finance', description: 'People work to earn money' }),
+  ...Array.from({ length: 30 }, (_, i) => topic(`filler-${i}`, `Filler topic ${i}`, { description: 'Practice with shapes and numbers' })),
+];
+
+test('rare words lead: "how do volcanoes work" ranks volcano topics first', () => {
+  const res = ids(searchTopics(WORK_TOPICS, 'how do volcanoes work', { age: 6 }));
+  assert.deepEqual(res.slice(0, 2).sort(), ['v-inside', 'v-what']);
+  // Without "how", "work" stays a word of the request but counts for less than "volcano".
+  const plain = ids(searchTopics(WORK_TOPICS, 'volcano work', { age: 6 }));
+  assert.deepEqual(plain.slice(0, 2).sort(), ['v-inside', 'v-what']);
+});
+
+test('"how does a clock work" puts a time topic in the top three', () => {
+  const top = ids(searchTopics(WORK_TOPICS, 'how does a clock work', { age: 6 })).slice(0, 3);
+  assert.ok(top.some((id) => id.startsWith('t-')), top.join(', '));
+  assert.ok(!top.some((id) => id.startsWith('w-')), top.join(', '));
+});
+
+test('a word in the name and the domain beats the name alone', () => {
+  const both = topic('both', 'Volcano Facts', { subject: 'Science', domain: 'Volcanoes & Earthquakes' });
+  const nameOnly = topic('name-only', 'Volcano Facts', { subject: 'Science', domain: 'Earth Science' });
+  assert.deepEqual(ids(searchTopics([nameOnly, both], 'volcano')), ['both', 'name-only']);
 });
 
 // ---- Path ----
@@ -202,6 +257,39 @@ test('find hash round trip', () => {
   assert.equal(parseFindHash('finder'), null);
 });
 
+// ---- Planning a step (scheduler) ----
+
+test('planTopicOn moves a planned topic, adds an off-track one once, and reports "already"', async () => {
+  const { loadTaxonomy } = await import('../src/js/data.js');
+  await loadTaxonomy();
+  const store = await import('../src/js/store.js');
+  const { planTopicOn, buildPlan, keyOf } = await import('../src/js/scheduler.js');
+  const year = new Date().getFullYear();
+  const id = store.addStudent('Sample Eight', year - 8);
+  const student = () => store.get().students.find((s) => s.id === id);
+  const [onTrack, offTrack] = PLAN_TAXONOMY.topics;
+  // The next Monday: a home day with the default calendar.
+  const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+  const monday = keyOf(d);
+
+  assert.ok(buildPlan(student()).topicDate.has('on-track'));
+  assert.ok(!buildPlan(student()).topicDate.has('off-track'), 'an age-5 topic is off an 8-year-old\'s track');
+
+  assert.deepEqual(planTopicOn(student(), onTrack, monday), { dayKey: monday, outcome: 'moved' });
+  assert.equal(buildPlan(student()).topicDate.get('on-track'), monday);
+  assert.deepEqual(planTopicOn(student(), onTrack, monday), { dayKey: monday, outcome: 'already' });
+
+  assert.deepEqual(planTopicOn(student(), offTrack, monday), { dayKey: monday, outcome: 'added' });
+  assert.deepEqual(planTopicOn(student(), offTrack, monday), { dayKey: monday, outcome: 'already' });
+  assert.equal(store.extrasOn(id, monday).filter((x) => x.topicId === 'off-track').length, 1, 'no duplicate extra');
+
+  // A Saturday is a rest day: the topic lands on the Monday after.
+  const saturday = new Date(d); saturday.setDate(d.getDate() + 5);
+  const nextMonday = new Date(d); nextMonday.setDate(d.getDate() + 7);
+  assert.deepEqual(planTopicOn(student(), offTrack, keyOf(saturday)), { dayKey: keyOf(nextMonday), outcome: 'added' });
+  store.removeStudent(id);
+});
+
 // ---- Request log (store) ----
 
 test('the request log is per learner, newest first, cleaned and capped', async () => {
@@ -243,6 +331,9 @@ test('bad request log entries read as nothing', async () => {
     store.get().requests['s-bad'] = bad;
     assert.deepEqual(store.requestsFor('s-bad'), []);
   }
+  store.get().requests['s-bad'] = { not: 'a list' };
+  assert.equal(store.logRequest('s-bad', 'volcanoes').text, 'volcanoes', 'a bad stored log does not break logging');
+  assert.equal(store.requestsFor('s-bad').length, 1);
   assert.equal(store.inspectImport({ students: [{ id: 's1', name: 'Sample Nine' }], requests: [] }).ok, false, 'the section must be an object');
   assert.equal(store.inspectImport({ students: [{ id: 's1', name: 'Sample Nine' }], requests: { s1: null } }).ok, true);
 });

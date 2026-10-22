@@ -1,7 +1,7 @@
 import { SUBJECTS, getData } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
-import { keyOf, parseKey, buildPlan, dailyExtras, planStartKey, invalidatePlan, familyCalendar, normalizeCalendar, restInfo, nextHomeDayKey } from '../scheduler.js';
+import { keyOf, parseKey, buildPlan, dailyExtras, planStartKey, invalidatePlan, familyCalendar, normalizeCalendar, restInfo, nextHomeDayKey, planTopicOn } from '../scheduler.js';
 import { openLesson } from './lesson.js';
 import { openActivityDetail } from './lesson.js';
 import { openMasteryTest } from './masterytest.js';
@@ -371,46 +371,36 @@ function dayTopicRow(t, active, navigate) {
   return row;
 }
 
-// Puts a topic on a day: a topic on the learner's track moves there; one the
-// track does not hold (below the start age, off the on-ramp) is added to that
-// day as an extra lesson. A rest day becomes the next home day. Returns the
-// day it landed on and whether the topic moved (rather than being added).
-export function planTopicOn(active, topic, picked) {
-  const dayKey = nextHomeDayKey(picked, familyCalendar());
-  const moved = buildPlan(active).topicDate.has(topic.id);
-  if (moved) {
-    store.moveTopic(active.id, topic.id, dayKey);
-    invalidatePlan(active.id);
-  } else {
-    store.addExtra(active.id, dayKey, {
-      kind: 'lesson', topicId: topic.id, topicName: topic.name,
-      subject: topic.subject, title: `Lesson · ${topic.name}`,
-    });
-  }
-  return { dayKey, moved };
-}
-
-export function openMoveTopic(topic, active, navigate, { title = `Move “${topic.name}”`, blurb = 'Stuck on it, or want to get ahead? Move this topic to another day. Its section order still applies.' } = {}) {
-  const currentKey = selectedKey || keyOf(new Date());
+// The calendar moves a planned topic from its selected day. Other callers (the
+// topic finder) pass the day to count from and their own wording.
+export function openMoveTopic(topic, active, navigate, {
+  fromKey = null,
+  title = `Move “${topic.name}”`,
+  blurb = 'Stuck on it, or want to get ahead? Move this topic to another day. Its section order still applies.',
+  nextLabel = 'Push to next home day',
+  pickLabel = 'Or pick a date',
+  submitLabel = 'Move topic',
+} = {}) {
+  const currentKey = fromKey || selectedKey || keyOf(new Date());
   const calendar = familyCalendar();
   const nextDay = nextHomeDayKey(currentKey, calendar, { after: true });
   const body = el(`<div class="p-5">
     <h3 class="font-display text-lg font-600 mb-1">${esc(title)}</h3>
     <p class="text-xs text-ink-faint mb-4">${esc(blurb)}</p>
     <div class="space-y-2 mb-4">
-      <button id="tomorrow" class="w-full text-left px-4 py-3 rounded-xl border border-paper-line hover:border-brand/40 transition-colors flex items-center gap-2.5"><i data-lucide="calendar-arrow-down" class="w-4 h-4 text-brand-dark"></i><span class="text-sm font-medium">Push to next home day</span></button>
+      <button id="tomorrow" class="w-full text-left px-4 py-3 rounded-xl border border-paper-line hover:border-brand/40 transition-colors flex items-center gap-2.5"><i data-lucide="calendar-arrow-down" class="w-4 h-4 text-brand-dark"></i><span class="text-sm font-medium">${esc(nextLabel)}</span></button>
     </div>
     <form id="f" class="space-y-3">
-      <label class="text-sm font-medium block">Or pick a date</label>
-      <input type="date" name="date" value="${nextDay}" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
-      <button class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Move topic</button>
+      <label for="move-date" class="text-sm font-medium block">${esc(pickLabel)}</label>
+      <input id="move-date" type="date" name="date" value="${nextDay}" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+      <button class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">${esc(submitLabel)}</button>
     </form>
   </div>`);
   const doMove = (picked) => {
     // Rest days schedule nothing: a rest day moves to the next home day.
-    const { dayKey, moved } = planTopicOn(active, topic, picked);
-    const verb = moved ? 'moved' : 'added';
-    toast(dayKey === picked ? `${moved ? 'Moved' : 'Added'} to ${dayKey}` : `${picked} is a rest day — ${verb} to ${dayKey}`, 'success');
+    const { dayKey, outcome } = planTopicOn(active, topic, picked);
+    const rest = dayKey === picked ? '' : `${picked} is a rest day — `;
+    toast(outcome === 'already' ? `${rest}already on ${dayKey}` : `${rest}${outcome === 'moved' ? 'moved' : 'added'} to ${dayKey}`.replace(/^./, (c) => c.toUpperCase()), 'success');
     m.close();
     selectedKey = dayKey;
     viewMonth = new Date(parseKey(dayKey).getFullYear(), parseKey(dayKey).getMonth(), 1);

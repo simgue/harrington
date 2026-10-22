@@ -28,7 +28,7 @@ test('from the dashboard: a request finds topics, the path and the next step, an
   await expect(page).toHaveURL(/#find\?q=I%20want%20to%20learn%20how%20to%20tell%20the%20time&r=rq_/);
   const list = results(page);
   await expect(list.getByRole('button')).toHaveCount(8);
-  await expect(list.getByRole('button').first()).toContainText('Telling time');
+  await expect(list.getByRole('button').first()).toContainText(/Telling time/i);
   await expect(list.getByRole('button', { name: new RegExp(TIME.name) })).toContainText('Ages 5–6');
   await expect(list.getByRole('button', { name: new RegExp(TIME.name) })).toContainText('Fits age 6');
   await shot('results');
@@ -65,7 +65,10 @@ test('from the dashboard: a request finds topics, the path and the next step, an
 });
 
 test('next step actions: add to today, plan it, open the topic, find it on the skill tree', async ({ page, api, gotoApp, shot }) => {
-  await gotoApp({ seed: SEED, hash: `find?q=telling%20time&topic=${TIME.id}` });
+  // A day picked in the calendar earlier must not become Plan it's base day.
+  await gotoApp({ seed: SEED, hash: 'calendar' });
+  await page.locator('div.grid-cols-7 > button').filter({ has: page.locator('span > span', { hasText: /^28$/ }) }).first().click();
+  await page.goto(`/#find?q=telling%20time&topic=${TIME.id}`);
   const next = nextStep(page);
   await expect(next).toContainText(DURATIONS.name);
 
@@ -76,8 +79,18 @@ test('next step actions: add to today, plan it, open the topic, find it on the s
     return plan.moves?.[DURATIONS.id] === TODAY_KEY || (plan.extras?.[TODAY_KEY] || []).some((x) => x.topicId === DURATIONS.id);
   });
 
+  // A second tap changes nothing and says so.
+  await next.getByRole('button', { name: 'Add to today' }).click();
+  await expectToast(page, 'Already on today in the calendar');
+  const saved = (await api.getState()).state.plan[rowan];
+  expect((saved.extras?.[TODAY_KEY] || []).filter((x) => x.topicId === DURATIONS.id).length).toBeLessThanOrEqual(1);
+
   await next.getByRole('button', { name: 'Plan it' }).click();
   await expect(modal(page).getByRole('heading', { name: `Plan “${DURATIONS.name}”` })).toBeVisible();
+  // Counted from today (Wednesday 7 October), not from a day picked earlier in the calendar.
+  await expect(modal(page).getByLabel('Or pick a day')).toHaveValue('2026-10-08');
+  await expect(modal(page).getByRole('button', { name: 'Next home day' })).toBeVisible();
+  await expect(modal(page).getByRole('button', { name: 'Plan for this day' })).toBeVisible();
   await shot('plan-it', { full: false });
   await closeModal(page);
 

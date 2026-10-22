@@ -8,9 +8,9 @@ import { buildTopicPath, searchTopics } from '../finder.js';
 import { growthChip, stageForSkillState } from '../meadow.js';
 import { el, esc, fmtDateTime, refreshIcons, toast } from '../ui.js';
 import { countLabel, formatCount } from '../format.js';
-import { keyOf } from '../scheduler.js';
+import { keyOf, planTopicOn } from '../scheduler.js';
 import { graphParamsForTopic } from './graph.js';
-import { openMoveTopic, planTopicOn } from './calendar.js';
+import { openMoveTopic } from './calendar.js';
 
 const RESULT_LIMIT = 8;
 const STEPS_SHOWN = 12;
@@ -31,7 +31,8 @@ export function renderFind(params, { navigate }) {
     return root;
   }
 
-  const q = (params.q || '').trim();
+  // A hand-typed address can carry any length; requests are capped like the log.
+  const q = (params.q || '').slice(0, store.REQUEST_TEXT_LEN).trim();
   const log = store.requestsFor(active.id);
   // A request id from another learner's log (after a switch) is not reused.
   const request = params.r ? log.find((r) => r.id === params.r) || null : null;
@@ -94,7 +95,7 @@ function stateChip(state) {
 
 function resultsSection(q, terms, results, chosenId, active, choose) {
   const section = el(`<section class="mb-5" aria-labelledby="find-results-h">
-    <h2 id="find-results-h" class="font-600 mb-3">Closest topics for “${esc(q)}”</h2>
+    <h2 id="find-results-h" class="font-600 mb-3 [overflow-wrap:anywhere]">Closest topics for “${esc(q)}”</h2>
   </section>`);
   if (!terms.length) {
     section.appendChild(el(`<p class="text-sm text-ink-soft">Type a word or two about the topic itself, such as “fractions” or “tell the time”.</p>`));
@@ -176,7 +177,7 @@ function pathSection(target, active, navigate) {
 }
 
 function linkButton(icon, label, onclick) {
-  const btn = el(`<button type="button" class="flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-paper border border-paper-line text-ink font-medium text-sm hover:border-brand/40"><i data-lucide="${icon}" class="w-4 h-4"></i>${esc(label)}</button>`);
+  const btn = el(`<button type="button" class="min-h-11 flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-paper border border-paper-line text-ink font-medium text-sm hover:border-brand/40"><i data-lucide="${icon}" class="w-4 h-4"></i>${esc(label)}</button>`);
   btn.onclick = onclick;
   return btn;
 }
@@ -189,7 +190,7 @@ function stepRow(step, n, next, d, navigate) {
   const row = el(`<li class="find-step rounded-xl border ${isNext ? 'border-brand/50 bg-brand-light/40' : 'border-paper-line bg-paper'} p-3 flex items-start gap-3" data-step-state="${step.state}">
     <span class="w-7 h-7 rounded-full bg-paper-card border border-paper-line flex items-center justify-center text-xs font-600 shrink-0">${n}</span>
     <span class="flex-1 min-w-0">
-      <button type="button" class="step-open text-left font-600 text-sm leading-snug hover:text-brand-dark">${esc(step.topic.name)}</button>
+      <button type="button" class="step-open min-h-11 inline-flex items-center text-left font-600 text-sm leading-snug hover:text-brand-dark">${esc(step.topic.name)}</button>
       <span class="block text-xs text-ink-faint">${esc(step.topic.subject)} · ${esc(step.topic.domain)} · ages ${esc(step.topic.ageRangeStart)}–${esc(step.topic.ageRangeEnd)}</span>
       ${needs.length ? `<span class="block text-xs text-ink-soft mt-1">Needs ${needs.map(esc).join(', ')} first</span>` : ''}
       <span class="block mt-1.5 sm:hidden">${stateChip(step.state)}</span>
@@ -209,24 +210,32 @@ function nextStepCard(topic, active, navigate) {
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3"></div>
   </div>`);
   const grid = card.querySelector('.grid');
-  const open = el(`<button type="button" class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium text-sm"><i data-lucide="panel-right" class="w-4 h-4"></i>Open topic page</button>`);
+  const open = el(`<button type="button" class="min-h-11 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium text-sm"><i data-lucide="panel-right" class="w-4 h-4"></i>Open topic page</button>`);
   open.onclick = () => navigate('topic', { id: topic.id });
   grid.appendChild(open);
-  const today = el(`<button type="button" class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper-card border border-brand/30 text-brand-dark font-medium text-sm hover:border-brand"><i data-lucide="calendar-check" class="w-4 h-4"></i>Add to today</button>`);
+  const today = el(`<button type="button" class="min-h-11 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper-card border border-brand/30 text-brand-dark font-medium text-sm hover:border-brand"><i data-lucide="calendar-check" class="w-4 h-4"></i>Add to today</button>`);
   today.onclick = () => {
     const todayKey = keyOf(new Date());
-    const { dayKey, moved } = planTopicOn(active, topic, todayKey);
+    const { dayKey, outcome } = planTopicOn(active, topic, todayKey);
     const where = dayKey === todayKey ? 'today' : `${dayKey} (today is a rest day)`;
-    toast(moved ? `Moved to ${where} in the calendar` : `Added to ${where} as an extra lesson`, 'success');
+    toast({
+      moved: `Moved to ${where} in the calendar`,
+      added: `Added to ${where} as an extra lesson`,
+      already: `Already on ${where} in the calendar`,
+    }[outcome], 'success');
   };
   grid.appendChild(today);
-  const plan = el(`<button type="button" class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper-card border border-paper-line text-ink font-medium text-sm hover:border-brand/40"><i data-lucide="calendar-plus" class="w-4 h-4"></i>Plan it</button>`);
+  const plan = el(`<button type="button" class="min-h-11 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper-card border border-paper-line text-ink font-medium text-sm hover:border-brand/40"><i data-lucide="calendar-plus" class="w-4 h-4"></i>Plan it</button>`);
   plan.onclick = () => openMoveTopic(topic, active, navigate, {
+    fromKey: keyOf(new Date()),
     title: `Plan “${topic.name}”`,
     blurb: 'Pick the day for this topic. It moves there in the calendar, or is added as an extra lesson if the track does not hold it.',
+    nextLabel: 'Next home day',
+    pickLabel: 'Or pick a day',
+    submitLabel: 'Plan for this day',
   });
   grid.appendChild(plan);
-  const tree = el(`<button type="button" class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper-card border border-paper-line text-ink font-medium text-sm hover:border-brand/40"><i data-lucide="map" class="w-4 h-4"></i>Find on skill tree</button>`);
+  const tree = el(`<button type="button" class="min-h-11 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper-card border border-paper-line text-ink font-medium text-sm hover:border-brand/40"><i data-lucide="map" class="w-4 h-4"></i>Find on skill tree</button>`);
   tree.onclick = () => navigate('graph', graphParamsForTopic(topic));
   grid.appendChild(tree);
   return card;

@@ -107,15 +107,21 @@ function words(text) {
     .match(/[a-z0-9]+(?:'[a-z]+)?/g) || [];
 }
 
-// The stems a request asks for, in order, without request phrasing or repeats.
+// In a "how does X work" request these words are phrasing, not the topic.
+const HOW_PHRASING = new Set(['work', 'happen', 'made', 'make']);
+
+// The stems a request asks for, in order, without request phrasing, one-letter
+// words or repeats.
 export function queryTerms(text) {
   const seen = new Set();
   const out = [];
-  for (const raw of words(text)) {
+  const all = words(text);
+  const asksHow = all.includes('how');
+  for (const raw of all) {
     const w = raw.replace(/'s$/, '');
-    if (STOPWORDS.has(w)) continue;
+    if (w.length < 2 || STOPWORDS.has(w)) continue;
     const s = stem(w);
-    if (!s || seen.has(s) || STOPWORDS.has(s)) continue;
+    if (!s || seen.has(s) || STOPWORDS.has(s) || (asksHow && HOW_PHRASING.has(s))) continue;
     seen.add(s);
     out.push(s);
   }
@@ -136,6 +142,9 @@ const FIELDS = [
 ];
 const SYNONYM_WEIGHT = 0.5;
 const PREFIX_WEIGHT = 0.6;
+// A second field matching the same word adds this share of its weight, so a
+// word in the name and the domain beats the name alone.
+const SECOND_FIELD_SHARE = 0.25;
 // A topic needs at least this much relevance to be listed, and a match in its
 // name, domain or description: words found only in the evidence lines are not
 // a close match.
@@ -143,11 +152,12 @@ export const MIN_SCORE = 1.5;
 
 const indexCache = new WeakMap();
 
-// Per-topic stem sets, built once per taxonomy object.
+// Per-topic stem sets, built once per taxonomy object, and how many topics
+// carry each stem in their name, domain or description (for rarity weights).
 export function buildSearchIndex(topics) {
   const key = topics;
   if (indexCache.has(key)) return indexCache.get(key);
-  const index = topics.map((topic) => ({
+  const entries = topics.map((topic) => ({
     topic,
     nameText: words(topic.name).join(' '),
     fields: {
@@ -157,8 +167,19 @@ export function buildSearchIndex(topics) {
       evidence: stemSet((topic.evidence || []).join(' ')),
     },
   }));
+  const df = new Map();
+  for (const { fields } of entries) {
+    for (const s of new Set([...fields.name, ...fields.domain, ...fields.description])) df.set(s, (df.get(s) || 0) + 1);
+  }
+  const index = { entries, df, size: entries.length };
   indexCache.set(key, index);
   return index;
+}
+
+// Rarer words say more about what was asked: a word in three topics outweighs
+// one in sixty. Inverse document frequency, never zero.
+function rarity(index, term) {
+  return Math.log(1 + index.size / ((index.df.get(term) || 0) + 1));
 }
 
 // Prefix matches only for stems of five letters or more ("multipl" is not
@@ -183,20 +204,24 @@ function termStrength(term, set) {
   return best;
 }
 
-// Relevance of one topic to the request, before the age boost.
-function relevance(entry, terms) {
+// Relevance of one topic to the request, before the age boost. Each word
+// counts by its rarity, scaled so the request's words average 1: a one-word
+// request scores as before, and in "volcanoes work" the rare word leads.
+function relevance(entry, terms, weights) {
   let total = 0;
   let matched = 0;
   let core = false;
-  for (const term of terms) {
-    let best = 0;
+  for (let i = 0; i < terms.length; i++) {
+    const scores = [];
     for (const [field, weight] of FIELDS) {
-      const strength = termStrength(term, entry.fields[field]);
+      const strength = termStrength(terms[i], entry.fields[field]);
       if (strength && field !== 'evidence') core = true;
-      best = Math.max(best, weight * strength);
+      scores.push(weight * strength);
     }
-    if (best > 0) matched += 1;
-    total += best;
+    scores.sort((a, b) => b - a);
+    const best = scores[0] + SECOND_FIELD_SHARE * scores[1];
+    if (best > 0) matched += weights[i];
+    total += best * weights[i];
   }
   if (!matched || !core) return 0;
   // Topics that answer every word of the request beat ones that answer one.
@@ -225,9 +250,13 @@ export function ageFactor(topic, age) {
 export function searchTopics(topics, text, { age = null, limit = 8 } = {}) {
   const terms = queryTerms(text);
   if (!terms.length) return { terms, results: [] };
+  const index = buildSearchIndex(topics);
+  const raw = terms.map((term) => rarity(index, term));
+  const mean = raw.reduce((a, b) => a + b, 0) / raw.length;
+  const weights = raw.map((w) => w / mean);
   const results = [];
-  for (const entry of buildSearchIndex(topics)) {
-    const rel = relevance(entry, terms);
+  for (const entry of index.entries) {
+    const rel = relevance(entry, terms, weights);
     if (rel < MIN_SCORE) continue;
     const factor = ageFactor(entry.topic, age);
     results.push({ topic: entry.topic, relevance: rel, score: rel * factor, inBand: factor > 1 });

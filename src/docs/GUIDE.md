@@ -120,7 +120,7 @@ from the curriculum map. It runs on this computer and uses no AI.
   chose, newest first (the last 50). It is part of the family data, so it is
   in exports and backups.
 
-The map only holds the 1,590 Marble topics; a subject it does not cover cannot
+The map only holds the Marble topics; a subject it does not cover cannot
 be found yet.
 
 ## Growth stages and mastery

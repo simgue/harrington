@@ -254,6 +254,28 @@ export function invalidatePlan(studentId) {
   for (const k of [..._planCache.keys()]) { if (k.startsWith(studentId + '|')) _planCache.delete(k); }
 }
 
+// Puts a topic on a day for a learner: a topic on the track moves there; one
+// the track does not hold (below the start age, off the on-ramp) is added to
+// that day as an extra lesson. A rest day becomes the next home day. Returns
+// { dayKey, outcome: 'moved' | 'added' | 'already' }; 'already' changes
+// nothing (the topic is planned that day, or already an extra on it).
+export function planTopicOn(student, topic, picked) {
+  const dayKey = nextHomeDayKey(picked, familyCalendar());
+  const planned = buildPlan(student).topicDate;
+  if (planned.has(topic.id)) {
+    if (planned.get(topic.id) === dayKey) return { dayKey, outcome: 'already' };
+    store.moveTopic(student.id, topic.id, dayKey);
+    invalidatePlan(student.id);
+    return { dayKey, outcome: 'moved' };
+  }
+  if (store.extrasOn(student.id, dayKey).some((x) => x.topicId === topic.id)) return { dayKey, outcome: 'already' };
+  store.addExtra(student.id, dayKey, {
+    kind: 'lesson', topicId: topic.id, topicName: topic.name,
+    subject: topic.subject, title: `Lesson · ${topic.name}`,
+  });
+  return { dayKey, outcome: 'added' };
+}
+
 export function topicsOn(student, dateKey) {
   return buildPlan(student).byDate.get(dateKey) || [];
 }
