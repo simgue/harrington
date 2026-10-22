@@ -36,7 +36,7 @@ time (`workers: 1`).
 
 ## What starts
 
-`playwright.config.mjs` starts four servers through `webServer`, on ports
+`playwright.config.mjs` starts five servers through `webServer`, on ports
 from `tests/e2e/support/env.mjs`:
 
 | Port | Server | Used by |
@@ -45,6 +45,7 @@ from `tests/e2e/support/env.mjs`:
 | 4312 | `node server.mjs` with `HARRINGTON_AI_BASE_URL=http://127.0.0.1:4311/v1` and `HARRINGTON_AI_MODEL=mock` | `api`, `desktop`, `mobile`, `walkthrough`, `walkthrough-mobile` |
 | 4313 | `node server.mjs` with no AI provider | `no-ai` |
 | 4314 | `node server.mjs` with `HARRINGTON_AI_BASE_URL=http://127.0.0.1:4319/v1`, where nothing listens | `ai-unreachable` |
+| 4316 | `node server.mjs` with no AI provider and `HARRINGTON_ACCESS_TOKEN` set (HAR-25) | `api` (token-mode API), `desktop` (`access-token.spec.mjs`) |
 
 Port 4319 must stay free: `globalSetup` stops the run if anything answers
 there.
@@ -97,7 +98,7 @@ recording's length, recall cards coming due tomorrow) moves the fixed time on.
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `E2E_CHROMIUM` | unset | Path to a Chromium or `headless_shell` binary to launch instead of Playwright's own. Use it when the installed browsers do not match the Playwright version. |
-| `E2E_PORT_BASE` | `4310` | Ports are base+1 (mock AI), base+2 (app with AI), base+3 (app without AI), base+4 (app with an unreachable AI) and base+9 (kept free as that unreachable AI). |
+| `E2E_PORT_BASE` | `4310` | Ports are base+1 (mock AI), base+2 (app with AI), base+3 (app without AI), base+4 (app with an unreachable AI), base+6 (app with an access token) and base+9 (kept free as that unreachable AI). |
 | `E2E_SCREENSHOTS` | on | Set to `0` to skip writing screenshots. |
 | `E2E_VIDEO` | unset | `all` records every test, not just the walkthroughs (`e2e:ui-docs` sets it). |
 | `HARRINGTON_TAXONOMY_UPSTREAM` | probed | Where the launcher downloads the taxonomy from on the first run. |
