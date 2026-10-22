@@ -120,7 +120,7 @@ export default defineConfig({
       testIgnore: SPECIAL,
       use: { ...desktop, baseURL: URLS.appAi },
     },
-    { name: 'no-ai', testMatch: /(^|[\\/])no-ai\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appNoAi } },
+    { name: 'no-ai', testMatch: /(^|[\\/])(no-ai|routes)\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appNoAi } },
     { name: 'ai-unreachable', testMatch: /(^|[\\/])ai-unreachable\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appAiUnreachable } },
     { name: 'lessons-only', testMatch: /(^|[\\/])lessons-only\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appLessonsOnly } },
     { name: 'settings', testMatch: /(^|[\\/])settings\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appSettings } },

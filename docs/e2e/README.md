@@ -78,7 +78,7 @@ yourself to force one.
 | --- | --- | --- | --- |
 | `api` | none | `api.spec.mjs` | HTTP only, against both app servers |
 | `desktop` | 1280×900 | every other `*.spec.mjs` | AI pointed at the mock |
-| `no-ai` | 1280×900 | `no-ai.spec.mjs` | no provider: HAR-13's "Needs a local AI provider" chips |
+| `no-ai` | 1280×900 | `no-ai.spec.mjs`, `routes.spec.mjs` | no provider: HAR-13's "Needs a local AI provider" chips, and the route smoke without a provider |
 | `ai-unreachable` | 1280×900 | `ai-unreachable.spec.mjs` | a provider that is down: the "couldn't reach" copy and Try again |
 | `settings` | 1280×900 | `settings.spec.mjs` | Settings > AI provider: save, test and remove a provider, with the key never in a response |
 | `lessons-only` | 1280×900 | `lessons-only.spec.mjs` | only lessons switched on: the "Not switched on yet" chip, a live lesson, cached content still opening |
