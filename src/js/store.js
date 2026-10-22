@@ -502,7 +502,8 @@ export function flushSaves() {
 }
 
 // automatic: a write the app makes while rendering (today's daily choices, a
-// recall card it starts tracking), not one the parent asked for. While
+// recall card it starts tracking, a calendar extra whose topic is gone), not
+// one the parent asked for. While
 // read-only the shell keeps its banner but does not toast for those.
 function persist({ automatic = false } = {}) {
   if (readOnly) { saveStatus({ type: 'read-only', automatic }); return; }
@@ -902,7 +903,9 @@ export function pruneExtras(studentId, dateKey, itemIds) {
   p.extras[dateKey] = (p.extras[dateKey] || []).filter(x => !itemIds.includes(x.id));
   if (p.extras[dateKey].length === before) return;
   if (!p.extras[dateKey].length) delete p.extras[dateKey];
-  persist(); emit();
+  // The calendar prunes extras whose topic is gone while rendering: an
+  // automatic write, refused without a toast while read-only.
+  persist({ automatic: true }); emit();
 }
 // Change where a learner's track starts; `clearMoves` also drops topics the
 // parent moved by hand, so they follow the new track. One persist + emit.

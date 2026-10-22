@@ -42,7 +42,7 @@ your report and work on a fix as quickly as we reasonably can.
   request is built, and again by the server in every message it forwards to
   the provider, with the same matching rules; the server also removes stored
   parent notes unless the parent opted in to that request. A learner name
-  that is a common word ("Will": about 40 taxonomy topics contain "will") is replaced wherever it appears in
+  that is a common word ("Will": many taxonomy topics contain "will") is replaced wherever it appears in
   the prompt, instructions and topic text included, which can degrade the
   answer. What still leaves the machine: topic text and the topic's
   age from the curriculum, the learner's exact age for whole-subject tests,
