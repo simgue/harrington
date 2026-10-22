@@ -7,6 +7,15 @@ tagged a release yet; everything below is on `main`.
 ## [Unreleased]
 
 ### Changed
+- The notification bell lists what needs a parent, computed locally per
+  learner: today's picks still open after 3 pm on a home day, no evidence in
+  the last 7 days, and a backup older than 7 days (`/api/health` now reports
+  `backupAgeDays` from `HARRINGTON_BACKUP_DIR` or `backups/`). With no backup
+  recorded it says so once, links to the README's backup section, and a dismissal
+  quiets it for 30 days. It opens on the active learner with an "All
+  learners" option, items are dismissed one by one or all at once, and the
+  button is named "Notifications, N new" (F13). Curriculum-change detection
+  and the challenge and suggestion notifications are gone (HAR-27).
 - Calendar follows the family's home days and breaks (set under Home days &
   breaks); rest days schedule nothing. Unmastered literacy and numeracy topics
   below the learner's age come first, after their prerequisites. Refreshers
@@ -71,9 +80,9 @@ tagged a release yet; everything below is on `main`.
 - A tab that loses a save to another tab or device reloads once and shows
   one toast naming what it did not keep (a status change, a record, a note),
   with "Try again" when the change can be applied again on the fresh copy.
-  A tab's own boot writes (curriculum snapshot, welcome notification) no
-  longer raise a conflict with a sibling tab, nor do daily offers written
-  while rendering (e2e finding F17).
+  Daily offers a tab writes while rendering no longer raise a conflict with
+  a sibling tab; HAR-27 removed the boot writes (curriculum snapshot,
+  welcome notification) that used to (e2e finding F17).
 - The preview banner reads the provider status from `/api/health`: "AI
   provider set up" or "No AI provider set up; everything else works". It
   never says "connected", since a configured provider can be unreachable (F4).

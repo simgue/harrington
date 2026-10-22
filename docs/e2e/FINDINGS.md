@@ -39,7 +39,7 @@ so the numbers stay stable.
 | ~~F10~~ | ~~Activity instructions failure says "Couldn't create the lesson"~~ | Low | `ai-unreachable` | Fixed by HAR-13 |
 | ~~F11~~ | ~~Selecting a skill scrolls the page to the top~~ | Low | `map` | Fixed by HAR-21 (`68a94c9`) |
 | ~~F12~~ | ~~Recent growth lists topics set back to "Not started"~~ | Low | `topic` | Fixed by e2e findings A (#35) |
-| F13 | Notification bell has no accessible name | Low | `notifications` | |
+| ~~F13~~ | ~~Notification bell has no accessible name~~ | Low | `notifications` | Fixed by HAR-27 |
 | ~~F14~~ | ~~Icon-only delete and remove buttons have no accessible name~~ | Low | `learners`, `records`, `calendar`, `mobile` | Fixed by findings bundle B (#38) |
 | ~~F15~~ | ~~Dashboard says "1590 topics" where the map says "1,590"~~ | Low | `dashboard` | Fixed by findings bundle B (#38) |
 | ~~F16~~ | ~~The child-view PIN is stored and exported in plain text~~ | Low | `data-safety`, `child-view` | Fixed by findings bundle B (#38) |
@@ -261,7 +261,12 @@ It was pinned by `topic.spec.mjs` (finding F12), now flipped.
 
 ## F13. Notification bell has no accessible name
 
-**Low.** The bell (`notifications.js:16`) has only a `title`. With an unread
+**Fixed by HAR-27.** The bell is named "Notifications" or "Notifications, N
+new"; the badge is hidden from assistive technology. `notifications.spec.mjs`
+› "the bell is named \"Notifications\" with the count in words (F13, fixed
+by HAR-27)" finds it by role and name.
+
+Original report: **Low.** The bell (`notifications.js:16`) has only a `title`. With an unread
 badge its accessible name is the count ("1") instead of "Notifications", so
 a screen reader announces "1, button".
 
@@ -342,10 +347,10 @@ change can simply be applied again (status changes, added records and
 notes); the toast names up to three changes, then "and N more". Empty
 containers created on read (such as `recall[learner]`) are not changes, and
 changes for a learner removed elsewhere are not re-applied. The tab's own
-bookkeeping (curriculum snapshot, welcome or curriculum notification, and a
-day's daily offers written while rendering) is put back only where the
-fresh document lacks it, silently, so two tabs opened together no longer
-conflict. `data-safety.spec.mjs` › "two tabs: the losing tab says which
+bookkeeping (a day's daily offers written while rendering, and activity
+days) is put back only where the fresh document lacks it, silently, so two
+tabs opened together no longer conflict. The boot writes (curriculum
+snapshot, welcome note) are gone with HAR-27. `data-safety.spec.mjs` › "two tabs: the losing tab says which
 change it discarded…", "a first dashboard render that loses is put back
 silently, can be picked…" and "two tabs opened together on the dashboard…"
 (F17, fixed); unit tests in `store-conflict.test.mjs`.

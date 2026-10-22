@@ -1,6 +1,8 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
 import { formatCount } from './format.js';
+import { getData } from './data.js';
+import { pruneDismissed } from './alert-dismissals.js';
 import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
 
 export const MASTERY = {
@@ -23,8 +25,8 @@ let state = {
   challenges: {},     // studentId -> [ {id, topicId, subject, domain, correct, total, seconds, createdAt} ]
   adaptations: {},    // studentId -> { 'Subject|Domain': { level:'advanced', since } }
   suggestions: {},    // studentId -> [ {id, kind, subject, domain, reason, status, createdAt} ]
-  notifications: [],  // family-wide: [ {id, type, title, body, meta, read, createdAt} ]
-  curriculumSnapshot: null, // {version, generatedAt, topicIds:[...], count}
+  notifications: [],  // legacy log from before the bell was computed (alerts.js); kept, read only to skip the welcome
+  dismissedAlerts: {}, // family-wide: { alertKey: dismissedAt } (see alerts.js)
   recall: {},         // studentId -> { cardId -> { topicId, box, due, reps, lapses, last } }
   practice: {},       // studentId -> { itemId -> { topicId, subject, q, type, options, answer, box, due, reps, lapses, last } }
   activity: {},       // studentId -> { 'yyyy-mm-dd': true }  (days with recall/lesson/mastery activity)
@@ -41,13 +43,16 @@ export function get() { return state; }
 
 // ---- Server connection ----
 let aiConfigured = false; // from /api/health; kept out of the persisted state
+let backupAgeDays;        // from /api/health: days since the newest backup, null for none
 export async function connect() {
   const health = await backend.health();
   aiConfigured = health?.aiConfigured === true;
+  backupAgeDays = health?.backupAgeDays;
   state.user = { username: 'Family' };
   return state.user;
 }
 export function aiAvailable() { return aiConfigured; }
+export function backupAge() { return backupAgeDays; }
 // Rejects when /api/health itself fails, so callers can tell an outage from a missing provider.
 export async function refreshHealth() {
   const before = aiConfigured;
@@ -88,7 +93,7 @@ function objectOr(value, fallback) {
 // Every top-level field of the family document, in one list: snapshotData()
 // sends these, documentFields() reads them back and a conflict compares
 // them. A new stored field joins here (schemaVersion comes with #32).
-export const DOCUMENT_KEYS = ['students', 'activeStudentId', 'notifications', 'curriculumSnapshot',
+export const DOCUMENT_KEYS = ['students', 'activeStudentId', 'notifications', 'dismissedAlerts',
   'graphView', 'settings', 'schemaVersion', ...LEARNER_KEYS];
 
 // How each field is normalized as the state holds it; learner maps default
@@ -97,7 +102,6 @@ const FIELD_NORMALIZERS = {
   students: v => (Array.isArray(v) ? v : []),
   activeStudentId: (v, fields) => v || (fields.students[0] && fields.students[0].id) || null,
   notifications: v => (Array.isArray(v) ? v : []),
-  curriculumSnapshot: v => v || null,
   graphView: v => (v === 'list' ? 'list' : 'atlas'),
   settings: v => objectOr(v, {}),
   schemaVersion: v => v,
@@ -181,9 +185,6 @@ function pruneEmpty(value) {
 //   { kind: 'record', studentId, record }          a record added
 //   { kind: 'activity', studentId, day }           a day marked active
 //   { kind: 'offers', studentId, day, entry }      a day's daily offers chosen
-//   { kind: 'notification', notification }         a notification added
-//   { kind: 'read', id }                           a notification marked read
-//   { kind: 'snapshot', snapshot }                 the curriculum snapshot saved
 //   { kind: 'other', key }                         anything else (not re-applied)
 // Empty containers are ignored. Pure, so it can be tested without a server.
 export function diffDocuments(base, local) {
@@ -231,15 +232,6 @@ export function diffDocuments(base, local) {
           changes.push(offersOnly ? { kind: 'offers', studentId, day, entry } : { kind: 'other', key });
         }
       }
-    } else if (key === 'notifications') {
-      const before = new Map((Array.isArray(b.notifications) ? b.notifications : []).map(n => [n.id, n]));
-      for (const n of Array.isArray(l.notifications) ? l.notifications : []) {
-        const old = before.get(n.id);
-        if (!old) changes.push({ kind: 'notification', notification: n });
-        else if (n.read && !old.read) changes.push({ kind: 'read', id: n.id });
-      }
-    } else if (key === 'curriculumSnapshot') {
-      if (l.curriculumSnapshot) changes.push({ kind: 'snapshot', snapshot: l.curriculumSnapshot });
     } else {
       changes.push({ kind: 'other', key });
     }
@@ -247,14 +239,11 @@ export function diffDocuments(base, local) {
   return changes;
 }
 
-// ---- Bookkeeping: writes a tab makes on its own at boot or render ----
+// ---- Bookkeeping: writes a tab makes on its own while rendering ----
 // Never reported as lost; put back silently, only where the fresh document
-// lacks them, so two tabs opened together never conflict. HAR-27 (#36)
-// removes the curriculum snapshot and welcome-note writers: when it lands,
-// drop 'snapshot' and the notification cases from this block.
-const BOOKKEEPING = new Set(['snapshot', 'notification', 'read', 'activity', 'offers']);
+// lacks them, so two tabs opened together never conflict.
+const BOOKKEEPING = new Set(['activity', 'offers']);
 function isBookkeeping(c) {
-  if (c.kind === 'notification') return ['welcome', 'curriculum'].includes(c.notification?.type);
   return BOOKKEEPING.has(c.kind);
 }
 // Returns true when it changed the state.
@@ -267,22 +256,6 @@ function reapplyBookkeeping(c) {
     const days = state.daily[c.studentId] = state.daily[c.studentId] || {};
     if (days[c.day]) return false;
     days[c.day] = { picks: {}, ...c.entry };
-  } else if (c.kind === 'notification') {
-    const n = c.notification;
-    // As in syncCurriculum: the welcome note only into an empty list, one
-    // update note per curriculum version.
-    const dup = (n.type === 'welcome' && state.notifications.length > 0)
-      || state.notifications.some(x => x.id === n.id
-        || (n.type === 'curriculum' && x.type === 'curriculum' && x.meta?.version === n.meta?.version));
-    if (dup) return false;
-    state.notifications.unshift(n);
-  } else if (c.kind === 'read') {
-    const n = state.notifications.find(x => x.id === c.id);
-    if (!n || n.read) return false;
-    n.read = true;
-  } else if (c.kind === 'snapshot') {
-    if (state.curriculumSnapshot) return false;
-    state.curriculumSnapshot = c.snapshot;
   } else {
     return false;
   }
@@ -302,8 +275,6 @@ export function describeDiscarded(changes, nameOf = id => id) {
     } else if (c.kind === 'record') {
       const what = c.record?.type === 'note' ? 'the note' : 'the record';
       parts.push(c.record?.title ? `${what} “${c.record.title}”` : what);
-    } else if (c.kind === 'notification') {
-      parts.push('a notification');
     } else if (c.kind === 'other') {
       parts.push('other changes');
     }
@@ -336,8 +307,6 @@ function reapply(changes) {
     } else if (c.kind === 'record') {
       const list = state.records[c.studentId] = state.records[c.studentId] || [];
       if (!list.some(r => r.id === c.record.id)) { list.unshift(c.record); changed = true; }
-    } else if (c.kind === 'notification' && !isBookkeeping(c)) {
-      if (!state.notifications.some(x => x.id === c.notification.id)) { state.notifications.unshift(c.notification); changed = true; }
     } else if (reapplyBookkeeping(c)) {
       changed = true;
     }
@@ -550,7 +519,9 @@ function countOf(value) {
 // the export is this tab's copy, flagged with unsavedChanges.
 export async function exportDocument() {
   await flushSaves();
-  const meta = { exportedAt: new Date().toISOString(), taxonomyVersion: state.curriculumSnapshot?.version || null };
+  let taxonomyVersion = null;
+  try { taxonomyVersion = getData().meta.version; } catch { /* taxonomy not loaded */ }
+  const meta = { exportedAt: new Date().toISOString(), taxonomyVersion };
   const doc = dirty
     ? { ...snapshotData(), version: stateVersion, ...meta, unsavedChanges: true }
     : { ...(await backend.loadState()), ...meta };
@@ -1199,30 +1170,18 @@ export function grantBadge(studentId, badgeId) {
 }
 export function earnedBadges(studentId) { return readGame(studentId).badges; }
 
-// ---- Notifications (family-wide) ----
-export function notifications() { return state.notifications; }
-export function unreadCount() { return state.notifications.filter(n => !n.read).length; }
-export function addNotification(n) {
-  const full = { id: 'n_' + Math.random().toString(36).slice(2, 9), read: false, createdAt: Date.now(), ...n };
-  state.notifications.unshift(full);
-  // keep the list from growing without bound
-  if (state.notifications.length > 100) state.notifications = state.notifications.slice(0, 100);
-  persist(); emit();
-  return full;
-}
-export function markNotificationRead(id) {
-  const n = state.notifications.find(x => x.id === id);
-  if (n) n.read = true;
+// ---- Notification bell (family-wide; items are computed in alerts.js) ----
+// True when the family saw the old first-run welcome, so the bell skips its own.
+export function welcomed() { return state.notifications.length > 0; }
+export function dismissedAlerts() { return state.dismissedAlerts; }
+// Records a dismissal for each key. Expired snoozes and past days' picks are
+// dropped so the map stays small; permanent dismissals are kept.
+export function dismissAlerts(keys, now = Date.now()) {
+  const next = pruneDismissed(state.dismissedAlerts, now);
+  keys.forEach(key => { next[key] = now; });
+  state.dismissedAlerts = next;
   persist(); emit();
 }
-export function markAllNotificationsRead() {
-  state.notifications.forEach(n => { n.read = true; });
-  persist(); emit();
-}
-
-// ---- Curriculum snapshot (for detecting repo updates) ----
-export function getCurriculumSnapshot() { return state.curriculumSnapshot; }
-export function setCurriculumSnapshot(snap) { state.curriculumSnapshot = snap; persist(); }
 
 export function graphView() {
   return state.graphView === 'list' ? 'list' : 'atlas';

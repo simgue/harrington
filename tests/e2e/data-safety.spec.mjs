@@ -94,9 +94,8 @@ test('two tabs: the losing tab says which change it discarded, once, and Try aga
   await expect(other.getByRole('heading', { level: 1, name: TOPICS.howMany.name })).toBeVisible();
   const toasts = other.locator('#toast-root');
 
-  // Both tabs write the curriculum snapshot and welcome note on boot; B's
-  // boot write loses to A's, and B says nothing about it.
-  await api.waitForState((s) => !!s.curriculumSnapshot);
+  // Opening a topic page writes nothing (HAR-27 removed the boot writes), so
+  // neither tab has anything to lose yet.
   await expect(toasts.getByText(/Another device saved/)).toHaveCount(0);
 
   // Tab A saves first.
@@ -119,7 +118,6 @@ test('two tabs: the losing tab says which change it discarded, once, and Try aga
   await conflict.getByRole('button', { name: 'Try again' }).click();
   const state = await api.waitForState((s) => s.progress?.[ROWAN]?.[TOPICS.howMany.id]?.status === 'practicing');
   expect(state.progress[ROWAN][TOPICS.oneToOne.id].status).toBe('learning');
-  expect(state.notifications.filter((n) => n.type === 'welcome')).toHaveLength(1);
   await nav(other, 'Dashboard').click();
   const growth = other.locator('section', { has: other.getByRole('heading', { name: 'Recent growth' }) });
   await expect(growth.getByRole('button', { name: /One-to-one counting.*Learning/ })).toBeVisible();
@@ -129,9 +127,9 @@ test('two tabs: the losing tab says which change it discarded, once, and Try aga
 });
 
 test('a first dashboard render that loses is put back silently, can be picked, and Try again still works (F17, fixed)', async ({ page, api, gotoApp, errors }) => {
-  // Opening the dashboard writes the curriculum snapshot, the welcome note and
-  // today's offers, and creates an empty recall container on read. Hold that
-  // first save while another device saves a copy that has none of them.
+  // Opening the dashboard writes today's offers and creates an empty recall
+  // container on read. Hold that first save while another device saves a
+  // copy that has neither.
   let release; const held = new Promise((r) => { release = r; });
   let seen; const holding = new Promise((r) => { seen = r; });
   let first = true;
@@ -139,7 +137,7 @@ test('a first dashboard render that loses is put back silently, can be picked, a
     if (route.request().method() === 'PUT' && first) { first = false; seen(); await held; }
     await route.continue();
   });
-  await gotoApp({ seed: {} }); // no recall key, no offers, no snapshot
+  await gotoApp({ seed: {} }); // no recall key, no offers
   await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
   await holding;
   const { state: before } = await api.getState();
@@ -149,7 +147,7 @@ test('a first dashboard render that loses is put back silently, can be picked, a
 
   // The 412 puts the tab's bookkeeping back on the fresh copy, silently.
   const toasts = page.locator('#toast-root');
-  const saved = await api.waitForState((s) => !!s.daily?.[ROWAN]?.[TODAY_KEY] && !!s.curriculumSnapshot);
+  const saved = await api.waitForState((s) => !!s.daily?.[ROWAN]?.[TODAY_KEY]);
   expect(saved.daily[ROWAN][TODAY_KEY].picks).toEqual({});
   expect(saved.progress[ROWAN][TOPICS.oneToOne.id].status).toBe('learning');
   await expect(toasts.getByText(/Another device saved/)).toHaveCount(0);
@@ -180,13 +178,12 @@ test('a first dashboard render that loses is put back silently, can be picked, a
 test('two tabs opened together on the dashboard raise no conflict (F17, fixed)', async ({ page, context, api }) => {
   const other = await context.newPage();
   await other.clock.setFixedTime(FIXED_NOW);
-  // Both tabs write today's offers (and, until HAR-27, the curriculum snapshot
-  // and welcome note) as they render; whichever loses says nothing.
+  // Both tabs write today's offers as they render; whichever loses says nothing.
   await api.seed({});
   await Promise.all([page.goto('/'), other.goto('/')]);
   await expect(other.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
   await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
-  await api.waitForState((s) => !!s.daily?.[ROWAN] && !!s.curriculumSnapshot);
+  await api.waitForState((s) => !!s.daily?.[ROWAN]);
   // Give a losing boot write time to come back as a 412 before checking.
   await other.waitForTimeout(1500);
   for (const tab of [page, other]) await expect(tab.locator('#toast-root').getByText(/Another device saved/)).toHaveCount(0);

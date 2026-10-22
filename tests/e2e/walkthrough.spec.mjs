@@ -189,7 +189,7 @@ test.describe('parent', () => {
     await scrollThrough(page, 3);
     await page.locator('button[title="Notifications"]').first().click();
     await beat(page, 1200);
-    await modal(page).getByRole('button', { name: 'Mark all read' }).click();
+    await modal(page).getByRole('button', { name: 'Dismiss all' }).click();
     await closeModal(page);
     await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Guide' }).click();
     await beat(page, 1500);

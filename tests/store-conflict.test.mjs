@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 // What a tab does when it loses a save (e2e finding F17): it reloads once,
 // names what it discarded, re-applies it on request, and never raises a
-// conflict over its own boot writes (curriculum snapshot, welcome note).
+// conflict over what it writes on its own while rendering (daily offers).
 
 // A tiny stand-in for the server's versioned document.
 const server = { doc: { version: 1, students: [{ id: 's1', name: 'Rowan Sample' }] }, puts: [], failNextPut: false };
@@ -34,16 +34,16 @@ store.onSaveStatus((e) => events.push(e));
 await store.loadAll();
 
 test('diffDocuments lists status changes, added records and bookkeeping', () => {
-  const base = { progress: { s1: { a: { status: 'learning' } } }, records: { s1: [{ id: 'r1' }] }, notifications: [], curriculumSnapshot: null, graphView: 'atlas' };
+  const base = { progress: { s1: { a: { status: 'learning' } } }, records: { s1: [{ id: 'r1' }] }, dismissedAlerts: {}, graphView: 'atlas' };
   const local = {
     progress: { s1: { a: { status: 'mastered' }, b: { status: 'learning' } } },
     records: { s1: [{ id: 'r2', type: 'note', title: 'Counted grapes' }, { id: 'r1' }] },
-    notifications: [{ id: 'n1', type: 'welcome' }],
-    curriculumSnapshot: { version: 'v1' },
+    dismissedAlerts: { 'backup:stale': 1 },
     graphView: 'list',
   };
   const kinds = store.diffDocuments(base, local).map((c) => c.kind).sort();
-  assert.deepEqual(kinds, ['notification', 'other', 'record', 'snapshot', 'status', 'status']);
+  // A dismissal and the map view are the parent's changes, but not re-appliable.
+  assert.deepEqual(kinds, ['other', 'other', 'record', 'status', 'status']);
   assert.equal(store.diffDocuments(base, base).length, 0);
 });
 
@@ -62,7 +62,7 @@ test('describeDiscarded names statuses and records, never bookkeeping', () => {
     'One-to-one counting marked practicing, How Many in Total? marked not started, the note “Counted grapes” and 1 more');
   const many = Array.from({ length: 120 }, (_, i) => ({ kind: 'status', topicId: `t${i}`, entry: { status: 'mastered' } }));
   assert.equal(store.describeDiscarded(many), 't0 marked mastered, t1 marked mastered, t2 marked mastered and 117 more');
-  assert.equal(store.describeDiscarded([{ kind: 'snapshot' }, { kind: 'activity' }]), '');
+  assert.equal(store.describeDiscarded([{ kind: 'offers' }, { kind: 'activity' }]), '');
   assert.equal(store.canReapply(changes), true);
   assert.equal(store.canReapply([...changes, { kind: 'other', key: 'plan' }]), false);
 });
@@ -92,22 +92,10 @@ test('reading XP and badges writes nothing', () => {
 
 test('the document fields come from one list, schemaVersion included', () => {
   assert.ok(store.DOCUMENT_KEYS.includes('schemaVersion'));
-  for (const key of ['students', 'progress', 'recall', 'daily', 'notifications', 'curriculumSnapshot', 'settings', 'graphView']) {
+  for (const key of ['students', 'progress', 'recall', 'daily', 'notifications', 'dismissedAlerts', 'settings', 'graphView']) {
     assert.ok(store.DOCUMENT_KEYS.includes(key), key);
   }
-});
-
-test('a boot write that loses to a sibling tab\'s boot write is silent', async () => {
-  otherTabSaves(() => ({ curriculumSnapshot: { version: 'v1', topicIds: ['a'] }, notifications: [{ id: 'n_other', type: 'welcome', read: false }] }));
-  events.length = 0;
-  store.setCurriculumSnapshot({ version: 'v1', topicIds: ['a'] });
-  store.addNotification({ type: 'welcome', title: 'Your curriculum is ready' });
-  await store.flushSaves();
-  assert.deepEqual(events.filter((e) => e.type === 'conflict'), []);
-  // The sibling's welcome note is the only one; nothing more to save.
-  assert.deepEqual(store.notifications().map((n) => n.id), ['n_other']);
-  await store.flushSaves();
-  assert.equal(server.doc.notifications.length, 1);
+  assert.ok(!store.DOCUMENT_KEYS.includes('curriculumSnapshot'), 'HAR-27 removed the snapshot');
 });
 
 test('a losing status change is named once and Try again re-applies it', async () => {
