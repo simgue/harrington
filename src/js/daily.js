@@ -33,6 +33,15 @@ export const LANES = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// The oldest band a learner is offered: one year above their age, but never
+// below the taxonomy's youngest band, so a learner younger than every topic
+// (a 3-year-old when the taxonomy starts at 5) still gets the first band.
+export function ageCeiling(age, topics, topicAge) {
+  let youngest = Infinity;
+  for (const t of topics) youngest = Math.min(youngest, topicAge(t));
+  return Number.isFinite(youngest) ? Math.max(age + 1, youngest) : age + 1;
+}
+
 // Small stable hash so ties rotate from day to day without randomness.
 function hash(text) {
   let h = 2166136261;
@@ -73,13 +82,14 @@ export function laneOptions(topics, lane, ctx, count = 2, blockedCount = 2) {
   // Taxonomies without the focus domains fall back to the whole subject.
   if (!pool.length) pool = topics.filter((t) => t.subject === lane.subject);
 
+  const ceiling = ageCeiling(ctx.age, pool, ctx.topicAge);
   const scored = [];
   const locked = [];
   for (const t of pool) {
     const status = ctx.statusOf(t.id);
     if (status === 'mastered') continue;
     const age = ctx.topicAge(t);
-    if (age > ctx.age + 1) continue;
+    if (age > ceiling) continue;
     const tie = hash(`${ctx.dateKey}|${t.id}`);
     if (!ctx.isUnlocked(t.id)) {
       locked.push({ topic: t, score: (t.centrality || 0) * 2 - Math.abs(age - ctx.age), tie });

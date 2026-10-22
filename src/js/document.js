@@ -12,11 +12,12 @@ import { HASH_PATTERN, SALT_PATTERN } from './pin.js';
 export const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
   'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests'];
 
-// Every top-level key the app saves, in one list, so the store's snapshot and
-// anything that compares documents never drift. Keys a document carries that
-// are not listed here (from a newer Harrington) are kept through load and save.
-export const documentFields = ['schemaVersion', 'students', 'activeStudentId', ...LEARNER_KEYS,
-  'notifications', 'dismissedAlerts', 'graphView', 'settings'];
+// Every top-level key the app saves, in one list: the store's snapshot sends
+// these, its documentFields() reads them back and a conflict compares them, so
+// they never drift. A new stored field joins here. Keys a document carries that
+// are not listed (from a newer Harrington) are kept through load and save.
+export const DOCUMENT_KEYS = ['students', 'activeStudentId', 'notifications', 'dismissedAlerts',
+  'graphView', 'settings', 'schemaVersion', ...LEARNER_KEYS];
 
 // Top-level keys an earlier Harrington saved and this one has retired (PR #36
 // replaced curriculumSnapshot with computed alerts). They are dropped on the

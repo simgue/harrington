@@ -174,11 +174,6 @@ pick (`source.kind: 'daily-pick'`, key `date|lane|topic`) but leaves "How did
 it go?"; a claimed note saves `coverage` and shows Evidence recorded;
 interest chips (suggested and custom) and the note are saved per learner.
 
-**Caveats.**
-- A 3-year-old gets no daily choices and no stepping stones, and the card
-  says "Everything available is mastered" (F3).
-- The yellow banner says AI is "not connected yet" even when it is (F4).
-
 ---
 
 ## 4. Child view
@@ -227,9 +222,7 @@ salted hash saved to `settings`. Beat the clock without a bloom shows "Grow a
 bloom to unlock challenges!".
 
 Only a salted hash of the PIN is saved (`settings.parentPinHash` and
-`settings.parentPinSalt`), never the digits (F16, fixed). **Caveats.** A
-3-year-old's Plant something new says "Ask a grown-up to choose" (F3); for
-an older child it offers a topic already in progress (F18).
+`settings.parentPinSalt`), never the digits (F16, fixed).
 
 ---
 
@@ -317,7 +310,6 @@ count, the dashboard's hero count, Mathematics card and Recent growth; a
 record added here appears here and on the server with its rating; Record and
 Record for this section open the recorder linked to the topic or section.
 
-**Caveats.** A topic set back to "Not started" stays in Recent growth (F12).
 
 ---
 
@@ -588,9 +580,7 @@ write, `stateVersion`/`stateBytes` in health, and the unload beacon's POST
 The export holds the PIN only as a salted hash, and a plain PIN seeded in
 the family document is hashed on load (F16, fixed). On a phone, Export and
 Import are at the bottom of the learner selector (F6, fixed; see the mobile
-section). **Caveats.** The losing tab first confirms the parent's
-change, then discards it, and a tab's own boot write can lose too: the
-screenshot shows the conflict toast twice (F17).
+section).
 
 ---
 

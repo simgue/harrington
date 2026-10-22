@@ -1,4 +1,5 @@
 import * as store from '../store.js';
+import { getData } from '../data.js';
 import { el, esc, initials, openModal, refreshIcons, toast, holdConfirmations } from '../ui.js';
 import { countLabel } from '../format.js';
 import { notificationBell } from './notifications.js';
@@ -99,8 +100,11 @@ export function renderShell({ route, navigate, content }) {
     document.querySelectorAll('.read-only-banner').forEach(b => b.remove());
     scroll.appendChild(readOnlyBanner());
   }
+  // From /api/health (store.aiAvailable): a provider is configured, not
+  // necessarily reachable, so the banner says "set up", never "connected".
+  const aiLine = store.aiAvailable() ? 'AI provider set up' : 'No AI provider set up; everything else works';
   scroll.appendChild(el(`<div class="bg-butter-light px-4 py-2 text-center text-xs text-[#6b4d0e]">
-    Self-hosted preview · family data stays on this server · AI and shared-family features are not connected yet
+    Self-hosted preview · family data stays on this server · ${aiLine}
   </div>`));
   scroll.appendChild(content);
   main.appendChild(scroll);
@@ -424,10 +428,34 @@ function reportBlockedWrite(automatic = false) {
   toast(NOT_SAVED, 'error');
 }
 let retryToast = null;
+let conflictToast = null;
 
 function clearSaveProblems() {
   tooLargeBanner?.remove(); tooLargeBanner = null;
   retryToast?.remove(); retryToast = null;
+}
+
+function topicName(id) {
+  try { return getData().byId.get(id)?.name || null; } catch { return null; }
+}
+
+// One toast per conflict, naming what this tab lost, with "Try again" when
+// the change can be applied again on the fresh copy.
+function showConflict({ discarded = [], retry = null } = {}) {
+  const root = document.getElementById('toast-root');
+  if (!root) return;
+  conflictToast?.remove();
+  const lost = store.describeDiscarded(discarded, topicName);
+  const msg = lost ? `Another device saved changes first. Not kept here: ${lost}.` : 'Another device saved changes. Reloaded the latest.';
+  const node = el(`<div role="alert" class="px-4 py-2.5 rounded-lg text-sm font-medium bg-ink text-white shadow-lg flex items-center gap-3">
+    <span>${esc(msg)}</span>
+    ${retry ? '<button class="underline font-600 shrink-0">Try again</button>' : ''}
+  </div>`);
+  conflictToast = node;
+  const close = () => { node.remove(); if (conflictToast === node) conflictToast = null; };
+  node.querySelector('button')?.addEventListener('click', () => { close(); retry(); });
+  root.appendChild(node);
+  setTimeout(close, 12000);
 }
 
 function showTooLarge() {
@@ -457,10 +485,11 @@ function showRetry(reason = null) {
   root.appendChild(retryToast);
 }
 
-store.onSaveStatus(({ type, error, automatic }) => {
+store.onSaveStatus((event) => {
+  const { type, error, automatic } = event;
   if (typeof document === 'undefined') return;
   if (type === 'saved') clearSaveProblems();
-  else if (type === 'conflict') { clearSaveProblems(); toast('Another device saved changes. Reloaded the latest.'); }
+  else if (type === 'conflict') { clearSaveProblems(); showConflict(event); }
   else if (type === 'too-large') showTooLarge();
   else if (type === 'failed') showRetry();
   else if (type === 'rejected') showRetry(error?.message || null);

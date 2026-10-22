@@ -29,7 +29,7 @@ Object.defineProperty(globalThis, 'navigator', {
 
 const schema = await import('../src/js/schema.js');
 const store = await import('../src/js/store.js');
-const { documentFields } = await import('../src/js/document.js');
+const { DOCUMENT_KEYS } = await import('../src/js/document.js');
 const { SCHEMA_VERSION, MIGRATIONS, migrateDocument, schemaVersionOf } = schema;
 
 const fixturesDir = new URL('./fixtures/schema/', import.meta.url);
@@ -166,8 +166,8 @@ test('an unknown top-level field round-trips through load and save unchanged', a
   assert.equal(puts.length, 1);
   assert.deepEqual(puts[0].levelset, levelset);
   assert.equal(puts[0].graphView, 'list');
-  // Every saved field comes from documentFields, plus the unknown one.
-  assert.deepEqual(Object.keys(puts[0]).sort(), [...documentFields, 'levelset', 'writeId'].sort());
+  // Every saved field comes from DOCUMENT_KEYS, plus the unknown one.
+  assert.deepEqual(Object.keys(puts[0]).sort(), [...DOCUMENT_KEYS, 'levelset', 'writeId'].sort());
 });
 
 for (const [label, schemaVersion] of [['a newer', SCHEMA_VERSION + 1], ['an unreadable', 'two']]) {

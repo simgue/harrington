@@ -128,8 +128,9 @@ const ESCAPED_MARKUP = {
   'src/js/views/recordings.js': {},
   'src/js/views/dashboard.js': {
     helpers: [...MEADOW, 'stop'],
-    // Markup built a few lines above from escaped values.
-    allowed: ['stopHtml', "parts.join(' · ')", 'flowers'],
+    // Markup built a few lines above from escaped values; `empty` is one of
+    // two constant sentences.
+    allowed: ['stopHtml', "parts.join(' · ')", 'flowers', 'empty'],
   },
   'src/js/views/topic.js': {
     helpers: MEADOW,

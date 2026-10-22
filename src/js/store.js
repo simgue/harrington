@@ -1,7 +1,8 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
 import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, schemaVersionOf } from './schema.js';
-import { BOOKKEEPING_FIELDS, LEARNER_KEYS, RETIRED_FIELDS, MIN_BIRTH_YEAR, documentFields, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
+import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, LEARNER_KEYS, RETIRED_FIELDS, MIN_BIRTH_YEAR, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
+import { formatCount } from './format.js';
 import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 import { getData } from './data.js';
 import { pruneDismissed } from './alert-dismissals.js';
@@ -102,12 +103,37 @@ let unknownFields = {};
 let readOnly = false;
 export function isReadOnly() { return readOnly; }
 
+// The saved-key list lives in document.js (shared with import validation).
+export { DOCUMENT_KEYS };
+
 // The document's active learner if it is one of its learners, else the
 // first learner: a dangling id would show "No student" and every save would be
 // refused (document.js).
 function activeOf(doc) {
   const students = Array.isArray(doc?.students) ? doc.students : [];
   return students.some(s => s?.id === doc.activeStudentId) ? doc.activeStudentId : students[0]?.id ?? null;
+}
+
+// How each field is normalized as the state holds it; learner maps default
+// to objects. `fields` holds the fields normalized so far (students first).
+const FIELD_NORMALIZERS = {
+  students: v => (Array.isArray(v) ? v : []),
+  activeStudentId: (v, fields) => activeOf({ students: fields.students, activeStudentId: v }),
+  notifications: v => (Array.isArray(v) ? v : []),
+  graphView: v => (v === 'list' ? 'list' : 'atlas'),
+  settings: v => objectOr(v, {}),
+  schemaVersion: v => v,
+};
+
+// The family fields of a stored document (or of the state), normalized.
+function documentFields(data) {
+  const doc = objectOr(data, {});
+  const fields = {};
+  for (const key of DOCUMENT_KEYS) {
+    const normalize = FIELD_NORMALIZERS[key] || (v => objectOr(v, {}));
+    fields[key] = normalize(doc[key], fields);
+  }
+  return fields;
 }
 
 // Applies a document from the server or an import. Returns true when a
@@ -117,27 +143,27 @@ function applyDocument(data) {
   readOnly = isUnwritableSchema(raw);
   const doc = migrateDocument(raw);
   unknownFields = Object.fromEntries(Object.entries(doc)
-    .filter(([key]) => !documentFields.includes(key) && !BOOKKEEPING_FIELDS.includes(key) && !RETIRED_FIELDS.includes(key)));
-  state.students = Array.isArray(doc.students) ? doc.students : [];
-  state.activeStudentId = activeOf(doc);
-  for (const key of LEARNER_KEYS) state[key] = objectOr(doc[key], {});
-  state.notifications = Array.isArray(doc.notifications) ? doc.notifications : [];
-  state.dismissedAlerts = objectOr(doc.dismissedAlerts, {});
-  state.graphView = doc.graphView === 'list' ? 'list' : 'atlas';
-  const settings = objectOr(doc.settings, {});
+    .filter(([key]) => !DOCUMENT_KEYS.includes(key) && !BOOKKEEPING_FIELDS.includes(key) && !RETIRED_FIELDS.includes(key)));
+  const fields = documentFields(doc);
   // Schema step 1 -> 2 hashes a plain PIN (schema.js, pin.js). A current
-  // document that still carries one (a hand edit) is hashed here as well, so
-  // no save writes it back. A read-only (newer) document is never touched.
-  state.settings = readOnly ? settings : migratePinSettings(settings);
-  stateVersion = Number.isSafeInteger(doc.version) ? doc.version : 0;
-  return !readOnly && (schemaVersionOf(doc) !== schemaVersionOf(raw) || state.settings !== settings);
+  // document that still carries one (a hand edit, an older tab) is hashed here
+  // as well, so no save writes it back. A read-only (newer) document is never
+  // touched.
+  const settings = readOnly ? fields.settings : migratePinSettings(fields.settings);
+  Object.assign(state, fields, { settings });
+  stateVersion = versionOf(doc);
+  // After the migration: the migrated document is the synced snapshot, and
+  // the migration save then marks what it sent (saveWith). So a conflict
+  // never reports the migration as a lost change.
+  markSynced();
+  return !readOnly && (schemaVersionOf(doc) !== schemaVersionOf(raw) || settings !== fields.settings);
 }
 
 // Loading never writes, with one exception: a document a migration changed
 // (a schema step, or a plain PIN hashed) is saved once, right away, as a
-// normal versioned save. (When the synced snapshot of PR #35 lands,
-// markSynced() runs before this save, on the migrated document.) If the
-// migration is all this tab has to save and another tab saved first (two tabs
+// normal versioned save. applyDocument has already marked the migrated
+// document as synced, and the save marks what it sent, so a conflict never
+// lists the migration as a lost change. If the migration is all this tab has to save and another tab saved first (two tabs
 // open during the upgrade), the conflict reload is not worth a toast: the
 // reloaded document is migrated again.
 let migrationOnly = false;
@@ -163,12 +189,168 @@ export async function loadAll() {
 // Saves are always in the format this code writes (see schema.js), with every
 // field in documentFields and any unknown top-level field carried over.
 function snapshotData() {
-  const computed = {
-    schemaVersion: SCHEMA_VERSION,
-    graphView: state.graphView === 'list' ? 'list' : 'atlas',
-  };
-  const known = Object.fromEntries(documentFields.map(key => [key, key in computed ? computed[key] : state[key]]));
-  return { ...unknownFields, ...known };
+  return { ...unknownFields, ...documentFields(state), schemaVersion: SCHEMA_VERSION };
+}
+
+// Two documents as a conflict compares them: the saved fields only, since
+// unknown fields are never a parent's change.
+function comparable(data) {
+  return JSON.parse(JSON.stringify(documentFields(data)));
+}
+
+// The document as last agreed with the server (loaded, or accepted by a
+// save), as JSON. On a conflict it is compared with this tab's state to tell
+// what the reload discards.
+let syncedJson = null;
+function markSynced(data = snapshotData()) { syncedJson = typeof data === 'string' ? data : JSON.stringify(data); }
+
+// Drops empty objects and arrays, recursively, so a container created
+// lazily on read (recallOf makes recall[id] = {}) is not a change.
+function pruneEmpty(value) {
+  if (Array.isArray(value)) return value.map(pruneEmpty);
+  if (!value || typeof value !== 'object') return value;
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    const p = pruneEmpty(v);
+    if (p && typeof p === 'object' && (Array.isArray(p) ? p.length === 0 : Object.keys(p).length === 0)) continue;
+    out[k] = p;
+  }
+  return out;
+}
+
+// What changed between two family documents (`base`, the last synced copy,
+// and `local`, this tab's state), as a list of changes:
+//   { kind: 'status', studentId, topicId, entry }  a topic's progress entry set
+//   { kind: 'record', studentId, record }          a record added
+//   { kind: 'activity', studentId, day }           a day marked active
+//   { kind: 'offers', studentId, day, entry }      a day's daily offers chosen
+//   { kind: 'other', key }                         anything else (not re-applied)
+// Empty containers are ignored. Pure, so it can be tested without a server.
+export function diffDocuments(base, local) {
+  const b = objectOr(base, {});
+  const l = objectOr(local, {});
+  const changes = [];
+  // Pruned only for comparing: the payloads keep their values as they are
+  // (a day's offers keep their empty `picks`, which pickDaily writes into).
+  const same = (x, y) => JSON.stringify(pruneEmpty(x)) === JSON.stringify(pruneEmpty(y));
+  for (const key of new Set([...Object.keys(b), ...Object.keys(l)])) {
+    if (same(b[key], l[key])) continue;
+    if (key === 'progress') {
+      for (const studentId of new Set([...Object.keys(objectOr(b.progress, {})), ...Object.keys(objectOr(l.progress, {}))])) {
+        const before = objectOr(objectOr(b.progress, {})[studentId], {});
+        const now = objectOr(objectOr(l.progress, {})[studentId], {});
+        for (const [topicId, entry] of Object.entries(now)) {
+          if (!same(before[topicId], entry)) changes.push({ kind: 'status', studentId, topicId, entry });
+        }
+        if (Object.keys(before).some(id => !(id in now))) changes.push({ kind: 'other', key });
+      }
+    } else if (key === 'records') {
+      for (const studentId of new Set([...Object.keys(objectOr(b.records, {})), ...Object.keys(objectOr(l.records, {}))])) {
+        const before = new Map((objectOr(b.records, {})[studentId] || []).map(r => [r.id, r]));
+        const now = new Set();
+        for (const record of objectOr(l.records, {})[studentId] || []) {
+          now.add(record.id);
+          if (!before.has(record.id)) changes.push({ kind: 'record', studentId, record });
+          else if (!same(before.get(record.id), record)) changes.push({ kind: 'other', key });
+        }
+        if ([...before.keys()].some(id => !now.has(id))) changes.push({ kind: 'other', key });
+      }
+    } else if (key === 'activity') {
+      for (const [studentId, days] of Object.entries(objectOr(l.activity, {}))) {
+        const before = objectOr(objectOr(b.activity, {})[studentId], {});
+        for (const day of Object.keys(objectOr(days, {}))) if (!before[day]) changes.push({ kind: 'activity', studentId, day });
+      }
+    } else if (key === 'daily') {
+      // A new day holding only offers is written while rendering; old days are
+      // pruned at the same time. A pick is the parent's change.
+      for (const [studentId, days] of Object.entries(objectOr(l.daily, {}))) {
+        const before = objectOr(objectOr(b.daily, {})[studentId], {});
+        for (const [day, entry] of Object.entries(objectOr(days, {}))) {
+          if (same(before[day], entry)) continue;
+          const offersOnly = !before[day] && Object.keys(objectOr(entry?.picks, {})).length === 0;
+          changes.push(offersOnly ? { kind: 'offers', studentId, day, entry } : { kind: 'other', key });
+        }
+      }
+    } else {
+      changes.push({ kind: 'other', key });
+    }
+  }
+  return changes;
+}
+
+// ---- Bookkeeping: writes a tab makes on its own while rendering ----
+// Never reported as lost; put back silently, only where the fresh document
+// lacks them, so two tabs opened together never conflict.
+const BOOKKEEPING = new Set(['activity', 'offers']);
+function isBookkeeping(c) {
+  return BOOKKEEPING.has(c.kind);
+}
+// Returns true when it changed the state.
+function reapplyBookkeeping(c) {
+  if (c.kind === 'activity') {
+    const days = state.activity[c.studentId] = state.activity[c.studentId] || {};
+    if (days[c.day]) return false;
+    days[c.day] = true;
+  } else if (c.kind === 'offers') {
+    const days = state.daily[c.studentId] = state.daily[c.studentId] || {};
+    if (days[c.day]) return false;
+    days[c.day] = { picks: {}, ...c.entry };
+  } else {
+    return false;
+  }
+  return true;
+}
+
+// One line naming what a conflict discarded, for the toast: up to three
+// items, then "and N more". `nameOf(topicId)` gives a topic's name. Returns
+// '' when nothing a parent did was lost.
+export function describeDiscarded(changes, nameOf = id => id) {
+  const parts = [];
+  for (const c of changes || []) {
+    if (isBookkeeping(c)) continue;
+    if (c.kind === 'status') {
+      const status = c.entry?.status || 'none';
+      parts.push(`${nameOf(c.topicId) || 'a topic'} marked ${status === 'none' ? 'not started' : status}`);
+    } else if (c.kind === 'record') {
+      const what = c.record?.type === 'note' ? 'the note' : 'the record';
+      parts.push(c.record?.title ? `${what} “${c.record.title}”` : what);
+    } else if (c.kind === 'other') {
+      parts.push('other changes');
+    }
+  }
+  const unique = [...new Set(parts)];
+  if (unique.length <= 3) return unique.join(', ');
+  return `${unique.slice(0, 3).join(', ')} and ${formatCount(unique.length - 3)} more`;
+}
+
+// True when every change can be put back on a fresh document as it is.
+export function canReapply(changes) {
+  return (changes || []).every(c => c.kind !== 'other');
+}
+
+// A change for a learner no longer in the family cannot be put back.
+function forPresentLearner(c) {
+  return !c.studentId || state.students.some(s => s.id === c.studentId);
+}
+
+// Puts changes back on the current (fresh) document. Returns true when
+// anything changed.
+function reapply(changes) {
+  let changed = false;
+  for (const c of changes) {
+    if (!forPresentLearner(c)) continue;
+    if (c.kind === 'status') {
+      const p = state.progress[c.studentId] = state.progress[c.studentId] || {};
+      p[c.topicId] = { ...c.entry };
+      changed = true;
+    } else if (c.kind === 'record') {
+      const list = state.records[c.studentId] = state.records[c.studentId] || [];
+      if (!list.some(r => r.id === c.record.id)) { list.unshift(c.record); changed = true; }
+    } else if (reapplyBookkeeping(c)) {
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 function newWriteId() {
@@ -182,19 +364,36 @@ function versionOf(doc) {
   return Number.isSafeInteger(doc?.version) ? doc.version : 0;
 }
 
+// Another tab or device saved first: take its document. Bookkeeping (see
+// above) is put back silently. If the parent's changes were lost, one
+// 'conflict' event names them, with `retry` when they can simply be applied
+// again on the fresh document.
 function reloadFromServer(doc) {
   clearTimeout(saveTimer);
   saveTimer = null;
   dirty = false;
   // A pending beacon carried the version we are discarding, so it cannot land.
   unconfirmedBeacon = null;
+  let changes = [];
+  try { changes = diffDocuments(comparable(JSON.parse(syncedJson || 'null')), comparable(snapshotData())); }
+  catch (e) { console.warn('could not compare with the saved copy', e); }
   const quiet = migrationOnly;
   migrationOnly = false;
-  saveIfMigrated(applyDocument(doc));
+  const migrated = applyDocument(doc);
   const present = new Set(state.students.map(s => s.id));
   pendingAudioDeletes = pendingAudioDeletes.filter(item => !present.has(item.studentId));
+  const discarded = changes.filter(c => !isBookkeeping(c));
+  // Bookkeeping is an automatic write: refused without a toast if the fresh
+  // document is read-only.
+  if (reapply(changes.filter(c => isBookkeeping(c) && c.kind !== 'activity'))) persist({ automatic: true });
+  saveIfMigrated(migrated);
   emit();
-  if (!quiet) saveStatus({ type: 'conflict' });
+  if (quiet) return; // only our PIN migration was lost: the reload migrated again
+  if (!discarded.length && changes.length) return; // only bookkeeping lost: nothing to tell
+  const retry = discarded.some(forPresentLearner) && canReapply(discarded)
+    ? () => { if (reapply(changes)) { persist(); emit(); } }
+    : null;
+  saveStatus({ type: 'conflict', discarded, retry });
 }
 
 // Deletes recordings of learners whose removal the server has accepted.
@@ -214,12 +413,13 @@ function reconcile(doc) {
   const version = versionOf(doc);
   if (beaconId && doc.writeId === beaconId) {
     stateVersion = version;
+    markSynced(documentFields(doc));
     deleteRemovedAudio();
     return true;
   }
   if (version === stateVersion || ownWrites.includes(doc.writeId)) {
     stateVersion = Math.max(stateVersion, version);
-    if (ownWrites.includes(doc.writeId)) deleteRemovedAudio();
+    if (ownWrites.includes(doc.writeId)) { markSynced(documentFields(doc)); deleteRemovedAudio(); }
     // Our beacon did not land; send its changes again.
     if (beaconId) persist();
     return true;
@@ -251,8 +451,11 @@ async function saveWith(makeData) {
       data = makeData() ?? data;
       if (data === null) return true;
       try {
+        // Frozen before sending: edits made while the save is in flight are not on the server yet.
+        const sent = JSON.stringify(data);
         const next = await backend.saveState(data, stateVersion, newWriteId());
         stateVersion = Math.max(stateVersion, next);
+        markSynced(sent);
         if (!dirty) migrationOnly = false;
         deleteRemovedAudio();
         saveStatus({ type: 'saved' });
@@ -263,6 +466,7 @@ async function saveWith(makeData) {
         if (!ownWrites.includes(doc.writeId)) { reloadFromServer(doc); return false; }
         if (doc.writeId === unconfirmedBeacon) unconfirmedBeacon = null;
         stateVersion = versionOf(doc);
+        markSynced(documentFields(doc));
         deleteRemovedAudio();
       }
     }
@@ -933,6 +1137,7 @@ export function saveDailyOffers(studentId, dateKey, offers) {
 export function pickDaily(studentId, dateKey, lane, topicId) {
   const day = dailyFor(studentId, dateKey);
   if (!day) return;
+  day.picks = day.picks || {};
   day.picks[lane] = topicId || null;
   persist(); emit();
 }
@@ -987,6 +1192,12 @@ export function activeToday(studentId) {
 }
 
 // ---- Gamification: XP, levels, badges ----
+// Reads never write: a render that only looks at XP or badges must not
+// leave a change behind (it would show as lost in a save conflict).
+function readGame(studentId) {
+  const g = state.game[studentId] || {};
+  return { xp: g.xp || 0, badges: g.badges || {} };
+}
 function gameOf(studentId) {
   if (!state.game[studentId]) state.game[studentId] = { xp: 0, badges: {} };
   const g = state.game[studentId];
@@ -1000,7 +1211,7 @@ function levelForXp(xp) {
   return { level, into: xp - total, need, floor: total };
 }
 export function gameState(studentId) {
-  const g = gameOf(studentId);
+  const g = readGame(studentId);
   const lv = levelForXp(g.xp);
   return { xp: g.xp, badges: g.badges, ...lv, pct: Math.round((lv.into / lv.need) * 100) };
 }
@@ -1013,7 +1224,7 @@ export function awardXp(studentId, amount) {
   persist(); emit();
   return { amount, leveledUp: after > before, level: after };
 }
-export function hasBadge(studentId, badgeId) { return !!gameOf(studentId).badges[badgeId]; }
+export function hasBadge(studentId, badgeId) { return !!readGame(studentId).badges[badgeId]; }
 export function grantBadge(studentId, badgeId) {
   const g = gameOf(studentId);
   if (g.badges[badgeId]) return false;
@@ -1021,7 +1232,7 @@ export function grantBadge(studentId, badgeId) {
   persist(); emit();
   return true;
 }
-export function earnedBadges(studentId) { return gameOf(studentId).badges; }
+export function earnedBadges(studentId) { return readGame(studentId).badges; }
 
 // ---- Notification bell (family-wide; items are computed in alerts.js) ----
 // True when the family saw the old first-run welcome, so the bell skips its own.
