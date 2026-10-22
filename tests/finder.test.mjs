@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  ageFactor, buildTopicPath, findHash, parseFindHash, queryTerms, searchTopics, stem, synonymsOf,
+  ageFactor, buildTopicPath, findHash, MAX_QUERY_LEN, parseFindHash, queryTerms, searchTopics, stem, synonymsOf,
 } from '../src/js/finder.js';
 import { resolveSkillNodeState } from '../src/js/graph.js';
 
@@ -66,6 +66,8 @@ test('request phrasing is dropped; the topic words remain', () => {
   assert.deepEqual(queryTerms('a b c fractions'), ['fraction'], 'one-letter words are dropped');
   assert.deepEqual(queryTerms('how does a clock work'), ['clock'], '"how … work" is phrasing');
   assert.deepEqual(queryTerms('teamwork at work'), ['teamwork', 'work'], 'without "how", work is a topic word');
+  assert.deepEqual(queryTerms('my 6 year old son wants fractions'), ['fraction'], 'who is asking is not the topic');
+  assert.deepEqual(queryTerms('children and girls'), []);
 });
 
 test('an empty or all-phrasing request returns no terms and no results', () => {
@@ -246,7 +248,7 @@ test('a prerequisite cycle in bad data does not loop', () => {
 
 // ---- Route ----
 
-test('find hash round trip', () => {
+test('find hash round trip', async () => {
   assert.equal(findHash(), 'find');
   const params = { q: 'tell the time & more?', r: 'rq_1', topic: 'mt_x' };
   assert.equal(findHash(params), 'find?q=tell%20the%20time%20%26%20more%3F&r=rq_1&topic=mt_x');
@@ -255,6 +257,9 @@ test('find hash round trip', () => {
   assert.deepEqual(parseFindHash('find?q=%E0%A4%A&x=1'), { q: '%E0%A4%A' });
   assert.equal(parseFindHash('graph/Mathematics'), null);
   assert.equal(parseFindHash('finder'), null);
+  // A huge request in the address is capped like a logged one.
+  assert.equal(parseFindHash(`find?q=${'a'.repeat(20000)}`).q.length, MAX_QUERY_LEN);
+  assert.equal(MAX_QUERY_LEN, (await import('../src/js/store.js')).REQUEST_TEXT_LEN);
 });
 
 // ---- Planning a step (scheduler) ----

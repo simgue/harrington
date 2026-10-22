@@ -164,7 +164,7 @@ function pathSection(target, active, navigate) {
 
   if (!done) {
     const list = el(`<ol class="find-steps mt-4 space-y-2"></ol>`);
-    const more = el(`<details class="mt-2"><summary class="text-sm font-medium text-brand-dark cursor-pointer">Show ${countLabel(path.steps.length - STEPS_SHOWN, 'more step', 'more steps')}</summary><ol class="mt-2 space-y-2" start="${STEPS_SHOWN + 1}"></ol></details>`);
+    const more = el(`<details class="mt-2"><summary class="min-h-11 inline-flex items-center text-sm font-medium text-brand-dark cursor-pointer">Show ${countLabel(path.steps.length - STEPS_SHOWN, 'more step', 'more steps')}</summary><ol class="mt-2 space-y-2" start="${STEPS_SHOWN + 1}"></ol></details>`);
     path.steps.forEach((step, i) => {
       const row = stepRow(step, i + 1, path.next, d, navigate);
       (i < STEPS_SHOWN ? list : more.querySelector('ol')).appendChild(row);

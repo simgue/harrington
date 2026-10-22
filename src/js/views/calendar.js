@@ -400,7 +400,8 @@ export function openMoveTopic(topic, active, navigate, {
     // Rest days schedule nothing: a rest day moves to the next home day.
     const { dayKey, outcome } = planTopicOn(active, topic, picked);
     const rest = dayKey === picked ? '' : `${picked} is a rest day — `;
-    toast(outcome === 'already' ? `${rest}already on ${dayKey}` : `${rest}${outcome === 'moved' ? 'moved' : 'added'} to ${dayKey}`.replace(/^./, (c) => c.toUpperCase()), 'success');
+    const said = outcome === 'already' ? `already on ${dayKey}` : `${outcome === 'moved' ? 'moved' : 'added'} to ${dayKey}`;
+    toast(`${rest}${said}`.replace(/^./, (c) => c.toUpperCase()), 'success');
     m.close();
     selectedKey = dayKey;
     viewMonth = new Date(parseKey(dayKey).getFullYear(), parseKey(dayKey).getMonth(), 1);

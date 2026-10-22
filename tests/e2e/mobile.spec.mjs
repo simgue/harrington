@@ -295,6 +295,11 @@ test('no horizontal overflow: topic finder with a path', async ({ page, gotoApp,
   await expectTapTarget(path.getByRole('button', { name: 'Requested topic on skill tree' }), 'Requested topic on skill tree');
   await expectTapTarget(path.locator('li.find-step button.step-open').first(), 'a step name');
 
+  // A long path folds its later steps behind a 44px "Show N more steps".
+  await page.goto('/#find?q=multiplying%20fractions&topic=mt_AabJisinfi');
+  await expectTapTarget(page.locator('#find-path details > summary'), 'Show more steps');
+  await noHorizontalOverflow(page);
+
   // A long unbroken request wraps instead of widening the page.
   await page.getByLabel('What does Rowan Example want to learn?').fill('x'.repeat(80));
   await page.getByRole('button', { name: 'Find', exact: true }).click();

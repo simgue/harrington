@@ -14,7 +14,8 @@ for from get go good have he help her him his how i if in into is it its just kn
 like lot me more my need of on or our out please practice really she so some start started teach that
 the their them then there they this to understand up us using want wants was way we well what when
 where which who why will with would you your
-basic beginner class course kid lesson skill topic`.split(/\s+/));
+basic beginner class course kid lesson skill topic
+year old son daughter child boy girl`.split(/\s+/));
 
 // Plurals and spellings the suffix rules below get wrong.
 const IRREGULAR = {
@@ -339,6 +340,9 @@ export function buildTopicPath(targetId, { byId, prereqsOf, progress = {} }) {
 }
 
 // ---- Route ----
+// A request typed into the address bar is capped like a logged one
+// (store.REQUEST_TEXT_LEN), so a huge #find?q= cannot slow every render.
+export const MAX_QUERY_LEN = 200;
 // #find?q=<request>&r=<request id>&topic=<topic id>. The request and the
 // chosen topic ride in the hash so reload and Back keep them; the log entry
 // itself lives in family state.
@@ -364,6 +368,7 @@ export function parseFindHash(hash = '') {
     const key = pair.slice(0, eq);
     let value = pair.slice(eq + 1);
     try { value = decodeURIComponent(value.replace(/\+/g, ' ')); } catch { /* keep it raw */ }
+    if (key === 'q') value = value.slice(0, MAX_QUERY_LEN);
     if (['q', 'r', 'topic'].includes(key) && value) params[key] = value;
   }
   return params;
