@@ -135,9 +135,14 @@ function learnerMapsProblem(doc) {
   for (const key of LEARNER_OBJECTS) {
     for (const value of Object.values(doc[key] || {})) if (!isObject(value)) return shape(key);
   }
+  // Each card, practice item and adaptation is an object (the views read
+  // .due and .level off every entry).
+  for (const key of ['recall', 'practice', 'adaptations']) {
+    for (const value of Object.values(doc[key] || {})) if (!Object.values(value).every(isObject)) return shape(key);
+  }
   for (const plan of Object.values(doc.plan || {})) {
     for (const part of ['moves', 'done', 'extras']) if (!absent(plan[part]) && !isObject(plan[part])) return shape('plan');
-    if (!Object.values(plan.extras || {}).every(Array.isArray)) return shape('plan');
+    if (!Object.values(plan.extras || {}).every(list => Array.isArray(list) && list.every(isObject))) return shape('plan');
   }
   for (const days of Object.values(doc.daily || {})) {
     for (const day of Object.values(days)) {

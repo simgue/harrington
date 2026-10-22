@@ -115,6 +115,11 @@ tagged a release yet; everything below is on `main`.
 - A document saved by a newer Harrington opens read-only, with a banner and
   Import disabled, instead of being written back in the older format with
   its new fields dropped.
+- While the family data is read-only, every change the parent makes says
+  "Not saved" (never "Record saved" or "Marked as …"), the banner sits in the
+  page beside the sidebar and below the phone's top bar, both Import buttons
+  are disabled, a voice note is not uploaded, and the app's own background
+  writes (today's choices) are refused without a toast.
 - The server removes stored parent notes from an AI request the parent did
   not opt in to, and forwards only `{ role, content }` text messages.
 - The server replaces every learner name in the family document with “the

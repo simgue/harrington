@@ -818,6 +818,9 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
     const longLine = `Zebulon ${'worked through the place value chart slowly and carefully, '.repeat(40)}end.`;
     const longLines = Array.from({ length: 12 }, (_, i) => `Line ${i}: Zebulon sorted the counters into tens and ones again.`).join('\n');
     const redacted = (text) => text.replaceAll('Zebulon', 'the child');
+    // Padded with spaces: the progress review cuts the note as stored, a
+    // discussion trims it first, so each cut needs its own pattern.
+    const padded = `   ${longLine.replace('Zebulon', 'Zebulon padded')}   `;
     const ask = async (content, extra = {}) => {
       const response = await fetch(`${harrington.url}/api/ai`, {
         method: 'POST',
@@ -836,6 +839,7 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
           { id: 'r2', type: 'observation', note: longLine, title: 'Long' },
           { id: 'r3', type: 'observation', note: longLines, title: 'Lines' },
           { id: 'r4', type: 'observation', note: 'Fractions', title: 'Short' },
+          { id: 'r5', type: 'observation', note: padded, title: 'Padded' },
         ] } }),
       });
       assert.equal(put.status, 204);
@@ -854,6 +858,9 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
       for (const [text, cut] of [[longLine, 300], [longLine, 1500], [longLines, 300]]) {
         const sentNote = redacted(text).slice(0, cut);
         assert.equal((await ask(`- [observation] Count to 5: ${sentNote}`)).trimEnd(), '- [observation] Count to 5: [note removed]', `${cut} of ${text.slice(0, 20)}`);
+      }
+      for (const [sentNote, how] of [[redacted(padded).slice(0, 300), 'as stored, 300'], [redacted(padded.trim()).slice(0, 1500), 'trimmed, 1500']]) {
+        assert.equal((await ask(`- [observation] Count to 5: ${sentNote}`)).replace(/\s+/g, ' ').trim(), '- [observation] Count to 5: [note removed]', `padded note, ${how}`);
       }
       // A one-word note is also topic text: it is not matched on its own.
       assert.equal(await ask('Write a lesson on Fractions for age 7. Subject: Fractions'), 'Write a lesson on Fractions for age 7. Subject: Fractions');

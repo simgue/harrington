@@ -85,7 +85,7 @@ let unconfirmedBeacon = null;
 let pendingAudioDeletes = [];
 
 
-// Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'rejected' | 'read-only' | 'failed', error? }
+// Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'rejected' | 'read-only' | 'failed', error?, automatic? }
 export function onSaveStatus(fn) { saveListeners.add(fn); return () => saveListeners.delete(fn); }
 function saveStatus(event) { saveListeners.forEach(fn => { try { fn(event); } catch (e) { console.warn(e); } }); }
 
@@ -297,8 +297,11 @@ export function flushSaves() {
   return saveQueue;
 }
 
-function persist() {
-  if (readOnly) { saveStatus({ type: 'read-only' }); return; }
+// automatic: a write the app makes while rendering (today's daily choices, a
+// recall card it starts tracking), not one the parent asked for. While
+// read-only the shell keeps its banner but does not toast for those.
+function persist({ automatic = false } = {}) {
+  if (readOnly) { saveStatus({ type: 'read-only', automatic }); return; }
   migrationOnly = false;
   dirty = true;
   clearTimeout(saveTimer);
@@ -769,9 +772,9 @@ const DAY = 86400000;
 // Ensure a scheduling record exists for a card; new cards are due immediately.
 export function ensureRecallCard(studentId, cardId, topicId) {
   const r = recallOf(studentId);
-  if (!r[cardId]) { r[cardId] = { topicId, box: 0, due: dayStart(Date.now()), reps: 0, lapses: 0, last: null }; persist(); }
+  if (!r[cardId]) { r[cardId] = { topicId, box: 0, due: dayStart(Date.now()), reps: 0, lapses: 0, last: null }; persist({ automatic: true }); }
   // Repair records whose topicId was wiped by an earlier grading bug.
-  else if (!r[cardId].topicId && topicId) { r[cardId].topicId = topicId; persist(); }
+  else if (!r[cardId].topicId && topicId) { r[cardId].topicId = topicId; persist({ automatic: true }); }
   return r[cardId];
 }
 export function recallState(studentId, cardId) { return recallOf(studentId)[cardId] || null; }
@@ -924,7 +927,7 @@ export function saveDailyOffers(studentId, dateKey, offers) {
   const days = state.daily[studentId] || (state.daily[studentId] = {});
   days[dateKey] = { offers, picks: (days[dateKey] && days[dateKey].picks) || {} };
   for (const key of Object.keys(days).sort().slice(0, -DAILY_KEEP_DAYS)) delete days[key];
-  persist();
+  persist({ automatic: true });
 }
 // Choose (or clear, with null) the pick for one lane on one day.
 export function pickDaily(studentId, dateKey, lane, topicId) {

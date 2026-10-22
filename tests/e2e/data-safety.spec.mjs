@@ -143,6 +143,26 @@ test('a newer data format opens read-only: a banner, Import disabled, nothing sa
   expect(errors).toEqual([]);
 });
 
+test('read-only on a desktop: the dashboard opens without a "Not saved" toast and the sidebar box stays in view', async ({ page, api, gotoApp, errors }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const writes = await serveNewerDocument(page, api);
+  await gotoApp({ seed: null });
+  await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
+  await expect(page.locator('.read-only-banner')).toHaveCount(1);
+  // The dashboard saves today's choices as it renders: an automatic write,
+  // refused without a toast. The parent did nothing.
+  await page.waitForTimeout(600);
+  await expect(page.getByText(/^Not saved\./)).toHaveCount(0);
+  // The banner is beside the sidebar, not above it: the family box is on screen.
+  const aside = page.locator('aside');
+  await expect(aside.getByText('Read-only', { exact: true })).toBeVisible();
+  const box = await aside.getByRole('button', { name: 'Import', exact: true }).boundingBox();
+  expect(box.y + box.height).toBeLessThanOrEqual(900);
+  await expect(aside.getByRole('button', { name: 'Import', exact: true })).toBeDisabled();
+  expect(writes).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test('read-only at 390 px: the banner leaves the top bar tappable; Export works, Import is disabled', async ({ page, api, gotoApp, errors }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const writes = await serveNewerDocument(page, api);

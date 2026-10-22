@@ -271,8 +271,9 @@ The check (`src/js/document.js`) covers learner fields (id, name, birth year
 and month, start date, a hex color), progress statuses, records (type,
 rating, bounded text, numeric dates, a placement's topic list), test and
 challenge results (scores and counts as numbers), XP and badges, the shape of
-each learner's suggestions, plan (moves, done days, extras lists), daily
-choices (offers lists), adaptations, recall, practice and activity,
+each learner's suggestions, plan (moves, done days, extras lists of
+objects), daily choices (offers lists), adaptations, recall cards and
+practice items (each an object) and activity,
 interests, calendar settings, the child-view PIN hash and salt, dismissed
 alerts and notifications (including their details), and says what it
 refused. Other fields are not checked. An active learner that is not in the
