@@ -99,26 +99,31 @@ soon as you save. **Remove saved settings** forgets everything saved here.
 readable by its owner only. It is never sent back to the page: the form shows
 "Saved, ends in …abcd" and offers Replace and Remove. It is not part of
 Export, and `npm run backup` leaves that file out, so a backup copied
-elsewhere never carries the key; enter it again after a restore. A backup of
-the Docker named volume (`harrington-data`) is a copy of the whole data
-directory, so it does include `secrets.json`: keep such a copy as private as
-the key itself.
+elsewhere never carries the key; enter it again after a restore. A plain copy
+of the Docker named volume (`harrington-data`) is a copy of the whole data
+directory, so it does include `secrets.json`; the volume backup command in
+[DEPLOYMENT.md](DEPLOYMENT.md#nightly-backup) leaves it out.
 
-Until an access token protects Harrington, these settings can only be changed
-(and tested) from the computer running it, or from any signed-in device once
-an access token is set; other devices can read the page but not save. Anything
+Until an [access token](DEPLOYMENT.md#option-3-the-built-in-access-token)
+protects Harrington, these settings can only be changed (and tested) from the
+computer running it, or from any signed-in device once an access token is
+set; other devices can read the page but not save. Anything
 else could repoint the provider and receive every later prompt.
 
 **Under Docker or Compose the page is read-only, even at the host computer.**
 The container sees the browser as another device, so this is intended. There
-are two ways to set the provider there: set an access token (then any
+are two ways to set the provider there: set an
+[access token](DEPLOYMENT.md#option-3-the-built-in-access-token) (then any
 signed-in device can save here), or use the environment variables below.
 
 ### Or with environment variables (Docker and Compose)
 
 The same settings can come from the server's environment instead, which suits
 Docker. A value saved in the app wins over its variable, field by field;
-removing the saved settings returns to the environment.
+removing the saved settings returns to the environment. Saving only takes
+the fields you changed, with one exception: a base URL saved in the app needs
+a model beside it, so changing only the base URL also saves the model shown
+(the environment's) as an app value.
 
 ```bash
 export HARRINGTON_AI_BASE_URL=http://127.0.0.1:11434/v1

@@ -10,8 +10,9 @@ export const PORTS = {
   appAiUnreachable: base + 4,
   // AI pointed at the mock, with HARRINGTON_AI_CAPABILITIES=lesson (HAR-26).
   appLessonsOnly: base + 5,
+  // No AI, HARRINGTON_ACCESS_TOKEN set (HAR-25).
+  appToken: base + 6,
   // No AI in the environment: the settings spec sets the provider in the app.
-  // (base + 6 is HAR-25's multi-device app.)
   appSettings: base + 7,
   // Nothing ever listens here: the app on appAiUnreachable points its AI
   // provider at this port to exercise "couldn't reach the AI provider".
@@ -25,8 +26,12 @@ export const URLS = {
   appAiUnreachable: `http://127.0.0.1:${PORTS.appAiUnreachable}`,
   appLessonsOnly: `http://127.0.0.1:${PORTS.appLessonsOnly}`,
   appSettings: `http://127.0.0.1:${PORTS.appSettings}`,
+  appToken: `http://127.0.0.1:${PORTS.appToken}`,
   deadAi: `http://127.0.0.1:${PORTS.deadAi}`,
 };
+
+// The family access token of the appToken server. Fictional, test-only.
+export const ACCESS_TOKEN = 'e2e-family-access-token-0001';
 
 // Every browser test runs with the clock pinned to this moment (UTC), so
 // greetings, dates, the weekday plan and screenshots are the same on every run.

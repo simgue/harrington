@@ -1,6 +1,7 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
 import { AI_CAPABILITIES, capabilityOffMessage } from './ai-capabilities.js';
+import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 import { getData } from './data.js';
 import { pruneDismissed } from './alert-dismissals.js';
 import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
@@ -48,13 +49,16 @@ let aiCapabilities = []; // the capabilities the server switched on
 let backupAgeDays;        // days since the newest backup, null for none
 function applyHealth(health) {
   aiConfigured = health?.aiConfigured === true;
-  backupAgeDays = health?.backupAgeDays;
   // A server from before HARRINGTON_AI_CAPABILITIES reports no list: all on.
   aiCapabilities = !aiConfigured ? []
     : Array.isArray(health?.aiCapabilities) ? health.aiCapabilities : [...AI_CAPABILITIES];
 }
 export async function connect() {
-  applyHealth(await backend.health());
+  const health = await backend.health();
+  setHosting(health);
+  if (health?.authEnabled === true && health.signedIn !== true) throw new Error(SIGN_IN_MESSAGE);
+  applyHealth(health);
+  backupAgeDays = health?.backupAgeDays;
   state.user = { username: 'Family' };
   return state.user;
 }

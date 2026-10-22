@@ -9,6 +9,7 @@
 //   app without AI    -> 4313   node server.mjs, no provider (fail-closed)
 //   AI unreachable    -> 4314   provider configured, nothing listening there
 //   lessons only      -> 4315   AI pointed at the mock, HARRINGTON_AI_CAPABILITIES=lesson
+//   access token      -> 4316   no AI provider, HARRINGTON_ACCESS_TOKEN set
 //   settings          -> 4317   no AI in the environment; set in the app instead
 // Each app gets a fresh temporary HARRINGTON_DATA_DIR. Tests share one server
 // per project and reset the family state before each test, so they run serially.
@@ -102,6 +103,12 @@ export default defineConfig({
     {
       command: `node tests/e2e/start-app.mjs --port ${PORTS.appSettings}`,
       url: `${URLS.appSettings}/api/health`,
+      reuseExistingServer: false,
+      timeout: 180_000,
+    },
+    {
+      command: `node tests/e2e/start-app.mjs --port ${PORTS.appToken} --token`,
+      url: `${URLS.appToken}/api/health`,
       reuseExistingServer: false,
       timeout: 180_000,
     },
