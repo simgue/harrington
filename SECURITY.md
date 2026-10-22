@@ -12,27 +12,48 @@ acknowledge your report and work on a fix as quickly as we reasonably can.
 - Harrington includes a small local server. It binds to `127.0.0.1` by default
   and stores family state, lesson caches, and recordings under
   `data/private/` (or `HARRINGTON_DATA_DIR`).
-- The preview does not yet include application authentication. Do not bind it to
-  a public interface or expose it to the internet without a trusted
-  authentication reverse proxy.
+- `HARRINGTON_HOST` changes the bind address. When Harrington is shared with
+  other devices, set `HARRINGTON_ACCESS_TOKEN`: every `/api/*` request except
+  `/api/health` then needs an HttpOnly, SameSite=Strict cookie that a one-time
+  sign-in at `/login` sets (a password form, or a `?token=` link; compared in
+  constant time; the cookie is derived from the token, never the token
+  itself). Once shared, the server answers only to the family's host names
+  and IP addresses (`421` otherwise) to stop DNS rebinding. Harrington does
+  not terminate TLS; put a WireGuard mesh with HTTPS (such as Tailscale) or a
+  local reverse proxy with an internal certificate authority in front of it.
+  [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) has the steps. There are no user
+  accounts, and the token is a single family secret: do not expose Harrington
+  to the public internet.
+- What the token does not protect:
+  - there is no limit on sign-in attempts, so the token must be long and
+    random;
+  - a `?token=` sign-in link stays in browser history, address-bar
+    suggestions and synced history (the form avoids this);
+  - the cookie is a 400-day credential, identical on every device, and the
+    only way to sign out one device is to change the token for everyone;
+  - over plain HTTP the token and the cookie cross the network in clear;
+  - `/api/health` is open and reveals whether the server is shared and
+    whether the token is on (no family data);
+  - anyone holding a signed-in device, a child included, has full access.
 - AI generation is disabled until `HARRINGTON_AI_BASE_URL` and
   `HARRINGTON_AI_MODEL` are set. When they are set, requests go only to that
-  configured OpenAI-compatible endpoint. Names of learners in this app are
-  replaced with “the child” in the browser before any request is built, and
-  learner names, birth months and years, interests and record titles are never
-  sent. What still leaves the machine: topic text (for lessons, printables,
-  activities, “Explain simply”, mini-quizzes, recall cards, tests and
-  challenges) and the topic's age from the curriculum; the learner's exact age
-  for whole-subject tests, discussion analyses (alongside a linked topic's
-  age) and progress reviews; the adaptive “excelling” flag on topic and
-  section tests; mastery counts and percentages, topic statuses, record counts
-  and the average confidence rating for progress reviews; a discussion
-  transcript when the parent asks for an analysis; and parent notes only when
-  the parent opts in for that request. Only names entered in Harrington are
-  replaced: a nickname, especially one that is an ordinary word, and other
-  people's names in a transcript are sent as spoken, and names in scripts
-  written without spaces (for example Chinese) are not matched when they run
-  straight into other text. There are no shared-family features.
+  configured OpenAI-compatible endpoint. Harrington never puts a learner's name,
+  birth month or year, interests or record titles into a prompt itself, and in
+  the browser it replaces the learner names it knows with “the child” in
+  transcripts and notes before any request is built. What still leaves the
+  machine: topic text (for lessons, printables, activities, “Explain simply”,
+  mini-quizzes, recall cards, tests and challenges) and the topic's age from the
+  curriculum; the learner's exact age for whole-subject tests, discussion
+  analyses (alongside a linked topic's age) and progress reviews; the adaptive
+  “excelling” flag on topic and section tests; mastery counts and percentages,
+  topic statuses, record counts and the average confidence rating for progress
+  reviews; a discussion transcript when the parent asks for an analysis; and
+  parent notes only when the parent opts in for that request. Only names entered
+  in Harrington are replaced: a nickname, especially one that is an ordinary
+  word, and other people's names in a transcript are sent as spoken, a
+  one-letter name is not replaced, and names in scripts written without spaces
+  (for example Chinese) are not matched when they run straight into other text.
+  There are no features shared between families.
 - The child-view PIN is a gentle barrier, not a lock. Four digits are 10,000
   guesses, and reloading the page always returns to the parent view. The
   family document (and every export) keeps only a SHA-256 hash of the PIN

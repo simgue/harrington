@@ -7,6 +7,16 @@ tagged a release yet; everything below is on `main`.
 ## [Unreleased]
 
 ### Changed
+- Harrington can be shared with the family's other devices: `HARRINGTON_HOST`
+  chooses the bind address, `HARRINGTON_ACCESS_TOKEN` makes `/api/*` (except
+  health) require a sign-in cookie set once per device by the form at `/login`
+  (or a `?token=` link), a shared server answers only to the family's host
+  names (`HARRINGTON_ALLOWED_HOSTS`), and `/api/health` reports `host` and
+  `authEnabled`. The onboarding banner, sidebar and Guide say "Shared with
+  your other devices" when the server is not loopback-only.
+  `docs/DEPLOYMENT.md` covers a Tailscale mesh with HTTPS (recommended), a
+  Caddy proxy with an internal CA, the token, nightly backups and upgrades
+  (HAR-25).
 - The notification bell lists what needs a parent, computed locally per
   learner: today's picks still open after 3 pm on a home day, no evidence in
   the last 7 days, and a backup older than 7 days (`/api/health` now reports
@@ -42,17 +52,15 @@ tagged a release yet; everything below is on `main`.
   provider; see the README." The curriculum auto-update claim is gone, and the
   live transcript is labeled as using the browser's speech service (HAR-12).
 - Guide is reachable on phones from a book icon in the header (HAR-12).
-- Learner names and parent notes no longer reach the AI provider. Prompts say
+- Learner names no longer reach the AI provider from the prompts, and parent
+  notes reach it only when the parent opts in. Prompts say
   “your child”, every learner's name is replaced with “the child” in
   transcripts and notes before a request is built, records go out as counts
   and linked topics, and the parent's notes are sent, redacted, only when
   they tick “Include my notes in this request” for that request; record
   titles are never sent (HAR-19).
 - A whole-subject test or challenge for a learner with no birth year leaves
-  the age out of the prompt instead of saying “aged null”.
-- The notes opt-in is a 20 px checkbox whose whole label is the tap target,
-  and the Insights placement is an option of the shared block instead of a
-  class swap.
+  the age out of the prompt instead of saying “aged null” (HAR-32).
 - Onboarding, the first-run notification and the YouTube reference link use
   plain, accurate wording (HAR-12).
 
@@ -98,7 +106,7 @@ tagged a release yet; everything below is on `main`.
   (printables, activities, “Explain simply” and mini-quizzes included), say a
   linked discussion analysis sends the topic's age and the exact age, name
   the adaptive “excelling” flag, and keep the caveat that a nickname is sent
-  as spoken.
+  as spoken (HAR-32).
 - Export and Import are reachable on a phone or tablet, at the bottom of the
   learner selector, with the same preview and confirm as on a computer
   (e2e finding F6).

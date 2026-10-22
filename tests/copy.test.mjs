@@ -29,6 +29,23 @@ const read = (path) => readFile(new URL(path, repoRoot), 'utf8');
 // Markdown wraps lines; compare prose with every run of whitespace as one space.
 const prose = async (path) => (await read(path)).replace(/\s+/g, ' ');
 const PRIVACY_DOCS = ['README.md', 'SECURITY.md', 'src/docs/GUIDE.md', 'src/js/views/guide.js'];
+// Each document's own "what leaves" passage, so a fact elsewhere in the file
+// cannot stand in for one missing from the privacy text.
+const PRIVACY_SPANS = {
+  'README.md': ['When an AI provider is configured, this is what still leaves the machine:', '## What works without an AI provider'],
+  'SECURITY.md': ['- AI generation is disabled until', '- The child-view PIN'],
+  'src/docs/GUIDE.md': ['- Nothing leaves your devices unless', '- Harrington has no user accounts'],
+  'src/js/views/guide.js': ["'What leaves your home', `", '`],'],
+};
+async function privacyText(path) {
+  const text = await read(path);
+  const [from, to] = PRIVACY_SPANS[path];
+  const a = text.indexOf(from);
+  assert.ok(a !== -1, `${path}: privacy passage not found`);
+  const b = text.indexOf(to, a + from.length);
+  assert.ok(b !== -1, `${path}: end of privacy passage not found`);
+  return text.slice(a, b).replace(/\s+/g, ' ');
+}
 
 test('Insights hints point at routes that exist, not the removed timeline', async () => {
   const insights = await read('src/js/views/insights.js');
@@ -39,7 +56,7 @@ test('Insights hints point at routes that exist, not the removed timeline', asyn
 
 test('every privacy document lists each request that sends topic text', async () => {
   for (const path of PRIVACY_DOCS) {
-    const text = (await prose(path)).toLowerCase();
+    const text = (await privacyText(path)).toLowerCase();
     for (const kind of ['lessons', 'printables', 'activities', 'explain simply', 'mini-quizzes', 'recall cards', 'tests', 'challenges']) {
       assert.ok(text.includes(kind), `${path} omits ${kind}`);
     }
@@ -48,7 +65,7 @@ test('every privacy document lists each request that sends topic text', async ()
 
 test('privacy documents agree with ai.js on ages, the excelling flag and nicknames', async () => {
   for (const path of PRIVACY_DOCS) {
-    const text = await prose(path);
+    const text = await privacyText(path);
     // A linked analysis sends the topic's age and the exact age, not one "instead" of the other.
     assert.doesNotMatch(text, /exact age instead/, `${path} says "instead"`);
     assert.match(text, /alongside (the|a) linked topic['’]s age/, `${path} omits the linked topic's age`);
@@ -63,7 +80,8 @@ test('privacy documents agree with ai.js on ages, the excelling flag and nicknam
 
 test('the HAR-19 behavior itself is in the changelog, not only the copy fix', async () => {
   const changelog = await prose('CHANGELOG.md');
-  assert.match(changelog, /Learner names and parent notes no longer reach the AI provider\..*\(HAR-19\)/);
+  assert.match(changelog, /Learner names no longer reach the AI provider from the prompts, and parent notes reach it only when the parent opts in\..*\(HAR-19\)/);
+  assert.doesNotMatch(changelog, /parent notes no longer reach the AI provider/);
 });
 
 test('SECURITY.md and the guides keep lines within 80 columns', async () => {
@@ -103,5 +121,36 @@ test('counts in the views agree with their number ("1 topic", never "1 topics")'
     const text = await read(path);
     for (const phrase of phrases) assert.ok(text.includes(phrase), `${path} lost: ${phrase}`);
     assert.doesNotMatch(text, /\$\{[^}]*(total|length|DAY_MS\)|_DAYS|Days)\} (topics|points|days)\b/, `${path} has an unpluralized count`);
+  }
+});
+
+test('the shared-mode Guide never restores the single-computer claims', async () => {
+  const { installFakeDocument } = await import('./fake-dom.mjs');
+  installFakeDocument();
+  const { setHosting } = await import('../src/js/hosting.js');
+  const { features, guideSections } = await import('../src/js/views/guide.js');
+  const allText = () => [
+    ...features().map((f) => `${f.title} ${f.tagline} ${f.body}`),
+    ...guideSections().flatMap((s) => [s.h, ...s.items.flat()]),
+  ].join('\n');
+  try {
+    for (const authEnabled of [true, false]) {
+      setHosting({ host: 'network', authEnabled, signedIn: authEnabled });
+      const text = allText();
+      assert.doesNotMatch(text, /this computer only/i, `shared, token ${authEnabled}`);
+      assert.doesNotMatch(text, /leaves your home/i, `shared, token ${authEnabled}`);
+      // The longer what-leaves wording survives inside the shared branch.
+      assert.match(text, /What leaves your devices/);
+      assert.match(text, /a nickname, especially one that is an ordinary word/);
+      assert.match(text, /alongside the linked topic’s age/);
+    }
+    // With a token, nothing may say there is no sign-in. Without one, #34's
+    // "There is no account and no sign-in" is true and stays.
+    setHosting({ host: 'network', authEnabled: true, signedIn: true });
+    assert.doesNotMatch(allText(), /no sign-in/i);
+    setHosting({ host: 'loopback' });
+    assert.match(allText(), /What leaves your home/, 'the single-computer label is unchanged');
+  } finally {
+    setHosting({ host: 'loopback' });
   }
 });
