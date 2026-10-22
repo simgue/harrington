@@ -7,6 +7,16 @@ tagged a release yet; everything below is on `main`.
 ## [Unreleased]
 
 ### Changed
+- Harrington can be shared with the family's other devices: `HARRINGTON_HOST`
+  chooses the bind address, `HARRINGTON_ACCESS_TOKEN` makes `/api/*` (except
+  health) require a sign-in cookie set once per device by the form at `/login`
+  (or a `?token=` link), a shared server answers only to the family's host
+  names (`HARRINGTON_ALLOWED_HOSTS`), and `/api/health` reports `host` and
+  `authEnabled`. The onboarding banner, sidebar and Guide say "Shared with
+  your other devices" when the server is not loopback-only.
+  `docs/DEPLOYMENT.md` covers a Tailscale mesh with HTTPS (recommended), a
+  Caddy proxy with an internal CA, the token, nightly backups and upgrades
+  (HAR-25).
 - The notification bell lists what needs a parent, computed locally per
   learner: today's picks still open after 3 pm on a home day, no evidence in
   the last 7 days, and a backup older than 7 days (`/api/health` now reports

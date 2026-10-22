@@ -32,6 +32,10 @@ before(async () => {
       HARRINGTON_HOST: '127.0.0.1',
       HARRINGTON_PORT: '0',
       HARRINGTON_DATA_DIR: dataDir,
+      // A parent's shell may export the deployment settings; tests choose their own.
+      HARRINGTON_ACCESS_TOKEN: '',
+      HARRINGTON_PUBLISHED_HOST: '',
+      HARRINGTON_ALLOWED_HOSTS: '',
       HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${provider.address().port}`,
       HARRINGTON_AI_MODEL: 'stub',
       HARRINGTON_AI_API_KEY: '',
