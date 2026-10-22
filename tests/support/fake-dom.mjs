@@ -1,10 +1,20 @@
-// A minimal fake DOM for rendering views in Node: an HTML parser for ui.el()
-// and innerHTML, a simple selector engine (tag, #id, .class, [attr],
-// [attr="v"], compound, descendant, comma lists), events, and inert layout
-// (every size and scroll offset is 0). Enough for the views to build their
-// nodes; not a browser. installFakeDom() puts document, window and friends on
-// globalThis and returns { document, window } (the same shape as PR #43's
-// helper, which this file will merge with).
+// A minimal stand-in for the browser, enough to render the views in Node:
+// - an HTML parser for ui.el() and innerHTML, and a selector engine (tag,
+//   #id, .class, [attr], [attr="v"], :not(), compound, descendant and child
+//   combinators, comma lists);
+// - events that bubble, click() activation (disabled controls ignore it, a
+//   checkbox or radio toggles and fires input and change, a label activates
+//   its control), and focus and scrollIntoView calls recorded per element;
+// - a frame queue: requestAnimationFrame callbacks wait for flushFrame();
+// - a window with a hash history (pushes, replaceState, back, forward,
+//   popstate then hashchange) and a record of scrollTo calls;
+// - layout that is whatever the test says: document.layout maps an element
+//   to { top, left, width, height } for getBoundingClientRect and client*;
+//   offset* come from the inline style; everything else measures 0.
+// Not a browser. installFakeDom() puts document, window and friends on
+// globalThis and returns { document, window, flushFrame, pendingFrames }.
+// It creates no page roots; a test adds the #app, #modal-root or #toast-root
+// it needs. Used by graph-view.test.mjs and ai-status-views.test.mjs.
 
 const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
 const RAW_TEXT = new Set(['script', 'style', 'textarea', 'title']);
@@ -196,6 +206,8 @@ class Element extends ParentNode {
     });
     this.scrollTop = 0;
     this.scrollLeft = 0;
+    this.focusCalls = [];
+    this.scrollIntoViewCalls = [];
     if (this.localName === 'template') this.content = new DocumentFragment(doc);
   }
   get tagName() { return this.namespaceURI ? this.localName : this.localName.toUpperCase(); }
@@ -235,7 +247,8 @@ class Element extends ParentNode {
   set href(v) { this.setAttribute('href', v); }
   get title() { return this.getAttribute('title') ?? ''; }
   set title(v) { this.setAttribute('title', v); }
-  get type() { return this.getAttribute('type') ?? (this.localName === 'button' ? 'submit' : ''); }
+  get type() { return this.getAttribute('type') ?? (this.localName === 'button' ? 'submit' : this.localName === 'input' ? 'text' : ''); }
+  set type(v) { this.setAttribute('type', v); }
   get name() { return this.getAttribute('name') ?? ''; }
   get innerText() { return this.textContent; }
   set innerText(v) { this.textContent = v; }
@@ -247,24 +260,62 @@ class Element extends ParentNode {
   get outerHTML() { return serialize(this); }
   get nextElementSibling() { const s = this.parentNode?.children; return s ? s[s.indexOf(this) + 1] ?? null : null; }
   get previousElementSibling() { const s = this.parentNode?.children; return s ? s[s.indexOf(this) - 1] ?? null : null; }
-  get offsetWidth() { return 0; }
-  get offsetHeight() { return 0; }
-  get offsetTop() { return 0; }
-  get offsetLeft() { return 0; }
-  get clientWidth() { return 0; }
-  get clientHeight() { return 0; }
+  // Positioned elements (the skill tree's nodes) carry their box in the
+  // inline style; the rest of layout comes from document.layout.
+  _styleLength(prop) {
+    const inline = this.style[prop] || new RegExp(`(?:^|;)\\s*${prop}:\\s*(-?[\\d.]+)px`).exec(this.getAttribute('style') || '')?.[1];
+    return parseFloat(inline || 0);
+  }
+  get offsetWidth() { return this._styleLength('width'); }
+  get offsetHeight() { return this._styleLength('height'); }
+  get offsetTop() { return this._styleLength('top'); }
+  get offsetLeft() { return this._styleLength('left'); }
+  get clientWidth() { return this.ownerDocument.layoutOf(this)?.width ?? 0; }
+  get clientHeight() { return this.ownerDocument.layoutOf(this)?.height ?? 0; }
   get scrollWidth() { return 0; }
   get scrollHeight() { return 0; }
-  getBoundingClientRect() { return { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 }; }
+  getBoundingClientRect() {
+    const box = this.ownerDocument.layoutOf(this) || { top: 0, left: 0, width: 0, height: 0 };
+    return { x: box.left, y: box.top, ...box, bottom: box.top + box.height, right: box.left + box.width };
+  }
   getBBox() { return { x: 0, y: 0, width: 0, height: 0 }; }
   getTotalLength() { return 0; }
   scrollTo() {}
   scrollBy() {}
-  scrollIntoView() {}
-  focus() { this.ownerDocument.activeElement = this; }
-  blur() {}
+  scrollIntoView(options) { this.scrollIntoViewCalls.push(options); }
+  focus(options) {
+    this.focusCalls.push(options);
+    this.ownerDocument.activeElement = this;
+  }
+  blur() { if (this.ownerDocument.activeElement === this) this.ownerDocument.activeElement = this.ownerDocument.body; }
   select() {}
-  click() { this.dispatchEvent(new FakeEvent('click', { bubbles: true })); }
+  // Fires `type` on this element without bubbling, as a scroll does.
+  dispatch(type) { return this.dispatchEvent(new FakeEvent(type)); }
+  // Activation as a browser does it: nothing for a disabled control; a
+  // checkbox or radio changes before the click handlers run (and changes back
+  // if one calls preventDefault), then fires input and change; a label passes
+  // the click on to its control.
+  click() {
+    if (this.disabled) return;
+    const toggles = this.localName === 'input' && (this.type === 'checkbox' || this.type === 'radio');
+    const was = this.checked;
+    if (toggles) this.checked = this.type === 'radio' ? true : !was;
+    const event = new FakeEvent('click', { bubbles: true });
+    this.dispatchEvent(event);
+    if (toggles) {
+      if (event.defaultPrevented) this.checked = was;
+      else if (this.checked !== was) {
+        this.dispatchEvent(new FakeEvent('input', { bubbles: true }));
+        this.dispatchEvent(new FakeEvent('change', { bubbles: true }));
+      }
+      return;
+    }
+    if (this.localName === 'label' && !event.defaultPrevented) {
+      const id = this.getAttribute('for');
+      const control = id ? this.ownerDocument.getElementById(id) : this.querySelector('input, select, textarea, button');
+      if (control && control !== this) control.click();
+    }
+  }
   matches(selector) { return parseSelector(selector).some((g) => matchesGroup(this, g, null)); }
   closest(selector) {
     for (let n = this; n && n.nodeType === 1; n = n.parentNode) if (n.matches(selector)) return n;
@@ -404,7 +455,9 @@ class Document extends ParentNode {
     this.activeElement = this.body;
     this.visibilityState = 'visible';
     this.fonts = { ready: Promise.resolve() };
+    this.layout = new Map(); // element -> { top, left, width, height }
   }
+  layoutOf(element) { return this.layout.get(element) || null; }
   createElement(tag) { return new Element(this, tag); }
   createElementNS(ns, tag) { return new Element(this, tag, ns); }
   createTextNode(text) { return new Text(this, String(text)); }
@@ -412,46 +465,99 @@ class Document extends ParentNode {
   createDocumentFragment() { return new DocumentFragment(this); }
 }
 
-// A fresh document with the page's roots (#app, #modal-root, #toast-root)
-// and the browser globals the views touch. Timers are left real.
-export function installFakeDom() {
-  const document = new Document();
-  for (const id of ['app', 'modal-root', 'toast-root']) {
-    const div = document.createElement('div');
-    div.id = id;
-    document.body.appendChild(div);
-  }
-  const listeners = new Node(document);
-  const location = { hash: '', href: 'http://harrington.test/', origin: 'http://harrington.test', pathname: '/' };
-  const window = {
+// A window with a hash history. Pushes and replaces behave like the
+// browser's (a fragment push starts with a null state); back() and forward()
+// move through the entries and fire popstate then hashchange. Setting
+// location.hash fires nothing: the code under test drives its own render.
+function fakeWindow(document) {
+  const events = new Node(document);
+  const win = {
     document,
-    location,
-    history: { pushState() {}, replaceState() {}, back() {} },
     innerWidth: 1280,
-    innerHeight: 900,
+    innerHeight: 800,
     scrollX: 0,
     scrollY: 0,
     devicePixelRatio: 1,
     lucide: null,
-    addEventListener: listeners.addEventListener.bind(listeners),
-    removeEventListener: listeners.removeEventListener.bind(listeners),
-    dispatchEvent: listeners.dispatchEvent.bind(listeners),
-    scrollTo() {},
+    scrolls: [],
+    entries: [{ hash: '', state: null }],
+    index: 0,
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+    dispatchEvent: events.dispatchEvent.bind(events),
+    fire(type) { events.dispatchEvent(new FakeEvent(type)); },
+    scrollTo(options = {}) {
+      win.scrolls.push(options);
+      if (options.left != null) win.scrollX = options.left;
+      if (options.top != null) win.scrollY = options.top;
+    },
+    // The user scrolls the page.
+    scrollByUser(y) {
+      win.scrollY = y;
+      win.fire('scroll');
+    },
+    go(delta) {
+      win.index += delta;
+      win.fire('popstate');
+      win.fire('hashchange');
+    },
+    back() { win.go(-1); },
+    forward() { win.go(1); },
     print() {},
     open() { return null; },
     matchMedia: (query) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }),
-    getComputedStyle: () => ({ getPropertyValue: () => '' }),
-    requestAnimationFrame: (fn) => setTimeout(() => fn(Date.now()), 0),
-    cancelAnimationFrame: (id) => clearTimeout(id),
   };
+  const push = (hash, state = null) => {
+    win.entries.length = win.index + 1;
+    win.entries.push({ hash: '#' + String(hash).replace(/^#/, ''), state });
+    win.index += 1;
+  };
+  win.location = {
+    get hash() { return win.entries[win.index].hash; },
+    set hash(value) { push(value); },
+    get href() { return `http://harrington.test/${win.location.hash}`; },
+    origin: 'http://harrington.test',
+    pathname: '/',
+  };
+  win.history = {
+    get state() { return win.entries[win.index].state; },
+    get length() { return win.entries.length; },
+    pushState(state, _title, url) { push(url ?? win.location.hash, state == null ? null : structuredClone(state)); },
+    replaceState(state, _title, url) {
+      const entry = win.entries[win.index];
+      entry.state = state == null ? null : structuredClone(state);
+      if (url !== undefined) entry.hash = '#' + String(url).replace(/^#/, '');
+    },
+    back: () => win.back(),
+    forward: () => win.forward(),
+    go: (delta) => win.go(delta),
+  };
+  return win;
+}
+
+// Installs the fakes as globals. Call before importing any view module.
+export function installFakeDom() {
+  const document = new Document();
+  const window = fakeWindow(document);
+  const frames = [];
   const storage = () => {
     const map = new Map();
     return { getItem: (k) => map.get(k) ?? null, setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k), clear: () => map.clear() };
   };
+  Object.assign(window, {
+    requestAnimationFrame: (fn) => frames.push(fn),
+    cancelAnimationFrame: (id) => { if (frames[id - 1]) frames[id - 1] = () => {}; },
+    getComputedStyle: (element) => ({
+      transform: element.style.transform || 'none',
+      scrollMarginTop: element.style.scrollMarginTop || '0px',
+      getPropertyValue: (prop) => element.style[prop] || '',
+    }),
+  });
   const globals = {
     document,
     window,
-    location,
+    location: window.location,
+    history: window.history,
     localStorage: storage(),
     sessionStorage: storage(),
     requestAnimationFrame: window.requestAnimationFrame,
@@ -459,6 +565,13 @@ export function installFakeDom() {
     matchMedia: window.matchMedia,
     getComputedStyle: window.getComputedStyle,
     CSS: { escape: (s) => String(s).replace(/[^\w-]/g, (c) => `\\${c}`) },
+    DOMMatrixReadOnly: class {
+      constructor(transform) {
+        const values = /matrix\(([^)]*)\)/.exec(transform)[1].split(',').map(Number);
+        this.m41 = values[4];
+        this.m42 = values[5];
+      }
+    },
     Event: FakeEvent,
     CustomEvent: FakeEvent,
     KeyboardEvent: FakeEvent,
@@ -473,5 +586,11 @@ export function installFakeDom() {
   for (const [key, value] of Object.entries(globals)) {
     Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
   }
-  return { document, window };
+  // Runs the frame callbacks queued so far, as the browser does before a paint.
+  const flushFrame = () => {
+    const due = frames.splice(0);
+    for (const fn of due) fn(Date.now());
+    return due.length;
+  };
+  return { document, window, flushFrame, pendingFrames: () => frames.length };
 }

@@ -87,18 +87,20 @@ async function withErrors(errors, check) {
 for (const [name, hash, heading, seed = {}, text = null] of ROUTES) {
   test(`route renders without errors: ${name}`, async ({ page, gotoApp }) => {
     const errors = pageErrors(page);
-    await gotoApp({
-      seed: {
-        progress: { [TOPICS.oneToOne.id]: 'mastered', [TOPICS.howMany.id]: 'learning' },
-        records: [
-          { type: 'observation', title: 'Counted the stairs out loud', note: 'Got to 12.', rating: 4, topicId: TOPICS.oneToOne.id },
-          { type: 'discussion', title: 'Talked about sharing', note: 'Split grapes.' },
-        ],
-        ...seed,
-      },
-      hash,
-    });
+    // Inside withErrors too: a view that throws on its first render leaves
+    // the loading screen up, and gotoApp times out waiting for it to go.
     await withErrors(errors, async () => {
+      await gotoApp({
+        seed: {
+          progress: { [TOPICS.oneToOne.id]: 'mastered', [TOPICS.howMany.id]: 'learning' },
+          records: [
+            { type: 'observation', title: 'Counted the stairs out loud', note: 'Got to 12.', rating: 4, topicId: TOPICS.oneToOne.id },
+            { type: 'discussion', title: 'Talked about sharing', note: 'Split grapes.' },
+          ],
+          ...seed,
+        },
+        hash,
+      });
       await expect(page.getByRole('navigation', { name: 'Main' }).first()).toBeAttached();
       await expectRendered(page, viewContent(page), heading, text);
     });
@@ -108,7 +110,9 @@ for (const [name, hash, heading, seed = {}, text = null] of ROUTES) {
 
 test('route renders without errors: onboard (no learners yet)', async ({ page, gotoApp }) => {
   const errors = pageErrors(page);
-  await gotoApp({ seed: null, hash: 'onboard' });
-  await withErrors(errors, () => expectRendered(page, page.locator('#app'), 'Add your first student'));
+  await withErrors(errors, async () => {
+    await gotoApp({ seed: null, hash: 'onboard' });
+    await expectRendered(page, page.locator('#app'), 'Add your first student');
+  });
   expect(errors).toEqual([]);
 });

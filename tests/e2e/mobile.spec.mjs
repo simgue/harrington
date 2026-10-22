@@ -78,6 +78,9 @@ test('export and import from the learner menu on a phone (F6)', async ({ page, g
   const menu = modal(page);
   await expect(menu.getByRole('heading', { name: 'Students' })).toBeVisible();
   await expect(menu.getByText('Family data')).toBeVisible();
+  // Phones have no sidebar, so a shared server's sign-in line shows here
+  // (HAR-25); this test server is loopback-only, so there is none.
+  await expect(menu.locator('#m-hosting')).toHaveCount(0);
   await noHorizontalOverflow(page);
   await shot('learner-menu-family-data', { full: false });
 
@@ -100,11 +103,13 @@ test('export and import from the learner menu on a phone (F6)', async ({ page, g
 });
 
 // F14: every target named below is at least 44 × 44 px on a phone.
+// Boxes are measured in whole CSS pixels: at a fractional scroll offset a 44px
+// box can read 43.9999.
 async function expectTapTarget(locator, name) {
   const box = await locator.boundingBox();
   expect(box, name).not.toBeNull();
-  expect(box.width, `${name} width`).toBeGreaterThanOrEqual(44);
-  expect(box.height, `${name} height`).toBeGreaterThanOrEqual(44);
+  expect(Math.round(box.width), `${name} width`).toBeGreaterThanOrEqual(44);
+  expect(Math.round(box.height), `${name} height`).toBeGreaterThanOrEqual(44);
 }
 
 test('learner menu: 44px targets with names, names not cut off (F14)', async ({ page, gotoApp, shot }) => {
@@ -166,7 +171,7 @@ test('the "Include my notes" opt-in is a comfortable target and its label toggle
   expect(size.width).toBeGreaterThanOrEqual(20);
   expect(size.height).toBeGreaterThanOrEqual(20);
   const label = page.locator('label', { hasText: 'Include my notes in this request' });
-  expect((await label.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  expect(Math.round((await label.boundingBox()).height)).toBeGreaterThanOrEqual(44);
   await label.getByText('Include my notes in this request').click();
   await expect(box).toBeChecked();
 });
@@ -214,4 +219,59 @@ test('the top-bar bell: open, filter by learner, dismiss, and the 30-day backup 
   // ...and once 30 days have passed it comes back.
   await at('2026-11-07T10:00:00Z');
   expect(await backupNote()).toBe(1);
+});
+
+// HAR-21 follow-ups on a phone, where the quest log stacks under the tree.
+test('quest log reveal lands below the top bar, and "Back to tree" returns to the node (items 4 and 8)', async ({ page, gotoApp, shot }) => {
+  await gotoApp({ seed: {}, hash: `graph/English/${encodeURIComponent('Grammar & Punctuation')}` });
+  // The highest skill in a tall tree: its quest log stacks far below the fold.
+  const highest = await page.locator('button.skill-node').evaluateAll((nodes) => nodes.reduce((a, b) => (b.offsetTop < a.offsetTop ? b : a)).dataset.skillId);
+  const target = page.locator(`button.skill-node[data-skill-id="${highest}"]`);
+  await target.click();
+  const log = page.getByRole('complementary', { name: 'Quest log' });
+  await expect(log).toBeAttached();
+  await page.waitForTimeout(500); // the fade-up has finished
+  const box = await log.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    const margin = parseFloat(getComputedStyle(el).scrollMarginTop);
+    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    return {
+      scrollY: window.scrollY,
+      // Its top on its margin, unless the page ends first.
+      expected: Math.min(maxScroll, Math.round(rect.top + window.scrollY - margin)),
+      margin,
+      top: rect.top,
+      bottom: rect.bottom,
+      bar: document.querySelector('header.sticky').getBoundingClientRect().bottom,
+      nav: [...document.querySelectorAll('nav[aria-label="Main"]')].find((nav) => nav.offsetHeight).getBoundingClientRect().top,
+    };
+  });
+  expect(box.margin).toBe(72);
+  expect(Math.abs(box.scrollY - box.expected)).toBeLessThanOrEqual(0.5);
+  // Clear of the top bar and the bottom navigation.
+  expect(box.bar).toBeLessThanOrEqual(box.top);
+  expect(box.bottom).toBeLessThanOrEqual(box.nav);
+  const pill = log.getByRole('button', { name: 'Back to tree' });
+  await expect(pill).toBeInViewport();
+  await shot('quest-log-revealed', { full: false });
+
+  await pill.click();
+  await expect(target).toBeInViewport();
+  await expect(target).toBeFocused();
+  await noHorizontalOverflow(page);
+});
+
+test('a status write keeps the quest log scrolled where it was (N4)', async ({ page, gotoApp }) => {
+  await gotoApp({ seed: {}, hash: `graph/Mathematics/${encodeURIComponent('Counting & Cardinality')}` });
+  await page.locator('button.skill-node', { hasText: TOPICS.oneToOne.name }).first().click();
+  const log = page.getByRole('complementary', { name: 'Quest log' });
+  await expect(log.getByRole('button', { name: 'Mark as learning' })).toBeAttached();
+  const scrolled = await log.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+    return el.scrollTop;
+  });
+  expect(scrolled).toBeGreaterThan(50);
+  await log.getByRole('button', { name: 'Mark as learning' }).evaluate((button) => button.click());
+  await expect(log.getByRole('button', { name: 'Keep as learning' })).toBeAttached();
+  await expect.poll(() => log.evaluate((el) => el.scrollTop)).toBe(scrolled);
 });

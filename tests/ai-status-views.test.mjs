@@ -28,7 +28,12 @@ import { readdir, readFile } from 'node:fs/promises';
 import { after, before, test } from 'node:test';
 import { installFakeDom } from './support/fake-dom.mjs';
 
-const { document } = installFakeDom();
+const { document, flushFrame, pendingFrames } = installFakeDom();
+for (const id of ['app', 'modal-root', 'toast-root']) {
+  const root = document.createElement('div');
+  root.id = id;
+  document.body.appendChild(root);
+}
 
 // The clock is pinned to a Wednesday (as in the E2E suite), so the calendar
 // plans a home day whatever day the test runs.
@@ -138,7 +143,14 @@ await loadTaxonomy();
 const UNCONFIGURED = /none is set up on this Harrington server/;
 const app = document.getElementById('app');
 const modalRoot = document.getElementById('modal-root');
-const settle = async () => { for (let i = 0; i < 6; i += 1) await new Promise((resolve) => setImmediate(resolve)); };
+// Lets promises, timers due now and animation frames run, as a page does
+// between a click and the next look at the screen.
+const settle = async () => {
+  for (let i = 0; i < 6; i += 1) {
+    for (let frames = 0; pendingFrames() && frames < 10; frames += 1) flushFrame();
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+};
 const navigate = () => {};
 
 // Errors a click leaves behind (a rejected promise, a console.error) are
