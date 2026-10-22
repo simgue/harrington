@@ -197,8 +197,9 @@ test('the top-bar bell: open, filter by learner, dismiss, and the 30-day backup 
   await gotoApp({ seed: { extra: { dismissedAlerts: { welcome: Date.parse('2026-10-01T00:00:00Z') } } } });
   const bell = page.locator('header').getByRole('button', { name: /^Notifications/ });
   await expect(bell).toBeVisible();
-  // Rowan's and Sage's picks, and the missing backup (Wren, 3, has nothing to pick).
-  await expect(bell).toHaveAccessibleName('Notifications, 3 new');
+  // Each learner's picks (Wren, 3, gets the youngest band's choices: F3, #35)
+  // and the missing backup.
+  await expect(bell).toHaveAccessibleName('Notifications, 4 new');
   await bell.click();
   const m = modal(page);
   await expect(m.getByLabel('Show')).toHaveValue('s_e2e_rowan');
@@ -212,9 +213,9 @@ test('the top-bar bell: open, filter by learner, dismiss, and the 30-day backup 
   await m.getByRole('button', { name: "Dismiss: Today's picks are still open for Sage Example" }).click();
   await expect(m.getByText("Today's picks are still open for Sage Example")).toHaveCount(0);
   await m.getByRole('button', { name: 'Dismiss: No backup recorded' }).click();
-  await expect(m.locator('#list > div')).toHaveCount(1);
+  await expect(m.locator('#list > div')).toHaveCount(2);
   await closeModal(page);
-  await expect(bell).toHaveAccessibleName('Notifications, 1 new');
+  await expect(bell).toHaveAccessibleName('Notifications, 2 new');
   await api.waitForState((s) => s.dismissedAlerts?.['backup:none'] && s.dismissedAlerts?.['picks:s_e2e_sage:2026-10-07']);
 
   // 29 days later (a Thursday morning, picks not due yet) the backup note stays
@@ -233,4 +234,59 @@ test('the top-bar bell: open, filter by learner, dismiss, and the 30-day backup 
   // ...and once 30 days have passed it comes back.
   await at('2026-11-07T10:00:00Z');
   expect(await backupNote()).toBe(1);
+});
+
+// HAR-21 follow-ups on a phone, where the quest log stacks under the tree.
+test('quest log reveal lands below the top bar, and "Back to tree" returns to the node (items 4 and 8)', async ({ page, gotoApp, shot }) => {
+  await gotoApp({ seed: {}, hash: `graph/English/${encodeURIComponent('Grammar & Punctuation')}` });
+  // The highest skill in a tall tree: its quest log stacks far below the fold.
+  const highest = await page.locator('button.skill-node').evaluateAll((nodes) => nodes.reduce((a, b) => (b.offsetTop < a.offsetTop ? b : a)).dataset.skillId);
+  const target = page.locator(`button.skill-node[data-skill-id="${highest}"]`);
+  await target.click();
+  const log = page.getByRole('complementary', { name: 'Quest log' });
+  await expect(log).toBeAttached();
+  await page.waitForTimeout(500); // the fade-up has finished
+  const box = await log.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    const margin = parseFloat(getComputedStyle(el).scrollMarginTop);
+    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    return {
+      scrollY: window.scrollY,
+      // Its top on its margin, unless the page ends first.
+      expected: Math.min(maxScroll, Math.round(rect.top + window.scrollY - margin)),
+      margin,
+      top: rect.top,
+      bottom: rect.bottom,
+      bar: document.querySelector('header.sticky').getBoundingClientRect().bottom,
+      nav: [...document.querySelectorAll('nav[aria-label="Main"]')].find((nav) => nav.offsetHeight).getBoundingClientRect().top,
+    };
+  });
+  expect(box.margin).toBe(72);
+  expect(Math.abs(box.scrollY - box.expected)).toBeLessThanOrEqual(0.5);
+  // Clear of the top bar and the bottom navigation.
+  expect(box.bar).toBeLessThanOrEqual(box.top);
+  expect(box.bottom).toBeLessThanOrEqual(box.nav);
+  const pill = log.getByRole('button', { name: 'Back to tree' });
+  await expect(pill).toBeInViewport();
+  await shot('quest-log-revealed', { full: false });
+
+  await pill.click();
+  await expect(target).toBeInViewport();
+  await expect(target).toBeFocused();
+  await noHorizontalOverflow(page);
+});
+
+test('a status write keeps the quest log scrolled where it was (N4)', async ({ page, gotoApp }) => {
+  await gotoApp({ seed: {}, hash: `graph/Mathematics/${encodeURIComponent('Counting & Cardinality')}` });
+  await page.locator('button.skill-node', { hasText: TOPICS.oneToOne.name }).first().click();
+  const log = page.getByRole('complementary', { name: 'Quest log' });
+  await expect(log.getByRole('button', { name: 'Mark as learning' })).toBeAttached();
+  const scrolled = await log.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+    return el.scrollTop;
+  });
+  expect(scrolled).toBeGreaterThan(50);
+  await log.getByRole('button', { name: 'Mark as learning' }).evaluate((button) => button.click());
+  await expect(log.getByRole('button', { name: 'Keep as learning' })).toBeAttached();
+  await expect.poll(() => log.evaluate((el) => el.scrollTop)).toBe(scrolled);
 });

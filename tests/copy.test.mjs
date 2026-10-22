@@ -125,8 +125,8 @@ test('counts in the views agree with their number ("1 topic", never "1 topics")'
 });
 
 test('the shared-mode Guide never restores the single-computer claims', async () => {
-  const { installFakeDocument } = await import('./fake-dom.mjs');
-  installFakeDocument();
+  const { installFakeDom } = await import('./support/fake-dom.mjs');
+  installFakeDom();
   const { setHosting } = await import('../src/js/hosting.js');
   const { features, guideSections } = await import('../src/js/views/guide.js');
   const allText = () => [
@@ -153,4 +153,29 @@ test('the shared-mode Guide never restores the single-computer claims', async ()
   } finally {
     setHosting({ host: 'loopback' });
   }
+});
+
+test('no guide says AI buttons "show an error"; they show the provider chip', async () => {
+  for (const path of ['src/docs/GUIDE.md', 'src/js/views/guide.js', 'README.md']) {
+    const text = await prose(path);
+    assert.doesNotMatch(text, /nothing else happens/, path);
+    assert.doesNotMatch(text, /buttons show an error/, path);
+  }
+  // The GUIDE.md sentence is in a blockquote, so drop the "> " line markers first.
+  const guide = (await prose('src/docs/GUIDE.md')).replace(/ > /g, ' ');
+  assert.match(guide, /those buttons show a "Needs a local AI provider" chip instead/);
+});
+
+test('README and SECURITY keep the name-replacement limits ai.js actually has', async () => {
+  for (const path of ['README.md', 'SECURITY.md']) {
+    const text = await privacyText(path);
+    assert.match(text, /one-letter name is not replaced/, `${path} drops the one-letter limit`);
+    assert.match(text, /without spaces \(for example Chinese\)/, `${path} drops the unspaced-script limit`);
+    // The old claims: replacement is best effort, so names are not "never sent".
+    assert.doesNotMatch(text, /learner names, birth months? (and|or) years?,? (and )?interests[^.]* are never\s+sent/i, `${path} claims names are never sent`);
+  }
+  // The limits are real: ai.js skips one-letter names and needs a word boundary.
+  const { redactNames } = await import('../src/js/ai.js');
+  assert.equal(redactNames('J said hi', ['J']), 'J said hi');
+  assert.equal(redactNames('小龍說', ['小龍']), '小龍說');
 });

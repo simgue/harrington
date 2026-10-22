@@ -42,6 +42,11 @@ tagged a release yet; everything below is on `main`.
 - A learner switched away from the map (from the dashboard, say) keeps the
   skill they open next: "Back to graph" from their topic page selects it
   instead of clearing it as the previous learner's (HAR-21 follow-up).
+- Skill tree follow-ups: browser Back and Forward return to the tree at the
+  window and tree scroll it was left at, and clear a selection made for
+  another learner. The quest log keeps its own scroll when a status changes,
+  lands fully in view when revealed, and has a "Back to tree" button on
+  phones (HAR-21 follow-up).
 - Generated lessons, print sheets, activity instructions and recall cards are
   never cached empty or malformed, open once for rapid repeat clicks, and each
   has "Generate a different version" that keeps the previous version if it
@@ -96,6 +101,22 @@ tagged a release yet; everything below is on `main`.
   Homestead (HAR-2).
 
 ### Fixed
+- A tab that loses a save to another tab or device reloads once and shows
+  one toast naming what it did not keep (a status change, a record, a note),
+  with "Try again" when the change can be applied again on the fresh copy.
+  Daily offers a tab writes while rendering no longer raise a conflict with
+  a sibling tab; HAR-27 removed the boot writes (curriculum snapshot,
+  welcome notification) that used to (e2e finding F17).
+- The preview banner reads the provider status from `/api/health`: "AI
+  provider set up" or "No AI provider set up; everything else works". It
+  never says "connected", since a configured provider can be unreachable (F4).
+- A learner younger than the taxonomy's youngest band (a 3-year-old) gets
+  that band's daily choices and stepping stones, and "Everything available
+  is mastered" shows only when it is true (F3).
+- The child view's "Plant something new" offers a topic not yet started; the
+  one in progress comes back only when nothing else is open, as "Keep
+  growing" (F18).
+- Recent growth leaves out topics set back to "Not started" (F12).
 - The Calendar page rendered blank without an AI provider (`gateAi` was
   called but not imported); a source test now checks every file that uses an
   `ai-status.js` helper imports it (HAR-18, HAR-20).

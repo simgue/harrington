@@ -17,8 +17,9 @@ on a phone) covers the same ground in short form. This file is the longer
 written version.
 
 > **Needs a local AI provider; see the README.** This line marks every feature
-> that is written by an AI model. Without a provider those buttons show an
-> error and nothing else happens. See "What needs an AI provider" at the end.
+> that is written by an AI model. Without a provider those buttons show a
+> "Needs a local AI provider" chip instead. See "What needs an AI provider" at
+> the end.
 
 ---
 

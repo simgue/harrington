@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { installFakeDocument } from './fake-dom.mjs';
+import { installFakeDom } from './support/fake-dom.mjs';
 
 // DOM-level checks of the "Include my notes in this request" opt-in that the
 // Insights progress review and the Records/Recordings analyze buttons share.
-installFakeDocument();
+installFakeDom();
 const { privacyControls, analysisOptIn } = await import('../src/js/views/recordings.js');
 
 const repoRoot = new URL('..', import.meta.url);
