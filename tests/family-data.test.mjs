@@ -45,7 +45,16 @@ before(async () => {
 
   child = spawn(process.execPath, ['server.mjs'], {
     cwd: repoRoot,
-    env: { ...process.env, HARRINGTON_HOST: '127.0.0.1', HARRINGTON_PORT: '0', HARRINGTON_DATA_DIR: dataDir },
+    env: {
+      ...process.env,
+      HARRINGTON_HOST: '127.0.0.1',
+      HARRINGTON_PORT: '0',
+      HARRINGTON_DATA_DIR: dataDir,
+      // A parent's shell may export the deployment settings; tests choose their own.
+      HARRINGTON_ACCESS_TOKEN: '',
+      HARRINGTON_PUBLISHED_HOST: '',
+      HARRINGTON_ALLOWED_HOSTS: '',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   baseUrl = await new Promise((resolve, reject) => {
