@@ -20,6 +20,9 @@ test('AI helper: the controls stay, and a failure says the provider could not be
   await expect(page.getByRole('heading', { level: 1, name: ONE.name })).toBeVisible();
   // The provider is configured, so no chips.
   await expect(page.getByRole('link', { name: 'Needs a local AI provider' })).toHaveCount(0);
+  // The banner says the provider is set up, never that it is connected (F4).
+  await expect(page.getByText('Self-hosted preview · family data stays on this server · AI provider set up')).toBeVisible();
+  await expect(page.getByText(/connected/i)).toHaveCount(0);
 
   const helper = section(page, 'AI teaching helper');
   await helper.getByRole('button', { name: 'Explain simply' }).click();

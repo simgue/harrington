@@ -65,7 +65,7 @@ test.describe('without AI', () => {
     expect(errors).toEqual([]);
   });
 
-  test('manual status: every transition updates the page, the dashboard ring and recent growth (finding F12)', async ({ page, api, gotoApp, shot }) => {
+  test('manual status: every transition updates the page, the dashboard ring and recent growth (F12, fixed)', async ({ page, api, gotoApp, shot }) => {
     await gotoApp({ seed: {}, hash: topicHash(ONE.id) });
     // HAR-14: the four statuses sit beside the growth chip in the header.
     const group = page.getByRole('group', { name: 'Set status' });
@@ -106,8 +106,8 @@ test.describe('without AI', () => {
     await expectChip(/Sprout\s*· Not started/);
     await nav(page, 'Dashboard').click();
     await expect(page.getByText(/0 of 1,?590 topics mastered/)).toBeVisible();
-    // A topic set back to "not started" still shows under recent growth.
-    await expect(page.locator('section', { has: page.getByRole('heading', { name: 'Recent growth' }) }).getByRole('button', { name: /One-to-one counting.*Not started/ })).toBeVisible();
+    // A topic set back to "not started" leaves recent growth.
+    await expect(page.locator('section', { has: page.getByRole('heading', { name: 'Recent growth' }) }).getByRole('button', { name: /One-to-one counting/ })).toHaveCount(0);
   });
 
   test('records for this topic: add, view, record; section recordings', async ({ page, api, gotoApp, shot }) => {
