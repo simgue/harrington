@@ -979,22 +979,23 @@ export function resetRecallTopic(topicId) {
   if (changed) { persist(); emit(); }
 }
 // Removes a learner's scheduling records for cards that no longer exist.
-export function dropRecallCards(studentId, cardIds) {
+// `save: false` leaves saving to the caller.
+export function dropRecallCards(studentId, cardIds, { save = true } = {}) {
   const r = recallOf(studentId);
   const gone = cardIds.filter(id => id in r);
   gone.forEach(id => { delete r[id]; });
-  if (gone.length) { persist(); emit(); }
+  if (gone.length && save) { persist(); emit(); }
+  return gone.length;
 }
 // The one place orphans are found: a learner's records for `topicId` whose
 // card is not in `cards` (the topic's current, validated card set) are dropped.
 // Used by "Due today" and by the due count. Returns how many were dropped.
-export function dropOrphanRecall(studentId, topicId, cards) {
+export function dropOrphanRecall(studentId, topicId, cards, { save = true } = {}) {
   const known = new Set(cards.map(c => c.id));
   const gone = Object.entries(recallOf(studentId))
     .filter(([id, c]) => recallTopicOf(id, c) === topicId && !known.has(id))
     .map(([id]) => id);
-  dropRecallCards(studentId, gone);
-  return gone.length;
+  return dropRecallCards(studentId, gone, { save });
 }
 
 // ---- Spaced practice for missed mastery-test questions ----
@@ -1345,6 +1346,9 @@ function knownRecallIds(topicId) {
 
 // Reads each due topic's card set once per session (never generating) and
 // drops orphaned schedule entries. Resolves to how many were dropped.
+// The prune is a repair that loading makes, so it is saved like a migration:
+// once, right away, and a conflict with a tab that saved first reloads
+// silently (the reloaded document is repaired again).
 async function reconcileRecallDue(studentId) {
   const topics = new Set(dueRecallCards(studentId).map(c => recallTopicOf(c.id, c)));
   let dropped = 0;
@@ -1353,8 +1357,9 @@ async function reconcileRecallDue(studentId) {
     await recallChecked.get(topicId);
     // Read the live value: a regenerate may have replaced it since.
     const value = lessonCache.get('recall:' + topicId);
-    if (value) dropped += dropOrphanRecall(studentId, topicId, recallCardsOf(value).cards);
+    if (value) dropped += dropOrphanRecall(studentId, topicId, recallCardsOf(value).cards, { save: false });
   }
+  if (dropped) { persistMigration(); emit(); }
   return dropped;
 }
 

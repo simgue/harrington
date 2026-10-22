@@ -100,6 +100,11 @@ class FakeElement extends FakeNode {
     for (const node of nodes) this.appendChild(typeof node === 'string' ? new FakeText(this.ownerDocument, node) : node);
   }
 
+  replaceChildren(...nodes) {
+    for (const child of [...this.childNodes]) child.remove();
+    this.append(...nodes);
+  }
+
   set innerHTML(html) {
     for (const child of [...this.childNodes]) child.remove();
     for (const node of parseHtml(this.ownerDocument, html)) this.appendChild(node);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
-import { installFakeDom } from './fake-dom.mjs';
+import { installFakeDom } from './support/fake-dom.mjs';
 
 // Resolves once `check()` returns something truthy, polling the event loop.
 async function waitFor(check, { timeout = 2000 } = {}) {
@@ -59,13 +59,19 @@ globalThis.fetch = async (path, options = {}) => {
   return lessons.has(key) ? json(200, lessons.get(key)) : json(404, { error: 'Lesson not found' });
 };
 
-const document = installFakeDom();
+const { document } = installFakeDom();
+// The page's roots, as src/index.html has them.
+for (const id of ['app', 'modal-root', 'toast-root']) {
+  const root = document.createElement('div');
+  root.setAttribute('id', id);
+  document.body.appendChild(root);
+}
 // Toasts and modal transitions use timers; keep them from holding the process open.
 mock.timers.enable({ apis: ['setTimeout'] });
 
 const store = await import('../src/js/store.js');
 const { loadTaxonomy } = await import('../src/js/data.js');
-const { openRecall } = await import('../src/js/views/recall.js');
+const { openRecall, openDueRecall } = await import('../src/js/views/recall.js');
 const { openLesson } = await import('../src/js/views/lesson.js');
 const { renderRecords } = await import('../src/js/views/records.js');
 await loadTaxonomy();
@@ -170,6 +176,26 @@ test('the child view has no regenerate and resets nothing', async () => {
   assert.equal(buttons(modalRoot(), 'Generate a different version').length, 0);
 });
 
+for (const child of [false, true]) {
+  test(`"Due today" with a set that had to be generated resets and skips it${child ? ', with no Retry save in the child view' : ', and offers Retry save'}`, async () => {
+    await reset();
+    failPuts = true; // the fresh set is not saved, so Retry save applies
+    for (const sid of learners) for (let i = 0; i < 5; i++) store.ensureRecallCard(sid, `${TOPIC.id}::${i}`, TOPIC.id);
+    store.gradeRecall(learners[1], `${TOPIC.id}::0`, TOPIC.id, 'again');
+    for (const sid of learners) store.recallState(sid, `${TOPIC.id}::0`).due = 0;
+    aiReply = { cards: [{ front: 'New 0?', back: 'N0' }, { front: 'New 1?', back: 'N1' }] };
+    store.setChildViewOpen(child);
+    openDueRecall();
+    await waitFor(() => stageText().includes('All caught up'));
+    assert.equal(calls.ai, 1);
+    for (const sid of learners) {
+      assert.equal(store.dueRecallCards(sid, { topicId: TOPIC.id }).length, 0, 'the lost set\'s schedule is gone');
+      assert.equal(store.recallState(sid, `${TOPIC.id}::0`), null);
+    }
+    assert.equal(buttons(toastRoot(), 'Retry save').length, child ? 0 : 1);
+  });
+}
+
 test('malformed recall cards are left out up front and counted', async () => {
   await reset();
   lessons.set('recall:' + TOPIC.id, { cards: [...cards(2), { id: `${TOPIC.id}::2`, front: { text: 'object' }, back: 'x' }, { front: 'no id', back: 'x' }] });
@@ -218,7 +244,10 @@ test('a first lesson generation the server will not store stays on screen, and R
   retry()[0].click();
   await waitFor(() => !store.isUnsavedCached('topic:' + TOPIC.id));
   assert.deepEqual(lessons.get('topic:' + TOPIC.id), LESSON);
-  assert.ok(toastRoot().textContent.includes('Saved'));
+  // "Saved" takes the place of that lesson's toast, under the same id.
+  const forKey = toastRoot().children.filter(t => t.getAttribute('data-toast-id') === 'unsaved:topic:' + TOPIC.id);
+  assert.equal(forKey.length, 1);
+  assert.match(forKey[0].textContent, /^Saved/);
   assert.equal(calls.ai, 1, 'never billed twice for the lesson on screen');
 });
 
