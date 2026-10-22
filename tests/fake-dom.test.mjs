@@ -66,6 +66,17 @@ test('inputs report their type; classList.toggle adds and removes', () => {
   assert.equal(div.className, 'b');
 });
 
+test('replaceChildren swaps an element\'s children (used by PR #41\'s cache views)', () => {
+  const root = render('<ul><li>a</li><li>b</li></ul>');
+  const list = root.querySelector('ul');
+  const item = document.createElement('li');
+  item.textContent = 'c';
+  list.replaceChildren(item, 'd');
+  assert.equal(list.innerHTML, '<li>c</li>d');
+  list.replaceChildren();
+  assert.equal(list.childNodes.length, 0);
+});
+
 test('frames wait for flushFrame; history moves fire popstate then hashchange', () => {
   let ran = 0;
   requestAnimationFrame(() => { ran += 1; });
