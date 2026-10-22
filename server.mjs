@@ -5,6 +5,9 @@ import { createServer } from 'node:http';
 import { isIP } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { redactNames } from './src/js/redact.js';
+import { SCHEMA_VERSION, schemaVersionOf } from './src/js/schema.js';
+import { validateDocument } from './src/js/document.js';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(repoRoot, 'src');
@@ -136,14 +139,34 @@ function atomicWrite(path, data) {
 // ---- Versioned family state ----
 // The stored document is the family data plus a top-level integer `version`
 // and `updatedAt`. A legacy document without a version is treated as version 0.
+// Before the first save there is no file, and the document is a new one at the
+// current data format (`schemaVersion`, see src/js/schema.js); the browser
+// migrates older documents when it loads them.
 function stateVersionOf(doc) {
   return Number.isSafeInteger(doc?.version) && doc.version >= 0 ? doc.version : 0;
 }
 
-async function readStateDocument() {
-  const doc = await readJsonFile(stateFile, {});
+function normalizeState(doc) {
   const value = doc && typeof doc === 'object' && !Array.isArray(doc) ? doc : {};
   return { ...value, version: stateVersionOf(value) };
+}
+
+async function readStateDocument() {
+  return normalizeState(await readJsonFile(stateFile, { schemaVersion: SCHEMA_VERSION }));
+}
+
+// Every save is checked with the rules the browser applies before an import
+// (src/js/document.js): 422 for a document the app could not render, 409 for
+// a data format this server does not know or older than the stored one.
+function saveProblem(data) {
+  const { version: _version, updatedAt: _updatedAt, writeId: _writeId, ...doc } = data;
+  const schema = schemaVersionOf(doc);
+  if (schema === null) return { status: 422, error: 'schemaVersion must be a whole number' };
+  if (schema > SCHEMA_VERSION) {
+    return { status: 409, error: `This server reads family data up to format ${SCHEMA_VERSION}; the save is format ${schema}. Update Harrington.` };
+  }
+  const problem = validateDocument(doc);
+  return problem ? { status: 422, error: problem } : null;
 }
 
 function stateEtag(version) {
@@ -162,8 +185,16 @@ function parseIfMatch(header) {
 // same version cannot both succeed.
 function writeStateIfMatch(expected, data) {
   return enqueueWrite(stateFile, async () => {
-    const current = await readStateDocument();
+    const stored = await readJsonFile(stateFile, null);
+    const current = stored === null ? await readStateDocument() : normalizeState(stored);
     if (current.version !== expected) return { ok: false, current };
+    // Only a document on disk sets the floor; the new one served before the
+    // first save does not.
+    const storedSchema = stored === null ? 0 : (schemaVersionOf(current) ?? 0);
+    const schema = schemaVersionOf(data) ?? 0;
+    if (schema < storedSchema) {
+      return { ok: false, refused: { status: 409, error: `The family data is format ${storedSchema}; this save is format ${schema}. Reload Harrington.` } };
+    }
     const { version: _version, updatedAt: _updatedAt, writeId, ...rest } = data;
     // An optional client-chosen id lets a tab recognise its own write later,
     // such as an unload beacon whose response it never saw. A body that merely
@@ -200,7 +231,16 @@ async function handleStateWrite(req, res) {
     sendJson(res, 428, { error: 'Saving family data requires If-Match with the current state version' });
     return;
   }
+  const problem = saveProblem(value);
+  if (problem) {
+    sendJson(res, problem.status, { error: problem.error });
+    return;
+  }
   const result = await writeStateIfMatch(expected, value);
+  if (result.refused) {
+    sendJson(res, result.refused.status, { error: result.refused.error });
+    return;
+  }
   if (!result.ok) {
     send(res, 412, JSON.stringify(result.current), {
       'Content-Type': 'application/json; charset=utf-8',
@@ -301,6 +341,87 @@ function completionContent(payload) {
   return content == null ? '' : String(content);
 }
 
+// ---- What reaches the AI provider ----
+// The browser builds prompts without learner names and leaves parent notes
+// out unless the parent opts in (src/js/ai.js). The server checks both again
+// before anything leaves the machine: every learner name in the family
+// document becomes "the child" (same rules, src/js/redact.js), and stored
+// parent notes are removed unless the request says the parent opted in.
+
+const AI_ROLES = new Set(['system', 'user', 'assistant']);
+const NOTE_REMOVED = '[note removed]';
+// A whole note, and any note line, is matched from this length: a shorter
+// note ("Fractions") is also ordinary topic text and would blank it.
+const NOTE_MIN = 20;
+// The browser cuts a note at these lengths before it goes into a prompt
+// (summarizeRecords and the progress review at 300, a discussion at 1500).
+const NOTE_CUTS = [300, 1500];
+
+// Only { role, content } with string content is forwarded. The app never
+// sends anything else, so an object or array content, or tool_calls, is a 400.
+function forwardableMessages(messages) {
+  return messages.map((message, i) => {
+    const fail = (why) => { throw Object.assign(new Error(`Message ${i + 1} ${why}`), { statusCode: 400 }); };
+    if (!message || typeof message !== 'object' || Array.isArray(message)) fail('is not an object');
+    if ('tool_calls' in message) fail('has tool_calls, which Harrington does not send');
+    if (!AI_ROLES.has(message.role)) fail('has a role other than system, user or assistant');
+    if (typeof message.content !== 'string') fail('content must be a string');
+    return { role: message.role, content: message.content };
+  });
+}
+
+function storedLearners(doc) {
+  const students = Array.isArray(doc.students) ? doc.students : [];
+  return students.map((s) => s?.name).filter((n) => typeof n === 'string' && n.trim());
+}
+
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Patterns for every stored parent note, as the browser would send it (names
+// already redacted): the whole note, its first 300 and 1500 characters (where
+// the browser cuts it, from the note as stored and as trimmed), and each line,
+// every piece of NOTE_MIN characters or more, with any run of whitespace
+// matching any other. Longest first.
+function notePatterns(doc, names) {
+  const pieces = new Set();
+  const add = (piece) => { const text = piece.trim(); if (text.length >= NOTE_MIN) pieces.add(text); };
+  const records = doc.records && typeof doc.records === 'object' ? doc.records : {};
+  for (const list of Object.values(records)) {
+    for (const record of Array.isArray(list) ? list : []) {
+      if (typeof record?.note !== 'string') continue;
+      const asStored = redactNames(record.note, names);
+      const trimmed = redactNames(record.note.trim(), names);
+      add(trimmed);
+      for (const cut of NOTE_CUTS) {
+        add(asStored.slice(0, cut));
+        add(trimmed.slice(0, cut));
+      }
+      for (const line of trimmed.split('\n')) add(line);
+    }
+  }
+  return [...pieces]
+    .sort((a, b) => b.length - a.length)
+    .map((piece) => new RegExp(piece.split(/\s+/).map(escapeRegExp).join('\\s+'), 'g'));
+}
+
+// Whether the parent opted in to sending notes with this request.
+// When PR #37 lands: `&& body.capability === 'analysis'`.
+function notesAllowed(body) {
+  return body.includeNotes === true;
+}
+
+async function guardMessages(body) {
+  const messages = forwardableMessages(body.messages);
+  const doc = await readStateDocument();
+  const names = storedLearners(doc);
+  const notes = notesAllowed(body) ? [] : notePatterns(doc, names);
+  return messages.map(({ role, content }) => {
+    let text = names.length ? redactNames(content, names) : content;
+    for (const pattern of notes) text = text.replace(pattern, NOTE_REMOVED);
+    return { role, content: text };
+  });
+}
+
 async function handleAiChat(req, res) {
   const settings = aiSettings();
   if (!settings.configured) {
@@ -312,6 +433,8 @@ async function handleAiChat(req, res) {
   if (!Array.isArray(body.messages)) {
     throw Object.assign(new Error('Request body must include a messages array'), { statusCode: 400 });
   }
+
+  const messages = await guardMessages(body);
 
   const headers = { 'Content-Type': 'application/json' };
   if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
@@ -325,7 +448,7 @@ async function handleAiChat(req, res) {
       headers,
       body: JSON.stringify({
         model: settings.model,
-        messages: body.messages,
+        messages,
       }),
       signal: controller.signal,
     });
@@ -557,6 +680,7 @@ async function handleApi(req, res, url) {
       mode: 'self-hosted',
       ...deployment,
       aiConfigured: aiSettings().configured,
+      redaction: 'server+client',
       taxonomyCached: await taxonomyCached(),
       ...(await stateHealth()),
       backupAgeDays: await backupAgeDays(),

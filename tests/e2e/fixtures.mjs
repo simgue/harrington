@@ -13,6 +13,7 @@ import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FIXED_NOW, URLS } from './support/env.mjs';
 import { familyState } from './support/family.mjs';
+import { SCHEMA_VERSION } from '../../src/js/schema.js';
 
 export { expect };
 export const SHOTS_DIR = fileURLToPath(new URL('../../docs/e2e/screenshots/', import.meta.url));
@@ -50,7 +51,7 @@ export class Api {
     throw new Error('PUT /api/state kept failing its precondition');
   }
 
-  async reset() { await this.putState({}); }
+  async reset() { await this.putState({ schemaVersion: SCHEMA_VERSION, students: [] }); }
 
   async seed(options) {
     const state = familyState(options);

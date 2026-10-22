@@ -74,7 +74,7 @@ async function loadAudioUrl(path) {
 export function audioPlayer(path, duration) {
   const wrap = el(`<div class="mt-2"></div>`);
   const btn = el(`<button class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-light text-brand-dark text-sm font-medium hover:bg-brand/20 transition-colors">
-    <i data-lucide="play-circle" class="w-4 h-4"></i>Play recording${duration ? ` · ${fmtDur(duration)}` : ''}</button>`);
+    <i data-lucide="play-circle" class="w-4 h-4"></i>Play recording${duration ? ` · ${esc(fmtDur(duration))}` : ''}</button>`);
   wrap.appendChild(btn);
   btn.onclick = async () => {
     btn.disabled = true;
@@ -242,8 +242,8 @@ export function openRecorder(studentId, topic = null, section = null, options = 
     const url = URL.createObjectURL(blob);
     const wrap = el(`<div>
       <div class="rounded-xl border border-paper-line bg-paper p-3 mb-4">
-        <div class="flex items-center gap-2 mb-2 text-sm font-600"><i data-lucide="audio-lines" class="w-4 h-4 text-brand-dark"></i>Preview · ${fmtDur(duration)}</div>
-        <audio class="w-full" controls src="${url}"></audio>
+        <div class="flex items-center gap-2 mb-2 text-sm font-600"><i data-lucide="audio-lines" class="w-4 h-4 text-brand-dark"></i>Preview · ${esc(fmtDur(duration))}</div>
+        <audio class="w-full" controls src="${esc(url)}"></audio>
       </div>
       <form id="f" class="space-y-3.5">
         ${!topic ? `<div>
@@ -254,11 +254,11 @@ export function openRecorder(studentId, topic = null, section = null, options = 
         </div>` : `<input type="hidden" name="topicId" value="${esc(topic.id)}" />`}
         <div>
           <label class="text-sm font-medium block mb-1.5">Title</label>
-          <input name="title" placeholder="e.g. Talking through fractions" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+          <input name="title" maxlength="1000" placeholder="e.g. Talking through fractions" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
         </div>
         <div>
           <label class="text-sm font-medium block mb-1.5">Notes <span class="text-ink-faint font-normal">(optional)</span></label>
-          <textarea name="note" rows="2" placeholder="Key questions, moments, or things to revisit\u2026" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none"></textarea>
+          <textarea name="note" rows="2" maxlength="50000" placeholder="Key questions, moments, or things to revisit\u2026" class="w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none"></textarea>
         </div>
         ${coverageClaimField(coverageTopics)}
         ${(transcript || speechSupported()) ? `<div>
@@ -283,7 +283,7 @@ export function openRecorder(studentId, topic = null, section = null, options = 
         results.innerHTML = '';
         if (q.length < 2) return;
         d.topics.filter(t => t.name.toLowerCase().includes(q)).slice(0, 6).forEach(t => {
-          const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
+          const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${esc(SUBJECTS[t.subject]?.color)}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
           r.onclick = () => { hidden.value = t.id; search.value = t.name; results.innerHTML = ''; };
           results.appendChild(r);
         });
@@ -293,6 +293,9 @@ export function openRecorder(studentId, topic = null, section = null, options = 
     wrap.querySelector('#redo').onclick = () => { blob = null; renderIdle(); };
     wrap.querySelector('#f').onsubmit = async e => {
       e.preventDefault();
+      // Read-only family data: the record would be refused, so do not upload
+      // its audio either (it would be left without a record).
+      if (store.isReadOnly()) { toast(`Not saved. ${store.READ_ONLY_MESSAGE}`, 'error'); return; }
       const saveBtn = wrap.querySelector('#save');
       saveBtn.disabled = true;
       saveBtn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>Saving\u2026';
