@@ -1,5 +1,6 @@
 // The daily calendar: month grid, start date, day panel, done, extras, moves.
-import { test, expect, modal, nav, expectToast } from './fixtures.mjs';
+import { test, expect, modal, nav, expectToast, childView } from './fixtures.mjs';
+import { FIXED_NOW } from './support/env.mjs';
 import { LEARNERS, TOPICS } from './support/family.mjs';
 
 const ROWAN = LEARNERS.rowan.id;
@@ -263,6 +264,16 @@ test('a break pauses the rhythm: no choices on the dashboard, the next learning 
   expect(errors).toEqual([]);
 });
 
+test('the child view pauses inside a break: no pick-one sections, the next learning day named', { tag: '@mobile' }, async ({ page, gotoApp, errors }) => {
+  await gotoApp({ seed: { extra: { settings: { calendar: FALL_BREAK } } } });
+  await page.getByRole('button', { name: "Rowan Example's view" }).click();
+  const view = childView(page);
+  await expect(view).toBeVisible();
+  await expect(view.locator('.rest-day')).toHaveText("No choices today: it's a rest day. See you on Monday, October 12!");
+  await expect(view.getByRole('region', { name: /pick one/ })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('"New today" only on today; other days say "New on <weekday>"', { tag: '@mobile' }, async ({ page, gotoApp }) => {
   await openCalendar(page, gotoApp);
   await expect(dayPanel(page)).toContainText('New today');
@@ -295,25 +306,31 @@ test('Extra practice opens its own topic; with nothing for it, the whole queue i
 test('Extra practice runs only that topic\'s retries', async ({ page, gotoApp }) => {
   await openCalendar(page, gotoApp, {
     extra: {
-      practice: { [ROWAN]: { p_mine: retry(TOPICS.oneToOne.id, 'Count the three cups.'), p_other: retry(TOPICS.howMany.id, 'How many apples in all?') } },
+      practice: { [ROWAN]: {
+        p_mine: retry(TOPICS.oneToOne.id, 'Count the three cups.'),
+        // Same topic, but not due for ten days: it stays out of the session.
+        p_later: { ...retry(TOPICS.oneToOne.id, 'Count the five spoons.'), box: 2, due: FIXED_NOW.getTime() + 10 * 86_400_000 },
+        p_other: retry(TOPICS.howMany.id, 'How many apples in all?'),
+      } },
       plan: { [ROWAN]: { moves: {}, done: {}, extras: { '2026-10-07': [{ id: 'x_e2e', kind: 'practice', topicId: TOPICS.oneToOne.id, topicName: TOPICS.oneToOne.name, subject: 'Mathematics', title: `Extra practice · ${TOPICS.oneToOne.name}` }] } } },
     },
   });
   await dayPanel(page).locator('div.rounded-xl', { hasText: 'Extra practice · ' }).getByRole('button', { name: 'Open' }).click();
   await expect(modal(page)).toContainText('Retry 1 of 1');
   await expect(modal(page)).toContainText('Count the three cups.');
+  await expect(modal(page)).not.toContainText('Count the five spoons.');
 });
 
 test('catch-up pace: the default names its weeks; Mixed reschedules and keeps done days', { tag: '@mobile' }, async ({ page, api, gotoApp, shot }) => {
   await openCalendar(page, gotoApp, { extra: { plan: { [ROWAN]: { moves: {}, extras: {}, done: { '2026-10-06': 1790000000000 } } } } });
   const bar = page.locator('#pacebar');
   await expect(bar.getByRole('button', { name: 'Catch-up first' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(bar.locator('.pace-summary')).toHaveText(/^Catch-up first: \d+ catch-up topics come before Rowan Example's first own-age topic, about \d+ weeks of home days\.$/);
+  await expect(bar.locator('.pace-summary')).toHaveText(/^Catch-up first: \d+ catch-up topics come before Rowan Example's first own-age topic, which starts in about \d+ weeks \(\w+day, \w+ \d+(, \d{4})?\)\.$/);
   const firstDay = await dayPanel(page).locator('button.open span.block').first().innerText();
   await bar.getByRole('button', { name: 'Mixed' }).click();
   await expectToast(page, 'Catch-up pace updated — track rescheduled');
   await expect(page.locator('#pacebar').getByRole('button', { name: 'Mixed' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#pacebar .pace-summary')).toHaveText(/^Mixed: two catch-up topics to one own-age topic\. \d+ catch-up topics finish in about \d+ weeks, with own-age topics from the first week\.$/);
+  await expect(page.locator('#pacebar .pace-summary')).toHaveText(/^Mixed: two catch-up topics to one own-age topic\. \d+ catch-up topics finish in about \d+ weeks \(\w+day, \w+ \d+(, \d{4})?\), with own-age topics from the first week\.$/);
   await shot('catch-up-pace-mixed', { full: false });
   const state = await api.waitForState((s) => s.plan?.[ROWAN]?.pace === 'mixed');
   expect(state.plan[ROWAN].done).toEqual({ '2026-10-06': 1790000000000 });

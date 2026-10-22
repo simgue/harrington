@@ -119,6 +119,7 @@ const band = Array.from({ length: 360 }, (_, i) => topic(`b8-${i}`, i % 2 ? 'Mat
 const all = [...ramp, ...band];
 const base = { startKey: '2026-09-07', age: 8, subjects: ['Mathematics', 'Science'] }; // a Monday
 const rampIds = new Set(ramp.map((t) => t.id));
+const longDay = (k, year = false) => parseKey(k).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', ...(year ? { year: 'numeric' } : {}) });
 const ordered = (plan) => [...plan.topicDate].sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
 
 test('pace values: catch-up first is the default and anything else falls back to it', () => {
@@ -138,8 +139,8 @@ test('catch-up first: unchanged dates by default, every catch-up topic before th
   assert.equal(plain.ramp.firstOwnKey, plain.topicDate.get('b8-0'));
   // 30 topics at two a day: 15 home days, three weeks.
   assert.equal(weeksBetween(base.startKey, plain.ramp.firstOwnKey), 3);
-  assert.equal(paceSummary(plain, base.startKey, 'catch-up-first', 'Sample'),
-    "Catch-up first: 30 catch-up topics come before Sample's first own-age topic, about 3 weeks of home days.");
+  assert.equal(paceSummary(plain, base.startKey, 'catch-up-first', 'Sample', base.startKey),
+    `Catch-up first: 30 catch-up topics come before Sample's first own-age topic, which starts in about 3 weeks (${longDay(plain.ramp.firstOwnKey)}).`);
 });
 
 test('mixed: two catch-up topics to one own-age topic, same topics, same per-day cap', () => {
@@ -153,8 +154,8 @@ test('mixed: two catch-up topics to one own-age topic, same topics, same per-day
   assert.equal(mixed.ramp.firstOwnKey, '2026-09-08', 'own-age topics start in the first week');
   assert.ok(mixed.ramp.lastKey > first.ramp.lastKey, 'catch-up takes longer when mixed');
   assert.equal(weeksBetween(base.startKey, mixed.ramp.lastKey), 4);
-  assert.equal(paceSummary(mixed, base.startKey, 'mixed', 'Sample'),
-    'Mixed: two catch-up topics to one own-age topic. 30 catch-up topics finish in about 4 weeks, with own-age topics from the first week.');
+  assert.equal(paceSummary(mixed, base.startKey, 'mixed', 'Sample', base.startKey),
+    `Mixed: two catch-up topics to one own-age topic. 30 catch-up topics finish in about 4 weeks (${longDay(mixed.ramp.lastKey)}), with own-age topics from the first week.`);
 });
 
 test('mixed never places an own-age topic before its catch-up prerequisite', () => {
@@ -176,6 +177,47 @@ test('both paces keep rest days empty, and a learner with nothing to catch up sa
   const young = planTrack(band, { ...base });
   assert.equal(young.ramp.count, 0);
   assert.equal(paceSummary(young, base.startKey, 'mixed', 'Sample'), "No catch-up topics: the track starts at Sample's own age.");
+});
+
+test('the pace line counts calendar weeks from today when the start is past, and says so in the past tense once done', () => {
+  const first = planTrack(all, base);
+  const mixed = planTrack(all, { ...base, pace: 'mixed' });
+  // Today two weeks in: catch-up first still has a week to go, counted from today.
+  assert.equal(paceSummary(first, base.startKey, 'catch-up-first', 'Sample', '2026-09-21'),
+    `Catch-up first: 30 catch-up topics come before Sample's first own-age topic, which starts in about 1 week (${longDay(first.ramp.firstOwnKey)}).`);
+  // Two days before: not "about 0 weeks".
+  assert.equal(paceSummary(first, base.startKey, 'catch-up-first', 'Sample', '2026-09-26'),
+    `Catch-up first: 30 catch-up topics come before Sample's first own-age topic, which starts within the week (${longDay(first.ramp.firstOwnKey)}).`);
+  assert.equal(paceSummary(mixed, base.startKey, 'mixed', 'Sample', '2026-09-21'),
+    `Mixed: two catch-up topics to one own-age topic. 30 catch-up topics finish in about 2 weeks (${longDay(mixed.ramp.lastKey)}), with own-age topics from the first week.`);
+  // On the day itself.
+  assert.match(paceSummary(first, base.startKey, 'catch-up-first', 'Sample', first.ramp.firstOwnKey), /which starts today\.$/);
+  // Long past: past tense with the day, never "finish in about N weeks".
+  assert.equal(paceSummary(first, base.startKey, 'catch-up-first', 'Sample', '2027-03-01'),
+    `Catch-up first: 30 catch-up topics came before Sample's first own-age topic, on ${longDay(first.ramp.firstOwnKey, true)}.`);
+  assert.equal(paceSummary(mixed, base.startKey, 'mixed', 'Sample', '2027-03-01'),
+    `Mixed: two catch-up topics to one own-age topic. The last of 30 catch-up topics was on ${longDay(mixed.ramp.lastKey, true)}.`);
+  // Weeks are calendar weeks: a break in the way makes the wait longer, and the line no longer says "of home days".
+  const withBreak = planTrack(all, { ...base, calendar: { breaks: [{ start: '2026-09-14', end: '2026-09-18', label: 'Break' }] } });
+  const line = paceSummary(withBreak, base.startKey, 'catch-up-first', 'Sample', base.startKey);
+  assert.equal(line, `Catch-up first: 30 catch-up topics come before Sample's first own-age topic, which starts in about 4 weeks (${longDay(withBreak.ramp.firstOwnKey)}).`);
+  assert.doesNotMatch(line, /home days/);
+});
+
+test('the pace line agrees with one or two catch-up topics and says "within the first week"', () => {
+  const ramp1 = [topic('cnt-7-0', 'Mathematics', 'Counting & Cardinality', 7)];
+  const ramp2 = [...ramp1, topic('cnt-7-1', 'Mathematics', 'Counting & Cardinality', 7)];
+  const one = planTrack([...ramp1, ...band], base);
+  const two = planTrack([...ramp2, ...band], base);
+  assert.equal(one.ramp.count, 1);
+  // One catch-up topic shares day one with the first own-age topic.
+  assert.equal(paceSummary(one, base.startKey, 'catch-up-first', 'Sample', base.startKey),
+    "Catch-up first: 1 catch-up topic comes before Sample's first own-age topic, which starts today.");
+  assert.equal(paceSummary(planTrack([...ramp1, ...band], { ...base, pace: 'mixed' }), base.startKey, 'mixed', 'Sample', base.startKey),
+    'Mixed: two catch-up topics to one own-age topic. 1 catch-up topic finishes today, with own-age topics from the first week.');
+  assert.equal(paceSummary(two, base.startKey, 'catch-up-first', 'Sample', base.startKey),
+    `Catch-up first: 2 catch-up topics come before Sample's first own-age topic, which starts within the first week (${longDay(two.ramp.firstOwnKey)}).`);
+  assert.doesNotMatch(paceSummary(two, base.startKey, 'mixed', 'Sample', base.startKey), /\b0 weeks\b/);
 });
 
 test('switching pace never loses done days, moves, extras or the calendar', async () => {

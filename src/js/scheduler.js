@@ -255,15 +255,34 @@ export function weeksBetween(fromKey, toKey) {
 }
 
 // The calendar's line about the catch-up pace, for a plan and its start day.
-export function paceSummary(plan, startKey, pace, name = 'your student') {
+// Weeks are calendar weeks (breaks included), counted from today or the
+// start day, whichever is later, and the sentence names the day itself. Once
+// that day has passed the sentence is in the past tense.
+export function paceSummary(plan, startKey, pace, name = 'your student', todayKey = keyOf(new Date())) {
   const ramp = plan && plan.ramp;
   if (!ramp || !ramp.count) return `No catch-up topics: the track starts at ${name}'s own age.`;
+  const mixed = normalizePace(pace) === 'mixed';
+  const one = ramp.count === 1;
   const n = countLabel(ramp.count, 'catch-up topic');
-  const wk = (k) => countLabel(weeksBetween(startKey, k), 'week');
-  if (normalizePace(pace) === 'mixed') {
-    return `Mixed: two catch-up topics to one own-age topic. ${n} finish in about ${wk(ramp.lastKey)}, with own-age topics from the first week.`;
+  const target = mixed ? ramp.lastKey : (ramp.firstOwnKey || ramp.lastKey);
+  const from = startKey > todayKey ? startKey : todayKey;
+  const day = (k) => parseKey(k).toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric',
+    ...(parseKey(k).getFullYear() !== parseKey(from).getFullYear() ? { year: 'numeric' } : {}),
+  });
+  const lead = mixed ? 'Mixed: two catch-up topics to one own-age topic. ' : 'Catch-up first: ';
+  if (target < todayKey) {
+    return mixed
+      ? `${lead}The last of ${n} was on ${day(target)}.`
+      : `${lead}${n} came before ${name}'s first own-age topic, on ${day(target)}.`;
   }
-  return `Catch-up first: ${n} come before ${name}'s first own-age topic, about ${wk(ramp.firstOwnKey || ramp.lastKey)} of home days.`;
+  const days = Math.round((parseKey(target) - parseKey(from)) / 86400000);
+  const when = target === todayKey ? 'today'
+    : days < 7 ? `within the ${from === startKey ? 'first ' : ''}week (${day(target)})`
+    : `in about ${countLabel(weeksBetween(from, target), 'week')} (${day(target)})`;
+  return mixed
+    ? `${lead}${n} finish${one ? 'es' : ''} ${when}, with own-age topics from the first week.`
+    : `${lead}${n} come${one ? 's' : ''} before ${name}'s first own-age topic, which starts ${when}.`;
 }
 
 // Deterministic RNG so a given date always yields the same extras.

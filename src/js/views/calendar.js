@@ -188,7 +188,7 @@ function dayPanel(active, navigate) {
       <p class="text-xs text-ink-faint">${rest ? (rest.kind === 'break' ? `Break${rest.label ? ' · ' + esc(rest.label) : ''}` : 'Rest day') : inTrack ? 'Home learning day' : 'Outside the track'}</p>
       <h2 class="font-display text-xl font-600">${dateLabel}</h2>
     </div>
-    ${!control ? '' : `<button id="donebtn" class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${done ? 'bg-brand text-white border-transparent' : 'border-paper-line text-ink-soft hover:border-brand/40'}"><i data-lucide="${done ? 'check-circle-2' : 'circle'}" class="w-3.5 h-3.5"></i>${done ? 'Done' : 'Mark done'}</button>`}
+    ${!control ? '' : `<button id="donebtn" class="shrink-0 flex items-center gap-1.5 min-h-11 px-4 py-1.5 lg:min-h-0 lg:px-3 rounded-lg text-xs font-medium border transition-colors ${done ? 'bg-brand text-white border-transparent' : 'border-paper-line text-ink-soft hover:border-brand/40'}"><i data-lucide="${done ? 'check-circle-2' : 'circle'}" class="w-3.5 h-3.5"></i>${done ? 'Done' : 'Mark done'}</button>`}
   </div>`);
   const doneBtn = head.querySelector('#donebtn');
   if (doneBtn && rest) doneBtn.title = 'Marked done before this became a rest day. Tap to reopen.';
@@ -243,7 +243,7 @@ function restNotice(rest, done, navigate) {
     <p class="font-600 flex items-center gap-1.5"><i data-lucide="${rest.kind === 'break' ? 'tent' : 'sun'}" class="w-4 h-4 text-brand-dark"></i>${title}</p>
     <p class="text-ink-soft mt-0.5">The daily rhythm is paused: no new topics, choices or refreshers. Next learning day: <span class="font-600 text-ink">${longDate(rest.nextKey)}</span>.</p>
     ${done ? '<p class="text-xs text-ink-faint mt-1">This day was marked done before it became a rest day. The record stays; tap Done to reopen it.</p>' : ''}
-    <button type="button" class="next mt-2 text-xs font-medium text-brand-dark flex items-center gap-1">Go to ${parseKey(rest.nextKey).toLocaleDateString(undefined, { weekday: 'long' })}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
+    <button type="button" class="next mt-1 -mb-2 h-11 lg:h-auto lg:mt-2 lg:mb-0 text-xs font-medium text-brand-dark flex items-center gap-1">Go to ${parseKey(rest.nextKey).toLocaleDateString(undefined, { weekday: 'long' })}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
   </div>`);
   box.querySelector('.next').onclick = () => {
     const d = parseKey(rest.nextKey);
@@ -260,7 +260,7 @@ function paceBar(active, startKey, navigate) {
   const summary = paceSummary(buildPlan(active), startKey, pace, active.name);
   const opt = (value, label) => {
     const on = pace === value;
-    return `<button type="button" data-pace="${value}" aria-pressed="${on}" class="px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${on ? 'bg-brand text-white border-transparent' : 'bg-paper text-ink-soft border-paper-line hover:border-brand/40'}">${label}</button>`;
+    return `<button type="button" data-pace="${value}" aria-pressed="${on}" class="min-h-11 px-4 py-1.5 lg:min-h-0 lg:px-3 rounded-lg border text-xs font-medium transition-colors ${on ? 'bg-brand text-white border-transparent' : 'bg-paper text-ink-soft border-paper-line hover:border-brand/40'}">${label}</button>`;
   };
   const bar = el(`<div id="pacebar" class="mb-5 rounded-xl border border-paper-line bg-paper-card p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm" role="group" aria-label="Catch-up pace">
     <span class="flex items-center gap-1.5 text-ink-soft shrink-0"><i data-lucide="gauge" class="w-4 h-4 text-brand-dark"></i>Catch-up pace</span>
@@ -619,7 +619,7 @@ function openCalendarSettings(active, navigate) {
     draft.breaks.forEach((b, i) => {
       const row = el(`<div class="flex items-center gap-2 rounded-lg border border-paper-line bg-paper px-3 py-2">
         <span class="flex-1 min-w-0"><span class="block text-sm font-600 truncate">${esc(b.label || 'Break')}</span><span class="block text-xs text-ink-faint">${fmt(b.start)} – ${fmt(b.end)}</span></span>
-        <button type="button" class="del text-ink-faint hover:text-[#a4473a] p-1 shrink-0" aria-label="Remove ${esc(b.label || 'break')}"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+        <button type="button" class="del text-ink-faint hover:text-[#a4473a] w-11 h-11 -my-[11px] -mr-[11px] flex items-center justify-center shrink-0 lg:w-auto lg:h-auto lg:m-0 lg:p-1" aria-label="Remove ${esc(b.label || 'break')}"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
       </div>`);
       row.querySelector('.del').onclick = () => { draft.breaks.splice(i, 1); renderBreaks(); };
       breaksWrap.appendChild(row);
