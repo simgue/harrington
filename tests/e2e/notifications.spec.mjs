@@ -75,14 +75,15 @@ test('after 3 pm on a home day, open picks show per learner with a learner filte
   await expect(m.getByText("Today's picks are still open for Rowan Example")).toBeVisible();
   await expect(m).toContainText('No literacy or numeracy pick yet today.');
   await expect(m.getByText("Today's picks are still open for Sage Example")).toHaveCount(0);
-  // Wren (3) has nothing to choose today (F3), so her picks are not open.
+  // Wren (3) gets the youngest band's choices (F3, #35), so hers are open too.
   await expect(m.getByRole('button', { name: /more for other learners: show all/ })).toBeVisible();
   await shot('notifications-open-picks', { full: false });
   await m.getByLabel('Show').selectOption('all');
   await expect(m.getByText("Today's picks are still open for Sage Example")).toBeVisible();
+  await expect(m.getByText("Today's picks are still open for Wren Example")).toBeVisible();
   await m.getByRole('button', { name: "Dismiss: Today's picks are still open for Rowan Example" }).click();
   await expect(m.getByText("Today's picks are still open for Rowan Example")).toHaveCount(0);
-  await expect(m.getByText("Today's picks are still open for Wren Example")).toHaveCount(0);
+  await expect(m.getByText("Today's picks are still open for Wren Example")).toBeVisible();
   await api.waitForState((s) => s.dismissedAlerts?.['picks:s_e2e_rowan:2026-10-07']);
 });
 
