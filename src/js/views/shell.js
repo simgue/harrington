@@ -4,6 +4,7 @@ import { countLabel } from '../format.js';
 import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
 import { openPlacement } from './placement.js';
+import { isShared, sidebarLine } from '../hosting.js';
 
 // Storybook Meadow mark: a sun rising over a hill.
 function meadowLogo(size = 34) {
@@ -134,6 +135,7 @@ function openStudentMenu(navigate) {
     <div id="list" class="space-y-2"></div>
     <div class="lg:hidden mt-5 pt-4 border-t border-paper-line">
       <p class="text-xs font-600 text-ink-soft mb-2">Family data</p>
+      ${isShared() ? `<p id="m-hosting" class="text-xs text-ink-faint mb-2">${sidebarLine()}</p>` : ''}
       <div class="grid grid-cols-2 gap-2">
         <button id="m-export" class="flex items-center justify-center gap-1.5 h-11 rounded-full bg-paper text-sm font-medium text-ink hover:bg-paper-deep transition-colors" title="Export family data">
           <i data-lucide="download" class="w-4 h-4"></i>Export</button>
@@ -283,7 +285,7 @@ function accountBox() {
       </div>
       <div class="flex-1 min-w-0">
         <p class="text-xs font-600 truncate">Private family space</p>
-        <p class="text-xs text-ink-faint">Saved by Harrington</p>
+        <p class="text-xs text-ink-faint">${sidebarLine()}</p>
       </div>
     </div>
     <div class="mt-2.5 grid grid-cols-2 gap-1.5">

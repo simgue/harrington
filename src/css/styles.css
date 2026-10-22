@@ -117,7 +117,10 @@ body { -webkit-font-smoothing: antialiased; }
 }
 .skill-gateway:hover { transform: translateY(-1px); }
 .skill-legend-orb { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
-.quest-log { width: min(22rem, 100%); max-height: 36rem; }
+.quest-log { width: min(22rem, 100%); max-height: 36rem; scroll-margin-top: 1rem; }
+.quest-back-to-tree { display: none; }
+/* Below lg the sticky top bar covers the top of the page. */
+@media (max-width: 1023px) { .quest-log { scroll-margin-top: 4.5rem; } }
 
 @keyframes skillPulse {
   0%, 100% { box-shadow: 0 0 0 3px rgba(164, 71, 58, 0.35); }
@@ -127,6 +130,7 @@ body { -webkit-font-smoothing: antialiased; }
 @media (max-width: 800px) {
   .skill-stage { flex-direction: column; }
   .quest-log { width: 100%; border-left: 0; border-top: 1px solid #ede3cf; max-height: 22rem; }
+  .quest-back-to-tree { display: inline-flex; }
 }
 
 /* range input */
