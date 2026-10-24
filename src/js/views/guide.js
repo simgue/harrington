@@ -210,6 +210,7 @@ const guideSections = () => [
   ]},
   { h: 'Topic page', items: [
     ['Works today', 'Description, what mastery looks like, a quick-check prompt, how the topic connects, records for the topic, activity ideas, reference links and manual status.'],
+    ['See how it works', 'Some Science topics for ages 5 to 8 have a figure your child can press: parts move and their labels light up as they work. It works offline and saves nothing. It is in the child view too.'],
     ['Reference links', 'Khan Academy, BBC Bitesize and Wikipedia searches, plus YouTube searches. YouTube results are not filtered for children, so supervise.'],
     ['Needs AI', `Full lesson, print & go, the topic mastery test, challenge, recall cards, “Explain simply”, “Make a mini-quiz”, and step-by-step activity instructions. ${NEEDS_AI}`],
   ]},

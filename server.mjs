@@ -51,6 +51,21 @@ const MIME = {
   '.woff2': 'font/woff2',
 };
 
+// The "See how it works" figures (src/figures/*.html, HAR-34) are self-contained
+// pages shown in a sandboxed iframe. This policy keeps them that way even when
+// one is opened directly: inline script and style only, no network, framed
+// only by Harrington itself, and always sandboxed to an opaque origin.
+const FIGURE_CSP = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline'",
+  "style-src 'unsafe-inline'",
+  'img-src data:',
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'self'",
+  'sandbox allow-scripts',
+].join('; ');
+
 const writeQueues = new Map();
 
 function send(res, status, body = '', headers = {}) {
@@ -811,6 +826,7 @@ async function serveStatic(req, res, url) {
       'Content-Length': details.size,
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'SAMEORIGIN',
+      ...(/^figures\/[^/]+\.html$/.test(relative) ? { 'Content-Security-Policy': FIGURE_CSP } : {}),
     });
     if (req.method === 'HEAD') res.end();
     else streamFile(res, path);

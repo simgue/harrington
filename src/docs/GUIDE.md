@@ -81,6 +81,8 @@ every Harrington tab, then remove `parentPinHash` and `parentPinSalt` from
 - **Story time and number time.** Today's literacy and numeracy options for
   your child to pick from.
 - **Tell about my day.** A voice note saved to the learner's records.
+- **See how it works.** On a topic card, the topic's interactive figure, when
+  it has one (some Science topics for ages 5 to 8).
 - **Plant something new, Memory walk, Beat the clock.** These open a test,
   recall cards or a challenge. Needs a local AI provider; see the README.
 
@@ -126,6 +128,12 @@ Open a topic from the map, the dashboard or a record.
 **Works today:** description, **What mastery looks like**, a **Quick check**
 prompt, how the topic connects (comes before / leads to), records for the
 topic, activity and game ideas, reference links, and manual status.
+
+**See how it works.** Some Science topics for ages 5 to 8 have an
+interactive figure: press the buttons and the parts move, with their labels
+lighting up as they work. Labels start on; **Labels on** hides them. It works
+offline, needs no AI provider and saves nothing. The same figure is on the
+topic card in the child view.
 
 **Reference links** are searches on Khan Academy, BBC Bitesize, Wikipedia and
 YouTube. YouTube results are not filtered for children, so the link reads

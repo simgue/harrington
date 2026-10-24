@@ -27,3 +27,16 @@ NGSS "ngss-…", the UK National Curriculum, and others) are extracted from
 third-party frameworks that are each under their own upstream license. See
 DATA-LICENSE.md and the upstream PROVENANCE.md in the taxonomy repository for
 those notices.
+
+Figure engine
+-------------
+
+src/js/figures/engine.js, which draws the "See how it works" figures, is a fork
+of the Colorfigures skill's engine (assets/core.js), under the MIT License:
+
+    Copyright (c) 2026 April Zhu (Colorfigures: colour, hand-drawn style, 3D props, template, examples)
+    Copyright (c) 2026 April Zhu (iso-glow, on which Colorfigures is based)
+    Copyright (c) 2026 Tolga Cohce (iso-figure, on which iso-glow is based)
+
+The full MIT permission notice is in the header comment of that file. The
+unmodified skill is in tools/colorfigures/ with its LICENSE.

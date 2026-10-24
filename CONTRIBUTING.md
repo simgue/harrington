@@ -51,10 +51,14 @@ src/js/
   ai.js               All AI helpers (lessons, tests, recall, feedback, etc.)
   recorder.js         Voice recording + live transcript
   ui.js               DOM helpers, modals, toasts, icons
+  figures/            "See how it works" figures: engine.js (inlined into each
+                      page) and index.js (which topics have one)
   views/              One module per screen (dashboard, graph, topic,
                       calendar, records, insights, recall, challenge,
                       masterytest, lesson, printables, recordings, guide,
                       notifications, kidmode, shell, and their helpers)
+src/figures/          Built figure pages, one per topic (from tools/figures/;
+                      see docs/FIGURES.md)
 src/docs/GUIDE.md     The full written feature guide
 ```
 

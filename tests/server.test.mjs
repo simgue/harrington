@@ -85,6 +85,19 @@ test('serves Harrington and reports self-hosted health', async () => {
   assert.match(await page.text(), /<title>Harrington/);
 });
 
+test('serves a figure page with a policy that allows no network and always sandboxes it (HAR-34)', async () => {
+  const figure = await fetch(`${baseUrl}/figures/mt_B3W5EfimJw.html`);
+  assert.equal(figure.status, 200);
+  assert.match(figure.headers.get('content-type'), /^text\/html/);
+  const csp = figure.headers.get('content-security-policy');
+  for (const directive of ["default-src 'none'", "script-src 'unsafe-inline'", "frame-ancestors 'self'", 'sandbox allow-scripts']) {
+    assert.ok(csp.split('; ').includes(directive), `${directive} in ${csp}`);
+  }
+  assert.doesNotMatch(csp, /connect-src|allow-same-origin/);
+  // The app page itself keeps its own headers.
+  assert.equal((await fetch(baseUrl)).headers.get('content-security-policy'), null);
+});
+
 test('health reports the age in days of the newest archive in HARRINGTON_BACKUP_DIR', async () => {
   // The server was started with HARRINGTON_BACKUP_DIR pointing here, not at the repo's backups/.
   const backups = join(dataDir, 'backups');
