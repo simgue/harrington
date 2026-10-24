@@ -17,8 +17,9 @@ on a phone) covers the same ground in short form. This file is the longer
 written version.
 
 > **Needs a local AI provider; see the README.** This line marks every feature
-> that is written by an AI model. Without a provider those buttons show an
-> error and nothing else happens. See "What needs an AI provider" at the end.
+> that is written by an AI model. Without a provider those buttons show a
+> "Needs a local AI provider" chip instead. See "What needs an AI provider" at
+> the end.
 
 ---
 
@@ -50,12 +51,12 @@ The parent's view of the day.
 
 - **Today's path.** A short literacy choice and a short numeracy choice, two
   options each, drawn from the focus domains in
-  [POC-SPINE.md](https://github.com/simgue/harrington/blob/main/docs/POC-SPINE.md). Topics already in progress and
-  domains that have gone quiet come first. Your child picks one of each, here
-  or in the child view, and the day's options and picks are saved. Very young
-  learners may get a gentle review day instead. On a rest day or during a
-  break there are no choices: the path says "Rest day" or "<Break> until
-  <date>" and names the next learning day.
+  [POC-SPINE.md](https://github.com/simgue/harrington/blob/main/docs/POC-SPINE.md).
+  Topics already in progress and domains that have gone quiet come first. Your
+  child picks one of each, here or in the child view, and the day's options
+  and picks are saved. Very young learners may get a gentle review day
+  instead. On a rest day or during a break there are no choices: the path
+  says "Rest day" or "<Break> until <date>" and names the next learning day.
 - **From the calendar.** Topics scheduled for today. Opening a lesson or a
   refresher quiz from here needs a local AI provider.
 - **Stepping stones next.** Unlocked, age-appropriate topics to try next.
@@ -156,8 +157,9 @@ A day-by-day plan from your start date, on the home days you choose.
   topic before the first topic at your child's own age. **Mixed** alternates
   two catch-up topics with one own-age topic, so own-age topics start in the
   first week and catch-up takes longer. The calendar says what the current
-  pace means in weeks for your child. Switching pace reschedules topics only;
-  done days, moved topics and extras stay.
+  pace means for your child: the day it reaches that point, and about how
+  many calendar weeks away it is (breaks included). Switching pace
+  reschedules topics only; done days, moved topics and extras stay.
 - **Refreshers.** Refresher quizzes and activities come only from mastered
   topics, so there are none until something is mastered. The stretch
   challenge only suggests topics whose prerequisites are mastered.
@@ -213,9 +215,9 @@ Items carry the learner they are about; the bell opens on the active learner,
 and "All learners" shows everyone. The button reads "Notifications, 2 new" to
 a screen reader. Dismiss an item once it is handled: picks come back on the
 next home day, evidence after the next quiet week, and a backup reminder a week
-later (30 days for "No backup recorded"). A welcome item appears once on first run. The curriculum is downloaded
-once and does not update on its own, so the bell does not report curriculum
-changes.
+later (30 days for "No backup recorded"). A welcome item appears once on first
+run. The curriculum is downloaded once and does not update on its own, so the
+bell does not report curriculum changes.
 
 ## Privacy and data
 
@@ -225,13 +227,19 @@ changes.
   your other devices, each device can be asked to sign in once with the family
   access token, and the in-app Guide says which applies.
 - Nothing leaves your devices unless you configure an AI provider. If you do,
-  lessons, tests, challenges and cards send it topic text and the topic's age
-  from the curriculum; whole-subject tests, discussion analyses and progress
-  reviews send your child's exact age instead. A discussion analysis sends the
-  transcript; analyses and progress reviews send your notes only when you tick
-  "Include my notes in this request". Learner names are replaced with "the
-  child" before any request is built. The live transcript is the exception
-  described above.
+  lessons, printables, activities, "Explain simply", mini-quizzes, recall cards,
+  tests and challenges send it topic text and the topic's age from the
+  curriculum. Whole-subject tests and progress reviews send your child's exact
+  age; a discussion analysis sends their exact age too, alongside the linked
+  topic's age. Topic and section tests also say when you have approved harder
+  questions because your child is excelling. A progress review sends mastery
+  counts, recent topic names and statuses, record counts and the average
+  confidence rating. A discussion analysis sends the transcript; analyses and
+  progress reviews send your notes only when you tick "Include my notes in this
+  request". Learner names are replaced with "the child" before any request is
+  built; a nickname, especially one that is an ordinary word, is sent as spoken,
+  as are other people's names in a transcript. Record titles and interests are
+  never sent. The live transcript is the exception described above.
 - Harrington has no user accounts and does not encrypt traffic itself; the
   optional family access token is the only sign-in, and HTTPS comes from a mesh
   or proxy (docs/DEPLOYMENT.md). Do not expose Harrington to the public
