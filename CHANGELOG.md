@@ -57,6 +57,15 @@ tagged a release yet; everything below is on `main`.
   provider; see the README." The curriculum auto-update claim is gone, and the
   live transcript is labeled as using the browser's speech service (HAR-12).
 - Guide is reachable on phones from a book icon in the header (HAR-12).
+- Learner names no longer reach the AI provider from the prompts, and parent
+  notes reach it only when the parent opts in. Prompts say
+  “your child”, every learner's name is replaced with “the child” in
+  transcripts and notes before a request is built, records go out as counts
+  and linked topics, and the parent's notes are sent, redacted, only when
+  they tick “Include my notes in this request” for that request; record
+  titles are never sent (HAR-19).
+- A whole-subject test or challenge for a learner with no birth year leaves
+  the age out of the prompt instead of saying “aged null” (HAR-32).
 - Onboarding, the first-run notification and the YouTube reference link use
   plain, accurate wording (HAR-12).
 
@@ -153,6 +162,11 @@ tagged a release yet; everything below is on `main`.
 - The in-app Guide and `src/docs/GUIDE.md` no longer say the child's name is
   sent to the AI provider; README, SECURITY and both guides state the same
   data, including which requests carry the learner's exact age (HAR-19).
+- README, SECURITY and both guides list every request that sends topic text
+  (printables, activities, “Explain simply” and mini-quizzes included), say a
+  linked discussion analysis sends the topic's age and the exact age, name
+  the adaptive “excelling” flag, and keep the caveat that a nickname is sent
+  as spoken (HAR-32).
 - Export and Import are reachable on a phone or tablet, at the bottom of the
   learner selector, with the same preview and confirm as on a computer
   (e2e finding F6).
