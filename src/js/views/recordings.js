@@ -1,6 +1,6 @@
 import * as store from '../store.js';
 import { getData, SUBJECTS } from '../data.js';
-import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
+import { el, esc, analysisHtml, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { countLabel } from '../format.js';
 import { audioPlayer, openRecorder } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
@@ -40,15 +40,15 @@ export function openRecordingsLibrary() {
     }
 
     const groups = groupRecordings(recs, d.byId);
-    bodyWrap.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${countLabel(recs.length, 'recording')} in ${countLabel(groups.length, 'group')}.</p>`));
+    bodyWrap.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${esc(countLabel(recs.length, 'recording'))} in ${esc(countLabel(groups.length, 'group'))}.</p>`));
 
     for (const g of groups) {
       const meta = SUBJECTS[g.subject] || { color: '#6f665a', icon: 'folder' };
       const groupEl = el(`<div class="mb-4">
         <div class="flex items-center gap-2 mb-2">
-          <span class="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5" style="color:${meta.color}"></i></span>
+          <span class="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style="background:${esc(meta.color)}18"><i data-lucide="${esc(meta.icon)}" class="w-3.5 h-3.5" style="color:${esc(meta.color)}"></i></span>
           <p class="text-sm font-600">${esc(g.label)}</p>
-          <span class="text-xs text-ink-faint">${g.items.length}</span>
+          <span class="text-xs text-ink-faint">${esc(g.items.length)}</span>
         </div>
         <div class="list space-y-2.5 pl-1"></div>
       </div>`);
@@ -96,7 +96,7 @@ function recordingCard(r, student, rerender) {
   const card = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
     <div class="flex items-center gap-2 text-xs mb-1">
       <span class="flex items-center gap-1 font-600 text-[#a4473a]"><i data-lucide="mic" class="w-3.5 h-3.5"></i>Recording</span>
-      <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
+      <span class="text-ink-faint ml-auto">${esc(fmtDateTime(r.createdAt))}</span>
       <button class="del text-ink-faint hover:text-[#a4473a] w-11 h-11 -my-[13px] -mr-[13px] flex items-center justify-center shrink-0 lg:w-auto lg:h-auto lg:m-0 lg:p-0.5" title="Delete recording" aria-label="Delete recording ${esc(r.title || fmtDateTime(r.createdAt))}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
     </div>
     ${r.title ? `<p class="font-600 text-sm">${esc(r.title)}</p>` : ''}
@@ -182,13 +182,12 @@ export function analysisOptIn(btn, r, run) {
 }
 
 // The saved AI summary block, shared with the Records page so both cards render it alike.
-// Trust boundary: `html` is inserted raw. It is safe only because ai.js toHtml() escapes
-// model output before it is stored; an imported or hand-edited state file bypasses that,
-// so sanitize here if analysis can arrive from anywhere else.
+// Stored analysis can come from an import or a hand-edited file, so it goes
+// through analysisHtml() (ui.js): only the tags toHtml() writes survive.
 export function savedAnalysis(html) {
   return el(`<div class="rounded-xl bg-brand-light/40 border border-brand/20 p-3.5 mt-1">
     <p class="text-[11px] font-600 uppercase tracking-wide text-brand-dark mb-1.5 flex items-center gap-1.5"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i>AI summary &amp; advice</p>
-    <div class="ai-prose text-sm text-ink-soft">${html}</div>
+    <div class="ai-prose text-sm text-ink-soft">${analysisHtml(html)}</div>
   </div>`);
 }
 // Null without an AI provider, so both the Recordings and Records cards hide it.

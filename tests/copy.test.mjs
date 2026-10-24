@@ -98,6 +98,16 @@ test('CONTRIBUTING no longer says AI is disabled until self-hosted adapters exis
   assert.doesNotMatch(await prose('CONTRIBUTING.md'), /disabled until|self-hosted adapters?/i);
 });
 
+// A pinned template phrase, allowing each ${...} to be wrapped in esc() (#32).
+function pinned$(phrase) {
+  const parts = phrase.split(/(\$\{[^}]*\})/);
+  return new RegExp(parts.map((part) => {
+    const m = /^\$\{(.*)\}$/.exec(part);
+    const quote = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return m ? `\\$\\{(?:esc\\()?${quote(m[1])}\\)?\\}` : quote(part);
+  }).join(''));
+}
+
 test('counts in the views agree with their number ("1 topic", never "1 topics")', async () => {
   const { countLabel } = await import('../src/js/format.js');
   assert.equal(countLabel(1, 'topic'), '1 topic');
@@ -119,7 +129,7 @@ test('counts in the views agree with their number ("1 topic", never "1 topics")'
   };
   for (const [path, phrases] of Object.entries(pinned)) {
     const text = await read(path);
-    for (const phrase of phrases) assert.ok(text.includes(phrase), `${path} lost: ${phrase}`);
+    for (const phrase of phrases) assert.match(text, pinned$(phrase), `${path} lost: ${phrase}`);
     assert.doesNotMatch(text, /\$\{[^}]*(total|length|DAY_MS\)|_DAYS|Days)\} (topics|points|days)\b/, `${path} has an unpluralized count`);
   }
 });
