@@ -70,20 +70,20 @@ test('a valid older export and a current one pass', () => {
 const learnerCases = [
   ['an empty name', { name: '   ' }, 'Learner 1 in the file has an empty name.'],
   ['a long name', { name: 'x'.repeat(101) }, 'Learner 1 in the file has a name longer than 100 characters.'],
-  ['a birth year before 1990', { birthYear: 1989 }, 'Learner 1 in the file has a birth year outside 1990 to this year.'],
-  ['a future birth year', { birthYear: new Date().getFullYear() + 1 }, 'Learner 1 in the file has a birth year outside 1990 to this year.'],
-  ['a birth year as text', { birthYear: '2018' }, 'Learner 1 in the file has a birth year outside 1990 to this year.'],
-  ['a birth month of 13', { birthMonth: 13 }, 'Learner 1 in the file has a birth month outside 1 to 12.'],
-  ['a birth month of 0', { birthMonth: 0 }, 'Learner 1 in the file has a birth month outside 1 to 12.'],
-  ['a malformed start date', { startDate: 'soon' }, 'Learner 1 in the file has a start date that is not a yyyy-mm-dd date.'],
-  ['an impossible start date', { startDate: '2026-02-30' }, 'Learner 1 in the file has a start date that is not a yyyy-mm-dd date.'],
-  ['markup as a color', { color: 'red;background:url(x)' }, 'Learner 1 in the file has a color that is not a hex color.'],
-  ['a color that is not a string', { color: 7 }, 'Learner 1 in the file has a color that is not a hex color.'],
-  ['no id', { id: undefined }, 'Learner 1 in the file is missing an id or name.'],
-  ['an id with markup', { id: 's"><img src=x>' }, 'Learner 1 in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
-  ['an id of "constructor"', { id: 'constructor' }, 'Learner 1 in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
-  ['an id of "__proto__"', { id: '__proto__' }, 'Learner 1 in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
-  ['an id of 65 characters', { id: 'x'.repeat(65) }, 'Learner 1 in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
+  ['a birth year before 1990', { birthYear: 1989 }, 'The learner “Sample Fourteen” in the file has a birth year outside 1990 to this year.'],
+  ['a future birth year', { birthYear: new Date().getFullYear() + 1 }, 'The learner “Sample Fourteen” in the file has a birth year outside 1990 to this year.'],
+  ['a birth year as text', { birthYear: '2018' }, 'The learner “Sample Fourteen” in the file has a birth year outside 1990 to this year.'],
+  ['a birth month of 13', { birthMonth: 13 }, 'The learner “Sample Fourteen” in the file has a birth month outside 1 to 12.'],
+  ['a birth month of 0', { birthMonth: 0 }, 'The learner “Sample Fourteen” in the file has a birth month outside 1 to 12.'],
+  ['a malformed start date', { startDate: 'soon' }, 'The learner “Sample Fourteen” in the file has a start date that is not a yyyy-mm-dd date.'],
+  ['an impossible start date', { startDate: '2026-02-30' }, 'The learner “Sample Fourteen” in the file has a start date that is not a yyyy-mm-dd date.'],
+  ['markup as a color', { color: 'red;background:url(x)' }, 'The learner “Sample Fourteen” in the file has a color that is not a hex color.'],
+  ['a color that is not a string', { color: 7 }, 'The learner “Sample Fourteen” in the file has a color that is not a hex color.'],
+  ['no id', { id: undefined }, 'The learner “Sample Fourteen” in the file is missing an id or name.'],
+  ['an id with markup', { id: 's"><img src=x>' }, 'The learner “Sample Fourteen” in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
+  ['an id of "constructor"', { id: 'constructor' }, 'The learner “Sample Fourteen” in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
+  ['an id of "__proto__"', { id: '__proto__' }, 'The learner “Sample Fourteen” in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
+  ['an id of 65 characters', { id: 'x'.repeat(65) }, 'The learner “Sample Fourteen” in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
 ];
 for (const [label, patch, error] of learnerCases) {
   test(`refuses a learner with ${label}`, () => {
@@ -96,17 +96,17 @@ for (const [label, patch, error] of learnerCases) {
 test('refuses two learners with the same id', () => {
   const doc = olderExport();
   doc.students[1].id = doc.students[0].id;
-  assert.equal(store.inspectImport(doc).error, 'Learner 2 (Sample Thirteen) in the file has the same id as another learner.');
+  assert.equal(store.inspectImport(doc).error, 'The learner “Sample Thirteen” in the file has the same id as another learner.');
 });
 
 const mapCases = [
-  ['a record type with markup', (d) => { d.records.s_new[0].type = '<img src=x onerror=alert(1)>'; }, 'A record for Sample Fourteen in the file (records item 1) has a type other than observation, question, discussion, assessment, recording, note.'],
-  ['a record rating of 6', (d) => { d.records.s_new[0].rating = 6; }, 'A record for Sample Fourteen in the file (records item 1) has a rating outside 1 to 5.'],
-  ['a record rating as text', (d) => { d.records.s_new[0].rating = '5'; }, 'A record for Sample Fourteen in the file (records item 1) has a rating outside 1 to 5.'],
+  ['a record type with markup', (d) => { d.records.s_new[0].type = '<img src=x onerror=alert(1)>'; }, 'A record for Sample Fourteen in the file (“Talked”) has a type other than observation, question, discussion, assessment, recording, note.'],
+  ['a record rating of 6', (d) => { d.records.s_new[0].rating = 6; }, 'A record for Sample Fourteen in the file (“Talked”) has a rating outside 1 to 5.'],
+  ['a record rating as text', (d) => { d.records.s_new[0].rating = '5'; }, 'A record for Sample Fourteen in the file (“Talked”) has a rating outside 1 to 5.'],
   ['a record title that is not text', (d) => { d.records.s_new[0].title = { html: '<b>' }; }, 'A record for Sample Fourteen in the file (records item 1) has a title that is not text of at most 1,000 characters.'],
-  ['a record note over the bound', (d) => { d.records.s_new[0].note = 'x'.repeat(50_001); }, 'A record for Sample Fourteen in the file (records item 1) has a note that is not text of at most 50,000 characters.'],
-  ['a record date as text', (d) => { d.records.s_new[0].createdAt = 'yesterday'; }, 'A record for Sample Fourteen in the file (records item 1) has a date that is not a number.'],
-  ['a record duration as text', (d) => { d.records.s_new[0].duration = '<b>1</b>'; }, 'A record for Sample Fourteen in the file (records item 1) has a duration that is not a number.'],
+  ['a record note over the bound', (d) => { d.records.s_new[0].note = 'x'.repeat(50_001); }, 'A record for Sample Fourteen in the file (“Talked”) has a note that is not text of at most 50,000 characters.'],
+  ['a record date as text', (d) => { d.records.s_new[0].createdAt = 'yesterday'; }, 'A record for Sample Fourteen in the file (“Talked”) has a date that is not a number.'],
+  ['a record duration as text', (d) => { d.records.s_new[0].duration = '<b>1</b>'; }, 'A record for Sample Fourteen in the file (“Talked”) has a duration that is not a number.'],
   ['a learner\'s records that are not a list', (d) => { d.records.s_new = { r1: {} }; }, 'The file\'s "records" section is not in the expected shape.'],
   ['a test score with markup', (d) => { d.tests.s_new[0].pct = '<img src=x onerror=alert(1)>'; }, 'A test result for Sample Fourteen in the file (tests item 1) has a score outside 0 to 100%.'],
   ['a test score of 101', (d) => { d.tests.s_new[0].pct = 101; }, 'A test result for Sample Fourteen in the file (tests item 1) has a score outside 0 to 100%.'],
@@ -121,8 +121,8 @@ const mapCases = [
   ['a challenge result that is a number', (d) => { d.challenges.s_new = [5]; }, 'A challenge result for Sample Fourteen in the file (challenges item 1) is not a challenge result.'],
   ['a learner\'s game that is null', (d) => { d.game.s_new = null; }, 'The file\'s "game" section is not in the expected shape.'],
   ['a learner\'s game that is a number', (d) => { d.game.s_new = 5; }, 'The file\'s "game" section is not in the expected shape.'],
-  ['a placement without topic ids', (d) => { d.records.s_new[1].placement = { subject: 'Mathematics' }; }, 'A record for Sample Fourteen in the file (records item 2) has a placement that is not in the expected shape.'],
-  ['a placement that is text', (d) => { d.records.s_new[1].placement = 'yes'; }, 'A record for Sample Fourteen in the file (records item 2) has a placement that is not in the expected shape.'],
+  ['a placement without topic ids', (d) => { d.records.s_new[1].placement = { subject: 'Mathematics' }; }, 'A record for Sample Fourteen in the file (“Placement”) has a placement that is not in the expected shape.'],
+  ['a placement that is text', (d) => { d.records.s_new[1].placement = 'yes'; }, 'A record for Sample Fourteen in the file (“Placement”) has a placement that is not in the expected shape.'],
   ['suggestions that are a number', (d) => { d.suggestions.s_new = 5; }, 'The file\'s "suggestions" section is not in the expected shape.'],
   ['suggestions that are text', (d) => { d.suggestions.s_new = 'x'; }, 'The file\'s "suggestions" section is not in the expected shape.'],
   ['suggestions that are an object', (d) => { d.suggestions.s_new = {}; }, 'The file\'s "suggestions" section is not in the expected shape.'],

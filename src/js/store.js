@@ -1,7 +1,7 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
 import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, schemaVersionOf } from './schema.js';
-import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, LEARNER_KEYS, RETIRED_FIELDS, MIN_BIRTH_YEAR, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
+import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, dropBrokenEntries, LEARNER_KEYS, RETIRED_FIELDS, MIN_BIRTH_YEAR, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
 import { formatCount } from './format.js';
 import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 import { getData } from './data.js';
@@ -141,7 +141,11 @@ function documentFields(data) {
 function applyDocument(data) {
   const raw = objectOr(data, {});
   readOnly = isUnwritableSchema(raw);
-  const doc = migrateDocument(raw);
+  // A non-object entry in a learner's lists would throw while rendering
+  // (HAR-38). The schema 3 repair drops them for good on the migrating load;
+  // one in a current document (a hand edit) is dropped in memory here, and
+  // the next save carries the cleaned document.
+  const { doc } = dropBrokenEntries(migrateDocument(raw));
   unknownFields = Object.fromEntries(Object.entries(doc)
     .filter(([key]) => !DOCUMENT_KEYS.includes(key) && !BOOKKEEPING_FIELDS.includes(key) && !RETIRED_FIELDS.includes(key)));
   const fields = documentFields(doc);
@@ -1010,7 +1014,7 @@ export function dueRecallCards(studentId, { cardIds = null, topicId = null } = {
   const r = recallOf(studentId);
   const today = dayStart(Date.now());
   return Object.entries(r)
-    .filter(([id, c]) => c.due <= today
+    .filter(([id, c]) => isObject(c) && c.due <= today
       && (!cardIds || cardIds.includes(id))
       && (!topicId || c.topicId === topicId))
     .map(([id, c]) => ({ id, ...c }));
@@ -1087,7 +1091,7 @@ export function duePracticeItems(studentId) {
   const p = practiceOf(studentId);
   const today = dayStart(Date.now());
   return Object.entries(p)
-    .filter(([, c]) => c.due <= today)
+    .filter(([, c]) => isObject(c) && c.due <= today)
     .map(([id, c]) => ({ id, ...c }));
 }
 export function practiceDueCount(studentId) {

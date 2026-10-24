@@ -1,9 +1,9 @@
 import { loadTaxonomy } from './data.js';
 import * as store from './store.js';
 import { maybeShowWelcome } from './views/guide.js';
-import { el, refreshIcons, toast } from './ui.js';
+import { el, esc, refreshIcons, toast } from './ui.js';
 import { bannerText } from './hosting.js';
-import { renderShell } from './views/shell.js';
+import { exportFamilyData, renderShell } from './views/shell.js';
 import { graphHash, parseGraphHash } from './graph.js';
 import { commitNavigation } from './navigation.js';
 import { renderDashboard } from './views/dashboard.js';
@@ -90,8 +90,14 @@ function render() {
     return;
   }
 
-  const content = viewFn(route.params, { navigate });
-  const shell = renderShell({ route, navigate, content });
+  let shell;
+  try {
+    const content = viewFn(route.params, { navigate });
+    shell = renderShell({ route, navigate, content });
+  } catch (e) {
+    renderFailure(e);
+    return;
+  }
   app.innerHTML = '';
   app.appendChild(shell);
   refreshIcons();
@@ -124,10 +130,34 @@ function renderError(msg) {
   const node = el(`
     <div class="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
       <i data-lucide="cloud-off" class="w-10 h-10 text-ink-faint"></i>
-      <p class="text-ink-soft max-w-sm">${msg}</p>
+      <p class="text-ink-soft max-w-sm">${esc(msg)}</p>
       <button id="retry" class="px-4 py-2 rounded-lg bg-brand text-white text-sm font-medium">Try again</button>
     </div>`);
   node.querySelector('#retry').onclick = () => boot();
+  app.appendChild(node);
+  refreshIcons();
+}
+
+// A view (or the shell) threw while rendering, for example on family data it
+// does not expect (HAR-38): instead of leaving the loading screen up, say so,
+// and keep a way to save a copy of the data and to reach another page.
+function renderFailure(error) {
+  console.error(error);
+  const onRecords = route.name === 'records';
+  app.innerHTML = '';
+  const node = el(`
+    <div class="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-6" role="alert">
+      <i data-lucide="triangle-alert" class="w-10 h-10 text-[#a4473a]"></i>
+      <h1 class="font-display text-xl font-600">This page could not be shown</h1>
+      <p class="render-error text-sm text-ink-soft max-w-sm break-words">${esc(error?.message || String(error))}</p>
+      <p class="text-xs text-ink-faint max-w-sm">Your family data is still on the server. Export a copy to keep it safe${onRecords ? ', or go back to the dashboard' : ', or open the records'}.</p>
+      <div class="flex flex-wrap items-center justify-center gap-2">
+        <button id="failure-export" class="inline-flex items-center gap-1.5 h-11 px-4 rounded-full bg-brand text-white text-sm font-medium">
+          <i data-lucide="download" class="w-4 h-4"></i>Export family data</button>
+        <a id="failure-link" href="${onRecords ? '#dashboard' : '#records'}" class="inline-flex items-center h-11 px-4 rounded-full bg-paper-deep text-sm font-medium text-ink">${onRecords ? 'Dashboard' : 'Records'}</a>
+      </div>
+    </div>`);
+  node.querySelector('#failure-export').onclick = () => exportFamilyData();
   app.appendChild(node);
   refreshIcons();
 }

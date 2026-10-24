@@ -85,7 +85,7 @@ test('import refuses files that are not a family export', async ({ page, api, go
   await chooseImportFile(page, JSON.stringify({ hello: 'world' }));
   await expectToast(page, 'The file has no learner list.');
   await chooseImportFile(page, JSON.stringify({ students: [{ name: 'No id' }] }));
-  await expectToast(page, 'Learner 1 in the file is missing an id or name.');
+  await expectToast(page, 'The learner “No id” in the file is missing an id or name.');
   await expect(page.locator('#modal-root > div')).toHaveCount(0);
   expect((await api.getState()).state.students).toHaveLength(3);
 });
@@ -121,6 +121,51 @@ async function serveNewerDocument(page, api) {
   });
   return writes;
 }
+
+// A stored document the server would refuse on a save (it checks every save),
+// served straight from the route; any write is recorded, not stored.
+async function serveDocument(page, doc) {
+  const writes = [];
+  await page.route('**/api/state', (route) => {
+    const method = route.request().method();
+    if (method === 'GET') return route.fulfill({ status: 200, contentType: 'application/json', headers: { ETag: '"v7"' }, body: JSON.stringify({ ...doc, version: 7 }) });
+    writes.push(method);
+    return route.fulfill({ status: 204, headers: { ETag: '"v8"' } });
+  });
+  return writes;
+}
+
+test('a null recall card or practice item no longer hangs the landing page on the loading screen (HAR-38)', async ({ page, gotoApp, errors }) => {
+  const doc = { ...familyState({ learners: ['rowan'], active: 'rowan' }), schemaVersion: SCHEMA_VERSION };
+  const id = doc.students[0].id;
+  doc.recall = { [id]: { 'broken::0': null } };
+  doc.practice = { [id]: { broken: null } };
+  doc.records = { ...doc.records, [id]: [null, ...(doc.records?.[id] || [])] };
+  await serveDocument(page, doc);
+  await gotoApp({ seed: null });
+  await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
+  await expect(page.getByText('Loading your homeschool workspace')).toHaveCount(0);
+  // The records page opens too, with the null record skipped.
+  await nav(page, 'Records').click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Records' })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('a page that fails to render says so and keeps Export and a way to the records (HAR-38)', async ({ page, gotoApp, errors }) => {
+  // A learner name that is not text: the shell cannot draw its initials.
+  const doc = { ...familyState({ learners: ['rowan'], active: 'rowan' }), schemaVersion: SCHEMA_VERSION };
+  doc.students[0] = { ...doc.students[0], name: 42 };
+  await serveDocument(page, doc);
+  await gotoApp({ seed: null });
+  const alert = page.getByRole('alert');
+  await expect(alert.getByRole('heading', { name: 'This page could not be shown' })).toBeVisible();
+  await expect(alert.locator('.render-error')).not.toBeEmpty();
+  await expect(alert.getByRole('link', { name: 'Records' })).toHaveAttribute('href', '#records');
+  const [download] = await Promise.all([page.waitForEvent('download'), alert.getByRole('button', { name: 'Export family data' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^harrington-family-/);
+  // The failure is reported, not swallowed.
+  expect(errors.some((e) => e.startsWith('console:'))).toBe(true);
+});
 
 test('a newer data format opens read-only: a banner, Import disabled, nothing saved', async ({ page, api, gotoApp, errors }) => {
   const writes = await serveNewerDocument(page, api);

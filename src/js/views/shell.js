@@ -312,7 +312,8 @@ function localDateKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-async function exportFamilyData() {
+// Also offered by app.js when a page fails to render.
+export async function exportFamilyData() {
   try {
     const doc = await store.exportDocument();
     const blob = new Blob([`${JSON.stringify(doc, null, 2)}\n`], { type: 'application/json' });

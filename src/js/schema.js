@@ -1,7 +1,8 @@
 // The family document's data format. SCHEMA_VERSION is the format this code
 // writes; MIGRATIONS[n] turns a document at schema n into schema n + 1. The
 // store runs them on load and on import, and server.mjs stamps a new document.
-// Dependency-free (pin.js is plain JS too) so the server can import it as is.
+// Dependency-free (pin.js and document.js are plain JS too) so the server can
+// import it as is.
 //
 // schemaVersion changes only when the meaning of an existing field changes. A
 // new top-level field needs no bump: the store keeps fields it does not know
@@ -14,6 +15,7 @@
 // for hashing the child-view PIN, reads it from `context`, which the caller
 // passes to migrateDocument.
 import { migratePinSettings } from './pin.js';
+import { repairDocument } from './document.js';
 
 // Each entry: (doc, context) => doc at the next schema. It receives a copy and
 // may change it; migrateDocument sets schemaVersion afterwards.
@@ -28,6 +30,13 @@ export const MIGRATIONS = [
   (doc, { salt } = {}) => (doc.settings === undefined
     ? doc
     : { ...doc, settings: migratePinSettings(doc.settings, { salt }) }),
+  // 2 -> 3: a one-time repair of values saved before the server checked
+  // every save (PR #32) that validateDocument now refuses, which would block
+  // every save (HAR-39): over-long names and record texts are shortened,
+  // birth years clamped and non-object entries dropped, with a notification
+  // listing what changed (document.js repairDocument). context.now fixes the
+  // date in tests.
+  (doc, { now } = {}) => repairDocument(doc, now === undefined ? {} : { now }),
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
