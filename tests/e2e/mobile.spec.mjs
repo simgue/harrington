@@ -179,6 +179,20 @@ test('the "Include my notes" opt-in is a comfortable target and its label toggle
   await expect(box).toBeChecked();
 });
 
+test('the notes opt-in is a 20 px box whose label is the hit area', async ({ page, gotoApp }) => {
+  await gotoApp({
+    seed: { records: [{ type: 'observation', title: 'Counted the stairs out loud', note: 'Got to 12.', topicId: TOPICS.oneToOne.id }] },
+    hash: 'insights',
+  });
+  const box = page.getByRole('checkbox', { name: 'Include my notes in this request' });
+  const size = await box.boundingBox();
+  expect([Math.round(size.width), Math.round(size.height)]).toEqual([20, 20]);
+  const label = page.locator('label', { has: box });
+  expect((await label.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  await label.getByText('Include my notes in this request').click();
+  await expect(box).toBeChecked();
+});
+
 test('the top-bar bell: open, filter by learner, dismiss, and the 30-day backup snooze (HAR-27)', async ({ page, api, gotoApp, shot }) => {
   // Wednesday 7 October 2026, 15:30 (UTC in the browser): today's picks are due.
   const at = (iso) => page.clock.setFixedTime(new Date(iso));

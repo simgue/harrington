@@ -139,8 +139,11 @@ function renderAnalysis(container, r, student, topic) {
 
 // The one-line privacy notice, plus the per-request notes opt-in when there
 // are notes to share. Shown only beside a live AI action, never in the child view.
-export function privacyControls({ hasNotes = false } = {}) {
-  return el(`<div class="mt-2 space-y-1">
+// `placement` says where the block sits relative to the button or output it
+// belongs to: 'after' (under an analyze button) or 'before' (above a review).
+// The whole label is the hit area for the 20 px box.
+export function privacyControls({ hasNotes = false, placement = 'after' } = {}) {
+  return el(`<div class="${placement === 'before' ? 'mb-3' : 'mt-2'} space-y-1">
     <p class="text-[11px] text-ink-faint flex items-center gap-1.5"><i data-lucide="shield-check" class="w-3.5 h-3.5 shrink-0"></i>Names of learners in this app are replaced with “the child” before this is sent.</p>
     ${hasNotes ? `<label class="flex items-center gap-2.5 min-h-11 py-1 text-xs text-ink-soft cursor-pointer select-none"><input type="checkbox" class="include-notes accent-brand w-5 h-5 shrink-0 cursor-pointer" />Include my notes in this request</label>` : ''}
   </div>`);

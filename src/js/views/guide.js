@@ -11,7 +11,7 @@ const SPEECH_NOTE = `Live transcript uses your browser's speech service, which m
 
 // Built when the tour or guide opens: where Harrington runs is known only
 // after /api/health answers.
-const features = () => [
+export const features = () => [
   {
     icon: 'compass', color: '#3f6b3b',
     title: 'Welcome to Harrington',
@@ -64,7 +64,7 @@ const features = () => [
     icon: 'notebook-text', color: '#5b4a86',
     title: 'Lessons, tests & more',
     tagline: 'Optional, and off by default',
-    body: `Ready-to-teach lessons, print & go sheets, mastery tests, timed challenges, recall cards and "Explain simply" are all written by an AI model. ${NEEDS_AI} Without one, these buttons show an error and do nothing else.`,
+    body: `Ready-to-teach lessons, print & go sheets, mastery tests, timed challenges, recall cards and "Explain simply" are all written by an AI model. ${NEEDS_AI} Without one, these buttons show “Needs a local AI provider” instead.`,
   },
   {
     icon: 'book-open', color: '#3f6b3b',
@@ -163,11 +163,12 @@ export function openGuide() {
 
 // ---- Full, detailed, printable/downloadable guide ----
 // Built when the guide opens, so it reflects how this server is shared.
-const guideSections = () => [
+// Exported for tests/copy.test.mjs, which checks the shared-mode wording.
+export const guideSections = () => [
   { h: 'What Harrington is', items: [
     ['Overview', `A self-hosted family learning platform. It shows a connected curriculum as a map, offers small daily choices, and keeps a record of what your child actually did. ${whereItRuns()}`],
     ['Who it’s for', 'A parent teaching one or more children at home. You are the teacher: Harrington helps you see foundations and next steps and keep evidence. It does not script the day.'],
-    ['What needs AI', `Lessons, print & go sheets, mastery tests, challenges, recall cards, activity instructions, “Explain simply”, discussion analysis, progress reviews and adaptive suggestions are written by an AI model. ${NEEDS_AI} Without one, those buttons show an error and nothing else happens.`],
+    ['What needs AI', `Lessons, print & go sheets, mastery tests, challenges, recall cards, activity instructions, “Explain simply”, discussion analysis, progress reviews and adaptive suggestions are written by an AI model. ${NEEDS_AI} Without one, those buttons show “Needs a local AI provider” instead.`],
   ]},
   { h: 'The curriculum (from the Marble Skill Taxonomy)', items: [
     ['Source', 'The curriculum comes from the open-source Marble Skill Taxonomy (github.com/withmarbleapp/os-taxonomy).'],
@@ -241,7 +242,7 @@ const guideSections = () => [
     ['Where data lives', isShared()
       ? `Learners, progress, records, recordings and settings are stored in the private data folder ${storedOn()}. It is shared with your other devices, which only show it in a browser. ${authEnabled() ? 'Each device signs in once with the family access token.' : 'No access token is set, so anyone who can reach it can open it.'}`
       : 'Learners, progress, records, recordings and settings are stored in the private data folder on this computer. The server listens only on this computer by default.'],
-    [isShared() ? 'What leaves your devices' : 'What leaves your home', `Nothing, unless you configure an AI provider. If you do, lessons, tests, challenges and cards send it topic text and the topic’s age from the curriculum; whole-subject tests, discussion analyses and progress reviews send your child’s exact age instead. A discussion analysis sends the transcript; analyses and progress reviews send your notes only when you tick “Include my notes in this request”. Learner names are replaced with “the child” before any request is built. ${SPEECH_NOTE}`],
+    [isShared() ? 'What leaves your devices' : 'What leaves your home', `Nothing, unless you configure an AI provider. If you do, lessons, printables, activities, “Explain simply”, mini-quizzes, recall cards, tests and challenges send it topic text and the topic’s age from the curriculum. Whole-subject tests and progress reviews send your child’s exact age; a discussion analysis sends their exact age too, alongside the linked topic’s age. Topic and section tests also say when you have approved harder questions because your child is excelling. A progress review sends mastery counts, recent topic names and statuses, record counts and the average confidence rating. A discussion analysis sends the transcript; analyses and progress reviews send your notes only when you tick “Include my notes in this request”. Learner names are replaced with “the child” before any request is built; a nickname, especially one that is an ordinary word, is sent as spoken, as are other people’s names in a transcript. Record titles and interests are never sent. ${SPEECH_NOTE}`],
     ['Not for the internet', `${authEnabled() ? 'The access token is the only sign-in, and Harrington does not encrypt traffic itself; use HTTPS from your network mesh or a local proxy (docs/DEPLOYMENT.md).' : 'There is no sign-in or encryption yet.'} Do not expose Harrington to the public internet.`],
   ]},
 ];
