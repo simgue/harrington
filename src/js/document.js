@@ -160,35 +160,52 @@ function dismissedAlertsProblem(dismissed) {
   return ok ? null : 'The file\'s dismissed alerts are not in the expected shape.';
 }
 
+// The name a message gives the learner with `id`, so the parent knows whose
+// data to look at: the file's name for them (cut to 40 characters), or null
+// when the file names no such learner.
+const LABEL_MAX = 40;
+function learnerName(doc, id) {
+  return nameOf((Array.isArray(doc.students) ? doc.students : []).find(s => isObject(s) && s.id === id));
+}
+function nameOf(s) {
+  const name = typeof s?.name === 'string' ? s.name.trim() : '';
+  if (!name) return null;
+  return name.length > LABEL_MAX ? `${name.slice(0, LABEL_MAX - 1)}…` : name;
+}
+// " for Rowan" or "" when the learner has no name in the file.
+const forLearner = (doc, id) => { const name = learnerName(doc, id); return name ? ` for ${name}` : ''; };
+// "Rowan's" or "The file's".
+const whose = (doc, id) => { const name = learnerName(doc, id); return name ? `${name}'s` : 'The file\'s'; };
+
 // Each learner's list in `section` must be an array whose items pass `check`.
 function listsProblem(doc, section, label, check) {
-  for (const list of Object.values(doc[section] || {})) {
+  for (const [id, list] of Object.entries(doc[section] || {})) {
     if (!Array.isArray(list)) return `The file's "${section}" section is not in the expected shape.`;
     for (const [i, item] of list.entries()) {
       const problem = check(item);
-      if (problem) return `A ${label} in the file (${section} item ${i + 1}) ${problem}.`;
+      if (problem) return `A ${label}${forLearner(doc, id)} in the file (${section} item ${i + 1}) ${problem}.`;
     }
   }
   return null;
 }
 
-function progressProblem(progress) {
-  for (const entries of Object.values(progress || {})) {
+function progressProblem(doc) {
+  for (const [id, entries] of Object.entries(doc.progress || {})) {
     if (!isObject(entries)) return 'The file\'s "progress" section is not in the expected shape.';
     for (const entry of Object.values(entries)) {
       if (!isObject(entry) || !MASTERY_STATUSES.includes(entry.status)) {
-        return `The file's progress has a status other than ${MASTERY_STATUSES.join(', ')}.`;
+        return `${whose(doc, id)} progress has a status other than ${MASTERY_STATUSES.join(', ')}.`;
       }
     }
   }
   return null;
 }
 
-function gameProblem(game) {
-  for (const g of Object.values(game || {})) {
+function gameProblem(doc) {
+  for (const [id, g] of Object.entries(doc.game || {})) {
     if (!isObject(g)) return 'The file\'s "game" section is not in the expected shape.';
-    if (!absent(g.xp) && !(isFiniteNumber(g.xp) && g.xp >= 0)) return 'The file\'s XP is not a number of zero or more.';
-    if (!absent(g.badges) && !isObject(g.badges)) return 'The file\'s badges are not in the expected shape.';
+    if (!absent(g.xp) && !(isFiniteNumber(g.xp) && g.xp >= 0)) return `${whose(doc, id)} XP is not a number of zero or more.`;
+    if (!absent(g.badges) && !isObject(g.badges)) return `${whose(doc, id)} badges are not in the expected shape.`;
   }
   return null;
 }
@@ -242,7 +259,8 @@ export function validateDocument(doc) {
   for (const [index, s] of doc.students.entries()) {
     const problem = learnerProblem(s);
     if (problem) return `Learner ${index + 1} in the file ${problem}.`;
-    if (ids.has(s.id)) return `Learner ${index + 1} in the file has the same id as another learner.`;
+    // Named here, where the name itself has passed.
+    if (ids.has(s.id)) return `Learner ${index + 1} (${nameOf(s)}) in the file has the same id as another learner.`;
     ids.add(s.id);
   }
   if (!absent(doc.activeStudentId) && !ids.has(doc.activeStudentId)) {
@@ -260,11 +278,11 @@ export function validateDocument(doc) {
   }
   return learnerMapsProblem(doc)
     || dismissedAlertsProblem(doc.dismissedAlerts)
-    || progressProblem(doc.progress)
+    || progressProblem(doc)
     || listsProblem(doc, 'records', 'record', recordProblem)
     || listsProblem(doc, 'tests', 'test result', testProblem)
     || listsProblem(doc, 'challenges', 'challenge result', challengeProblem)
-    || gameProblem(doc.game)
+    || gameProblem(doc)
     || interestsProblem(doc.interests)
     || settingsProblem(doc.settings, doc.schemaVersion);
 }
