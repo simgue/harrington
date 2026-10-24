@@ -8,6 +8,7 @@
 // snoozeMs, once that long has passed).
 import { keyOf, restInfo } from './scheduler.js';
 import { DAY_MS, SNOOZE_MS } from './alert-dismissals.js';
+import { countLabel } from './format.js';
 
 export const PICKS_DUE_HOUR = 15;   // local time after which open picks are flagged
 export const EVIDENCE_DAYS = 7;     // a learner with no record for this long is flagged
@@ -57,7 +58,7 @@ export function noRecentEvidence({ now, student, records }) {
     learnerId: student.id,
     title: `No evidence this week for ${student.name}`,
     body: last
-      ? `The last record was ${Math.floor((now - last) / DAY_MS)} days ago. Add a note or recording under Records.`
+      ? `The last record was ${countLabel(Math.floor((now - last) / DAY_MS), 'day')} ago. Add a note or recording under Records.`
       : 'There are no records yet. Add a note or recording under Records.',
   };
 }
@@ -89,8 +90,8 @@ export function backupOverdue({ backupAgeDays }) {
     key: 'backup',
     type: 'backup',
     learnerId: null,
-    title: `Backup older than ${BACKUP_DAYS} days`,
-    body: `The newest backup is ${backupAgeDays} days old. Run "npm run backup" on the computer running Harrington.`,
+    title: `Backup older than ${countLabel(BACKUP_DAYS, 'day')}`,
+    body: `The newest backup is ${countLabel(backupAgeDays, 'day')} old. Run "npm run backup" on the computer running Harrington.`,
     snoozeMs: SNOOZE_MS.backup,
   };
 }

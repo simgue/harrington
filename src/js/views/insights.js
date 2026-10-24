@@ -134,8 +134,7 @@ export function renderInsights(params, { navigate }) {
   const subjectRecords = () => store.recordsFor(active.id)
     .filter(r => !r.topicId || d.byId.get(r.topicId)?.subject === selSubject);
   // Records go out as counts and topic names unless the parent opts in here.
-  const privacy = privacyControls({ hasNotes: subjectRecords().some(r => (r.note || '').trim()) });
-  privacy.classList.replace('mt-2', 'mb-3');
+  const privacy = privacyControls({ hasNotes: subjectRecords().some(r => (r.note || '').trim()), placement: 'before' });
   if (store.aiAvailable()) out.before(privacy);
   gen.onclick = async () => {
     const includeNotes = !!privacy.querySelector('.include-notes')?.checked;
