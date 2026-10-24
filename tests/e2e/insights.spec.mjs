@@ -74,6 +74,9 @@ test.describe('with the mock AI provider', () => {
     await expect(review).toContainText('Names of learners in this app are replaced with “the child” before this is sent.');
     const include = review.getByRole('checkbox', { name: 'Include my notes in this request' });
     await expect(include).not.toBeChecked();
+    // A 20 px box; the label around it is the hit area.
+    const size = await include.boundingBox();
+    expect([Math.round(size.width), Math.round(size.height)]).toEqual([20, 20]);
 
     // Without the opt-in the note stays home.
     await review.getByRole('button', { name: 'Generate' }).click();
