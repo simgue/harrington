@@ -344,7 +344,7 @@ access token.
 
 ## What a family should do
 
-A short checklist from the threat model ([THREAT-MODEL.md](THREAT-MODEL.md)).
+A short checklist from the threat model ([security/THREAT-MODEL.md](security/THREAT-MODEL.md)).
 Each item closes a way family data could leak today.
 
 1. **Turn the access token on, even if Harrington runs only on one

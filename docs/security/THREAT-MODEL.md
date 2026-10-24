@@ -8,8 +8,12 @@ safety, HAR-15 child-view PIN, HAR-19 prompt redaction, HAR-25 LAN and access
 token, the hardening PR #32) was reviewed inside its own PR. This document
 looks at how they fit together.
 
-- **Code reviewed:** `main` at `1b9cce0` (PR #32 merged). Open PRs (#33, #37,
-  #39, #40, #41, #42) are not probed. Section 7 notes what they change.
+- **Code reviewed:** `main` at `1b9cce0` (PR #32 merged), then re-checked
+  against `f8c43e6`. What landed in between (#45, a tool under `tools/` that the
+  server does not serve and the image does not ship; #39, copy and docs, and
+  prompt wording for a learner with no birth year) changes no control or line
+  cited here. Open PRs (#33, #37, #40, #41, #42) are not probed. Section 7
+  notes what they change.
 - **Method:** each control below was read in the code and checked by running
   the test that pins it. The gaps were reproduced against a sandbox deployment
   (section 8). PR descriptions were used only to find claims to check.
@@ -104,7 +108,7 @@ D = denial of service, E = elevation of privilege.
 | | Threat | Current control | Gap | Severity | Proposed fix |
 | --- | --- | --- | --- | --- | --- |
 | I | Learner names reach the provider | Redacted in the browser (`src/js/ai.js:48`) and again on the server from the stored names (`server.mjs:413`). `tests/server.test.mjs` "replaces every learner name in the family document before forwarding". Replayed: "Ada Fakename" and "Will" became "the child" in every body. | Documented limits: nicknames ("Addy"), other people ("Grandma Odile in Lyon") and a common-word name degrading text ("what the child the child be able to do") | | Residual R1 |
-| I | Parent notes reach the provider without consent | Browser leaves notes out unless the parent opts in (`ai.js:443`, `:475`); the server removes stored notes, whole and line by line, unless `includeNotes: true` (`server.mjs:385`, `:409`). `tests/server.test.mjs` "removes stored parent notes unless the request says the parent opted in". Replayed: no note without the opt-in. Probed: a verbatim note is replaced by `[note removed]`, a paraphrase is not. | G9: `includeNotes` is trusted as the request states it, for any request | Minor | Tie it to the capability on #37; residual R1 |
+| I | Parent notes reach the provider without consent | Browser leaves notes out unless the parent opts in (`ai.js:447`, `:479`); the server removes stored notes, whole and line by line, unless `includeNotes: true` (`server.mjs:385`, `:409`). `tests/server.test.mjs` "removes stored parent notes unless the request says the parent opted in". Replayed: no note without the opt-in. Probed: a verbatim note is replaced by `[note removed]`, a paraphrase is not. | G9: `includeNotes` is trusted as the request states it, for any request | Minor | Tie it to the capability on #37; residual R1 |
 | I | Transcripts reach the provider | Sent whenever the parent asks for an analysis; documented | Accepted (R1) | | |
 | I | Cookie, client IP or other headers forwarded | The server builds a fresh request with only `model` and `{ role, content }` (`server.mjs:362`, `:446`). Logged at the provider: `Content-Type`, `Authorization` and Node's defaults only. `tests/server.test.mjs` "refuses messages that are not { role, content: string } with 400". | none found | | |
 | I | API key leaked | Key only in the `Authorization` header; provider errors are generic (`server.mjs:466`). `tests/server.test.mjs` "keeps provider failures fail-closed without leaking secrets". | G14: a non-loopback `http://` base URL is accepted, so the key and prompts cross the network in clear | Minor | Refuse or warn on it |
@@ -167,6 +171,18 @@ one can become a ticket.
 
 Count: **1 Blocker, 3 Major, 10 Minor.**
 
+### Already known from exploratory testing (not counted above)
+
+The exploratory tester has already reported these, so they are not gaps in
+this list. They are placed in the model so the tickets can cite it.
+
+| Finding | Where it sits here |
+| --- | --- |
+| A null entry in the active learner's recall or practice section hangs the landing route on the loading screen, with no Export available | A8 (availability), TB6 and TB8: a document that passes the server's validator can still stop the app, and the way out (Export) is behind it |
+| Data saved before #32 that the validator now refuses blocks every save, with no repair path, and the toast names a position rather than the learner | A8, TB8 (a later version reading older data): the server refuses with 422, so the family is stuck rather than losing data |
+| The persistent refusal toast covers Export and the bottom navigation at 390 px | A8: the same recovery path as above, on a phone |
+| A nickname in parentheses or quotes is not redacted from notes sent to the AI provider | TB4, residual R1: redaction matches stored learner names only |
+
 ## 6. Residual risks for the owner to sign
 
 These remain after every gap above is fixed. They follow from the product's
@@ -175,7 +191,7 @@ owner's explicit acceptance.
 
 | # | Risk | Why it stays | Mitigation in place | Accepted by / date |
 | --- | --- | --- | --- | --- |
-| R1 | A cloud AI provider receives topic text, ages, statistics, discussion transcripts (nicknames and other people's names as spoken) and, when the parent opts in, notes | Redaction matches stored learner names only; a transcript is the input the parent asked to analyze | Browser and server redaction, notes opt-in, local-provider-first rollout (#37), family guidance | |
+| R1 | A cloud AI provider receives topic text, ages, statistics, discussion transcripts (nicknames and other people's names as spoken) and, when the parent opts in, notes (a nickname in parentheses or quotes included, a known finding) | Redaction matches stored learner names only, and not a one-letter name (SECURITY.md); a transcript is the input the parent asked to analyze | Browser and server redaction, notes opt-in, local-provider-first rollout (#37), family guidance | |
 | R2 | Anyone holding a signed-in device, a child included, has full read and write access | One family token, no accounts or roles | Child-view PIN as a screen gate; OS guided access in the family guide | |
 | R3 | The child-view PIN is recoverable from any export or backup in milliseconds | 4 digits; the hash only keeps it out of plain sight | Documented in SECURITY.md | |
 | R4 | No record of which device made a change | No per-device identity | Versioned saves, conflict messages | |
@@ -200,8 +216,8 @@ owner's explicit acceptance.
 - **#33 (HAR-24, evidence checklist and level-set placement).** Adds a
   `levelset` field; until `documentFields` lists it, it rides through as an
   unknown field (G11), unvalidated.
-- **#39 (copy and docs sweep).** Changes the privacy wording in the guides;
-  keep it consistent with R1 and with section 4 TB4.
+- **#39 (copy and docs sweep), merged as `f8c43e6`.** Its SECURITY.md
+  wording on what reaches the provider matches R1 and section 4 TB4.
 - **#40, #41, #42 (calendar, recall shelf, topic finder).** New stored fields
   and AI calls: each new field needs a `document.js` rule, and each new
   prompt goes through `ask()` so both redaction layers apply.
