@@ -1,6 +1,6 @@
 import * as store from '../store.js';
 import { getData } from '../data.js';
-import { el, esc, initials, openModal, refreshIcons, toast } from '../ui.js';
+import { el, esc, initials, openModal, refreshIcons, toast, holdConfirmations } from '../ui.js';
 import { countLabel } from '../format.js';
 import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
@@ -95,6 +95,11 @@ export function renderShell({ route, navigate, content }) {
   const main = el(`<div class="flex-1 min-w-0 flex flex-col"></div>`);
   main.appendChild(top);
   const scroll = el(`<div class="flex-1 pb-24 lg:pb-0"></div>`);
+  if (store.isReadOnly()) {
+    // One banner: drop one shown above #app before the shell existed.
+    document.querySelectorAll('.read-only-banner').forEach(b => b.remove());
+    scroll.appendChild(readOnlyBanner());
+  }
   // From /api/health (store.aiAvailable): a provider is configured, not
   // necessarily reachable, so the banner says "set up", never "connected".
   const aiLine = store.aiAvailable() ? 'AI provider set up' : 'No AI provider set up; everything else works';
@@ -182,7 +187,9 @@ function openStudentMenu(navigate) {
   body.querySelector('#add').onclick = () => { m.close(); openAddStudent(); };
   // Phones have no sidebar, so Export and Import live here below lg.
   body.querySelector('#m-export').onclick = () => { m.close(); exportFamilyData(); };
-  body.querySelector('#m-import').onclick = () => { m.close(); pickImportFile(); };
+  const phoneImport = body.querySelector('#m-import');
+  phoneImport.onclick = () => { m.close(); pickImportFile(); };
+  disableImportIfReadOnly(phoneImport);
   const m = openModal(body);
 }
 
@@ -289,7 +296,7 @@ function accountBox() {
       </div>
       <div class="flex-1 min-w-0">
         <p class="text-xs font-600 truncate">Private family space</p>
-        <p class="text-xs text-ink-faint">${sidebarLine()}</p>
+        ${store.isReadOnly() ? '<p class="text-xs font-600 text-[#8a6412]">Read-only</p>' : `<p class="text-xs text-ink-faint">${sidebarLine()}</p>`}
       </div>
     </div>
     <div class="mt-2.5 grid grid-cols-2 gap-1.5">
@@ -300,7 +307,9 @@ function accountBox() {
     </div>
   </div>`);
   box.querySelector('#export').onclick = exportFamilyData;
-  box.querySelector('#import').onclick = pickImportFile;
+  const importButton = box.querySelector('#import');
+  importButton.onclick = pickImportFile;
+  disableImportIfReadOnly(importButton);
   return box;
 }
 
@@ -328,7 +337,16 @@ async function exportFamilyData() {
   }
 }
 
+// A newer data format is open read-only: importing would overwrite it.
+function disableImportIfReadOnly(button) {
+  if (!store.isReadOnly()) return;
+  button.disabled = true;
+  button.classList.add('opacity-50', 'cursor-not-allowed');
+  button.title = 'Update Harrington to import family data';
+}
+
 function pickImportFile() {
+  if (store.isReadOnly()) { toast(store.READ_ONLY_MESSAGE, 'error'); return; }
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'application/json,.json';
@@ -344,16 +362,17 @@ function pickImportFile() {
     }
     const check = store.inspectImport(doc);
     if (!check.ok) { toast(check.error, 'error'); return; }
-    openImportPreview(doc, check.learners);
+    openImportPreview(doc, check.learners, check.colorsAdjusted);
   };
   input.click();
 }
 
-function openImportPreview(doc, learners) {
+function openImportPreview(doc, learners, colorsAdjusted = 0) {
   const body = el(`<div class="p-5">
     <h3 class="font-display text-lg font-600 mb-1">Import family data?</h3>
     <p class="text-sm text-ink-faint mb-4">This replaces all family data on this server with the file${doc.exportedAt ? ` exported ${esc(new Date(doc.exportedAt).toLocaleString())}` : ''}. Recordings are not part of the file.</p>
     <div id="learners" class="space-y-2 mb-5"></div>
+    ${colorsAdjusted ? `<p class="text-xs text-ink-faint -mt-3 mb-5">${esc(countLabel(colorsAdjusted, 'learner color'))} adjusted to the nearest palette color.</p>` : ''}
     <div class="flex gap-2 justify-end">
       <button id="cancel" class="px-4 h-10 rounded-full bg-paper text-sm font-medium">Cancel</button>
       <button id="confirm" class="px-4 h-10 rounded-full bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors">Replace family data</button>
@@ -379,6 +398,41 @@ function openImportPreview(doc, learners) {
 }
 
 let tooLargeBanner = null;
+// The family data is from a newer Harrington: nothing is saved (store.js
+// isReadOnly), so say so for as long as the page is open. The shell renders
+// the banner at the top of the main column, in the page flow: below the
+// phone's sticky top bar (the learner selector, with Export and Import), which
+// stays tappable, and beside the desktop sidebar, which it does not push down.
+function readOnlyBanner() {
+  return el(`<div role="alert" class="read-only-banner bg-[#8a6412] text-white px-4 py-2.5 text-sm font-medium text-center flex items-center justify-center gap-2">
+    <i data-lucide="lock" class="w-4 h-4 shrink-0"></i>
+    <span>${esc(store.READ_ONLY_MESSAGE)}</span>
+  </div>`);
+}
+// Outside the shell (no main column yet), above #app.
+function showReadOnly() {
+  if (typeof document === 'undefined' || document.querySelector('.read-only-banner')) return;
+  const banner = readOnlyBanner();
+  const app = document.getElementById('app');
+  if (app) app.before(banner);
+  else document.body.prepend(banner);
+  refreshIcons();
+}
+
+// A change the store refused because the data is read-only: say so, and keep
+// the action's own confirmation ("Record saved") from showing.
+const NOT_SAVED = `Not saved. ${store.READ_ONLY_MESSAGE}`;
+let lastNotSaved = 0;
+function reportBlockedWrite(automatic = false) {
+  showReadOnly();
+  // A write the app made while rendering is not the parent's: no toast.
+  if (automatic) return;
+  holdConfirmations();
+  // One toast per burst of blocked writes (a click can persist twice).
+  if (Date.now() - lastNotSaved < 1500) return;
+  lastNotSaved = Date.now();
+  toast(NOT_SAVED, 'error');
+}
 let retryToast = null;
 let conflictToast = null;
 
@@ -420,26 +474,30 @@ function showTooLarge() {
   refreshIcons();
 }
 
-function showRetry() {
+// reason: the server's explanation when it refused the data itself (422,
+// 409). The same data would be refused again, so there is no Retry then.
+function showRetry(reason = null) {
   if (retryToast) return;
   const root = document.getElementById('toast-root');
   if (!root) return;
   retryToast = el(`<div role="alert" class="px-4 py-2.5 rounded-lg text-sm font-medium bg-[#a4473a] text-white shadow-lg flex items-center gap-3">
-    <span>Could not save changes to Harrington.</span>
-    <button class="underline font-600">Retry</button>
+    <span>${reason ? `Harrington refused these changes: ${esc(reason)}` : 'Could not save changes to Harrington.'}</span>
+    ${reason ? '<button class="dismiss underline font-600">Dismiss</button>' : '<button class="retry underline font-600">Retry</button>'}
   </div>`);
   retryToast.querySelector('button').onclick = () => {
     retryToast?.remove(); retryToast = null;
-    store.flushSaves();
+    if (!reason) store.flushSaves();
   };
   root.appendChild(retryToast);
 }
 
 store.onSaveStatus((event) => {
-  const { type } = event;
+  const { type, error, automatic } = event;
   if (typeof document === 'undefined') return;
   if (type === 'saved') clearSaveProblems();
   else if (type === 'conflict') { clearSaveProblems(); showConflict(event); }
   else if (type === 'too-large') showTooLarge();
   else if (type === 'failed') showRetry();
+  else if (type === 'rejected') showRetry(error?.message || null);
+  else if (type === 'read-only') reportBlockedWrite(automatic);
 });

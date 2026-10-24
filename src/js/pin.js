@@ -26,8 +26,8 @@ export function hashPin(pin, salt) {
   return sha256Hex(`${salt}:${pin}`);
 }
 
-const HASH_PATTERN = /^[0-9a-f]{64}$/;
-const SALT_PATTERN = /^[0-9a-f]{32}$/;
+export const HASH_PATTERN = /^[0-9a-f]{64}$/;
+export const SALT_PATTERN = /^[0-9a-f]{32}$/;
 const storedHash = (settings) =>
   HASH_PATTERN.test(settings?.parentPinHash ?? '') && SALT_PATTERN.test(settings?.parentPinSalt ?? '');
 
