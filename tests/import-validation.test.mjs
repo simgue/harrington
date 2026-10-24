@@ -71,6 +71,18 @@ test('a valid older export and a current one pass', () => {
   assert.equal(store.inspectImport({ ...current(), settings: { parentPin: 1357, calendar: {} } }).ok, true);
 });
 
+test('a document with no level-set section, or an empty one, passes', () => {
+  const absent = current();
+  delete absent.levelset;
+  assert.equal(store.inspectImport(absent).ok, true, 'no levelset key');
+  assert.equal(store.inspectImport({ ...current(), levelset: {} }).ok, true, 'an empty section');
+  assert.equal(store.inspectImport({ ...current(), levelset: { s_new: {} } }).ok, true, 'an empty workbook for a learner');
+  assert.equal(store.inspectImport({ ...current(), levelset: { s_new: { lanes: {}, observe: [] } } }).ok, true, 'no lanes started');
+  assert.equal(store.inspectImport({ ...current(), levelset: { s_new: null } }).ok, true, 'a learner with nothing saved');
+  // A key a newer Harrington adds is not checked as a workbook.
+  assert.equal(store.inspectImport({ ...current(), futureWorkbook: { future: true } }).ok, true);
+});
+
 const learnerCases = [
   ['an empty name', { name: '   ' }, 'Learner 1 in the file has an empty name.'],
   ['a long name', { name: 'x'.repeat(101) }, 'Learner 1 in the file has a name longer than 100 characters.'],

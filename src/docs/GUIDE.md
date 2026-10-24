@@ -166,16 +166,16 @@ prompt, how the topic connects (comes before / leads to), records for the
 topic, activity and game ideas, reference links, and manual status.
 
 **Check mastery by observation** works without AI. Press it under the topic
-mastery test, ask the suggested question or just watch your child at work,
-and tick each piece of evidence you see. Add a note if you like, typed or as a
+mastery test, ask the suggested question or just watch your child at work, and
+tick each piece of evidence you see. Add a note if you like, typed or as a
 voice note. When every item is ticked, the topic is marked mastered, just as
 passing a quiz would. Fewer ticks are still saved in Records, and nothing
-changes. A section counts as passed once every topic in it has passed a quiz or an
-observation check. Topics marked by placement, by the workbook or by hand do
-not count toward that, so those sections keep their own check. When the
-last section of a subject passes this way, the subject does too. Records and
-Insights label these checks "observed". Your child's view
-never shows them; their topic card asks the same things as "Can you…?"
+changes. A section counts as passed once every topic in it has passed a quiz
+or an observation check. Topics marked by placement, by the workbook or by
+hand do not count toward that, so those sections keep their own check. When
+the last section of a subject passes this way, the subject does too. Records
+and Insights label these checks "observed". Your child's view never shows
+them; their topic card asks the same things as "Can you…?"
 
 **Reference links** are searches on Khan Academy, BBC Bitesize, Wikipedia and
 YouTube. YouTube results are not filtered for children, so the link reads

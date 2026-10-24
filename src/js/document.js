@@ -207,10 +207,12 @@ function interestsProblem(interests) {
 // The level-set workbook (HAR-24) per learner: { lanes: { lane: session },
 // observe: [topicId], lane }. A session's inside is checked when it is read
 // (levelset.js normalizeSession drops a malformed one), so only the outer
-// shape is checked here and a document the app wrote is never refused.
+// shape is checked here and a document the app wrote is never refused. No
+// section, an empty one, or an empty or absent entry for a learner passes.
 function levelsetProblem(levelset) {
   const shape = 'The file\'s level-set workbook is not in the expected shape.';
   for (const value of Object.values(levelset || {})) {
+    if (absent(value)) continue; // a learner with nothing saved
     if (!isObject(value)) return shape;
     if (!absent(value.lanes) && !(isObject(value.lanes) && Object.values(value.lanes).every(s => absent(s) || isObject(s)))) return shape;
     if (!absent(value.observe) && !(Array.isArray(value.observe) && value.observe.every(id => typeof id === 'string'))) return shape;
