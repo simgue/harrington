@@ -10,7 +10,7 @@ const section = (page, title) => page.locator('div.rounded-2xl', { has: page.get
 
 test('health says AI is configured; /api/ai answers 502 "unreachable"', async ({ request }) => {
   expect((await (await request.get('/api/health')).json()).aiConfigured).toBe(true);
-  const res = await request.post('/api/ai', { data: { messages: [{ role: 'user', content: 'hi' }] } });
+  const res = await request.post('/api/ai', { data: { messages: [{ role: 'user', content: 'hi' }], capability: 'explain' } });
   expect(res.status()).toBe(502);
   expect((await res.json()).error).toBe('The AI provider is unreachable');
 });

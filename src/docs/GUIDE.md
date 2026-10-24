@@ -232,8 +232,9 @@ bell does not report curriculum changes.
 
 ## What needs an AI provider
 
-Everything below stays off until `HARRINGTON_AI_BASE_URL` and
-`HARRINGTON_AI_MODEL` are set (see the README):
+Everything below stays off until a provider is set under **AI provider** in
+the sidebar, or `HARRINGTON_AI_BASE_URL` and `HARRINGTON_AI_MODEL` are set (see
+the README), and each feature's capability is switched on:
 
 - Ready-to-teach lessons and print & go materials
 - Topic, section and subject mastery tests, and certificates

@@ -12,6 +12,7 @@ const ROUTES = [
   ['topic', `topic/${TOPICS.oneToOne.id}`],
   ['records', 'records'],
   ['insights', 'insights'],
+  ['settings', 'settings'],
 ];
 
 for (const [name, hash] of ROUTES) {
@@ -21,6 +22,8 @@ for (const [name, hash] of ROUTES) {
       hash,
     });
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+    // The settings form loads after the page; check it once it is there.
+    if (name === 'settings') await expect(page.getByText('Configured from the server environment')).toBeVisible();
     await noHorizontalOverflow(page);
     await shot(name, { full: name !== 'dashboard' && name !== 'topic' });
     expect(errors).toEqual([]);

@@ -93,7 +93,9 @@ Lessons, print & go sheets, mastery tests, challenges, recall cards, activity
 instructions, discussion analysis, progress reviews and adaptive suggestions
 need a local AI provider (see [Optional local model](#optional-local-model-ollama)).
 Without one, those buttons are replaced by a quiet "Needs a local AI provider"
-link (and left out of the child view). The curriculum is downloaded once on
+link (and left out of the child view); with a provider but a capability not
+switched on, the link reads "Not switched on yet" (see
+[docs/AI-SETUP.md](docs/AI-SETUP.md)). The curriculum is downloaded once on
 first start and does not update on its own.
 
 ## Highlights
@@ -204,10 +206,21 @@ npm start
 Then open `http://127.0.0.1:4173`. No login is required. Private preview data is
 written under `data/private/` and excluded from Git.
 
+To use AI, open **AI provider** in the sidebar (or `#settings`) and set a
+provider there; no restart is needed. Under Docker or Compose that page is
+read-only (the container sees the browser as another device): set an access
+token, or use the environment variables below. See
+[docs/AI-SETUP.md](docs/AI-SETUP.md).
+
 ### Optional local model (Ollama)
 
-Lesson generation stays off until both of these are set. There is no default
-cloud URL or API key.
+The simplest way is in the app: **AI provider** in the sidebar, choose
+"Ollama on this computer", type the model, Save, then Test connection. The
+environment variables below do the same for Docker and Compose; a value saved
+in the app wins over its variable.
+
+Lesson generation stays off until a base URL and a model are both set. There
+is no default cloud URL or API key.
 
 ```bash
 # Install Ollama from https://ollama.com, then pull one instruction model:
@@ -222,8 +235,18 @@ npm start
 ```
 
 Restart Harrington after changing these variables. `/api/health` reports
-`aiConfigured: true` only when both the base URL and model are set. The browser
-sends only the messages; every request uses `HARRINGTON_AI_MODEL`.
+`aiConfigured: true` only when both the base URL and model are set, and
+`aiSource` (`app` or `env`) says where they came from. The browser
+sends only the messages and the capability they are for; every request uses
+`HARRINGTON_AI_MODEL`.
+
+To switch AI on one capability at a time, list them in
+`HARRINGTON_AI_CAPABILITIES` (for example `HARRINGTON_AI_CAPABILITIES=lesson`;
+unset means all). Controls for the others show "Not switched on yet", and the
+server refuses them. **[docs/AI-SETUP.md](docs/AI-SETUP.md)** covers choosing a
+model for reliable JSON, expected latency, where the variables live (shell,
+`.env`, Docker), a Gemini (cloud) example with an API key, the lessons-only
+experiment (`scripts/ai-experiment.mjs`) and when to widen.
 
 Local models can take a while to write lesson JSON. The adapter waits up to
 three minutes (`HARRINGTON_AI_TIMEOUT_MS` to override) and then fails closed.
@@ -262,14 +285,17 @@ docker compose up --build
 Everything the family has created lives in `data/private/` (or
 `HARRINGTON_DATA_DIR`): `family-state.json` holds learners, progress, records,
 plans and settings; `audio/` holds recordings; `lessons/` and `taxonomy/` are
-caches. **That directory is the complete backup set.** Copy it somewhere safe,
-or run:
+caches; `secrets.json` holds the AI provider settings saved in the app,
+including any API key, readable by its owner only. **That directory is the
+complete backup set.** Copy it somewhere safe, or run:
 
 ```bash
 npm run backup
 ```
 
 which writes `backups/harrington-<timestamp>.tar.gz` (Git ignores `backups/`).
+It leaves out `secrets.json` on purpose, so a backup never carries an API key;
+after a restore, enter the key again under Settings > AI provider.
 To restore, stop Harrington, replace `data/private/` with the archive's
 contents (`tar -xzf backups/harrington-<timestamp>.tar.gz -C data`), and start
 it again. With Docker, back up the `harrington-data` volume instead.
@@ -297,8 +323,8 @@ refused. Other fields are not checked. An active learner that is not in the
 file becomes its first learner. A learner color outside the palette
 is moved to the nearest palette color, and the preview says how many were.
 The server applies the same check to every save and answers 422 with the
-reason. The JSON file does not contain recordings, so keep a
-`data/private/` backup too. The child-view PIN is stored and exported only as
+reason. The JSON file does not contain recordings or the AI provider
+settings, so keep a `data/private/` backup too. The child-view PIN is stored and exported only as
 a salted SHA-256 hash; a plain PIN in an older file is hashed when it is
 loaded or imported.
 

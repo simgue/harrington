@@ -1,5 +1,6 @@
 // Archives the private family data directory (state, lesson cache, recordings,
-// taxonomy cache) into backups/harrington-<timestamp>.tar.gz using the system tar.
+// taxonomy cache) into backups/harrington-<timestamp>.tar.gz using the system
+// tar, leaving out the stored AI settings (secrets.json; see below).
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -18,7 +19,13 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const archive = join(backupDir, `harrington-${stamp}.tar.gz`);
 mkdirSync(backupDir, { recursive: true });
 
-const result = spawnSync('tar', ['-czf', archive, '-C', dirname(dataDir), basename(dataDir)], { stdio: 'inherit' });
+// secrets.json holds the AI provider settings saved in the app, including any
+// API key. It stays out of the archive on purpose: a backup copied to a USB
+// stick or another computer must not carry the key. Re-enter it under
+// Settings > AI provider after a restore.
+const base = basename(dataDir);
+const exclude = [`--exclude=${base}/secrets.json`, `--exclude=${base}/secrets.json.*.tmp`];
+const result = spawnSync('tar', [...exclude, '-czf', archive, '-C', dirname(dataDir), base], { stdio: 'inherit' });
 if (result.error || result.status !== 0) {
   console.error(`Backup failed: ${result.error?.message || `tar exited with ${result.status}`}`);
   process.exit(1);

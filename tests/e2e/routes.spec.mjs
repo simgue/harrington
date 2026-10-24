@@ -14,7 +14,7 @@ const COUNTING = encodeURIComponent('Counting & Cardinality');
 
 // [name, hash, heading the route shows, extra seed, text when there is no
 // heading]. The route table is `views` in src/js/app.js (dashboard, calendar, graph, topic, records,
-// insights, onboard); graph and topic take parameters, so their variants
+// insights, settings, onboard); graph and topic take parameters, so their variants
 // are listed too, and an unknown route falls back to the dashboard.
 const ROUTES = [
   ['dashboard', '', "Rowan Example's Wednesday"],
@@ -30,6 +30,7 @@ const ROUTES = [
   ['topic: unknown id', 'topic/mt_no_such_topic', null, {}, 'Topic not found'],
   ['records', 'records', 'Records'],
   ['insights', 'insights', 'Teacher Insights'],
+  ['settings', 'settings', 'AI provider'],
 ];
 
 // Every route app.js registers has a case here (onboard has its own test).
@@ -107,6 +108,18 @@ for (const [name, hash, heading, seed = {}, text = null] of ROUTES) {
     expect(errors).toEqual([]);
   });
 }
+
+// The AI provider page configures AI and never generates: opening it, with
+// a provider (desktop) or without one (no-ai), sends nothing to /api/ai.
+test('the settings page renders without an AI request', async ({ page, gotoApp }) => {
+  const aiRequests = [];
+  page.on('request', (request) => { if (new URL(request.url()).pathname === '/api/ai') aiRequests.push(request.url()); });
+  await gotoApp({ hash: 'settings' });
+  await expect(viewContent(page).getByRole('heading', { name: 'AI provider', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Test connection' })).toBeVisible();
+  await page.waitForTimeout(750);
+  expect(aiRequests).toEqual([]);
+});
 
 test('route renders without errors: onboard (no learners yet)', async ({ page, gotoApp }) => {
   const errors = pageErrors(page);

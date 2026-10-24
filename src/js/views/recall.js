@@ -165,7 +165,7 @@ function runSession(stage, m, student, meta, cards, restart, mixed = false, onRe
       refreshIcons();
     };
     controls.appendChild(reveal);
-    if (onRegen) wrap.appendChild(el(`<div class="mt-5 pt-2 border-t border-paper-line"></div>`)).appendChild(generateAnotherButton(onRegen));
+    if (onRegen) wrap.appendChild(el(`<div class="mt-5 pt-2 border-t border-paper-line"></div>`)).appendChild(generateAnotherButton(onRegen, 'recall'));
     refreshIcons();
   };
 
@@ -235,7 +235,7 @@ export function recallSectionCard(topic, student) {
   body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-3">Retrieval practice: ${esc(student.name)} answers short questions <span class="font-600">from memory</span>, then reviews on a spaced schedule so it sticks.</p>`));
   const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium text-sm transition-colors"><i data-lucide="brain" class="w-4 h-4"></i>Practice recall</button>`);
   btn.onclick = () => openRecall(topic);
-  body.appendChild(gateAi(btn, { cachedKey: recallKey(topic) }));
+  body.appendChild(gateAi(btn, { capability: 'recall', cachedKey: recallKey(topic) }));
   return sectionWrap(body);
 }
 function sectionWrap(body) {

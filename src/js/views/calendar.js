@@ -254,12 +254,13 @@ function extraRow(x, active, navigate) {
   };
   row.querySelector('.del').onclick = () => { store.removeExtra(active.id, selectedKey, x.id); navigate('calendar'); };
   // Spaced practice needs no AI provider; the other kinds do.
-  if (x.kind !== 'practice' && !store.aiAvailable()) {
+  const capability = { lesson: 'lesson', retest: 'test', challenge: 'challenge' }[x.kind] || 'lesson';
+  if (x.kind !== 'practice' && !store.aiAvailable(capability)) {
     // Keep the title and kind readable; the chip goes on its own line under them.
     const go = row.querySelector('.go');
     const slot = el('<span class="hidden"></span>');
     go.replaceWith(slot);
-    const chip = aiUnavailableChip();
+    const chip = aiUnavailableChip(capability);
     chip.classList.add('mt-1.5');
     row.querySelector('.flex-1.min-w-0').appendChild(chip);
     // A lesson already in the cache still opens.
@@ -363,11 +364,9 @@ function dayTopicRow(t, active, navigate) {
   row.querySelector('.lesson').onclick = () => openLesson(t);
   row.querySelector('.test').onclick = () => openMasteryTest(t.subject, null, t);
   row.querySelector('.push').onclick = () => openMoveTopic(t, active, navigate);
-  if (!store.aiAvailable()) {
-    row.querySelector('.test').remove();
-    const lesson = row.querySelector('.lesson');
-    lesson.replaceWith(gateAi(lesson, { cachedKey: 'topic:' + t.id }));
-  }
+  if (!store.aiAvailable('test')) row.querySelector('.test').remove();
+  const lesson = row.querySelector('.lesson');
+  lesson.replaceWith(gateAi(lesson, { capability: 'lesson', cachedKey: 'topic:' + t.id }));
   return row;
 }
 
@@ -403,10 +402,10 @@ function openMoveTopic(topic, active, navigate) {
 }
 
 
-// Swap a refresher card's launch button for the chip when there is no AI provider.
-function gateCardButton(card) {
-  if (store.aiAvailable()) return;
-  const chip = aiUnavailableChip();
+// Swap a refresher card's launch button for the chip when its capability cannot generate.
+function gateCardButton(card, capability) {
+  if (store.aiAvailable(capability)) return;
+  const chip = aiUnavailableChip(capability);
   chip.classList.add('mt-2');
   card.querySelector('.go').replaceWith(chip);
 }
@@ -427,7 +426,7 @@ function extrasBlock(active, navigate) {
       <button class="go mt-2 w-full text-sm font-medium text-white rounded-lg py-2 flex items-center justify-center gap-1.5 bg-brand"><i data-lucide="brain" class="w-4 h-4"></i>Start recall review</button>
     </div>`);
     rc.querySelector('.go').onclick = () => openDueRecall();
-    gateCardButton(rc);
+    gateCardButton(rc, 'recall');
     list.appendChild(rc);
   }
 
@@ -445,7 +444,7 @@ function extrasBlock(active, navigate) {
       <button class="go mt-2 w-full text-sm font-medium text-white rounded-lg py-2 flex items-center justify-center gap-1.5" style="background:${meta.color}"><i data-lucide="file-check-2" class="w-4 h-4"></i>Give refresher quiz</button>
     </div>`);
     el1.querySelector('.go').onclick = () => openMasteryTest(t.subject, null, t);
-    gateCardButton(el1);
+    gateCardButton(el1, 'test');
     list.appendChild(el1);
   }
 
@@ -471,7 +470,7 @@ function extrasBlock(active, navigate) {
         <button class="go mt-2 w-full text-sm font-medium rounded-lg py-2 flex items-center justify-center gap-1.5 border border-paper-line hover:border-brand/40 transition-colors"><i data-lucide="list-ordered" class="w-4 h-4"></i>Get instructions</button>
       </div>`);
       el2.querySelector('.go').onclick = () => openActivityDetail(at, idea, isGame ? 'game' : 'activity');
-      gateCardButton(el2);
+      gateCardButton(el2, 'activity');
       list.appendChild(el2);
     }
   }
@@ -490,7 +489,7 @@ function extrasBlock(active, navigate) {
       <button class="go mt-2 w-full text-sm font-medium rounded-lg py-2 flex items-center justify-center gap-1.5 border border-paper-line hover:border-brand/40 transition-colors"><i data-lucide="notebook-text" class="w-4 h-4"></i>Open lesson</button>
     </div>`);
     el3.querySelector('.go').onclick = () => openLesson(t);
-    gateCardButton(el3);
+    gateCardButton(el3, 'lesson');
     list.appendChild(el3);
   }
 

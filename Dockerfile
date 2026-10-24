@@ -13,6 +13,7 @@ FROM node:22-alpine
 
 WORKDIR /app
 COPY server.mjs ./
+COPY lib ./lib
 COPY --from=build /app/src ./src
 
 ENV HARRINGTON_HOST=0.0.0.0

@@ -293,10 +293,12 @@ Check the next morning that `backups/backup.log` says `Backed up`.
 With Docker, the data lives in the `harrington-data` volume, which Compose
 names `harrington_harrington-data` when the folder is called `harrington`
 (`docker volume ls` shows the exact name). Back it up with a throwaway
-container (`%` must be written `\%` inside a crontab):
+container (`%` must be written `\%` inside a crontab). The command leaves out
+`secrets.json`, which holds the AI provider settings saved in the app and any
+API key, as `npm run backup` does; enter the key again after a restore:
 
 ```
-15 2 * * * mkdir -p /home/parent/harrington/backups && /usr/bin/docker run --rm -v harrington_harrington-data:/data:ro -v /home/parent/harrington/backups:/backups alpine tar -czf /backups/harrington-docker-$(date +\%Y-\%m-\%dT\%H-\%M-\%S).tar.gz -C / data >> /home/parent/harrington/backups/backup.log 2>&1
+15 2 * * * mkdir -p /home/parent/harrington/backups && /usr/bin/docker run --rm -v harrington_harrington-data:/data:ro -v /home/parent/harrington/backups:/backups alpine tar -czf /backups/harrington-docker-$(date +\%Y-\%m-\%dT\%H-\%M-\%S).tar.gz --exclude=data/secrets.json -C / data >> /home/parent/harrington/backups/backup.log 2>&1
 ```
 
 To restore it: `docker compose down`, then
