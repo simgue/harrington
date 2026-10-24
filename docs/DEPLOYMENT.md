@@ -342,6 +342,49 @@ child on the child screen of a shared tablet; it is not a password. Anyone who
 reloads the page is back in the grown-up view, and it does not replace the
 access token.
 
+## What a family should do
+
+A short checklist from the threat model ([THREAT-MODEL.md](THREAT-MODEL.md)).
+Each item closes a way family data could leak today.
+
+1. **Turn the access token on, even if Harrington runs only on one
+   computer.** Without it, a web page open in a browser on the host can trick
+   that browser into reading and changing your family data (DNS rebinding).
+   Make the token with the command above, keep it in a password manager, and
+   sign in with the form, not the link.
+2. **Share it over HTTPS (option 1 or 2), never by opening a port on your
+   router**, and never with `tailscale funnel`.
+3. **Encrypt the host computer's disk** (FileVault on a Mac, BitLocker or
+   Device Encryption on Windows, LUKS on Linux) and lock its screen. Family
+   data, recordings and backups are plain files on it.
+4. **Keep backups on an encrypted drive** and make the folder private to you:
+   `chmod 700 backups data/private` on Linux and macOS. A backup has every
+   note, transcript and recording.
+5. **Treat an export like the family diary.** It holds the children's names,
+   birth months, notes, transcripts and AI analyses. Do not email it or put
+   it in a shared cloud folder. If it has to travel, put it in an encrypted
+   archive and delete it once it has been imported.
+6. **Lock a child to the app, not just the child view.** The PIN keeps a
+   child on the child screen, but a reload brings back the grown-up view, and
+   the PIN is set by whoever presses **Grown-ups** first: set it yourself
+   before you hand the tablet over. Use the tablet's own lock for the rest:
+   Guided Access on iPad, screen pinning on Android.
+7. **If a signed-in tablet or phone is lost,** change
+   `HARRINGTON_ACCESS_TOKEN`, restart Harrington and sign the other devices in
+   again. That is the only way to sign one device out.
+8. **Open Harrington from your bookmark or home-screen icon only.** Do not
+   open a Harrington link someone sends you, such as one to a single
+   recording.
+9. **With a cloud AI provider, assume it keeps what it is sent.** Learner
+   names are replaced, but nicknames, other people's names, and everything
+   said in a recorded discussion you ask it to analyze are sent as they are,
+   and so are your notes when you tick "Include my notes". A provider on the
+   host computer (Ollama) keeps all of it at home. Set
+   `HARRINGTON_AI_BASE_URL` to `https://`, or to `http://127.0.0.1`, never to
+   plain `http://` on another computer.
+10. **Update with care:** export, run a backup, then update (see "Export
+    before every upgrade" above).
+
 ## Verifying recording from a second device
 
 After option 1 or 2, on a tablet or phone that is **not** the host:
