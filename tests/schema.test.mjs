@@ -200,17 +200,23 @@ test('an unknown top-level field round-trips through load and save unchanged', a
   assert.deepEqual(Object.keys(puts[0]).sort(), [...DOCUMENT_KEYS, 'levelset', 'writeId'].sort());
 });
 
-for (const [label, schemaVersion] of [['a newer', SCHEMA_VERSION + 1], ['an unreadable', 'two']]) {
+const READ_ONLY_CASES = [
+  ['a newer', SCHEMA_VERSION + 1, /saved by a newer version of Harrington\. Update Harrington/],
+  // Updating cannot fix a format number that is not a number: its own wording.
+  ['an unreadable', 'two', /data format number Harrington cannot read/],
+];
+for (const [label, schemaVersion, message] of READ_ONLY_CASES) {
   test(`${label} data format opens read-only: no save, beacon or import`, async () => {
     await load({ ...(await readFixture('v0.expected.json')), schemaVersion, futureField: [1], version: 40 });
     assert.equal(store.isReadOnly(), true);
+    assert.match(store.readOnlyMessage(), message);
     assert.equal(store.get().students[0].name, 'Sample Twelve', 'the data is still shown');
     const statuses = [];
     const off = store.onSaveStatus((event) => statuses.push(event.type));
     store.setGraphView(store.graphView() === 'list' ? 'atlas' : 'list');
     await store.flushSaves();
     store.handlePageHidden();
-    await assert.rejects(store.importDocument(await readFixture('v0.expected.json')), /saved by a newer version of Harrington/);
+    await assert.rejects(store.importDocument(await readFixture('v0.expected.json')), message);
     await settle();
     off();
     assert.equal(puts.length, 0, 'nothing saved');

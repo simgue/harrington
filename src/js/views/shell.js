@@ -213,7 +213,7 @@ function studentFields(s = null) {
   return `
       <div>
         <label for="sf-name" class="text-sm font-medium block mb-1.5">Name</label>
-        <input id="sf-name" name="name" required maxlength="60" value="${esc(s?.name || '')}" class="${inputCls}" />
+        <input id="sf-name" name="name" required maxlength="${store.NAME_FIELD_MAX}" value="${esc(s?.name || '')}" class="${inputCls}" />
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
@@ -341,7 +341,7 @@ function disableImportIfReadOnly(button) {
 }
 
 function pickImportFile() {
-  if (store.isReadOnly()) { toast(store.READ_ONLY_MESSAGE, 'error'); return; }
+  if (store.isReadOnly()) { toast(store.readOnlyMessage(), 'error'); return; }
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'application/json,.json';
@@ -401,7 +401,7 @@ let tooLargeBanner = null;
 function readOnlyBanner() {
   return el(`<div role="alert" class="read-only-banner bg-[#8a6412] text-white px-4 py-2.5 text-sm font-medium text-center flex items-center justify-center gap-2">
     <i data-lucide="lock" class="w-4 h-4 shrink-0"></i>
-    <span>${esc(store.READ_ONLY_MESSAGE)}</span>
+    <span>${esc(store.readOnlyMessage())}</span>
   </div>`);
 }
 // Outside the shell (no main column yet), above #app.
@@ -416,7 +416,6 @@ function showReadOnly() {
 
 // A change the store refused because the data is read-only: say so, and keep
 // the action's own confirmation ("Record saved") from showing.
-const NOT_SAVED = `Not saved. ${store.READ_ONLY_MESSAGE}`;
 let lastNotSaved = 0;
 function reportBlockedWrite(automatic = false) {
   showReadOnly();
@@ -426,7 +425,7 @@ function reportBlockedWrite(automatic = false) {
   // One toast per burst of blocked writes (a click can persist twice).
   if (Date.now() - lastNotSaved < 1500) return;
   lastNotSaved = Date.now();
-  toast(NOT_SAVED, 'error');
+  toast(`Not saved. ${store.readOnlyMessage()}`, 'error');
 }
 let retryToast = null;
 let conflictToast = null;
@@ -493,6 +492,11 @@ store.onSaveStatus((event) => {
   else if (type === 'conflict') { clearSaveProblems(); showConflict(event); }
   else if (type === 'too-large') showTooLarge();
   else if (type === 'failed') showRetry();
-  else if (type === 'rejected') showRetry(error?.message || null);
+  else if (type === 'rejected') {
+    // The save the action triggered was refused: its confirmation must not
+    // say otherwise (it is shown later in the same task).
+    holdConfirmations();
+    showRetry(error?.message || null);
+  }
   else if (type === 'read-only') reportBlockedWrite(automatic);
 });

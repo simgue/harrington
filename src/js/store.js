@@ -1,14 +1,14 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
 import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, schemaVersionOf } from './schema.js';
-import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, dropBrokenEntries, LEARNER_KEYS, RETIRED_FIELDS, MIN_BIRTH_YEAR, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
+import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, dropBrokenEntries, LEARNER_KEYS, RETIRED_FIELDS, MIN_BIRTH_YEAR, NAME_FIELD_MAX, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
 import { formatCount } from './format.js';
 import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 import { getData } from './data.js';
 import { pruneDismissed } from './alert-dismissals.js';
 import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
 
-export { MIN_BIRTH_YEAR };
+export { MIN_BIRTH_YEAR, NAME_FIELD_MAX };
 
 export const MASTERY = {
   none:       { label: 'Not started', rank: 0, color: '#d2c6ad' },
@@ -102,6 +102,11 @@ let unknownFields = {};
 // isReadOnly), so this version can never write it back in an older shape.
 let readOnly = false;
 export function isReadOnly() { return readOnly; }
+// Why it is read-only, for the banner and the "Not saved" toasts: a newer
+// format asks for an update; a schemaVersion that is not a whole number
+// (a hand edit, a damaged file) cannot be fixed by updating.
+export function readOnlyMessage() { return readOnlyNewer ? READ_ONLY_MESSAGE : UNREADABLE_FORMAT_MESSAGE; }
+let readOnlyNewer = true;
 
 // The saved-key list lives in document.js (shared with import validation).
 export { DOCUMENT_KEYS };
@@ -141,6 +146,7 @@ function documentFields(data) {
 function applyDocument(data) {
   const raw = objectOr(data, {});
   readOnly = isUnwritableSchema(raw);
+  readOnlyNewer = !readOnly || isNewerSchema(raw);
   // A non-object entry in a learner's lists would throw while rendering
   // (HAR-38). The schema 3 repair drops them for good on the migrating load;
   // one in a current document (a hand edit) is dropped in memory here, and
@@ -514,6 +520,14 @@ function persist({ automatic = false } = {}) {
   migrationOnly = false;
   dirty = true;
   clearTimeout(saveTimer);
+  saveTimer = null;
+  // Checked now with the server's own rules (document.js): a change that
+  // leaves the document unsaveable is refused in the same task as the action,
+  // so the shell can hold back its confirmation ("Record saved") and show the
+  // reason. Nothing is sent; the change stays pending, and the next change
+  // that makes the document valid again saves it.
+  const problem = validateDocument(snapshotData());
+  if (problem) { saveStatus({ type: 'rejected', error: new Error(problem), automatic }); return; }
   saveTimer = setTimeout(flushSaves, 400);
 }
 
@@ -621,7 +635,7 @@ export function inspectImport(doc) {
 // current version. Resolves false if another device saved first (state is
 // then reloaded from the server) or the save failed.
 export function importDocument(doc) {
-  if (readOnly) return Promise.reject(new Error(READ_ONLY_MESSAGE));
+  if (readOnly) return Promise.reject(new Error(readOnlyMessage()));
   const check = inspectImport(doc);
   if (!check.ok) return Promise.reject(new Error(check.error));
   const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = migrateDocument(withValidActive(doc));
@@ -643,6 +657,7 @@ export function importDocument(doc) {
 }
 
 export const READ_ONLY_MESSAGE = 'This family data was saved by a newer version of Harrington. Update Harrington to make changes; nothing is saved until then.';
+export const UNREADABLE_FORMAT_MESSAGE = 'This family data has a data format number Harrington cannot read, so nothing is saved. Export a copy, then restore a backup or fix "schemaVersion" in the file.';
 
 // ---- Students ----
 export const PALETTE = ['#3f6b3b', '#a4473a', '#2f6285', '#5b4a86', '#8a6412', '#9a4a6e'];

@@ -209,3 +209,16 @@ test('a per-learner problem names the learner, cut to 40 characters, or the file
   orphan.records.s_gone = [{ id: 'r9', type: 'markup' }];
   assert.match(store.inspectImport(orphan).error, /^A record in the file \(records item 1\) has a type other than/);
 });
+
+test('both learner name fields take their limit from document.js, within what a save accepts', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { NAME_FIELD_MAX, NAME_MAX } = await import('../src/js/document.js');
+  assert.ok(NAME_FIELD_MAX <= NAME_MAX);
+  assert.equal(store.NAME_FIELD_MAX, NAME_FIELD_MAX);
+  for (const file of ['src/js/app.js', 'src/js/views/shell.js']) {
+    const source = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
+    const nameInputs = source.match(/<input[^>]*name="name"[^>]*>/g) || [];
+    assert.equal(nameInputs.length, 1, `${file} has one learner name field`);
+    assert.match(nameInputs[0], /maxlength="\$\{store\.NAME_FIELD_MAX\}"/, file);
+  }
+});
