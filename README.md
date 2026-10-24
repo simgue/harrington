@@ -40,17 +40,32 @@ topic text into “the child” (“will” appears in about 40 of the taxonomy'
 topics), which can make answers worse. A nickname avoids it.
 When an AI provider is configured, this is what still leaves the machine:
 
-- topic names, descriptions and statuses, and mastery percentages;
-- the topic's age from the curriculum (lessons, explanations, quizzes,
-  printables, activities, recall cards, topic and section tests, challenges);
-- the learner's exact age (or “age unknown”) for whole-subject tests,
-  discussion analyses and progress reviews;
-- record counts by type, the topics they link to and the average confidence rating;
+- topic text: topic names, descriptions and mastery evidence, and the activity
+  idea being expanded;
+- the topic's age from the curriculum (lessons, printables, activities,
+  “Explain simply”, mini-quizzes, recall cards, topic and section tests,
+  challenges, and a discussion analysis linked to a topic);
+- the learner's exact age for whole-subject tests (left out when no birth year
+  is set), discussion analyses (alongside the linked topic's age) and progress
+  reviews (“age unknown” when no birth year is set), and for a topic test or
+  challenge only when the topic has no curriculum age;
+- the adaptive “excelling” flag on topic and section tests, once the parent
+  has approved harder questions for that domain;
+- for progress reviews: mastered, in-progress and total topic counts and the
+  mastery percentage, recent topic names and statuses, record counts by type,
+  the topics they link to and the average confidence rating;
 - a discussion transcript, when the parent asks for an analysis;
 - the parent's notes, only when they tick “Include my notes in this request”
   for that one request (record titles are never sent).
 
-Nicknames, and other people's names in a transcript, are sent as spoken.
+Harrington never puts a learner's name, birth month or year, or interests
+into a prompt itself. It replaces the learner names it knows (in transcripts
+and notes in the browser, in the whole message on the server), so the
+replacement has limits: a nickname, especially one that is
+an ordinary word, is sent as spoken, as are other people's names; a
+one-letter name is not replaced; and a name in a script written without
+spaces (for example Chinese) is not matched when it runs straight into other
+text.
 
 ## What works without an AI provider
 
@@ -229,7 +244,9 @@ Do **not** pre-generate all ~1,590 Marble topics. The lesson cache is
 generate-once per topic the family actually opens. If a local model's JSON is
 weak, you may temporarily point at a stronger endpoint to fill **only the
 topics you open** (or a small focus band later), then switch back to Ollama.
-A cloud or vendor endpoint means topic text leaves the house. Never use Puter.
+A cloud or vendor endpoint receives everything the list at the top of this
+README names: topic text, ages, transcripts, and any notes the parent
+includes. Never use Puter.
 Never put learner names in prompts.
 
 There is no chat. The inherited Harrington Helper and Commune views were never
