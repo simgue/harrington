@@ -1,11 +1,13 @@
 import { getData, SUBJECTS } from '../data.js';
 import * as store from '../store.js';
-import { el, esc, analysisHtml, ratingStars, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
+import { el, esc, analysisHtml, ratingStars, refreshIcons, toast, openModal, fmtDate, fmtDateTime } from '../ui.js';
 import { openRecorder, audioPlayer, coverageCandidates, coverageClaimField } from '../recorder.js';
 import { aiDiscussionAnalysis } from '../ai.js';
 import { aiErrorBlock, gateAi } from '../ai-status.js';
 import { savedAnalysis, regenerateButton, analysisOptIn, notesIncludedLine } from './recordings.js';
 import { coverageFields } from '../daily.js';
+import { openLesson } from './lesson.js';
+import { openPrintables } from './printables.js';
 
 // Exported for the test that keeps document.js RECORD_TYPES in step.
 export const TYPES = {
@@ -37,6 +39,7 @@ export function renderRecords(params, { navigate }) {
   header.querySelector('#new').onclick = () => openRecordForm(active?.id);
   header.querySelector('#rec').onclick = () => openRecorder(active?.id);
   root.appendChild(header);
+  root.appendChild(savedLessonsShelf(d));
 
   if (!active) { root.appendChild(el(`<p class="text-ink-soft">Add a student to start recording.</p>`)); return root; }
 
@@ -71,6 +74,44 @@ export function renderRecords(params, { navigate }) {
   root.appendChild(list);
   refreshIcons();
   return root;
+}
+
+// Without an AI provider, lessons and Print & go sheets saved earlier on this
+// server still open (no AI call). Only entries that pass the cache validators
+// are listed, and only for kinds whose capability is unavailable; with a
+// provider for both the shelf is not shown.
+const SHELF_KINDS = {
+  'topic:': { label: 'Lesson', icon: 'notebook-text', capability: 'lesson', open: openLesson },
+  'print:': { label: 'Print & go', icon: 'printer', capability: 'printables', open: openPrintables },
+};
+function savedLessonsShelf(d) {
+  const shelf = el(`<section aria-label="Saved lessons" class="saved-lessons hidden bg-paper-card border border-paper-line rounded-2xl p-4 mb-5">
+    <h2 class="font-600 flex items-center gap-2"><i data-lucide="bookmark" class="w-4.5 h-4.5 text-brand-dark"></i>Saved lessons</h2>
+    <p class="text-xs text-ink-soft mt-0.5 mb-3">Saved on this server earlier. They open without an AI provider.</p>
+    <ul class="divide-y divide-paper-line"></ul>
+  </section>`);
+  const prefixes = Object.keys(SHELF_KINDS).filter(p => !store.aiAvailable(SHELF_KINDS[p].capability));
+  if (!prefixes.length) return shelf;
+  store.savedLessons(prefixes).then(entries => {
+    const list = shelf.querySelector('ul');
+    for (const { key, savedAt } of entries) {
+      const prefix = Object.keys(SHELF_KINDS).find(p => key.startsWith(p));
+      const kind = SHELF_KINDS[prefix];
+      const topic = d.byId.get(key.slice(prefix.length));
+      if (!topic) continue;
+      const row = el(`<li class="flex items-center gap-3 py-2">
+        <i data-lucide="${esc(kind.icon)}" class="w-4 h-4 text-ink-faint shrink-0"></i>
+        <div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${esc(topic.name)}</p><p class="text-xs text-ink-faint">${esc(kind.label)}${savedAt ? ` · saved ${esc(fmtDate(savedAt))}` : ''}</p></div>
+        <button class="shrink-0 px-3 py-1.5 min-h-[44px] lg:min-h-0 rounded-lg border border-brand/30 text-sm font-medium text-brand-dark hover:border-brand" aria-label="Open ${esc(kind.label)}: ${esc(topic.name)}">Open</button>
+      </li>`);
+      row.querySelector('button').onclick = () => kind.open(topic);
+      list.appendChild(row);
+    }
+    if (!list.children.length) return;
+    shelf.classList.remove('hidden');
+    refreshIcons();
+  });
+  return shelf;
 }
 
 // Names of the topics a record claims as coverage, skipping malformed entries.
