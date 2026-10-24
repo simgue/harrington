@@ -299,7 +299,9 @@ container (`%` must be written `\%` inside a crontab):
 15 2 * * * mkdir -p /home/parent/harrington/backups && /usr/bin/docker run --rm -v harrington_harrington-data:/data:ro -v /home/parent/harrington/backups:/backups alpine tar -czf /backups/harrington-docker-$(date +\%Y-\%m-\%dT\%H-\%M-\%S).tar.gz -C / data >> /home/parent/harrington/backups/backup.log 2>&1
 ```
 
-To restore it: `docker compose down`, then
+To restore it, close Harrington in every browser tab first (a tab left open
+on the newer data would otherwise offer to save its next change over the
+restored copy), then `docker compose down`, then
 `docker run --rm -v harrington_harrington-data:/data -v /home/parent/harrington/backups:/backups alpine sh -c 'rm -rf /data/* && tar -xzf /backups/FILE.tar.gz -C /'`,
 then `docker compose up -d`.
 
