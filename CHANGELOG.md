@@ -107,6 +107,22 @@ tagged a release yet; everything below is on `main`.
   Homestead (HAR-2).
 
 ### Fixed
+- A null entry in a learner's recall cards, practice items, records or other
+  lists no longer leaves the landing page on the loading screen: such entries
+  are skipped, and a page that still fails to render shows the error with
+  Export and a link to the records (HAR-38).
+- Data saved before the server checked every save (a name over 100
+  characters, a note over 50,000, a birth year before 1990) no longer blocks
+  every save: data format 3 repairs it once on load and lists the changes in
+  a notification. Save and import errors name the learner and the record, a
+  refused change never shows its confirmation, the Add learner form limits
+  the name like the Edit form, and a data format number that is not a number
+  gets its own read-only wording (HAR-39).
+- On a phone, the "refused" and "could not save" toast sits above the bottom
+  navigation, and the learner sheet makes room for it, so Export and Import
+  stay usable (HAR-40).
+- The calendar's clean-up of extras whose topic is gone no longer says "Not
+  saved" while the data is read-only.
 - Record cards, the recordings folder and the recorder escape every value
   they put into markup, and a source test fails on any new unescaped one in
   those files (HAR-11 follow-up).

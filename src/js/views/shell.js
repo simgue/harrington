@@ -433,6 +433,22 @@ let conflictToast = null;
 function clearSaveProblems() {
   tooLargeBanner?.remove(); tooLargeBanner = null;
   retryToast?.remove(); retryToast = null;
+  undockToast();
+}
+
+// The refusal toast stays until dismissed. #toast-root docks it above the
+// phone's bottom navigation; --docked-toast tells an open sheet (ui.js
+// openModal) how much of the screen's bottom it takes, so the sheet's Export
+// and Import stay clickable (HAR-40).
+function dockToast(node) {
+  requestAnimationFrame(() => {
+    if (!node.isConnected) return;
+    const space = Math.ceil(window.innerHeight - node.getBoundingClientRect().top) + 8;
+    document.documentElement.style.setProperty?.('--docked-toast', `${Math.max(0, space)}px`);
+  });
+}
+function undockToast() {
+  document.documentElement.style.removeProperty?.('--docked-toast');
 }
 
 function topicName(id) {
@@ -480,9 +496,11 @@ function showRetry(reason = null) {
   </div>`);
   retryToast.querySelector('button').onclick = () => {
     retryToast?.remove(); retryToast = null;
+    undockToast();
     if (!reason) store.flushSaves();
   };
   root.appendChild(retryToast);
+  dockToast(retryToast);
 }
 
 store.onSaveStatus((event) => {

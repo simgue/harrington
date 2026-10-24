@@ -167,6 +167,38 @@ test('a page that fails to render says so and keeps Export and a way to the reco
   expect(errors.some((e) => e.startsWith('console:'))).toBe(true);
 });
 
+test('at 390 px the refusal toast docks above the navigation and the learner sheet\'s Export stays clickable (HAR-40)', async ({ page, gotoApp }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Stored before the server checked saves and already at the current format,
+  // so no repair runs: every change is refused, and the toast stays.
+  const doc = { ...familyState({ learners: ['rowan'], active: 'rowan' }), schemaVersion: SCHEMA_VERSION };
+  doc.students[0] = { ...doc.students[0], birthYear: 1985 };
+  const writes = await serveDocument(page, doc);
+  await gotoApp({ seed: null, hash: `topic/${TOPICS.oneToOne.id}` });
+  await setTopicStatus(page, 'Learning');
+  const refusal = page.locator('#toast-root').getByText(/Harrington refused these changes: The learner “Rowan Example” in the file has a birth year/);
+  await expect(refusal).toBeVisible();
+  await expect(page.getByText(/^Marked as/)).toHaveCount(0);
+  expect(writes).toEqual([]);
+
+  // Above the bottom navigation, which stays tappable.
+  const toastBox = await refusal.boundingBox();
+  const navBox = await page.locator('nav.fixed[aria-label="Main"]').boundingBox();
+  expect(toastBox.y + toastBox.height).toBeLessThanOrEqual(navBox.y);
+  await nav(page, 'Records').click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Records' })).toBeVisible();
+
+  // The learner sheet is padded while the toast shows: Export is clickable
+  // (Playwright refuses a click on a covered element) and downloads.
+  await page.getByRole('button', { name: 'Switch learner' }).filter({ visible: true }).click();
+  const sheet = modal(page);
+  const exportButton = sheet.getByRole('button', { name: 'Export', exact: true });
+  const exportBox = await exportButton.boundingBox();
+  expect(exportBox.y + exportBox.height).toBeLessThanOrEqual(toastBox.y);
+  const [download] = await Promise.all([page.waitForEvent('download'), exportButton.click()]);
+  expect(download.suggestedFilename()).toMatch(/^harrington-family-/);
+});
+
 test('a newer data format opens read-only: a banner, Import disabled, nothing saved', async ({ page, api, gotoApp, errors }) => {
   const writes = await serveNewerDocument(page, api);
   await gotoApp({ seed: null, hash: `topic/${TOPICS.oneToOne.id}` });
