@@ -47,6 +47,10 @@ const current = () => ({
   activity: { s_new: { '2026-09-01': true } },
   dismissedAlerts: { welcome: 1_700_000_000_000 },
   interests: { s_new: { chips: ['Bridges', 'Frogs'], text: 'Asks how things work' } },
+  requests: { s_new: [
+    { id: 'rq1', text: 'how to tell the time', createdAt: 1_700_000_700_000, topicId: 'count-to-5' },
+    { id: 'rq2', text: 'volcanoes', createdAt: 1_700_000_600_000, topicId: null },
+  ] },
   settings: { parentPin: '2468', calendar: { homeDays: [1, 2, 3, 4], breaks: [{ start: '2026-12-21', end: '2027-01-01', label: 'Winter break' }] } },
 });
 
@@ -162,6 +166,16 @@ const mapCases = [
   ['interests as a list', (d) => { d.interests.s_new = ['Frogs']; }, 'The file\'s interests are not in the expected shape.'],
   ['interest chips that are not text', (d) => { d.interests.s_new = { chips: [{ label: 'Frogs' }] }; }, 'The file\'s interests are not in the expected shape.'],
   ['interest text that is not text', (d) => { d.interests.s_new = { chips: [], text: 7 }; }, 'The file\'s interests are not in the expected shape.'],
+  ['a request log that is not a list', (d) => { d.requests.s_new = { rq1: d.requests.s_new[0] }; }, 'The file\'s "requests" section is not in the expected shape.'],
+  ['a request log that is null', (d) => { d.requests.s_new = null; }, 'The file\'s "requests" section is not in the expected shape.'],
+  ['a request that is not an entry', (d) => { d.requests.s_new.push('fractions'); }, 'A topic request in the file (requests item 3) is not an entry.'],
+  ['a request without an id', (d) => { delete d.requests.s_new[0].id; }, 'A topic request in the file (requests item 1) has no id.'],
+  ['a request id that is a number', (d) => { d.requests.s_new[0].id = 7; }, 'A topic request in the file (requests item 1) has no id.'],
+  ['a request text that is not text', (d) => { d.requests.s_new[1].text = ['volcanoes']; }, 'A topic request in the file (requests item 2) has a text that is not text of at most 200 characters.'],
+  ['a request text over 200 characters', (d) => { d.requests.s_new[1].text = 'x'.repeat(201); }, 'A topic request in the file (requests item 2) has a text that is not text of at most 200 characters.'],
+  ['a request date that is text', (d) => { d.requests.s_new[0].createdAt = 'today'; }, 'A topic request in the file (requests item 1) has a date that is not a number.'],
+  ['a request date that is infinite', (d) => { d.requests.s_new[0].createdAt = Infinity; }, 'A topic request in the file (requests item 1) has a date that is not a number.'],
+  ['a request topic that is a number', (d) => { d.requests.s_new[0].topicId = 42; }, 'A topic request in the file (requests item 1) has a topic that is not a topic id.'],
   ['settings as a list', (d) => { d.settings = []; }, 'The file\'s settings are not in the expected shape.'],
   ['a three-digit PIN', (d) => { d.settings.parentPin = '123'; }, 'The file\'s child-view PIN is not four digits.'],
   ['a PIN with letters', (d) => { d.settings.parentPin = '12a4'; }, 'The file\'s child-view PIN is not four digits.'],

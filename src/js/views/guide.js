@@ -203,6 +203,7 @@ export const guideSections = () => [
     ['Skill tree', 'Enter a domain to see its topics as a tree with required and helpful links, and links to gateway domains.'],
     ['Quest log', 'Select a topic to see the foundations it needs, what it unlocks, and buttons to open the topic page, record evidence, or mark it as learning. “Open full lesson” needs AI.'],
     ['List', 'Prefer text? Switch to the list and drill from subject to domain to age band to topic.'],
+    ['Find a topic', 'Type what your learner wants to learn (“how to tell the time”, “fractions”). Harrington matches it against the curriculum on this computer, without AI, shows the foundations still in the way and the next ready step, and keeps the request in the learner’s log.'],
   ]},
   { h: 'Growth stages and mastery', items: [
     ['Growth stages', 'Seed (foundations not yet in place), Sprout (ready to start), Bud (being learned) and Bloom (mastered). The same stages appear on the map, the dashboard and the child garden.'],

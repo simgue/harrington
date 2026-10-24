@@ -34,7 +34,7 @@ test('counts are not grouped for the browser locale', async () => {
 });
 
 test('counts on the dashboard, map, topic page and recordings go through format.js', async () => {
-  for (const path of ['src/js/views/dashboard.js', 'src/js/views/graph.js', 'src/js/views/topic.js', 'src/js/views/recordings.js', 'src/js/views/shell.js']) {
+  for (const path of ['src/js/views/dashboard.js', 'src/js/views/graph.js', 'src/js/views/topic.js', 'src/js/views/recordings.js', 'src/js/views/shell.js', 'src/js/views/find.js']) {
     const code = await source(path);
     assert.match(code, /import \{ [^}]*countLabel[^}]* \} from '\.\.?\/format\.js'/, path);
     // shell.js prints a date with toLocaleString(); everywhere else it was a count.

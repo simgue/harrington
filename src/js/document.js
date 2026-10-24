@@ -10,7 +10,7 @@ import { HASH_PATTERN, SALT_PATTERN } from './pin.js';
 
 // Per-learner maps keyed by learner id.
 export const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
-  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests'];
+  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests', 'requests'];
 
 // Every top-level key the app saves, in one list: the store's snapshot sends
 // these, its documentFields() reads them back and a conflict compares them, so
@@ -193,6 +193,19 @@ function gameProblem(game) {
   return null;
 }
 
+// The topic finder's request log (store.js logRequest): per learner, a list of
+// { id, text, createdAt, topicId }. The store also caps and sorts it on load
+// and import; this refuses a log the views could not read.
+export const REQUEST_TEXT_MAX = 200;
+function requestProblem(r) {
+  if (!isObject(r)) return 'is not an entry';
+  if (!(typeof r.id === 'string' && r.id)) return 'has no id';
+  if (!(typeof r.text === 'string' && r.text.length <= REQUEST_TEXT_MAX)) return `has a text that is not text of at most ${REQUEST_TEXT_MAX} characters`;
+  if (!isFiniteNumber(r.createdAt)) return 'has a date that is not a number';
+  if (!(r.topicId === null || r.topicId === undefined || typeof r.topicId === 'string')) return 'has a topic that is not a topic id';
+  return null;
+}
+
 function interestsProblem(interests) {
   for (const value of Object.values(interests || {})) {
     if (absent(value)) continue;
@@ -266,5 +279,6 @@ export function validateDocument(doc) {
     || listsProblem(doc, 'challenges', 'challenge result', challengeProblem)
     || gameProblem(doc.game)
     || interestsProblem(doc.interests)
+    || listsProblem(doc, 'requests', 'topic request', requestProblem)
     || settingsProblem(doc.settings, doc.schemaVersion);
 }

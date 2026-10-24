@@ -76,6 +76,11 @@ tagged a release yet; everything below is on `main`.
   child-view PIN (PR #38's `migratePinSettings`). Importing a file from a
   newer data format is refused with a message to update Harrington, and the
   server refuses a plain PIN at the current format.
+- Topic finder (`#find`, from the dashboard and every skill tree): a
+  free-text request becomes ranked curriculum topics, the unmet required
+  foundations as a path for the learner, and the next ready step with open,
+  add to today, plan it and find on the skill tree. No AI. Each request is
+  logged per learner (last 50) and included in export and import.
 - Today's pick-one stops record evidence for the pick: the note and voice
   forms offer an opt-in "Mark curriculum coverage" checkbox, and a pick shows
   "Evidence recorded" only once a linked record claims coverage. Each stop
