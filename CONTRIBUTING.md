@@ -65,6 +65,7 @@ src/docs/GUIDE.md     The full written feature guide
 - Keep the app dependency-free (no bundler, no framework).
 - Use American English in user-facing text.
 - Test your change with at least one synthetic student before opening a PR.
+- Before committing, run `npm run check` (dead-code checker, copy and AI-gating tests, a few seconds, no build); `npm test` runs everything.
 
 ## Pull requests
 

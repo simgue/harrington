@@ -10,7 +10,7 @@ const test = base.extend({
 
 test('health reports self-hosted mode, AI and taxonomy cache', async ({ request }) => {
   const ai = await (await request.get(`${URLS.appAi}/api/health`)).json();
-  expect(ai).toMatchObject({ ok: true, mode: 'self-hosted', aiConfigured: true, taxonomyCached: true });
+  expect(ai).toMatchObject({ ok: true, mode: 'self-hosted', aiConfigured: true, redaction: 'server+client', taxonomyCached: true });
   expect(Number.isInteger(ai.stateVersion)).toBe(true);
   expect(Number.isInteger(ai.stateBytes)).toBe(true);
   const noAi = await (await request.get(`${URLS.appNoAi}/api/health`)).json();

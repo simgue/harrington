@@ -105,7 +105,7 @@ export default defineConfig({
       testIgnore: SPECIAL,
       use: { ...desktop, baseURL: URLS.appAi },
     },
-    { name: 'no-ai', testMatch: /(^|[\\/])no-ai\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appNoAi } },
+    { name: 'no-ai', testMatch: /(^|[\\/])(no-ai|routes)\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appNoAi } },
     { name: 'ai-unreachable', testMatch: /(^|[\\/])ai-unreachable\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appAiUnreachable } },
     // The phone project runs mobile.spec and the calendar tests tagged @mobile.
     { name: 'mobile', testMatch: /(^|[\\/])(mobile|calendar)\.spec\.mjs$/, grep: /mobile\.spec\.mjs|@mobile/, use: { ...mobile, baseURL: URLS.appAi } },

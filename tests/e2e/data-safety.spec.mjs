@@ -2,7 +2,9 @@
 // second tab sees when the first one saved first.
 import { test, expect, modal, expectToast, nav, setTopicStatus } from './fixtures.mjs';
 import { FIXED_NOW, TODAY_KEY } from './support/env.mjs';
-import { LEARNERS, TOPICS } from './support/family.mjs';
+import { LEARNERS, TOPICS, familyState } from './support/family.mjs';
+import { SCHEMA_VERSION } from '../../src/js/schema.js';
+import { pinSettings } from '../../src/js/pin.js';
 
 const ROWAN = LEARNERS.rowan.id;
 const exportButton = (page) => page.getByRole('button', { name: 'Export', exact: true });
@@ -14,7 +16,7 @@ async function chooseImportFile(page, content) {
 }
 
 test('export downloads the whole family document as JSON, the PIN only as a salted hash (F16)', async ({ page, gotoApp, shot }) => {
-  await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'mastered' }, records: [{ type: 'observation', title: 'Counted to 12' }], extra: { settings: { parentPin: '2468' } } } });
+  await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'mastered' }, records: [{ type: 'observation', title: 'Counted to 12' }], extra: { settings: pinSettings({}, '2468', 'a'.repeat(32)) } } });
   await shot('sidebar-export-import', { locator: page.locator('aside') });
   const [download] = await Promise.all([page.waitForEvent('download'), exportButton(page).click()]);
   await expectToast(page, 'Family data exported');
@@ -26,7 +28,9 @@ test('export downloads the whole family document as JSON, the PIN only as a salt
   expect(doc.exportedAt).toBe(FIXED_NOW.toISOString());
   expect(doc.taxonomyVersion).toBe('v1');
   expect(Number.isInteger(doc.version)).toBe(true);
-  // F16: the plain PIN seeded above was hashed on load; the file never has it.
+  // F16: the file carries only the salted hash. (A plain PIN can no longer be
+  // stored: the server refuses it at the current data format. Hashing an older
+  // document's plain PIN is covered in family-data.test.mjs and schema.test.mjs.)
   expect(doc.settings.parentPin).toBeUndefined();
   expect(doc.settings.parentPinHash).toMatch(/^[0-9a-f]{64}$/);
   expect(doc.settings.parentPinSalt).toMatch(/^[0-9a-f]{32}$/);
@@ -81,9 +85,98 @@ test('import refuses files that are not a family export', async ({ page, api, go
   await chooseImportFile(page, JSON.stringify({ hello: 'world' }));
   await expectToast(page, 'The file has no learner list.');
   await chooseImportFile(page, JSON.stringify({ students: [{ name: 'No id' }] }));
-  await expectToast(page, 'A learner in the file is missing an id or name.');
+  await expectToast(page, 'Learner 1 in the file is missing an id or name.');
   await expect(page.locator('#modal-root > div')).toHaveCount(0);
   expect((await api.getState()).state.students).toHaveLength(3);
+});
+
+test('an imported analysis renders as text, not markup', async ({ page, api, gotoApp }) => {
+  await gotoApp({ seed: {} });
+  const doc = (await api.getState()).state;
+  const hostile = '<p>Kept paragraph</p><img src=x onerror="window.__pwned=1"><script>window.__pwned=2</script>';
+  doc.records[ROWAN] = [{ id: 'r_hostile', type: 'observation', title: 'Imported note', note: '', createdAt: FIXED_NOW.getTime() - 3_600_000, analysis: hostile }];
+  await chooseImportFile(page, JSON.stringify(doc));
+  await modal(page).getByRole('button', { name: 'Replace family data' }).click();
+  await expectToast(page, 'Family data imported');
+  await nav(page, 'Records').click();
+  const prose = page.locator('.ai-prose').first();
+  await expect(prose).toContainText('Kept paragraph');
+  await expect(prose).toContainText('<img src=x onerror="window.__pwned=1">');
+  await expect(prose.locator('p')).toHaveCount(1);
+  await expect(prose.locator('img, script')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+});
+
+// Another Harrington, one data format ahead, saved this document; the page
+// gets it straight from the route, and any write is recorded, not stored.
+async function serveNewerDocument(page, api) {
+  const doc = { ...familyState({ learners: ['rowan'], active: 'rowan' }), schemaVersion: SCHEMA_VERSION + 1, levelset: { future: true } };
+  await api.putState({ ...doc, schemaVersion: SCHEMA_VERSION }); // the server here only stores its own format
+  const writes = [];
+  await page.route('**/api/state', (route) => {
+    const method = route.request().method();
+    if (method === 'GET') return route.fulfill({ status: 200, contentType: 'application/json', headers: { ETag: '"v7"' }, body: JSON.stringify({ ...doc, version: 7 }) });
+    writes.push(method);
+    return route.fulfill({ status: 204, headers: { ETag: '"v8"' } });
+  });
+  return writes;
+}
+
+test('a newer data format opens read-only: a banner, Import disabled, nothing saved', async ({ page, api, gotoApp, errors }) => {
+  const writes = await serveNewerDocument(page, api);
+  await gotoApp({ seed: null, hash: `topic/${TOPICS.oneToOne.id}` });
+  await expect(page.locator('.read-only-banner')).toContainText('saved by a newer version of Harrington');
+  await expect(importButton(page)).toBeDisabled();
+
+  // A change says it was not saved (never "Marked as …") and never reaches
+  // the server, not even when the page is hidden.
+  await setTopicStatus(page, 'Learning');
+  await expectToast(page, 'Not saved. This family data was saved by a newer version of Harrington.');
+  await expect(page.getByText(/^Marked as/)).toHaveCount(0);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('pagehide'));
+  });
+  await page.waitForTimeout(800);
+  expect(writes).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('read-only on a desktop: the dashboard opens without a "Not saved" toast and the sidebar box stays in view', async ({ page, api, gotoApp, errors }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const writes = await serveNewerDocument(page, api);
+  await gotoApp({ seed: null });
+  await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
+  await expect(page.locator('.read-only-banner')).toHaveCount(1);
+  // The dashboard saves today's choices as it renders: an automatic write,
+  // refused without a toast. The parent did nothing.
+  await page.waitForTimeout(600);
+  await expect(page.getByText(/^Not saved\./)).toHaveCount(0);
+  // The banner is beside the sidebar, not above it: the family box is on screen.
+  const aside = page.locator('aside');
+  await expect(aside.getByText('Read-only', { exact: true })).toBeVisible();
+  const box = await aside.getByRole('button', { name: 'Import', exact: true }).boundingBox();
+  expect(box.y + box.height).toBeLessThanOrEqual(900);
+  await expect(aside.getByRole('button', { name: 'Import', exact: true })).toBeDisabled();
+  expect(writes).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('read-only at 390 px: the banner leaves the top bar tappable; Export works, Import is disabled', async ({ page, api, gotoApp, errors }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const writes = await serveNewerDocument(page, api);
+  await gotoApp({ seed: null });
+  await expect(page.locator('.read-only-banner')).toBeVisible();
+  // Playwright refuses to click a covered element, so this fails if the banner sits over the top bar.
+  await page.getByRole('button', { name: 'Switch learner' }).filter({ visible: true }).click();
+  const menu = modal(page);
+  await expect(menu.getByRole('button', { name: 'Export', exact: true })).toBeEnabled();
+  await expect(menu.getByRole('button', { name: 'Import', exact: true })).toBeDisabled();
+  const [download] = await Promise.all([page.waitForEvent('download'), menu.getByRole('button', { name: 'Export', exact: true }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^harrington-family-/);
+  expect(writes).toEqual([]);
+  expect(errors).toEqual([]);
 });
 
 test('two tabs: the losing tab says which change it discarded, once, and Try again re-applies it (F17, fixed)', async ({ page, context, api, gotoApp, shot }) => {

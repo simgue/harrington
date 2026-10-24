@@ -68,6 +68,8 @@ test('refreshHealth rejects on an outage and keeps the last known flag', async (
   }
 });
 
+// Source text only: ai-status-views.test.mjs renders each view without a
+// provider and checks that it actually gates its AI controls.
 test('every AI-backed view uses the shared ai-status helper', async () => {
   const dir = new URL('src/js/views/', repoRoot);
   const callers = [];

@@ -1,6 +1,7 @@
 // The synthetic family every spec uses, and the taxonomy topics the specs
 // lean on. Names are deliberately fake; never use a real child's name here.
 import { FIXED_NOW, FIXED_YEAR, TODAY_KEY } from './env.mjs';
+import { SCHEMA_VERSION } from '../../../src/js/schema.js';
 
 export const LEARNERS = {
   wren: { id: 's_e2e_wren', name: 'Wren Example', birthYear: FIXED_YEAR - 3, color: '#3f6b3b' },
@@ -35,6 +36,7 @@ export function familyState({ learners = ['wren', 'rowan', 'sage'], active = 'ro
   const activeId = LEARNERS[active].id;
   const now = FIXED_NOW.getTime();
   const state = {
+    schemaVersion: SCHEMA_VERSION,
     students,
     activeStudentId: activeId,
     progress: Object.fromEntries(students.map((s) => [s.id, {}])),
