@@ -14,19 +14,19 @@ const at = FIXED_NOW.getTime() - 3_600_000;
 // One hostile change per entry: [label, mutate(doc), the import check's reason].
 export const HOSTILE_CHANGES = [
   ['record type', (d) => { d.records[ROWAN] = [{ id: 'r1', type: PAYLOAD, title: 'Note', createdAt: at }]; },
-    'A record in the file (records item 1) has a type other than observation, question, discussion, assessment, recording, note.'],
+    'A record for Rowan Example in the file (“Note”) has a type other than observation, question, discussion, assessment, recording, note.'],
   ['record rating of 6', (d) => { d.records[ROWAN] = [{ id: 'r1', type: 'observation', title: 'Note', rating: 6, createdAt: at }]; },
-    'A record in the file (records item 1) has a rating outside 1 to 5.'],
+    'A record for Rowan Example in the file (“Note”) has a rating outside 1 to 5.'],
   ['test score', (d) => { d.tests = { [ROWAN]: [{ id: 't1', scope: 'topic', topicId: TOPICS.oneToOne.id, subject: 'Mathematics', pct: PAYLOAD, passed: true, createdAt: at }] }; },
-    'A test result in the file (tests item 1) has a score outside 0 to 100%.'],
+    'A test result for Rowan Example in the file (tests item 1) has a score outside 0 to 100%.'],
   ['XP', (d) => { d.game = { [ROWAN]: { xp: PAYLOAD, badges: {} } }; },
-    'The file\'s XP is not a number of zero or more.'],
+    'Rowan Example\'s XP is not a number of zero or more.'],
   ['challenge count', (d) => { d.challenges = { [ROWAN]: [{ id: 'c1', topicId: TOPICS.oneToOne.id, correct: PAYLOAD, total: 6, createdAt: at }] }; },
-    'A challenge result in the file (challenges item 1) has a correct count that is not a whole number.'],
+    'A challenge result for Rowan Example in the file (challenges item 1) has a correct count that is not a whole number.'],
   ['learner id "constructor"', (d) => {
     d.students[0].id = 'constructor';
     d.activeStudentId = 'constructor';
-  }, 'Learner 1 in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
+  }, 'The learner “Rowan Example” in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
 ];
 
 export function hostileFamily(label) {

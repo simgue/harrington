@@ -237,7 +237,7 @@ test('a migration the reload makes is never listed as a lost change, then or lat
   const [first] = events.filter((e) => e.type === 'conflict');
   assert.deepEqual(first.discarded.map((c) => [c.kind, c.topicId]), [['status', 'e']]);
   await store.flushSaves();
-  assert.equal(server.doc.schemaVersion, 2, 'the reload saved the migrated document');
+  assert.equal(server.doc.schemaVersion, 3, 'the reload saved the migrated document');
   assert.ok(server.doc.settings.parentPinHash && !('parentPin' in server.doc.settings));
 
   // The migrated document is the synced copy: the next conflict names only

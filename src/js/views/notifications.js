@@ -9,6 +9,7 @@ const TYPE_META = {
   evidence: { icon: 'notebook-pen', color: '#8a6412' },
   backup: { icon: 'hard-drive', color: '#a4473a' },
   welcome: { icon: 'party-popper', color: '#5b4a86' },
+  repair: { icon: 'wrench', color: '#8a6412' },
 };
 
 // The bell's items right now, for every learner.
