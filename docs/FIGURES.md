@@ -58,11 +58,61 @@ The rest are checked by the e2e suite (`tests/e2e/figures.spec.mjs`).
    could not get to; American English in short, plain sentences; no emoji or
    symbols in drawn text.
 
+### How a page is tied to a topic and an age band
+
+The file name is the registration: `src/figures/<topicId>.html` shows on that
+topic and nowhere else. There is no other list. The age band and subject are
+the topic's own in the taxonomy (`ageRangeStart` to `ageRangeEnd`,
+`subject`); this ticket's figures are for Science topics whose band overlaps
+5 to 8, and the e2e suite checks every page's topic against the pinned
+taxonomy. To find an id, open the topic in Harrington: it is the last part of
+the address (`#topic/mt_B3W5EfimJw`).
+
+### The mountFigure config
+
+The figure script ends with one call:
+
+```js
+ui = mountFigure({
+  title: 'Toy cart',                       // required: the figure's accessible name (match <title>)
+  size: [W, D, H],                         // required: the model's bounding box, used to frame the view
+  palette: 'tomato',                       // body color: mustard, tomato, mint, cobalt or blush
+  state: st,                               // the figure's one state object (st.pal is added)
+  scene: (st, m) => svg,                   // required: draws the whole figure as an SVG string, back to front
+  buttons: [                               // required: 2 to 5, in the order a child presses them
+    { label: 'Push gently', onClick: (st, ui) => push(false) },
+    { label: 'Put in the gap', choices: st => [                     // a picker
+      { label: 'Coin', onClick: (st, ui) => put('coin'), current: st.item === 'coin' },
+      { label: 'Key', onClick: (st, ui) => put('key'), disabled: st.busy, why: 'Wait for the bulb test to finish.' },
+    ] },
+  ],
+  stats: st => [{ label: 'Squares', value: st.moved }],           // optional: big numbers, top right
+  acts: { lever: (st, el, ui) => flip() },                        // optional: presses on act('lever', svg) parts
+  params: (st, q) => { if (q.get('block') === '1') st.block = true; },  // optional: read ?query for screenshots
+});
+```
+
+`ui` gives `ui.render()`, `ui.flash(text, ms)` (a short note at the top of
+the figure, 2.2 s by default), `ui.animate(step)` (calls `step(dt)` about 60
+times a second and redraws until it returns `false`) and `ui.st`. Any other
+option (`fig`, `hint`, `idea`, `readout`, `credit`, `buttonsLabel`, from the
+original skill) is ignored. The page shell, the Labels switch, the colors and
+`data-errors` come from the engine; a figure adds no HTML or CSS of its own.
+
+### Errors
+
+The engine records every uncaught script error, and every `?press=` label
+it cannot find, in `<html data-errors="…">`. `scripts/shot-figure.mjs` and
+the e2e suite fail when it is not empty. Read it while authoring with
+`document.documentElement.dataset.errors`; the figure's state is `window.__st`.
+
 ### How the app shows a page
 
 At start the app asks `GET /api/figures` for the list (`[{ id, title, hint }]`
 of the pages that meet the checked rules) and shows "See how it works" on a
-topic whose id is in it. The frame is
+topic whose id is in it: on the topic page (with a **Full size** button that
+opens the route `#figure/<topicId>`), on the child view's topic card, and on
+that route. The frame is
 `<iframe src="figures/<topicId>.html" sandbox="allow-scripts">` with **no
 query string**: labels start on and nothing is pressed. The page runs in an
 opaque origin: it cannot read the app's cookie, storage or page, open windows
@@ -131,6 +181,31 @@ assemble the page.
    shot, the main sequence, one out-of-order press and the phone shot.
 4. `npm run build:figures -- --check`, `npm test` and
    `npm run e2e -- --project=desktop figures`.
+
+For a page supplied without a source, step 3 is the same from `shot-figure.mjs`
+on, and step 4 is `npm run build:figures -- --check` (it checks every page in
+`src/figures/` against the contract) and the e2e run.
+
+## Review checklist
+
+Before a figure is merged, a reviewer checks:
+
+- [ ] The file is `src/figures/<topicId>.html` for a Science topic whose ages
+      overlap 5 to 8, and it is the right topic for what the figure shows.
+- [ ] `npm run build:figures -- --check`, `npm test` and `npm run e2e` pass.
+- [ ] The idle view, the main sequence and the phone view (360 × 470) look
+      right: nothing floats, overlaps or crosses another part; labels don't
+      cover each other or anything moving; the shadow sits under the object.
+- [ ] The steps follow the real process; nothing appears where it could not
+      get to, and every supply comes from something in the scene.
+- [ ] Every action does something real; every out-of-order press says why
+      in a short, plain sentence a 5 to 8 year old can follow.
+- [ ] 3 to 6 labels name the working parts and light up while those parts
+      work; labels are on when the page opens.
+- [ ] American English, no emoji or symbols in the drawing, no link, no
+      credit or product name.
+- [ ] The page is under 100 KB, and its source (if it has one) is in
+      `tools/figures/`.
 
 A page supplied without a source works the same once it meets the contract.
 Keep its source next to it if you can: when the engine changes,

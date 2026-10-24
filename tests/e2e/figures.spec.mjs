@@ -85,6 +85,25 @@ for (const [id, meta] of Object.entries(FIGURES)) {
     expect(errors).toEqual([]);
     expect(outside).toEqual([]);
   });
+
+  test(`figure page ${meta.title}: makes no request, shows no link or credit, reports errors in data-errors`, async ({ page }) => {
+    const requests = [];
+    page.on('request', (r) => requests.push(r.url()));
+    await page.goto(`/figures/${id}.html?press=Nope@0`);
+    await expect(page.locator('.act').first()).toBeVisible();
+    // The only request is the page itself, and the policy blocks any the page tries.
+    expect(await page.evaluate(() => fetch('/api/health').then(() => 'reached', () => 'blocked'))).toBe('blocked');
+    expect(await page.evaluate(() => new Promise((done) => { const img = new Image(); img.onload = () => done('reached'); img.onerror = () => done('blocked'); img.src = '/favicon.ico'; }))).toBe('blocked');
+    expect(requests.filter((url) => !url.startsWith('data:'))).toEqual([new URL(`/figures/${id}.html?press=Nope@0`, page.url()).href]);
+    // No link and no credit text anywhere on the page.
+    await expect(page.locator('a, [href]')).toHaveCount(0);
+    expect(await page.locator('body').innerText()).not.toMatch(/made with|colorfigures|april-zhu/i);
+    // An unknown ?press= label and an uncaught error both land in <html data-errors>.
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.errors || '')).toContain('no button "Nope"');
+    // (as a script of the page's own, like the figure's code, not Playwright's evaluate)
+    await page.evaluate(() => { const s = document.createElement('script'); s.textContent = "throw new Error('figure test error');"; document.body.append(s); });
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.errors || '')).toContain('figure test error');
+  });
 }
 
 test('topic page: "See how it works" shows the figure in a sandboxed frame; pressing it saves nothing', async ({ page, api, baseURL, gotoApp, shot, errors }) => {
@@ -114,6 +133,14 @@ test('topic page: "See how it works" shows the figure in a sandboxed frame; pres
   // Viewing and pressing write nothing.
   await page.waitForTimeout(600);
   expect((await api.getState()).state.version).toBe(before.version);
+
+  // Full size opens the figure on its own route, and Back returns to the topic.
+  await section.getByRole('button', { name: 'Full size' }).click();
+  await expect(page).toHaveURL(new RegExp(`#figure/${CART}$`));
+  await expect(page.getByRole('heading', { level: 1, name: 'Toy cart' })).toBeVisible();
+  await expect(page.locator('iframe[title="Toy cart: how it works"]')).toHaveAttribute('sandbox', 'allow-scripts');
+  await page.getByRole('button', { name: 'Back to the topic' }).click();
+  await expect(page).toHaveURL(new RegExp(`#topic/${CART}$`));
   expect(errors).toEqual([]);
   expect(outside).toEqual([]);
 });

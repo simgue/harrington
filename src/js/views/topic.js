@@ -92,7 +92,12 @@ export function renderTopic(params, { navigate }) {
 
   // --- See how it works (HAR-34): an interactive figure, for the topics that have one ---
   const figure = howItWorksFrame(t);
-  if (figure) mainCol.appendChild(section('mouse-pointer-click', 'See how it works', figure));
+  if (figure) {
+    const full = `<button class="full-figure text-sm font-medium text-brand-dark flex items-center gap-1 min-h-[44px]"><i data-lucide="maximize-2" class="w-4 h-4"></i>Full size</button>`;
+    const how = section('mouse-pointer-click', 'See how it works', figure, full);
+    how.querySelector('.full-figure').onclick = () => navigate('figure', { id: t.id });
+    mainCol.appendChild(how);
+  }
 
   // --- Mastery control ---
   mainCol.appendChild(masterySection(t, active));

@@ -13,6 +13,7 @@ import { renderTopic } from './views/topic.js';
 import { renderGraph } from './views/graph.js';
 import { renderRecords } from './views/records.js';
 import { renderInsights } from './views/insights.js';
+import { renderFigure } from './views/howitworks.js';
 
 const app = document.getElementById('app');
 
@@ -81,6 +82,7 @@ function render() {
     topic: renderTopic,
     records: renderRecords,
     insights: renderInsights,
+    figure: renderFigure,
     onboard: renderOnboard,
   };
   const viewFn = views[route.name] || renderDashboard;

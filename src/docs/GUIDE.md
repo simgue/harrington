@@ -133,7 +133,8 @@ topic, activity and game ideas, reference links, and manual status.
 
 **See how it works.** Some Science topics for ages 5 to 8 have an
 interactive figure: press the buttons and the parts move, with their labels
-lighting up as they work. Labels start on; **Labels on** hides them. It works
+lighting up as they work. Labels start on; **Labels on** hides them.
+**Full size** opens the figure on a page of its own. It works
 offline, needs no AI provider and saves nothing. The same figure is on the
 topic card in the child view.
 
