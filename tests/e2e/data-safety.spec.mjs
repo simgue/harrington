@@ -110,7 +110,7 @@ test('an imported analysis renders as text, not markup', async ({ page, api, got
 // Another Harrington, one data format ahead, saved this document; the page
 // gets it straight from the route, and any write is recorded, not stored.
 async function serveNewerDocument(page, api) {
-  const doc = { ...familyState({ learners: ['rowan'], active: 'rowan' }), schemaVersion: SCHEMA_VERSION + 1, levelset: { future: true } };
+  const doc = { ...familyState({ learners: ['rowan'], active: 'rowan' }), schemaVersion: SCHEMA_VERSION + 1, futureWorkbook: { future: true } };
   await api.putState({ ...doc, schemaVersion: SCHEMA_VERSION }); // the server here only stores its own format
   const writes = [];
   await page.route('**/api/state', (route) => {

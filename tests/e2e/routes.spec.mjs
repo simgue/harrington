@@ -8,13 +8,13 @@
 // provider, where the views take their gated branches).
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.mjs';
-import { TOPICS } from './support/family.mjs';
+import { LEARNERS, TOPICS } from './support/family.mjs';
 
 const COUNTING = encodeURIComponent('Counting & Cardinality');
 
 // [name, hash, heading the route shows, extra seed, text when there is no
 // heading]. The route table is `views` in src/js/app.js (dashboard, calendar, graph, topic, records,
-// insights, onboard); graph and topic take parameters, so their variants
+// insights, levelset, onboard); graph and topic take parameters, so their variants
 // are listed too, and an unknown route falls back to the dashboard.
 const ROUTES = [
   ['dashboard', '', "Rowan Example's Wednesday"],
@@ -30,6 +30,7 @@ const ROUTES = [
   ['topic: unknown id', 'topic/mt_no_such_topic', null, {}, 'Topic not found'],
   ['records', 'records', 'Records'],
   ['insights', 'insights', 'Teacher Insights'],
+  ['levelset', `levelset/${LEARNERS.rowan.id}`, 'Level-set workbook'],
 ];
 
 // Every route app.js registers has a case here (onboard has its own test).
