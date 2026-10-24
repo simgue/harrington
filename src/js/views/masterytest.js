@@ -395,7 +395,7 @@ function renderResult(stage, subject, student, test, graded, m, digitalReview) {
       <i data-lucide="${passed ? 'party-popper' : 'refresh-cw'}" class="w-9 h-9" style="color:${passed ? '#3f6b3b' : '#a4473a'}"></i>
     </div>
     <p class="text-4xl font-700 font-display" style="color:${passed ? '#3f6b3b' : '#a4473a'}">${graded.pct}%</p>
-    <p class="text-sm text-ink-soft mt-1">${graded.earned} of ${graded.total} points</p>
+    <p class="text-sm text-ink-soft mt-1">${formatCount(graded.earned)} of ${countLabel(graded.total, 'point')}</p>
     <p class="mt-3 font-600 text-lg">${passed
       ? (isTopic ? `${esc(topic.name)} mastered!` : isSection ? `${esc(section.domain)} mastered!` : `${subject} mastered!`)
       : 'Not quite mastered yet'}</p>
