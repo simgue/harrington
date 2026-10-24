@@ -189,15 +189,15 @@ test('a load that does not migrate never writes', async () => {
 });
 
 test('an unknown top-level field round-trips through load and save unchanged', async () => {
-  const levelset = { s_older1: { Mathematics: 'stretch' } };
-  await load({ ...(await readFixture('v0.expected.json')), levelset, version: 30 });
+  const futureWorkbook = { s_older1: { Mathematics: 'stretch' } };
+  await load({ ...(await readFixture('v0.expected.json')), futureWorkbook, version: 30 });
   store.setGraphView('list');
   await store.flushSaves();
   assert.equal(puts.length, 1);
-  assert.deepEqual(puts[0].levelset, levelset);
+  assert.deepEqual(puts[0].futureWorkbook, futureWorkbook);
   assert.equal(puts[0].graphView, 'list');
   // Every saved field comes from DOCUMENT_KEYS, plus the unknown one.
-  assert.deepEqual(Object.keys(puts[0]).sort(), [...DOCUMENT_KEYS, 'levelset', 'writeId'].sort());
+  assert.deepEqual(Object.keys(puts[0]).sort(), [...DOCUMENT_KEYS, 'futureWorkbook', 'writeId'].sort());
 });
 
 const READ_ONLY_CASES = [

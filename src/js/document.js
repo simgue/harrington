@@ -10,7 +10,7 @@ import { HASH_PATTERN, SALT_PATTERN } from './pin.js';
 
 // Per-learner maps keyed by learner id.
 export const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
-  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests'];
+  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests', 'levelset'];
 
 // Every top-level key the app saves, in one list: the store's snapshot sends
 // these, its documentFields() reads them back and a conflict compares them, so
@@ -241,6 +241,23 @@ function interestsProblem(interests) {
   return null;
 }
 
+// The level-set workbook (HAR-24) per learner: { lanes: { lane: session },
+// observe: [topicId], lane }. A session's inside is checked when it is read
+// (levelset.js normalizeSession drops a malformed one), so only the outer
+// shape is checked here and a document the app wrote is never refused. No
+// section, an empty one, or an empty or absent entry for a learner passes.
+function levelsetProblem(levelset) {
+  const shape = 'The file\'s level-set workbook is not in the expected shape.';
+  for (const value of Object.values(levelset || {})) {
+    if (absent(value)) continue; // a learner with nothing saved
+    if (!isObject(value)) return shape;
+    if (!absent(value.lanes) && !(isObject(value.lanes) && Object.values(value.lanes).every(s => absent(s) || isObject(s)))) return shape;
+    if (!absent(value.observe) && !(Array.isArray(value.observe) && value.observe.every(id => typeof id === 'string'))) return shape;
+    if (!absent(value.lane) && typeof value.lane !== 'string') return shape;
+  }
+  return null;
+}
+
 // From data format 2 (schema.js step 1 -> 2) the child-view PIN is kept only
 // as a salted hash (pin.js); a plain PIN belongs to formats 0 and 1.
 const PIN_HASHED_FROM_SCHEMA = 2;
@@ -306,6 +323,7 @@ export function validateDocument(doc) {
     || listsProblem(doc, 'challenges', 'challenge result', challengeProblem)
     || gameProblem(doc)
     || interestsProblem(doc.interests)
+    || levelsetProblem(doc.levelset)
     || settingsProblem(doc.settings, doc.schemaVersion);
 }
 

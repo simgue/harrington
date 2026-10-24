@@ -132,7 +132,7 @@ function studentSwitcher(navigate, compact = false) {
 // buttons that share the row's width (a fourth action still fits). On a
 // desktop they are the same 24px icons as before, at the end of the row.
 const rowActionCls = 'h-11 lg:w-6 lg:h-6 rounded-full flex items-center justify-center gap-1.5 bg-paper-card lg:bg-transparent text-ink-faint';
-const rowActionLabel = (text) => `<span class="lg:hidden text-xs font-medium">${text}</span>`;
+const rowActionLabel = (text) => `<span class="lg:hidden text-xs font-medium whitespace-nowrap">${text}</span>`;
 
 function openStudentMenu(navigate) {
   const state = store.get();
@@ -164,13 +164,19 @@ function openStudentMenu(navigate) {
         <p class="text-xs text-ink-faint">Age ${age} · born ${bornLabel(s)}</p>
       </div>
       ${isActive ? '<span class="text-xs font-medium text-brand-dark px-2 py-0.5 rounded-full bg-brand/10">Active</span>' : '<button class="select h-11 lg:h-auto px-4 lg:px-3 lg:py-1.5 text-xs font-medium text-brand rounded-full bg-paper-card hover:bg-brand-light">Switch</button>'}
-      <div class="w-full lg:w-auto grid grid-cols-[repeat(auto-fit,minmax(44px,1fr))] gap-1.5 lg:flex lg:items-center lg:gap-3 lg:shrink-0">
-        <button class="place ${rowActionCls} hover:text-brand-dark" title="Placement: mark earlier topics mastered" aria-label="Placement for ${esc(s.name)}"><i data-lucide="list-checks" class="w-4 h-4"></i>${rowActionLabel('Placement')}</button>
-        <button class="edit ${rowActionCls} hover:text-brand-dark" title="Edit learner" aria-label="Edit ${esc(s.name)}"><i data-lucide="pencil" class="w-4 h-4"></i>${rowActionLabel('Edit')}</button>
-        <button class="del ${rowActionCls} hover:text-[#a4473a]" title="Remove learner" aria-label="Remove learner ${esc(s.name)}"><i data-lucide="trash-2" class="w-4 h-4"></i>${rowActionLabel('Remove')}</button>
+      <div class="w-full lg:w-auto grid grid-cols-2 sm:grid-cols-4 gap-1.5 lg:flex lg:items-center lg:gap-3 lg:shrink-0">
+        <button class="place ${rowActionCls} hover:text-brand-dark" title="Placement: mark earlier topics mastered" aria-label="Placement for ${esc(s.name)}"><i data-lucide="list-checks" class="w-4 h-4 shrink-0"></i>${rowActionLabel('Placement')}</button>
+        <button class="levelset ${rowActionCls} hover:text-brand-dark" title="Level-set workbook: find where they are, one sheet at a time" aria-label="Level-set workbook for ${esc(s.name)}"><i data-lucide="clipboard-list" class="w-4 h-4 shrink-0"></i>${rowActionLabel('Workbook')}</button>
+        <button class="edit ${rowActionCls} hover:text-brand-dark" title="Edit learner" aria-label="Edit ${esc(s.name)}"><i data-lucide="pencil" class="w-4 h-4 shrink-0"></i>${rowActionLabel('Edit')}</button>
+        <button class="del ${rowActionCls} hover:text-[#a4473a]" title="Remove learner" aria-label="Remove learner ${esc(s.name)}"><i data-lucide="trash-2" class="w-4 h-4 shrink-0"></i>${rowActionLabel('Remove')}</button>
       </div>
     </div>`);
     row.querySelector('.place').addEventListener('click', () => { m.close(); openPlacement(s); });
+    row.querySelector('.levelset').addEventListener('click', () => {
+      m.close();
+      if (s.id !== state.activeStudentId) store.setActiveStudent(s.id);
+      navigate('levelset', { id: s.id });
+    });
     row.querySelector('.edit').addEventListener('click', () => { m.close(); openEditStudent(s); });
     row.querySelector('.select')?.addEventListener('click', () => { store.setActiveStudent(s.id); m.close(); toast('Switched to ' + s.name); });
     row.querySelector('.del').addEventListener('click', () => {
