@@ -44,9 +44,9 @@ acknowledge your report and work on a fix as quickly as we reasonably can.
   message it forwards to the provider, with the same matching rules; the server
   also removes stored parent notes unless the parent opted in to that request. A
   learner name that is a common word ("Will": dozens of taxonomy topics
-  contain "will") is replaced wherever it appears in the prompt, instructions and topic
-  text included, which can degrade the answer. What still leaves the machine:
-  topic text (for lessons, printables, activities, “Explain simply”,
+  contain "will") is replaced wherever it appears in the prompt, instructions
+  and topic text included, which can degrade the answer. What still leaves the
+  machine: topic text (for lessons, printables, activities, “Explain simply”,
   mini-quizzes, recall cards, tests and challenges) and the topic's age from the
   curriculum; the learner's exact age for whole-subject tests, discussion
   analyses (alongside a linked topic's age) and progress reviews; the adaptive

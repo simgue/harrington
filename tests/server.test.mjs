@@ -308,7 +308,7 @@ test('refuses a save the app could not render (422) or a data format it does not
     [{ students: [{ ...learner, id: 'constructor' }] }, 'Learner 1 in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
     [{ students: [learner], records: { v1: [{ id: 'r', type: '<img src=x onerror=alert(1)>' }] } }, 'A record for Valid Learner in the file (records item 1) has a type other than observation, question, discussion, assessment, recording, note.'],
     [{ students: [learner], tests: { v1: [{ pct: '<b>' }] } }, 'A test result for Valid Learner in the file (tests item 1) has a score outside 0 to 100%.'],
-    [{ students: [learner], game: { v1: { xp: '<b>' } } }, 'The file\'s XP is not a number of zero or more.'],
+    [{ students: [learner], game: { v1: { xp: '<b>' } } }, 'Valid Learner\'s XP is not a number of zero or more.'],
     [{ students: 'nope' }, 'The file has no learner list.'],
     [{ schemaVersion: 'one', students: [] }, 'schemaVersion must be a whole number'],
     [{ schemaVersion: SCHEMA_VERSION, students: [learner], settings: { parentPin: '2468' } }, 'The file keeps the child-view PIN in plain text, which this data format does not allow.'],
