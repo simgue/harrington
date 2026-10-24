@@ -1,4 +1,5 @@
 import { loadTaxonomy } from './data.js';
+import { loadFigures } from './figures/index.js';
 import * as store from './store.js';
 import { maybeShowWelcome } from './views/guide.js';
 import { el, refreshIcons, toast } from './ui.js';
@@ -52,7 +53,8 @@ async function boot() {
   renderLoading('Loading your homeschool workspace\u2026');
   try {
     await Promise.all([store.connect(), store.loadAll()]);
-    await loadTaxonomy();
+    // loadFigures never throws: without its list no figure shows.
+    await Promise.all([loadTaxonomy(), loadFigures()]);
     taxonomyReady = true;
   } catch (e) {
     console.error(e);

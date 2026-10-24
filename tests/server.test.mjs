@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer, request as httpRequest } from 'node:http';
-import { mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
@@ -96,6 +96,18 @@ test('serves a figure page with a policy that allows no network and always sandb
   assert.doesNotMatch(csp, /connect-src|allow-same-origin/);
   // The app page itself keeps its own headers.
   assert.equal((await fetch(baseUrl)).headers.get('content-security-policy'), null);
+});
+
+test('lists every figure page in src/figures/ with the title and hint it carries (HAR-34)', async () => {
+  const res = await fetch(`${baseUrl}/api/figures`);
+  assert.equal(res.status, 200);
+  const { figures } = await res.json();
+  const files = (await readdir(new URL('../src/figures/', import.meta.url))).filter((n) => n.endsWith('.html'));
+  assert.deepEqual(figures.map((f) => `${f.id}.html`), files.sort());
+  const cart = figures.find((f) => f.id === 'mt_B3W5EfimJw');
+  assert.equal(cart.title, 'Toy cart');
+  assert.match(cart.hint, /^Push the cart/);
+  assert.equal((await fetch(`${baseUrl}/api/figures`, { method: 'POST' })).status, 405);
 });
 
 test('health reports the age in days of the newest archive in HARRINGTON_BACKUP_DIR', async () => {
@@ -1018,6 +1030,7 @@ describe('access token and bind address', { concurrency: false }, () => {
       });
       assert.equal(put.status, 401);
       assert.equal((await fetch(`${guarded.url}/api/taxonomy/topics.json`)).status, 401);
+      assert.equal((await fetch(`${guarded.url}/api/figures`)).status, 401);
       // The sign-in gate runs before the document checks and the AI guard:
       // a body they would refuse (422, 409, 400) still gets 401 when signed out.
       const invalid = await fetch(`${guarded.url}/api/state`, {

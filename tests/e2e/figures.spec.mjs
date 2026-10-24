@@ -1,8 +1,14 @@
 // "See how it works" figures (HAR-34): every figure page on its own, then the
 // figure on the topic page and in the child view. The phone checks are in
 // mobile.spec.mjs.
+import { readFileSync, readdirSync } from 'node:fs';
 import { test, expect, modal, childView } from './fixtures.mjs';
-import { FIGURES } from '../../src/js/figures/index.js';
+import { figureIdOf, figureMeta } from '../../src/js/figures/contract.js';
+
+// Every page in src/figures/, found the way the server finds them: by file name.
+const DIR = new URL('../../src/figures/', import.meta.url);
+const FIGURES = Object.fromEntries(readdirSync(DIR).filter(figureIdOf)
+  .map((name) => [figureIdOf(name), figureMeta(readFileSync(new URL(name, DIR), 'utf8'))]));
 
 const CART = 'mt_B3W5EfimJw';          // Pushes & Pulls: the toy cart
 const NO_FIGURE = 'mt_WcfaSfVT33';     // One-to-one counting (Mathematics) has none
@@ -22,7 +28,9 @@ function watchRequests(page, baseURL) {
   return outside;
 }
 
-test('every figure belongs to a Science topic for ages 5 to 8', async ({ api }) => {
+test('every figure page is listed by the server and belongs to a Science topic for ages 5 to 8', async ({ api }) => {
+  const listed = await (await api.request.get(api.url('/api/figures'))).json();
+  expect(listed.figures.map((f) => f.id).sort()).toEqual(Object.keys(FIGURES).sort());
   const res = await api.request.get(api.url('/api/taxonomy/topics.json'));
   const data = await res.json();
   const topics = new Map((Array.isArray(data) ? data : data.topics).map((t) => [t.id, t]));

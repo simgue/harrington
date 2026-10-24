@@ -61,15 +61,17 @@ tagged a release yet; everything below is on `main`.
   plain, accurate wording (HAR-12).
 
 ### Added
-- "See how it works": ten interactive, hand-inked figures for Science topics
-  for ages 5 to 8 (pushes and pulls, sunlight and ice, evaporation and
-  condensation, circuits, switches, conductors, magnetic materials, magnetic
-  poles, pollination, local weather), on the topic page and the child view's
-  topic card. Each is a self-contained page under `src/figures/` shown in an
-  iframe sandboxed to `allow-scripts` with a no-network CSP; labels start on,
-  nothing is saved, and no AI provider is needed. The figure engine is a fork
-  of the MIT Colorfigures engine in `src/js/figures/engine.js` with no links
-  or credit text; `docs/FIGURES.md` explains how to add a figure (HAR-34).
+- "See how it works": interactive, hand-inked figures for Science topics for
+  ages 5 to 8, on the topic page and the child view's topic card. The first
+  three: a toy cart (Pushes & Pulls), ice in the sun (Sunlight warms things
+  up) and a simple circuit (Building a simple circuit). Each is a
+  self-contained page, `src/figures/<topicId>.html`, shown in an iframe
+  sandboxed to `allow-scripts` with a no-network CSP; labels start on,
+  nothing is saved, and no AI provider is needed. `GET /api/figures` lists
+  the pages that meet the contract in `docs/FIGURES.md`, so a new page
+  dropped into `src/figures/` needs no other change. The figure engine is a
+  fork of the MIT Colorfigures engine in `src/js/figures/engine.js`, with no
+  links or credit text (HAR-34).
 - The family document and exports carry `schemaVersion` (now 2). Ordered
   migrations in `src/js/schema.js` run when a document is loaded or
   imported: step 0 to 1 adds the field, step 1 to 2 hashes a plain

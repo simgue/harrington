@@ -1,26 +1,25 @@
 #!/usr/bin/env node
-// Builds the "See how it works" figure pages (HAR-34): for every topic in
-// src/js/figures/index.js, src/figures/<topicId>.html = a page shell + the
-// figure engine (src/js/figures/engine.js, below its "---- engine ----" line)
-// + the figure script tools/figures/<topicId>.js, all inline, so the page
-// loads nothing else. docs/FIGURES.md explains how to write a figure.
+// Builds "See how it works" figure pages (HAR-34) from their sources: for
+// every tools/figures/<topicId>.js, src/figures/<topicId>.html = a page shell
+// + the figure engine (src/js/figures/engine.js, below its "---- engine ----"
+// line) + the figure script, all inline, so the page loads nothing else. The
+// source's first two lines give the page's title and hint:
+//   // title: Toy cart
+//   // hint: Push the cart, pull it back, then load it up and push again.
+// A page may also be supplied without a source; it must meet the same
+// contract (src/js/figures/contract.js, docs/FIGURES.md).
 // Usage: node scripts/build-figures.mjs [--check] [topicId ...]
-//   --check  writes nothing; exits 1 when a page is missing or out of date
+//   --check  writes nothing; exits 1 when a built page is stale or any page
+//            in src/figures/ breaks the contract
 //   topicId  builds only those figures (while writing one)
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { FIGURES } from '../src/js/figures/index.js';
+import { ENGINE_NOTICE, figureProblems } from '../src/js/figures/contract.js';
 
 const root = new URL('..', import.meta.url);
-export const MAX_FIGURE_BYTES = 100 * 1024;
 const ENGINE_MARK = '// ---- engine ----';
 
-// The built pages carry a pointer to the engine's MIT notice rather than the
-// notice itself: no product name, credit line or address appears in a figure.
-const NOTICE = '/* Harrington figure engine (src/js/figures/engine.js). MIT License. Copyright (c) 2026 April Zhu;'
-  + ' Copyright (c) 2026 Tolga Cohce. The full notice is in src/js/figures/engine.js and NOTICE. */';
-
-const escText = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const escText = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export async function engineSource() {
   const text = await readFile(new URL('src/js/figures/engine.js', root), 'utf8');
@@ -29,10 +28,19 @@ export async function engineSource() {
   return text.slice(at);
 }
 
+// The ids that have a source in tools/figures/.
+export async function sourceIds() {
+  return (await readdir(new URL('tools/figures/', root)))
+    .filter((name) => name.endsWith('.js'))
+    .map((name) => name.slice(0, -3))
+    .sort();
+}
+
 export async function buildFigure(id, engine) {
-  const meta = FIGURES[id];
-  if (!meta) throw new Error(`${id} is not in src/js/figures/index.js`);
   const script = await readFile(new URL(`tools/figures/${id}.js`, root), 'utf8');
+  const title = /^\/\/ title: (.+)$/m.exec(script)?.[1]?.trim();
+  const hint = /^\/\/ hint: (.+)$/m.exec(script)?.[1]?.trim();
+  if (!title || !hint) throw new Error(`tools/figures/${id}.js needs "// title: …" and "// hint: …" lines at the top`);
   for (const [name, code] of [['engine', engine], [`tools/figures/${id}.js`, script]]) {
     if (/<\/script/i.test(code)) throw new Error(`${name} contains "</script" and cannot be inlined`);
   }
@@ -41,11 +49,12 @@ export async function buildFigure(id, engine) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${escText(meta.title)}</title>
+<title>${escText(title)}</title>
+<meta name="description" content="${escText(hint)}">
 </head>
 <body>
 <script>
-${NOTICE}
+${ENGINE_NOTICE}
 ${engine.trimEnd()}
 </script>
 <script>
@@ -56,24 +65,21 @@ ${script.trimEnd()}
 `;
 }
 
-export async function buildAll({ check = false, ids = Object.keys(FIGURES) } = {}) {
+export async function buildAll({ check = false, ids = null } = {}) {
   const engine = await engineSource();
   const problems = [];
-  for (const id of ids) {
+  for (const id of ids || await sourceIds()) {
     const html = await buildFigure(id, engine);
-    const bytes = Buffer.byteLength(html);
-    if (bytes > MAX_FIGURE_BYTES) problems.push(`${id}.html is ${bytes} bytes (limit ${MAX_FIGURE_BYTES})`);
     const target = new URL(`src/figures/${id}.html`, root);
     if (check) {
       const current = await readFile(target, 'utf8').catch(() => null);
-      if (current !== html) problems.push(`src/figures/${id}.html is ${current == null ? 'missing' : 'out of date'}`);
+      if (current !== html) problems.push(`src/figures/${id}.html is ${current == null ? 'missing' : 'out of date'}: run npm run build:figures`);
     } else {
       await writeFile(target, html);
     }
   }
-  // A page with no topic in the list would be served but never shown.
   for (const name of await readdir(new URL('src/figures/', root))) {
-    if (!FIGURES[name.replace(/\.html$/, '')]) problems.push(`src/figures/${name} has no entry in src/js/figures/index.js`);
+    for (const p of figureProblems(name, await readFile(new URL(`src/figures/${name}`, root), 'utf8'))) problems.push(`src/figures/${name}: ${p}`);
   }
   return problems;
 }
@@ -81,9 +87,8 @@ export async function buildAll({ check = false, ids = Object.keys(FIGURES) } = {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const check = process.argv.includes('--check');
   const named = process.argv.slice(2).filter((a) => !a.startsWith('--'));
-  const ids = named.length ? named : Object.keys(FIGURES);
-  const problems = await buildAll({ check, ids });
+  const problems = await buildAll({ check, ids: named.length ? named : null });
   for (const p of problems) console.error(p);
   if (problems.length) process.exit(1);
-  console.log(check ? 'Figures are up to date.' : `Built ${ids.length} figure${ids.length === 1 ? '' : 's'} into src/figures/.`);
+  console.log(check ? 'Figures are up to date and meet the contract.' : 'Built the figures into src/figures/.');
 }

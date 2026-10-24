@@ -23,6 +23,11 @@ export async function health() {
   return request('/api/health').then((response) => response.json());
 }
 
+// The "See how it works" figures this server has: [{ id, title, hint }] (HAR-34).
+export async function listFigures() {
+  return request('/api/figures').then((response) => response.json()).then((body) => body.figures);
+}
+
 function versionFromEtag(response) {
   const match = (response.headers.get('ETag') || '').match(/"v(\d+)"/);
   return match ? Number.parseInt(match[1], 10) : null;

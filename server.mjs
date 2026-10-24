@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { redactNames } from './src/js/redact.js';
 import { SCHEMA_VERSION, schemaVersionOf } from './src/js/schema.js';
 import { validateDocument } from './src/js/document.js';
+import { MAX_FIGURE_BYTES, figureIdOf, figureMeta, figureProblems } from './src/js/figures/contract.js';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(repoRoot, 'src');
@@ -677,6 +678,29 @@ async function handleLogin(req, res, url) {
   signIn(req, res, token);
 }
 
+// The figure pages in src/figures/ that meet the contract, with the title and
+// hint each page carries. A page that breaks it is left out (and named in the log).
+async function listFigures() {
+  const dir = join(publicDir, 'figures');
+  const names = await readdir(dir).catch(() => []);
+  const figures = [];
+  for (const name of names.sort()) {
+    const id = figureIdOf(name);
+    if (!id) continue;
+    const path = join(dir, name);
+    const details = await stat(path).catch(() => null);
+    if (!details?.isFile() || details.size > MAX_FIGURE_BYTES) continue;
+    const html = await readFile(path, 'utf8');
+    const problems = figureProblems(name, html);
+    if (problems.length) {
+      console.warn(`Figure ${name} is not shown: ${problems.join('; ')}`);
+      continue;
+    }
+    figures.push({ id, ...figureMeta(html) });
+  }
+  return figures;
+}
+
 async function handleApi(req, res, url) {
   if (url.pathname === '/api/health' && req.method === 'GET') {
     const signedIn = isSignedIn(req);
@@ -705,6 +729,15 @@ async function handleApi(req, res, url) {
 
   if (url.pathname.startsWith('/api/') && !isSignedIn(req)) {
     sendUnauthorized(res);
+    return true;
+  }
+
+  if (url.pathname === '/api/figures') {
+    if (req.method !== 'GET') {
+      sendJson(res, 405, { error: 'Method not allowed' });
+      return true;
+    }
+    sendJson(res, 200, { figures: await listFigures() });
     return true;
   }
 

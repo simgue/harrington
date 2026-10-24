@@ -1,3 +1,5 @@
+// title: Toy cart
+// hint: Push the cart, pull it back, then load it up and push again.
 /* Pushes & Pulls (mt_B3W5EfimJw): a toy cart on a track with squares.
    A push moves the cart away from you, a pull on the rope brings it back, a harder push sends it farther,
    and a heavy block in the cart makes the same push move it less.
