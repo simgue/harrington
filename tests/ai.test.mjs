@@ -9,6 +9,8 @@ import { test } from 'node:test';
 // answered here too, so nothing reaches the network.
 const sent = [];
 const COMPLETION = JSON.stringify({ objective: 'ok', questions: [], results: [], cards: [], printables: [], materials: [] });
+// A test can set the next reply; null means COMPLETION.
+let nextCompletion = null;
 const TAXONOMY = {
   'topics.json': { topics: [
     { id: 'count-to-5', name: 'Count to 5', subject: 'Mathematics', domain: 'Number', ageRangeStart: 4, ageRangeEnd: 6, description: 'Count five objects.', evidence: [] },
@@ -21,7 +23,7 @@ globalThis.fetch = async (path, options = {}) => {
   const json = (body, ok = true) => ({ ok, status: ok ? 200 : 404, headers: new Headers({ ETag: '"v1"' }), json: async () => body });
   if (url === '/api/ai') {
     sent.push(JSON.parse(options.body));
-    return json({ content: COMPLETION });
+    return json({ content: nextCompletion ?? COMPLETION });
   }
   if (url.startsWith('/api/taxonomy/')) {
     const body = TAXONOMY[url.slice('/api/taxonomy/'.length)];
@@ -116,7 +118,9 @@ test(`no prompt function sends a learner name, with "${LEARNER}" in state`, asyn
       assert.ok(sent.length > 0, `${name} sent nothing to backend.chat`);
       assert.doesNotMatch(outgoing(), LEAK, `${name} sent a learner name`);
       assert.doesNotMatch(outgoing(), /\bSample\b/, `${name} sent a sibling's name`);
-      assert.ok(sent.every((body) => Object.keys(body).join() === 'messages,capability'), `${name} sent more than the messages and its capability`);
+      // Besides the messages and the capability, only the notes opt-in, and only as true.
+      assert.ok(sent.every((body) => Object.keys(body).join() === 'messages,capability'
+        || (Object.keys(body).join() === 'messages,capability,includeNotes' && body.includeNotes === true)), `${name} sent more than the messages and its capability`);
     }
   }
 });
@@ -196,6 +200,18 @@ test('progress review summarizes records as counts and topic names unless opted 
   assert.match(shared, /The parent chose to share these notes/);
   assert.match(shared, new RegExp(`${NOTE_MARKER}: the child counted past five`));
   assert.doesNotMatch(shared, LEAK);
+});
+
+test('the notes opt-in reaches the server only when the parent ticked it', async () => {
+  sent.length = 0;
+  await ai.aiDiscussionAnalysis({ age: 6, topic, transcript, note, includeNotes: false });
+  await ai.aiFeedback({ age: 6, subject: 'Mathematics', stats, recentTopics: [], records, includeNotes: false });
+  await ai.aiExplain(topic);
+  assert.ok(sent.every((body) => !('includeNotes' in body)));
+  sent.length = 0;
+  await ai.aiDiscussionAnalysis({ age: 6, topic, transcript, note, includeNotes: true });
+  await ai.aiFeedback({ age: 6, subject: 'Mathematics', stats, recentTopics: [], records, includeNotes: true });
+  assert.deepEqual(sent.map((body) => body.includeNotes), [true, true]);
 });
 
 test('redactNames replaces whole names, possessives and any case', () => {
@@ -341,4 +357,19 @@ test('lesson generators and callers do not interpolate learner names into prompt
   // Generation is gated in store.generateCached, which showGenerated wraps (see lesson-cache.test.mjs).
   assert.match(lesson, /showGenerated\(/);
   assert.doesNotMatch(lesson, /aiLesson\(topic\);\s*\n\s*await store\.saveCachedLesson/);
+});
+
+test('a mastery test keeps positive points and gives anything else 1, so a score always saves', async () => {
+  nextCompletion = JSON.stringify({ title: 'T', questions: [
+    { type: 'short_answer', q: 'Half a point', answer: 'a', points: 0.5 },
+    { type: 'task', q: 'Text points', answer: 'b', points: 'two' },
+    { type: 'short_answer', q: 'Negative', answer: 'c', points: -1 },
+    { type: 'short_answer', q: 'None', answer: 'd' },
+  ] });
+  try {
+    const test = await ai.aiMasteryTest({ subject: 'Mathematics', age: 6, topicNames: ['Count to 5'], mode: 'digital', topic });
+    assert.deepEqual(test.questions.map((q) => q.points), [0.5, 1, 1, 1]);
+  } finally {
+    nextCompletion = null;
+  }
 });

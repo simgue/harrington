@@ -39,7 +39,12 @@ your report and work on a fix as quickly as we reasonably can.
   `HARRINGTON_AI_MODEL` are set. When they are set, topic text (never a child's
   name) is sent only to that configured OpenAI-compatible endpoint. Names of
   learners in this app are replaced with “the child” in the browser before any
-  request is built. What still leaves the machine: topic text and the topic's
+  request is built, and again by the server in every message it forwards to
+  the provider, with the same matching rules; the server also removes stored
+  parent notes unless the parent opted in to that request. A learner name
+  that is a common word ("Will": about 40 taxonomy topics contain "will") is replaced wherever it appears in
+  the prompt, instructions and topic text included, which can degrade the
+  answer. What still leaves the machine: topic text and the topic's
   age from the curriculum, the learner's exact age for whole-subject tests,
   discussion analyses and progress reviews, mastery percentages, topic
   statuses, record counts and the average confidence rating, a discussion
@@ -48,14 +53,24 @@ your report and work on a fix as quickly as we reasonably can.
   Nicknames and other people's names in a transcript are sent as spoken, and
   names in scripts written without spaces (for example Chinese) are not matched
   when they run straight into other text. There are no shared-family features.
+- An imported family file is checked before it replaces the family data, and
+  the server applies the same check (`src/js/document.js`) to every save,
+  answering 422; a save in a data format newer than the server's, or older
+  than the stored document's, gets 409. A file from a newer data format
+  (`schemaVersion`) is refused at import, and such a document already on the
+  server opens read-only. Learner, record and result values are escaped in
+  every view, and a stored AI analysis is rendered through an allowlist of
+  the tags Harrington writes, never as raw HTML.
 - The child-view PIN is a gentle barrier, not a lock. Four digits are 10,000
   guesses, and reloading the page always returns to the parent view. The
   family document (and every export) keeps only a SHA-256 hash of the PIN
   with a random per-family salt (`settings.parentPinHash` and
   `settings.parentPinSalt`), never the digits. A plain `parentPin` from an
-  older document or export is hashed when it is loaded or imported. Anyone who
-  can read the data folder or an export can still recover a 4-digit PIN by
-  trying them all; the hash only keeps it out of plain sight.
+  older document or export is hashed when it is loaded or imported (data
+  format step 1 to 2); the server refuses a current-format save that still
+  carries one. Anyone who can read the data folder or an export can still
+  recover a 4-digit PIN by trying them all; the hash only keeps it out of
+  plain sight.
 - Please never include real children's personal data in a report.
 
 Thank you for helping keep families using Harrington safe.

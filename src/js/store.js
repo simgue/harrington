@@ -1,11 +1,15 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
 import { AI_CAPABILITIES, capabilityOffMessage } from './ai-capabilities.js';
+import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, schemaVersionOf } from './schema.js';
+import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, LEARNER_KEYS, RETIRED_FIELDS, MIN_BIRTH_YEAR, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
 import { formatCount } from './format.js';
 import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 import { getData } from './data.js';
 import { pruneDismissed } from './alert-dismissals.js';
 import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
+
+export { MIN_BIRTH_YEAR };
 
 export const MASTERY = {
   none:       { label: 'Not started', rank: 0, color: '#d2c6ad' },
@@ -100,11 +104,8 @@ let unconfirmedBeacon = null;
 // Recordings of removed learners, deleted once the removal is saved.
 let pendingAudioDeletes = [];
 
-// Per-learner maps keyed by student id. removeStudent clears every one of them.
-const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
-  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests'];
 
-// Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'failed', error? }
+// Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'rejected' | 'read-only' | 'failed', error?, automatic? }
 export function onSaveStatus(fn) { saveListeners.add(fn); return () => saveListeners.delete(fn); }
 function saveStatus(event) { saveListeners.forEach(fn => { try { fn(event); } catch (e) { console.warn(e); } }); }
 
@@ -112,17 +113,31 @@ function objectOr(value, fallback) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
 }
 
-// Every top-level field of the family document, in one list: snapshotData()
-// sends these, documentFields() reads them back and a conflict compares
-// them. A new stored field joins here (schemaVersion comes with #32).
-export const DOCUMENT_KEYS = ['students', 'activeStudentId', 'notifications', 'dismissedAlerts',
-  'graphView', 'settings', 'schemaVersion', ...LEARNER_KEYS];
+// Top-level fields this version does not know (from a newer Harrington, say),
+// kept as they are through load and save so nothing is dropped.
+let unknownFields = {};
+// Set when the loaded document is from a newer data format or has an
+// unreadable one: nothing is saved until Harrington is updated (see
+// isReadOnly), so this version can never write it back in an older shape.
+let readOnly = false;
+export function isReadOnly() { return readOnly; }
+
+// The saved-key list lives in document.js (shared with import validation).
+export { DOCUMENT_KEYS };
+
+// The document's active learner if it is one of its learners, else the
+// first learner: a dangling id would show "No student" and every save would be
+// refused (document.js).
+function activeOf(doc) {
+  const students = Array.isArray(doc?.students) ? doc.students : [];
+  return students.some(s => s?.id === doc.activeStudentId) ? doc.activeStudentId : students[0]?.id ?? null;
+}
 
 // How each field is normalized as the state holds it; learner maps default
 // to objects. `fields` holds the fields normalized so far (students first).
 const FIELD_NORMALIZERS = {
   students: v => (Array.isArray(v) ? v : []),
-  activeStudentId: (v, fields) => v || (fields.students[0] && fields.students[0].id) || null,
+  activeStudentId: (v, fields) => activeOf({ students: fields.students, activeStudentId: v }),
   notifications: v => (Array.isArray(v) ? v : []),
   graphView: v => (v === 'list' ? 'list' : 'atlas'),
   settings: v => objectOr(v, {}),
@@ -140,26 +155,39 @@ function documentFields(data) {
   return fields;
 }
 
-// Returns true when it migrated the PIN, which the caller then saves.
+// Applies a document from the server or an import. Returns true when a
+// migration changed it, so the caller can save the migrated document once.
 function applyDocument(data) {
-  const fields = documentFields(data);
-  // A plain PIN (from before it was hashed, or saved by an older tab) is
-  // hashed as the document is applied, so no save writes it back.
-  const settings = migratePinSettings(fields.settings);
+  const raw = objectOr(data, {});
+  readOnly = isUnwritableSchema(raw);
+  const doc = migrateDocument(raw);
+  unknownFields = Object.fromEntries(Object.entries(doc)
+    .filter(([key]) => !DOCUMENT_KEYS.includes(key) && !BOOKKEEPING_FIELDS.includes(key) && !RETIRED_FIELDS.includes(key)));
+  const fields = documentFields(doc);
+  // Schema step 1 -> 2 hashes a plain PIN (schema.js, pin.js). A current
+  // document that still carries one (a hand edit, an older tab) is hashed here
+  // as well, so no save writes it back. A read-only (newer) document is never
+  // touched.
+  const settings = readOnly ? fields.settings : migratePinSettings(fields.settings);
   Object.assign(state, fields, { settings });
-  stateVersion = versionOf(data);
-  // After the migration: the migrated document is the synced snapshot, so a
-  // later conflict never reports the PIN migration as a lost change.
+  stateVersion = versionOf(doc);
+  // After the migration: the migrated document is the synced snapshot, and
+  // the migration save then marks what it sent (saveWith). So a conflict
+  // never reports the migration as a lost change.
   markSynced();
-  return settings !== fields.settings;
+  return !readOnly && (schemaVersionOf(doc) !== schemaVersionOf(raw) || settings !== fields.settings);
 }
 
-// Saves the PIN migration applyDocument made, once and right away (a load that
-// migrated nothing never writes). If that is all this tab has to save and
-// another tab saved first (two tabs open during the upgrade), the conflict
-// reload is not worth a toast: the reloaded document is migrated again.
+// Loading never writes, with one exception: a document a migration changed
+// (a schema step, or a plain PIN hashed) is saved once, right away, as a
+// normal versioned save. applyDocument has already marked the migrated
+// document as synced, and the save marks what it sent, so a conflict never
+// lists the migration as a lost change. If the migration is all this tab has to save and another tab saved first (two tabs
+// open during the upgrade), the conflict reload is not worth a toast: the
+// reloaded document is migrated again.
 let migrationOnly = false;
-function persistMigration() {
+function saveIfMigrated(migrated) {
+  if (!migrated) return Promise.resolve(true);
   const pending = dirty;
   dirty = true;
   migrationOnly = !pending;
@@ -174,11 +202,19 @@ export async function loadAll() {
     console.warn('load failed', e);
     throw e;
   }
-  if (migrated) await persistMigration();
+  await saveIfMigrated(migrated);
 }
 
+// Saves are always in the format this code writes (see schema.js), with every
+// field in documentFields and any unknown top-level field carried over.
 function snapshotData() {
-  return documentFields(state);
+  return { ...unknownFields, ...documentFields(state), schemaVersion: SCHEMA_VERSION };
+}
+
+// Two documents as a conflict compares them: the saved fields only, since
+// unknown fields are never a parent's change.
+function comparable(data) {
+  return JSON.parse(JSON.stringify(documentFields(data)));
 }
 
 // The document as last agreed with the server (loaded, or accepted by a
@@ -358,7 +394,7 @@ function reloadFromServer(doc) {
   // A pending beacon carried the version we are discarding, so it cannot land.
   unconfirmedBeacon = null;
   let changes = [];
-  try { changes = diffDocuments(JSON.parse(syncedJson || 'null'), JSON.parse(JSON.stringify(snapshotData()))); }
+  try { changes = diffDocuments(comparable(JSON.parse(syncedJson || 'null')), comparable(snapshotData())); }
   catch (e) { console.warn('could not compare with the saved copy', e); }
   const quiet = migrationOnly;
   migrationOnly = false;
@@ -366,8 +402,10 @@ function reloadFromServer(doc) {
   const present = new Set(state.students.map(s => s.id));
   pendingAudioDeletes = pendingAudioDeletes.filter(item => !present.has(item.studentId));
   const discarded = changes.filter(c => !isBookkeeping(c));
-  if (reapply(changes.filter(c => isBookkeeping(c) && c.kind !== 'activity'))) persist();
-  if (migrated) persistMigration();
+  // Bookkeeping is an automatic write: refused without a toast if the fresh
+  // document is read-only.
+  if (reapply(changes.filter(c => isBookkeeping(c) && c.kind !== 'activity'))) persist({ automatic: true });
+  saveIfMigrated(migrated);
   emit();
   if (quiet) return; // only our PIN migration was lost: the reload migrated again
   if (!discarded.length && changes.length) return; // only bookkeeping lost: nothing to tell
@@ -421,6 +459,7 @@ async function conflictDocument(error) {
 // nothing to send). A 412 caused by our own earlier write, such as an unload
 // beacon, adopts that version and tries again; any other 412 reloads.
 async function saveWith(makeData) {
+  if (readOnly) { dirty = false; saveStatus({ type: 'read-only' }); return false; }
   saving = true;
   // Kept across attempts: after a 412 caused by our own earlier write, the
   // body is sent again even if makeData() has nothing new.
@@ -454,7 +493,10 @@ async function saveWith(makeData) {
   } catch (e) {
     dirty = true;
     console.warn('save failed', e);
-    saveStatus({ type: e.status === 413 ? 'too-large' : 'failed', error: e });
+    // 422 and 409: the server refused the document itself (document.js and
+    // the data format rules), so retrying the same data will not help.
+    const type = e.status === 413 ? 'too-large' : e.status === 422 || e.status === 409 ? 'rejected' : 'failed';
+    saveStatus({ type, error: e });
     return false;
   } finally {
     saving = false;
@@ -478,7 +520,11 @@ export function flushSaves() {
   return saveQueue;
 }
 
-function persist() {
+// automatic: a write the app makes while rendering (today's daily choices, a
+// recall card it starts tracking), not one the parent asked for. While
+// read-only the shell keeps its banner but does not toast for those.
+function persist({ automatic = false } = {}) {
+  if (readOnly) { saveStatus({ type: 'read-only', automatic }); return; }
   migrationOnly = false;
   dirty = true;
   clearTimeout(saveTimer);
@@ -492,7 +538,7 @@ function persist() {
 // before the next save. A save still in flight uses the same version, so
 // exactly one of the two wins and the other recognises it.
 export function handlePageHidden() {
-  if (!dirty) return;
+  if (!dirty || readOnly) return;
   clearTimeout(saveTimer);
   saveTimer = null;
   const writeId = newWriteId();
@@ -546,50 +592,55 @@ export async function exportDocument() {
   const meta = { exportedAt: new Date().toISOString(), taxonomyVersion };
   const doc = dirty
     ? { ...snapshotData(), version: stateVersion, ...meta, unsavedChanges: true }
-    : { ...(await backend.loadState()), ...meta };
-  // Never a plain PIN in the file, even one another device just saved.
-  doc.settings = migratePinSettings(doc.settings);
+    : { ...migrateDocument(await backend.loadState()), ...meta };
+  // Never a plain PIN in the file, even one another device just saved (a
+  // newer data format is exported as it is).
+  if (!isUnwritableSchema(doc)) doc.settings = migratePinSettings(doc.settings);
   return doc;
 }
 
-// Checks an export (or a raw family-state.json) before import. Returns
-// { ok, error?, learners: [{ name, topics, records, tests }] } for the preview.
+// Checks an export (or a raw family-state.json) before import with the same
+// rules the server applies to every save (document.js). Returns
+// { ok, error?, learners: [{ name, topics, records, tests }], colorsAdjusted }
+// for the preview.
+// An imported file's dangling active learner is moved to its first learner.
+function withValidActive(doc) {
+  if (!Array.isArray(doc.students) || doc.activeStudentId == null) return doc;
+  const active = activeOf(doc);
+  return active === doc.activeStudentId ? doc : { ...doc, activeStudentId: active };
+}
+
 export function inspectImport(doc) {
   const fail = (error) => ({ ok: false, error, learners: [] });
-  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return fail('The file is not a Harrington family export.');
-  if (!Array.isArray(doc.students)) return fail('The file has no learner list.');
-  for (const s of doc.students) {
-    if (!s || typeof s !== 'object' || typeof s.id !== 'string' || !s.id || typeof s.name !== 'string') {
-      return fail('A learner in the file is missing an id or name.');
-    }
+  if (!isObject(doc)) return fail('The file is not a Harrington family export.');
+  doc = withValidActive(doc);
+  if (schemaVersionOf(doc) === null) return fail('The file\'s data format version is not a number.');
+  if (isNewerSchema(doc)) {
+    return fail(`The file comes from a newer version of Harrington (data format ${doc.schemaVersion}; this one reads up to ${SCHEMA_VERSION}). Update Harrington, then import it.`);
   }
-  for (const key of LEARNER_KEYS) {
-    if (doc[key] !== undefined && (!doc[key] || typeof doc[key] !== 'object' || Array.isArray(doc[key]))) {
-      return fail(`The file's "${key}" section is not in the expected shape.`);
-    }
-  }
-  if (doc.notifications !== undefined && !Array.isArray(doc.notifications)) {
-    return fail('The file\'s notifications are not in the expected shape.');
-  }
+  const problem = validateDocument(doc);
+  if (problem) return fail(problem);
   const learners = doc.students.map(s => ({
     name: s.name,
     topics: countOf(doc.progress?.[s.id]),
     records: countOf(doc.records?.[s.id]),
     tests: countOf(doc.tests?.[s.id]),
   }));
-  return { ok: true, learners };
+  // Learner colors that import will move to the nearest palette color.
+  const colorsAdjusted = doc.students.filter(s => paletteColor(s.color) !== s.color).length;
+  return { ok: true, learners, colorsAdjusted };
 }
 
 // Replaces the family document on the server with `doc`, guarded by the
 // current version. Resolves false if another device saved first (state is
 // then reloaded from the server) or the save failed.
 export function importDocument(doc) {
+  if (readOnly) return Promise.reject(new Error(READ_ONLY_MESSAGE));
   const check = inspectImport(doc);
   if (!check.ok) return Promise.reject(new Error(check.error));
-  const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = doc;
-  // Colors end up in style attributes, so only palette colors are imported.
-  data.students = data.students.map(s => (PALETTE.includes(s.color) ? s : { ...s, color: PALETTE[0] }));
-  // An older export may carry the PIN in plain text; only its hash is saved.
+  const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = migrateDocument(withValidActive(doc));
+  data.students = data.students.map(s => ({ ...s, color: paletteColor(s.color) }));
+  // Step 1 -> 2 hashed an older export's plain PIN; this catches a hand edit.
   if (data.settings !== undefined) data.settings = migratePinSettings(objectOr(data.settings, {}));
   clearTimeout(saveTimer);
   saveTimer = null;
@@ -605,13 +656,23 @@ export function importDocument(doc) {
   return saveQueue;
 }
 
+export const READ_ONLY_MESSAGE = 'This family data was saved by a newer version of Harrington. Update Harrington to make changes; nothing is saved until then.';
+
 // ---- Students ----
 export const PALETTE = ['#3f6b3b', '#a4473a', '#2f6285', '#5b4a86', '#8a6412', '#9a4a6e'];
+// Colors end up in style attributes, so only palette colors are kept: a hex
+// color outside the palette (an older palette, a hand edit) becomes the
+// nearest palette color, and anything else the first one. inspectImport has
+// already refused a color that is not a hex color.
+const rgb = hex => [1, 3, 5].map(i => Number.parseInt(hex.slice(i, i + 2), 16));
+function paletteColor(color) {
+  if (PALETTE.includes(color)) return color;
+  if (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color)) return PALETTE[0];
+  const [r, g, b] = rgb(color.toLowerCase());
+  const distance = p => { const [pr, pg, pb] = rgb(p); return (pr - r) ** 2 + (pg - g) ** 2 + (pb - b) ** 2; };
+  return PALETTE.reduce((best, p) => (distance(p) < distance(best) ? p : best));
+}
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-export const MIN_BIRTH_YEAR = 1990;
-const validMonth = m => Number.isInteger(m) && m >= 1 && m <= 12;
-const validYear = y => Number.isInteger(y) && y >= MIN_BIRTH_YEAR && y <= new Date().getFullYear();
-const validDateKey = k => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
 export function addStudent(name, birthYear, birthMonth = null) {
   const id = 's_' + Math.random().toString(36).slice(2, 9);
   const color = PALETTE[state.students.length % PALETTE.length];
@@ -934,9 +995,9 @@ const DAY = 86400000;
 // Ensure a scheduling record exists for a card; new cards are due immediately.
 export function ensureRecallCard(studentId, cardId, topicId) {
   const r = recallOf(studentId);
-  if (!r[cardId]) { r[cardId] = { topicId, box: 0, due: dayStart(Date.now()), reps: 0, lapses: 0, last: null }; persist(); }
+  if (!r[cardId]) { r[cardId] = { topicId, box: 0, due: dayStart(Date.now()), reps: 0, lapses: 0, last: null }; persist({ automatic: true }); }
   // Repair records whose topicId was wiped by an earlier grading bug.
-  else if (!r[cardId].topicId && topicId) { r[cardId].topicId = topicId; persist(); }
+  else if (!r[cardId].topicId && topicId) { r[cardId].topicId = topicId; persist({ automatic: true }); }
   return r[cardId];
 }
 export function recallState(studentId, cardId) { return recallOf(studentId)[cardId] || null; }
@@ -1089,7 +1150,7 @@ export function saveDailyOffers(studentId, dateKey, offers) {
   const days = state.daily[studentId] || (state.daily[studentId] = {});
   days[dateKey] = { offers, picks: (days[dateKey] && days[dateKey].picks) || {} };
   for (const key of Object.keys(days).sort().slice(0, -DAILY_KEEP_DAYS)) delete days[key];
-  persist();
+  persist({ automatic: true });
 }
 // Choose (or clear, with null) the pick for one lane on one day.
 export function pickDaily(studentId, dateKey, lane, topicId) {
@@ -1240,12 +1301,6 @@ export function setParentPin(pin) {
 // ranges. Anything malformed is dropped or repaired; no home days at all
 // falls back to Mon–Fri. Returns { homeDays: [0-6, …], breaks: [{ start, end, label }, …] }.
 const DEFAULT_HOME_DAYS = [1, 2, 3, 4, 5];
-const realDateKey = k => {
-  if (!validDateKey(k)) return false;
-  const [y, m, d] = k.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
-};
 export function normalizeCalendar(raw) {
   const cal = objectOr(raw, {});
   let homeDays = Array.isArray(cal.homeDays)
@@ -1298,7 +1353,6 @@ export function normalizeCached(kind, value) {
 
 // Optional list fields must be arrays when present; the renderers map over them.
 const listsOrAbsent = (v, keys) => keys.every(k => v[k] == null || Array.isArray(v[k]));
-const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
 export function isValidCached(kind, value) {
   const v = normalizeCached(kind, value);
