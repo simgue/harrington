@@ -290,3 +290,29 @@ test('a status write keeps the quest log scrolled where it was (N4)', async ({ p
   await expect(log.getByRole('button', { name: 'Keep as learning' })).toBeAttached();
   await expect.poll(() => log.evaluate((el) => el.scrollTop)).toBe(scrolled);
 });
+
+test('"See how it works" on a phone: the figure fits, its controls are 44 px and a press works (HAR-34)', async ({ page, gotoApp, shot, errors }) => {
+  await gotoApp({ seed: {}, hash: 'topic/mt_B3W5EfimJw' });
+  const section = page.locator('div.bg-paper-card', { has: page.getByRole('heading', { name: 'See how it works' }) });
+  await section.scrollIntoViewIfNeeded();
+  const frameEl = section.locator('iframe');
+  await expect(frameEl).toHaveAttribute('sandbox', 'allow-scripts');
+  const box = await frameEl.boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+  await noHorizontalOverflow(page);
+
+  const fig = page.frameLocator('iframe[title="Toy cart: how it works"]');
+  for (const control of await fig.locator('button').all()) {
+    const b = await control.boundingBox();
+    expect(b.height, await control.getAttribute('aria-label') || await control.textContent()).toBeGreaterThanOrEqual(44);
+    expect(b.width).toBeGreaterThanOrEqual(44);
+  }
+  // Nothing inside the frame scrolls sideways either.
+  const frame = page.frames().find((f) => f.url().includes('/figures/mt_B3W5EfimJw.html'));
+  expect(await frame.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  await fig.getByRole('button', { name: 'Push hard' }).tap();
+  await expect(fig.locator('#stats .v')).not.toHaveText('0', { timeout: 5_000 });
+  await shot('topic-figure', { locator: section });
+  expect(errors).toEqual([]);
+});

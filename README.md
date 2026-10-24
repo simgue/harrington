@@ -358,6 +358,10 @@ copyright and licence notice are preserved, and Homestead remains configured as
 the `upstream` Git remote for future comparison and selective updates.
 
 - **Application code:** MIT — see [`LICENSE`](LICENSE).
+- **Figure engine:** `src/js/figures/engine.js`, which draws the "See how it
+  works" figures, is forked from the Colorfigures skill by April Zhu (built on
+  iso-glow by April Zhu and iso-figure by Tolga Cohce), MIT. Its notice is in
+  the file's header comment and in [`NOTICE`](NOTICE).
 - **Curriculum data:** licensed separately by its authors (ODbL 1.0 for the
   database, CC BY-SA 4.0 for the text) and **must be attributed**. See
   [`NOTICE`](NOTICE) and [`DATA-LICENSE.md`](DATA-LICENSE.md) for details and
