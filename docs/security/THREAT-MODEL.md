@@ -1,0 +1,255 @@
+# Harrington threat model (HAR-35)
+
+This is a review of Harrington as one deployed system: a host computer, a
+token cookie, phones and tablets on the home Wi-Fi or a mesh VPN, a child with
+the tablet, an export file that travels by email, an AI provider on the other
+end and backups on a USB stick. Each earlier security change (HAR-10 data
+safety, HAR-15 child-view PIN, HAR-19 prompt redaction, HAR-25 LAN and access
+token, the hardening PR #32) was reviewed inside its own PR. This document
+looks at how they fit together.
+
+- **Code reviewed:** `main` at `1b9cce0` (PR #32 merged), then re-checked
+  against `f8c43e6`. What landed in between (#45, a tool under `tools/` that the
+  server does not serve and the image does not ship; #39, copy and docs, and
+  prompt wording for a learner with no birth year) changes no control or line
+  cited here. Open PRs (#33, #37, #40, #41, #42) are not probed. Section 7
+  notes what they change.
+- **Method:** each control below was read in the code and checked by running
+  the test that pins it. The gaps were reproduced against a sandbox deployment
+  (section 8). PR descriptions were used only to find claims to check.
+- **Severity:** **Blocker**: fix before a family shares Harrington beyond one
+  computer, or before #37 lands. **Major**: fix in the next cycle; a realistic
+  attacker gets family data or keeps access the family thinks it removed.
+  **Minor**: hardening, defense in depth, or a documented limit worth closing.
+
+## 1. Assets
+
+| # | Asset | Where it lives | Why it matters |
+| --- | --- | --- | --- |
+| A1 | Family document: learner names, birth year and month, progress, records, parent notes, discussion transcripts, AI analyses, the PIN hash and salt | `data/private/family-state.json` (`HARRINGTON_DATA_DIR`), every export file, every backup | Children's personal data. Notes and transcripts can hold health, family and third-party details. |
+| A2 | Recordings | `data/private/audio/*.bin` and `.meta.json`, and backups | Children's voices. They are not in exports. |
+| A3 | Lesson cache | `data/private/lessons/` | Low sensitivity, but it is rendered in the app (integrity). |
+| A4 | Access token, and the session cookie derived from it | Host environment (shell, `.env`, service unit); the cookie in every signed-in browser for 400 days | Whoever holds either one reads and changes A1 and A2. |
+| A5 | AI provider API key | `HARRINGTON_AI_API_KEY` in the host environment (on #37: also `data/private/secrets.json`) | Billing, plus the provider account's history of family prompts. |
+| A6 | Child-view PIN | Hashed in A1 | A screen gate only (SECURITY.md). |
+| A7 | Integrity of the app and the curriculum | `src/` served by the host; the taxonomy downloaded from upstream into `data/private/taxonomy/` | Code and content that run in every family browser. |
+| A8 | Availability of family data | One host, one data folder, backups | Loss of a child's records is the most likely harm of all. |
+
+## 2. Trust boundaries
+
+| # | Boundary | What crosses it |
+| --- | --- | --- |
+| TB1 | Browser to server (loopback, LAN or mesh, optionally through Caddy or `tailscale serve`) | Pages, `/api/*`, the session cookie, recordings |
+| TB2 | Other web pages in the same browser to Harrington's origin | Cross-site requests, framing, DNS rebinding, `window.opener` |
+| TB3 | Child to the parent side of the same signed-in browser | Child-view overlay, PIN, reload |
+| TB4 | Server to AI provider | Prompts (topic text, ages, statistics, transcripts, opted-in notes), the API key |
+| TB5 | Server to taxonomy upstream | Curriculum JSON, cached for good |
+| TB6 | Files leaving and entering the host: export, import, backup, restore | A1 and A2 in transit and at rest, on USB sticks and in mailboxes |
+| TB7 | Host operating system: other local users, a lost or stolen laptop, the Docker container | Data folder, backups, environment holding A4 and A5 |
+| TB8 | Time: a newer or older Harrington reading the same data | Data format (`schemaVersion`) and migrations |
+
+## 3. Attacker profiles
+
+| # | Profile | Starting position | Wants |
+| --- | --- | --- | --- |
+| P1 | Curious child with the tablet | A signed-in browser, the child view on screen | Leave the child view, mark things mastered, see the parent's notes |
+| P2 | Guest on the Wi-Fi (or a shared tailnet node) | Network access to the host, no token | Read or change family data, spend AI credit |
+| P3 | Malicious export or import file | The parent imports it | Run script in the app, hide data, break the app |
+| P4 | Compromised or logging AI provider | Receives every prompt; controls every response | Learn about the children; inject content |
+| P5 | Lost or stolen host laptop, USB backup, or mailbox holding an export | Offline access to files | Read A1 and A2, recover A4 and A5 |
+| P6 | Hostile web page open in a family browser | Can run script on its own origin and steer DNS for its own name | CSRF, clickjacking, tab-nabbing, DNS rebinding |
+| P7 | A later (or earlier) Harrington reading older (or newer) data | The same data folder | Loss or corruption through migration, or writing back a format it doesn't understand |
+
+## 4. STRIDE per boundary
+
+Columns: **threat**; **current control** (code and the test that pins it,
+all run during this review); **gap** (the G-number from section 5, or
+"none found"); **severity**; **proposed fix** (details in section 5).
+S = spoofing, T = tampering, R = repudiation, I = information disclosure,
+D = denial of service, E = elevation of privilege.
+
+### TB1: browser to server
+
+| | Threat | Current control | Gap | Severity | Proposed fix |
+| --- | --- | --- | --- | --- | --- |
+| S | A device without the token reads or writes `/api/*` | Cookie gate before every `/api/*` route except health (`server.mjs:691`); HMAC-derived cookie, compared in constant time (`server.mjs:558`, `:564`). `tests/server.test.mjs` "with a token /api/* needs the cookie and static assets stay open", "login sets an HttpOnly SameSite=Strict cookie only for the right token"; `tests/e2e/access-token.spec.mjs`; `tests/e2e/api.spec.mjs`. Probed: state, taxonomy, lessons, audio, ai and settings all answer 401 to a second device. | none found | | |
+| S | Token guessed online | 16-character minimum (`server.mjs:28`, `:834`); constant-time compare. SECURITY.md documents that attempts are not limited. | G3: no throttling, no log line for failures, low-entropy tokens accepted (590 guesses a second from one device) | Major | Per-address backoff, a log line for failures, entropy floor |
+| S | Token leaks through a URL | Form is the main path; `/login?token=` redirects 303 to `/` with `Referrer-Policy: no-referrer` (`server.mjs:640`); the server logs no URLs. Probed: no referrer reaches the app, no log line holds the token. The link stays in browser history (documented). | Documented limit; G8 covers recovery | Minor | Keep the form primary; see G8 |
+| I | Cookie or token read on the network | `Secure` when the request came over TLS or `X-Forwarded-Proto: https` (`server.mjs:586`, `:637`), HttpOnly (probed: `document.cookie` cannot see it). Plain HTTP on the LAN is documented as cleartext. | Documented limit (option 3 alone); `X-Forwarded-Proto` is trusted from any client (harmless direction; in HAR-36) | | Use option 1 or 2 |
+| I | Unauthenticated health reveals deployment | Reduced health for signed-out devices (`server.mjs:674`) | Documented limit | | |
+| T | Path traversal into the data folder or repository | Static paths resolved and confined to `src/` (`server.mjs:800`); lesson and audio keys base64url-encoded (`server.mjs:294`). Probed `/../` and `%2e%2e` paths: 404. | none found | | |
+| T/E | Stored content executed as script on the app origin | Every view interpolates through `esc()` (`src/js/ui.js:9`); stored AI analysis through an allowlist (`ui.js:121`). `tests/isolation.test.mjs` (template scan, `esc()` breakouts, analysis allowlist); `tests/e2e/hostile-import.spec.mjs`. | G2: a recording upload stores any `Content-Type` and `GET /api/audio/*` serves it inline: `text/html` runs as Harrington. G6: no CSP as a backstop. | Major / Minor | Allowlist `audio/*`, `Content-Disposition: attachment`, `CSP: sandbox` on recordings; a CSP for the app |
+| R | No record of who changed what | Versioned saves with a `writeId` (`server.mjs:186`). No per-device identity exists (one shared token). | Accepted (no accounts by design) | | Residual R4 |
+| D | Disk filled through uploads | 5 MB JSON and 100 MB per recording (`server.mjs:34`); signed-in devices only | Accepted for a family; noted in HAR-36 | | |
+| E | Signed-out device escalates | None possible beyond health and static files (probed) | none found | | |
+
+### TB2: other web pages to Harrington's origin
+
+| | Threat | Current control | Gap | Severity | Proposed fix |
+| --- | --- | --- | --- | --- | --- |
+| S/T/I | DNS rebinding: a page re-points its own name at the host and reads and writes as same-origin | Host-name allowlist, **only once the server is shared** (`server.mjs:549`, `:550`). `tests/server.test.mjs` "a shared server answers only to the family's host names and IP addresses" passes; "a loopback server answers to any host name, as before" pins the gap. | G1: the default loopback server answers any name. Reproduced in Chromium: read the learners and saved a change (204). | **Blocker** | Always check Host: `localhost`, loopback and IP literals, plus the configured names |
+| T | CSRF on family data | `Sec-Fetch-Site` must be same-origin or none and the body JSON (`server.mjs:212`, `:219`); SameSite=Strict cookie when the token is on. `tests/server.test.mjs` "rejects cross-site and non-JSON state writes without touching the file". | none found for `/api/state` | | |
+| T/D | CSRF on the AI relay | None: `/api/ai` parses a `text/plain` body (a simple request, no preflight) | G5: with no token, any page makes the server call the provider (reproduced) | Minor | Apply the `/api/state` checks to every write route |
+| T | CSRF on lessons and recordings | `PUT` and `DELETE` need a CORS preflight, which the server never grants (probed: OPTIONS gets 405) | none found (but see G5 for consistency) | | |
+| T | Clickjacking | `X-Frame-Options: SAMEORIGIN` on pages and API (`server.mjs:60`, `:813`) | Recordings lack it (part of G2); no `frame-ancestors` | Minor | In G2 and G6 |
+| T | Reverse tab-nabbing | Every `target="_blank"` link has `rel="noopener"` (`views/topic.js:364`, `views/notifications.js:123`); print windows are same-origin `about:blank` | none found | | |
+| I | Referer leaks the host's name | Sign-in and 401 pages send `no-referrer` (`server.mjs:603`) | G6: app pages send none, so resource links (Khan Academy, YouTube, Wikipedia, BBC) get the host's origin, such as the tailnet name | Minor | `Referrer-Policy: no-referrer` on every response |
+
+### TB3: child to the parent side
+
+| | Threat | Current control | Gap | Severity | Proposed fix |
+| --- | --- | --- | --- | --- | --- |
+| E | Child leaves the child view | PIN prompt (`views/kidmode.js:55`), parent shell `inert` underneath. `tests/e2e/child-view.spec.mjs` "the parent shell is inert", "Grown-ups: set a PIN the first time, then it is required". Probed: a reload or a new tab returns to the parent view (documented). | Documented: a gentle barrier, not a lock. G12: whoever first presses Grown-ups sets the family PIN, and there is no attempt limit. | Minor | Set the PIN from the parent side; OS guided access in the family guide |
+| T | Child writes through the parent side | Same signed-in browser, so full access once out of the overlay (documented in SECURITY.md) | Accepted residual R2 | | Separate child sessions are out of scope today |
+| I | Child reads the PIN | Salted SHA-256 only (`src/js/pin.js`); `tests/pin.test.mjs`; `tests/e2e/data-safety.spec.mjs` "export … the PIN only as a salted hash" | Documented: 10,000 guesses (recovered in 0.011 s from a backup) | | |
+
+### TB4: server to AI provider
+
+| | Threat | Current control | Gap | Severity | Proposed fix |
+| --- | --- | --- | --- | --- | --- |
+| I | Learner names reach the provider | Redacted in the browser (`src/js/ai.js:48`) and again on the server from the stored names (`server.mjs:413`). `tests/server.test.mjs` "replaces every learner name in the family document before forwarding". Replayed: "Ada Fakename" and "Will" became "the child" in every body. | Documented limits: nicknames ("Addy"), other people ("Grandma Odile in Lyon") and a common-word name degrading text ("what the child the child be able to do") | | Residual R1 |
+| I | Parent notes reach the provider without consent | Browser leaves notes out unless the parent opts in (`ai.js:447`, `:479`); the server removes stored notes, whole and line by line, unless `includeNotes: true` (`server.mjs:385`, `:409`). `tests/server.test.mjs` "removes stored parent notes unless the request says the parent opted in". Replayed: no note without the opt-in. Probed: a verbatim note is replaced by `[note removed]`, a paraphrase is not. | G9: `includeNotes` is trusted as the request states it, for any request | Minor | Tie it to the capability on #37; residual R1 |
+| I | Transcripts reach the provider | Sent whenever the parent asks for an analysis; documented | Accepted (R1) | | |
+| I | Cookie, client IP or other headers forwarded | The server builds a fresh request with only `model` and `{ role, content }` (`server.mjs:362`, `:446`). Logged at the provider: `Content-Type`, `Authorization` and Node's defaults only. `tests/server.test.mjs` "refuses messages that are not { role, content: string } with 400". | none found | | |
+| I | API key leaked | Key only in the `Authorization` header; provider errors are generic (`server.mjs:466`). `tests/server.test.mjs` "keeps provider failures fail-closed without leaking secrets". | G14: a non-loopback `http://` base URL is accepted, so the key and prompts cross the network in clear | Minor | Refuse or warn on it |
+| T | Provider response injects markup | Responses are escaped (`ai.js:8`, views use `esc()`); stored analysis through the allowlist. Probed: `<img onerror>` from the provider rendered as text. | none found | | |
+| D/T | Anyone spends AI credit | Cookie gate when the token is on | G5 (no-token cross-site), G1 (rebinding) | | |
+
+### TB5: server to taxonomy upstream
+
+| | Threat | Current control | Gap | Severity | Proposed fix |
+| --- | --- | --- | --- | --- | --- |
+| T | Changed or hostile curriculum content | Only four file names (`server.mjs:36`); views escape taxonomy strings (`tests/isolation.test.mjs` "views escape learner, record and taxonomy strings"; `hostile-import.spec.mjs` "a topic title with markup shows as text") | G10: the default upstream is a moving `@main`, with no integrity check, and the first answer is cached for good | Minor | Pin a commit and check a SHA-256 |
+
+### TB6: export, import, backup, restore
+
+| | Threat | Current control | Gap | Severity | Proposed fix |
+| --- | --- | --- | --- | --- | --- |
+| T/E | Crafted import runs script or breaks views | One validator on import and on every save (`src/js/document.js:238`, `server.mjs:161`); learner colors forced to the palette. `tests/import-validation.test.mjs`; `tests/e2e/hostile-import.spec.mjs`; `tests/e2e/data-safety.spec.mjs` "import refuses files that are not a family export", "an imported analysis renders as text, not markup". Probed: markup in a name is stored and shown as text. | G11: unknown top-level fields (a 4.9 MB one was accepted), and lists under keys that are no learner (including `__proto__`), are kept and re-exported | Minor | Cap and report unknown fields; drop orphan keys |
+| I | Export by email, backup on a USB stick | None: plaintext JSON and `tar.gz` | G4: no encryption, no warning at export, no guidance | Major | This PR adds the family guidance; add the warning, then optional encryption |
+| I | Export or backup carries the token or the key | Neither is in the data folder on `main`. Probed: no token or key in a backup archive. On #37, `scripts/backup.mjs` leaves out `secrets.json` (code read only). | none found on `main` | | Keep `secrets.json` out (residual R5) |
+| D | Restore loses data | `npm run backup`; health warns when the newest archive is over a week old (`server.mjs:269`); `tests/server.test.mjs` "health reports the age in days of the newest archive" | Docker restore not run (no daemon here) | | |
+
+### TB7: host operating system
+
+| | Threat | Current control | Gap | Severity | Proposed fix |
+| --- | --- | --- | --- | --- | --- |
+| I | Lost or stolen host laptop | None in the app; data is plaintext | G4: no disk-encryption guidance | Major | In this PR's family section |
+| I | Other local users read the data | None: files 0644, folders 0755 under the usual umask (probed), backups 0644 | G7 | Minor | 0700 folders, 0600 files and archives |
+| E | Container escape surface | Data in a named volume; port published on loopback | G13: the image runs as root | Minor | `USER node` |
+| I | Token or key in the environment | Startup log never prints the token (probed) or the key; `.env` is gitignored | Accepted; family guidance | | |
+
+### TB8: versions over time
+
+| | Threat | Current control | Gap | Severity | Proposed fix |
+| --- | --- | --- | --- | --- | --- |
+| T | Older data loaded by a newer app | Ordered migrations (`src/js/schema.js`); a plain PIN hashed on load (`src/js/store.js:152`). `tests/schema.test.mjs`, `tests/family-data.test.mjs`, `tests/pin.test.mjs` "a plain PIN from an older family document migrates to the hash". Probed: the legacy sandbox document (no version, plain PIN) came back hashed after the first load. | none found | | |
+| T | Newer data written back by an older app | Read-only in the browser (`store.js:143`); the server refuses a newer format (409) and a save older than the stored one (409) (`server.mjs:165`, `:195`). `tests/server.test.mjs` "refuses a save the app could not render (422) or a data format it does not know (409)"; `tests/e2e/data-safety.spec.mjs` read-only tests. Probed both directions with curl. | none found | | |
+
+## 5. Gaps
+
+Each gap was reproduced in the sandbox (section 8) unless it says "by code
+reading". The PR body carries the same list with reproduction steps, so each
+one can become a ticket.
+
+| # | Severity | Gap | Boundary, profile |
+| --- | --- | --- | --- |
+| G1 | **Blocker** | The default loopback server answers any Host name, so DNS rebinding gives any web page read and write access to family data and the AI relay | TB2, P6 |
+| G2 | Major | A recording upload's `Content-Type` is stored and served back inline, so HTML uploaded as a "recording" runs as Harrington; it outlives a token change and comes back with a restore | TB1, P2 with a borrowed or lost signed-in device, P1 |
+| G3 | Major | `/login` has no throttling, no failure log and no entropy floor | TB1, P2 |
+| G4 | Major | Family data leaves the host in plaintext (export, backup, lost laptop) with no warning or guidance | TB6, TB7, P5 |
+| G5 | Minor | `/api/ai` (and lesson and recording writes) skip the `Sec-Fetch-Site` and JSON checks that `/api/state` has | TB2, P6 |
+| G6 | Minor | No Content-Security-Policy or Referrer-Policy on app pages | TB1, TB2, P4, P6 |
+| G7 | Minor | Data folder, files and backups are readable by every local user | TB7 |
+| G8 | Minor | One static 400-day cookie for every device; a lost device can be signed out only by changing the token for everyone | TB1, P5 |
+| G9 | Minor | `includeNotes` is trusted as the request states it | TB4, P4 |
+| G10 | Minor | Taxonomy downloaded from a moving branch with no integrity check, cached for good | TB5 |
+| G11 | Minor | Validator keeps unknown top-level fields and lists under non-learner keys | TB6, P3 |
+| G12 | Minor | The first person to press Grown-ups sets the family PIN; no attempt limit | TB3, P1 |
+| G13 | Minor | Docker image runs as root | TB7 |
+| G14 | Minor | A plain `http://` AI base URL to another machine is accepted (by code reading) | TB4, P2 |
+
+Count: **1 Blocker, 3 Major, 10 Minor.**
+
+### Already known from exploratory testing (not counted above)
+
+The exploratory tester has already reported these, so they are not gaps in
+this list. They are placed in the model so the tickets can cite it.
+
+| Finding | Where it sits here |
+| --- | --- |
+| A null entry in the active learner's recall or practice section hangs the landing route on the loading screen, with no Export available | A8 (availability), TB6 and TB8: a document that passes the server's validator can still stop the app, and the way out (Export) is behind it |
+| Data saved before #32 that the validator now refuses blocks every save, with no repair path, and the toast names a position rather than the learner | A8, TB8 (a later version reading older data): the server refuses with 422, so the family is stuck rather than losing data |
+| The persistent refusal toast covers Export and the bottom navigation at 390 px | A8: the same recovery path as above, on a phone |
+| A nickname in parentheses or quotes is not redacted from notes sent to the AI provider | TB4, residual R1: redaction matches stored learner names only |
+
+## 6. Residual risks for the owner to sign
+
+These remain after every gap above is fixed. They follow from the product's
+design (one family secret, no accounts, an optional cloud AI). Each needs the
+owner's explicit acceptance.
+
+| # | Risk | Why it stays | Mitigation in place | Accepted by / date |
+| --- | --- | --- | --- | --- |
+| R1 | A cloud AI provider receives topic text, ages, statistics, discussion transcripts (nicknames and other people's names as spoken) and, when the parent opts in, notes (a nickname in parentheses or quotes included, a known finding) | Redaction matches stored learner names only, and not a one-letter name (SECURITY.md); a transcript is the input the parent asked to analyze | Browser and server redaction, notes opt-in, local-provider-first rollout (#37), family guidance | |
+| R2 | Anyone holding a signed-in device, a child included, has full read and write access | One family token, no accounts or roles | Child-view PIN as a screen gate; OS guided access in the family guide | |
+| R3 | The child-view PIN is recoverable from any export or backup in milliseconds | 4 digits; the hash only keeps it out of plain sight | Documented in SECURITY.md | |
+| R4 | No record of which device made a change | No per-device identity | Versioned saves, conflict messages | |
+| R5 | When #37 lands, the AI key may live in `secrets.json` on the host disk | Needed for in-app settings | Mode 0600, kept out of export and `npm run backup` (code read on #37, not probed) | |
+| R6 | Over plain HTTP on the LAN (option 3 alone), the token and cookie are readable on the Wi-Fi, and the microphone cannot work | Harrington does not terminate TLS | Runbook recommends options 1 or 2 | |
+| R7 | Losing the host disk without a second-place backup loses the family's records | One host, one data folder | Backup bell, runbook | |
+
+## 7. Near-term changes (open PRs, not probed)
+
+- **#37 (HAR-26, in-app AI provider settings, capability allowlist).** Adds
+  `PUT/DELETE /api/settings/ai` and `POST /api/settings/ai/test`, allowed when
+  the token is on or when the socket's address is loopback
+  (`server.mjs:408` on its head `2c485f5`). A rebinding page's requests arrive
+  from the loopback address with `Sec-Fetch-Site: same-origin`, so, with G1
+  open, a web page could point the provider at its own server and receive
+  every later prompt, and the stored key with them, if the base URL is
+  changed and the key kept (by code reading). **G1 should land before or with
+  #37.** It also makes `notesAllowed()` check the capability (G9), and must
+  pass the guarded messages, never `body.messages`, to its provider call
+  (its own merge note). `secrets.json` is written 0600 and excluded from
+  `npm run backup` and the documented Docker volume backup (R5).
+- **#33 (HAR-24, evidence checklist and level-set placement).** Adds a
+  `levelset` field; until `documentFields` lists it, it rides through as an
+  unknown field (G11), unvalidated.
+- **#39 (copy and docs sweep), merged as `f8c43e6`.** Its SECURITY.md
+  wording on what reaches the provider matches R1 and section 4 TB4.
+- **#40, #41, #42 (calendar, recall shelf, topic finder).** New stored fields
+  and AI calls: each new field needs a `document.js` rule, and each new
+  prompt goes through `ask()` so both redaction layers apply.
+
+## 8. How this was checked
+
+Sandbox on the review machine, all secrets fake:
+
+1. **Shared host, option 3:** `HARRINGTON_HOST=0.0.0.0`, port 4400,
+   `HARRINGTON_ACCESS_TOKEN` set, a data folder seeded with a **legacy family
+   document** (no `version`, no `schemaVersion`, plain `parentPin`, a parent
+   note naming a third person and a health detail), and
+   `HARRINGTON_TAXONOMY_UPSTREAM` pinned to commit `96a7933`.
+2. **Default host:** loopback, port 4401, no token, same document.
+3. **Second device:** curl bound to the host's non-loopback address
+   (`--interface 192.0.2.2`) and a separate Chromium context opening
+   `http://192.0.2.2:4400`.
+4. **Logging AI provider:** a 20-line OpenAI-compatible server writing every
+   request body and header name to a file. Prompts were replayed through the
+   app's own `ai.js` in the page (the `ask()` to `backend.chat()` path every
+   view uses), with and without the notes opt-in, and as crafted `/api/ai`
+   bodies.
+5. **Crafted documents:** a newer format, a 4.9 MB unknown field, `__proto__`
+   and orphan learner keys, a format-1 document with a plain PIN, markup in a
+   learner name, all sent as saves (the server runs the import validator).
+6. **Docker:** no daemon in the sandbox. Reviewed from `Dockerfile` and
+   `compose.yaml`: `node:22-alpine` as root, data in the `/data` volume
+   (`harrington_harrington-data`), port published on `127.0.0.1:4173`,
+   `HARRINGTON_PUBLISHED_HOST=127.0.0.1`.
+7. **Tests run:** `node --test tests/server.test.mjs tests/pin.test.mjs
+   tests/family-data.test.mjs tests/isolation.test.mjs
+   tests/import-validation.test.mjs tests/schema.test.mjs
+   tests/hosting.test.mjs` (187 passed), and the desktop project of
+   `access-token`, `api`, `child-view`, `data-safety` and `hostile-import`
+   e2e specs (21 passed).
