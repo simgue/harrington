@@ -226,3 +226,26 @@ test('a change that cannot simply be re-applied gets no Try again', async () => 
   assert.equal(conflict.retry, null);
   assert.equal(store.describeDiscarded(conflict.discarded), 'other changes');
 });
+
+test('a migration the reload makes is never listed as a lost change, then or later', async () => {
+  // An older tab saved a schema-1 document with a plain PIN while this tab
+  // had a change pending: only that change is named.
+  otherTabSaves(() => ({ schemaVersion: 1, settings: { parentPin: '2468' } }));
+  events.length = 0;
+  store.setStatus('s1', 'e', 'learning');
+  await store.flushSaves();
+  const [first] = events.filter((e) => e.type === 'conflict');
+  assert.deepEqual(first.discarded.map((c) => [c.kind, c.topicId]), [['status', 'e']]);
+  await store.flushSaves();
+  assert.equal(server.doc.schemaVersion, 2, 'the reload saved the migrated document');
+  assert.ok(server.doc.settings.parentPinHash && !('parentPin' in server.doc.settings));
+
+  // The migrated document is the synced copy: the next conflict names only
+  // the parent's change, not the PIN or the schema.
+  otherTabSaves(() => ({ graphView: store.graphView() }));
+  events.length = 0;
+  store.setStatus('s1', 'f', 'learning');
+  await store.flushSaves();
+  const [second] = events.filter((e) => e.type === 'conflict');
+  assert.deepEqual(second.discarded.map((c) => [c.kind, c.topicId]), [['status', 'f']]);
+});

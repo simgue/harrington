@@ -268,7 +268,7 @@ test('planTopicOn moves a planned topic, adds an off-track one once, and reports
   const { loadTaxonomy } = await import('../src/js/data.js');
   await loadTaxonomy();
   const store = await import('../src/js/store.js');
-  const { planTopicOn, buildPlan, keyOf } = await import('../src/js/scheduler.js');
+  const { planTopicOn, buildPlan, keyOf, nextHomeDayKey } = await import('../src/js/scheduler.js');
   const year = new Date().getFullYear();
   const id = store.addStudent('Sample Eight', year - 8);
   const student = () => store.get().students.find((s) => s.id === id);
@@ -280,9 +280,13 @@ test('planTopicOn moves a planned topic, adds an off-track one once, and reports
   assert.ok(buildPlan(student()).topicDate.has('on-track'));
   assert.ok(!buildPlan(student()).topicDate.has('off-track'), 'an age-5 topic is off an 8-year-old\'s track');
 
-  assert.deepEqual(planTopicOn(student(), onTrack, monday), { dayKey: monday, outcome: 'moved' });
-  assert.equal(buildPlan(student()).topicDate.get('on-track'), monday);
-  assert.deepEqual(planTopicOn(student(), onTrack, monday), { dayKey: monday, outcome: 'already' });
+  // Move it to a home day other than the one the track gave it (which depends
+  // on today's date).
+  const planned = buildPlan(student()).topicDate.get('on-track');
+  const other = nextHomeDayKey(planned, null, { after: true });
+  assert.deepEqual(planTopicOn(student(), onTrack, other), { dayKey: other, outcome: 'moved' });
+  assert.equal(buildPlan(student()).topicDate.get('on-track'), other);
+  assert.deepEqual(planTopicOn(student(), onTrack, other), { dayKey: other, outcome: 'already' });
 
   assert.deepEqual(planTopicOn(student(), offTrack, monday), { dayKey: monday, outcome: 'added' });
   assert.deepEqual(planTopicOn(student(), offTrack, monday), { dayKey: monday, outcome: 'already' });
@@ -340,5 +344,7 @@ test('bad request log entries read as nothing', async () => {
   assert.equal(store.logRequest('s-bad', 'volcanoes').text, 'volcanoes', 'a bad stored log does not break logging');
   assert.equal(store.requestsFor('s-bad').length, 1);
   assert.equal(store.inspectImport({ students: [{ id: 's1', name: 'Sample Nine' }], requests: [] }).ok, false, 'the section must be an object');
-  assert.equal(store.inspectImport({ students: [{ id: 's1', name: 'Sample Nine' }], requests: { s1: null } }).ok, true);
+  // Import validation (document.js) refuses a log that is not a list; reads stay tolerant.
+  assert.equal(store.inspectImport({ students: [{ id: 's1', name: 'Sample Nine' }], requests: { s1: null } }).ok, false);
+  assert.equal(store.inspectImport({ students: [{ id: 's1', name: 'Sample Nine' }], requests: { s1: [] } }).ok, true);
 });
