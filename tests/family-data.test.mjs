@@ -477,10 +477,14 @@ describe('family data safety in the store', { concurrency: false }, () => {
     await store.flushSaves();
   });
 
-  test('import replaces a color outside the palette', async () => {
+  test('import replaces an older palette color and refuses any other color', async () => {
     const exported = JSON.parse(JSON.stringify(await store.exportDocument()));
     const target = exported.students[0];
     target.color = 'red"><img src=x onerror=alert(1)>';
+    assert.equal(store.inspectImport(exported).ok, false);
+    await assert.rejects(store.importDocument(exported), /Learner 1 in the file has a color that is not a hex color/);
+
+    target.color = '#3f7d5e'; // the first palette, before HAR-22
     target.name = '<b>Sample "Eleven"</b>';
     assert.equal(await store.importDocument(exported), true);
     const imported = store.get().students.find((s) => s.id === target.id);
@@ -531,10 +535,21 @@ describe('family data safety in the store', { concurrency: false }, () => {
     await assert.rejects(store.importDocument([]));
   });
 
+  // A family document an older Harrington left on disk: data format 1, the PIN
+  // in plain text. The server refuses to save one (409 below the stored format,
+  // 422 for a plain PIN at format 2), so it is written straight to the file.
+  const olderDocumentOnDisk = async (pin) => {
+    const current = await serverState();
+    const { parentPinHash: _h, parentPinSalt: _s, ...settings } = current.settings || {};
+    const doc = { ...current, schemaVersion: 1, settings: { ...settings, parentPin: pin }, version: current.version + 1, writeId: 'older-harrington' };
+    await writeFile(stateFile(), JSON.stringify(doc));
+    return doc;
+  };
+
   test('a plain PIN is hashed on load and on import, and never exported', async () => {
     const plain = (doc) => JSON.stringify(doc).includes('"parentPin"');
     // An older family document on the server.
-    const before = await otherDevicePut((doc) => ({ ...doc, settings: { ...doc.settings, parentPin: '2468' } }));
+    const before = await olderDocumentOnDisk('2468');
     assert.equal(before.settings.parentPin, '2468');
     await store.loadAll();
     await store.flushSaves();
@@ -548,8 +563,8 @@ describe('family data safety in the store', { concurrency: false }, () => {
     assert.equal(plain(exported), false);
     assert.equal(JSON.stringify(exported).includes('"2468"'), false);
 
-    // An older export file with the PIN in plain text.
-    const oldFile = { ...JSON.parse(JSON.stringify(exported)), settings: { ...exported.settings, parentPin: '1357' } };
+    // An older export file (data format 1) with the PIN in plain text.
+    const oldFile = { ...JSON.parse(JSON.stringify(exported)), schemaVersion: 1, settings: { ...exported.settings, parentPin: '1357' } };
     delete oldFile.settings.parentPinHash;
     delete oldFile.settings.parentPinSalt;
     assert.equal(await store.importDocument(oldFile), true);
@@ -561,15 +576,11 @@ describe('family data safety in the store', { concurrency: false }, () => {
   });
 
   const plainPin = (doc) => JSON.stringify(doc).includes('"parentPin"');
-  const withPlainPin = (pin) => (doc) => {
-    const { parentPinHash: _h, parentPinSalt: _s, ...settings } = doc.settings || {};
-    return { ...doc, settings: { ...settings, parentPin: pin } };
-  };
 
   test('export hashes a plain PIN another device saved since this tab loaded', async () => {
     await store.loadAll();
     await store.flushSaves();
-    const other = await otherDevicePut(withPlainPin('8642'));
+    const other = await olderDocumentOnDisk('8642');
     assert.equal(other.settings.parentPin, '8642');
     // This tab has nothing pending, so the export is the server copy.
     const exported = await store.exportDocument();
@@ -583,7 +594,7 @@ describe('family data safety in the store', { concurrency: false }, () => {
     await store.loadAll();
     await store.flushSaves();
     const id = store.get().students[0].id;
-    await otherDevicePut(withPlainPin('9753'));
+    await olderDocumentOnDisk('9753');
     statusEvents.length = 0;
     store.setStatus(id, 'count-to-5', 'practicing');
     await store.flushSaves(); // 412: reloads the other device's document
@@ -597,7 +608,7 @@ describe('family data safety in the store', { concurrency: false }, () => {
   });
 
   test('two tabs migrating the same plain PIN: the losing tab reloads without a toast', async () => {
-    await otherDevicePut(withPlainPin('1470'));
+    await olderDocumentOnDisk('1470');
     const salt = '0'.repeat(32);
     // The other tab migrates and saves just before this tab's migration save.
     const wrapped = globalThis.fetch;
@@ -607,7 +618,7 @@ describe('family data safety in the store', { concurrency: false }, () => {
         raced = true;
         await otherDevicePut((doc) => {
           const { parentPin: _p, ...settings } = doc.settings;
-          return { ...doc, settings: { ...settings, parentPinSalt: salt, parentPinHash: createHash('sha256').update(`${salt}:1470`).digest('hex') } };
+          return { ...doc, schemaVersion: 2, settings: { ...settings, parentPinSalt: salt, parentPinHash: createHash('sha256').update(`${salt}:1470`).digest('hex') } };
         });
       }
       return wrapped(path, options);
@@ -691,8 +702,40 @@ describe('family data safety in the store', { concurrency: false }, () => {
     assert.deepEqual(Object.keys((await serverState()).recall[sid]).sort(), ['prune-race::0', 'prune-race::1']);
   });
 
+  test('a read-only family (newer schema) is never pruned or written', async () => {
+    const sid = 's-prune-readonly';
+    await saveRecallCache('prune-readonly');
+    // The server refuses to store a newer schema over HTTP (409), so the file is
+    // written as a newer Harrington on the same data directory would leave it.
+    const writeDoc = async (mutate) => {
+      const current = await serverState();
+      await writeFile(stateFile(), JSON.stringify({ ...mutate(current), version: current.version + 1 }));
+    };
+    const schema = (await serverState()).schemaVersion;
+    await writeDoc((doc) => ({ ...doc, schemaVersion: 99, recall: { ...doc.recall, [sid]: legacyRecall(sid, 'prune-readonly') } }));
+    try {
+      await store.loadAll();
+      assert.equal(store.isReadOnly(), true);
+      const before = (await serverState()).version;
+      statusEvents.length = 0;
+      assert.equal(store.recallDueCount(sid), 7);
+      // Long enough for the cache read and an immediate save to have landed.
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      assert.equal(Object.keys(store.get().recall[sid]).length, 7, 'not pruned in memory');
+      assert.equal((await serverState()).version, before, 'nothing written');
+      assert.equal(statusEvents.includes('read-only'), false, 'no refused save either');
+    } finally {
+      await writeDoc((doc) => {
+        const { [sid]: _gone, ...recall } = doc.recall;
+        return { ...doc, schemaVersion: schema, recall };
+      });
+      await store.loadAll();
+    }
+    assert.equal(store.isReadOnly(), false);
+  });
+
   test('a load that migrates the PIN saves once, at once; a load with nothing to migrate never writes', async () => {
-    await otherDevicePut(withPlainPin('2580'));
+    await olderDocumentOnDisk('2580');
     const before = (await serverState()).version;
     await store.loadAll(); // no flushSaves: the migration save is not debounced
     const after = await serverState();
