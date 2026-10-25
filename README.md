@@ -95,7 +95,9 @@ need a local AI provider (see [Optional local model](#optional-local-model-ollam
 Without one, those buttons are replaced by a quiet "Needs a local AI provider"
 link (and left out of the child view); with a provider but a capability not
 switched on, the link reads "Not switched on yet" (see
-[docs/AI-SETUP.md](docs/AI-SETUP.md)). The curriculum is downloaded once on
+[docs/AI-SETUP.md](docs/AI-SETUP.md)). Lessons and print & go sheets saved
+on the server earlier still open: the topic page shows "Open saved lesson", and
+Records lists them under "Saved lessons". The curriculum is downloaded once on
 first start and does not update on its own.
 
 ## Highlights

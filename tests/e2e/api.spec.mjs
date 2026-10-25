@@ -173,6 +173,38 @@ test('AI proxy reports a failing provider as 502 without leaking details', async
   expect(await res.json()).toEqual({ error: 'The AI provider failed' });
 });
 
+test('saved lessons listing: keys and saved times by prefix, never content; 400 for other prefixes', async ({ request }) => {
+  const key = 'print:e2e-listing';
+  const put = await request.put(`${URLS.appAi}/api/lessons/${encodeURIComponent(key)}`, { data: { printables: [{ type: 'worksheet', content: { problems: ['1 + 1'] } }] } });
+  expect(put.status()).toBe(204);
+
+  const res = await request.get(`${URLS.appAi}/api/lessons?prefix=${encodeURIComponent('print:')}`);
+  expect(res.status()).toBe(200);
+  expect(res.headers()['cache-control']).toBe('no-store');
+  const { lessons } = await res.json();
+  const entry = lessons.find((e) => e.key === key);
+  expect(entry).toBeTruthy();
+  expect(Object.keys(entry).sort()).toEqual(['key', 'savedAt']);
+  expect(Number.isInteger(entry.savedAt)).toBe(true);
+  expect(lessons.every((e) => e.key.startsWith('print:'))).toBe(true);
+  expect(JSON.stringify(lessons)).not.toContain('1 + 1');
+
+  for (const bad of ['act:', 'other', '']) {
+    const rejected = await request.get(`${URLS.appAi}/api/lessons?prefix=${encodeURIComponent(bad)}`);
+    expect(rejected.status()).toBe(400);
+    expect(await rejected.json()).toEqual({ error: 'prefix must be one of topic:, print: or recall:' });
+  }
+  // Bounded: at most 200 newest entries, and `limit` is clamped.
+  const one = await request.get(`${URLS.appAi}/api/lessons?prefix=${encodeURIComponent('print:')}&limit=1`);
+  expect((await one.json()).lessons).toEqual([lessons[0]]);
+  const badLimit = await request.get(`${URLS.appAi}/api/lessons?prefix=${encodeURIComponent('print:')}&limit=all`);
+  expect(badLimit.status()).toBe(400);
+  expect(await badLimit.json()).toEqual({ error: 'limit must be a whole number' });
+  const noAi = await request.get(`${URLS.appNoAi}/api/lessons?prefix=topic:`);
+  expect(noAi.status()).toBe(200);
+  expect(Array.isArray((await noAi.json()).lessons)).toBe(true);
+});
+
 test('access token: /api/* needs the sign-in cookie, static files stay open (HAR-25)', async ({ playwright }) => {
   const visitor = await playwright.request.newContext();
   try {

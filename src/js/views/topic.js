@@ -80,7 +80,9 @@ export function renderTopic(params, { navigate }) {
   printBtn.onclick = () => openPrintables(t);
   // Without a provider (or with a capability off), show only what is already
   // cached. One chip stands in for both unless the lesson itself can generate.
-  lessonBtn.replaceWith(gateAi(lessonBtn, { capability: 'lesson', cachedKey: 'topic:' + t.id }));
+  const savedBtn = el(`<button class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="book-open-text" class="w-4 h-4"></i>Open saved lesson</button>`);
+  savedBtn.onclick = () => openLesson(t);
+  lessonBtn.replaceWith(gateAi(lessonBtn, { capability: 'lesson', cachedKey: 'topic:' + t.id, saved: savedBtn }));
   const printFallback = store.aiAvailable('lesson') ? null : el('<span class="hidden"></span>');
   printBtn.replaceWith(gateAi(printBtn, { capability: 'printables', cachedKey: 'print:' + t.id, fallback: printFallback }));
   root.appendChild(lessonCta);

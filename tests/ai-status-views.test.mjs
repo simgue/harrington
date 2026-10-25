@@ -282,7 +282,7 @@ const modalView = (open) => ({ scope: 'modal', render: async () => { await open(
 // only AI control left is "Generate a different version".
 LESSONS.set(`topic:${MASTERED.id}`, { objective: 'Count objects one by one', teach: [{ title: 'Touch and count', say: 'One, two, three', do: 'Point at each block' }] });
 LESSONS.set(`print:${MASTERED.id}`, { printables: [{ type: 'worksheet', title: 'Count the dots', content: { intro: 'Count and write', problems: ['● ● ●', '● ●'] } }] });
-LESSONS.set(`recall:${MASTERED.id}`, { cards: [{ front: 'What comes after two?', back: 'Three' }] });
+LESSONS.set(`recall:${MASTERED.id}`, { cards: [{ id: `${MASTERED.id}::0`, front: 'What comes after two?', back: 'Three' }] }); // ids as aiRecallCards writes them
 
 // Keyed by test name; `file` is the view module under test.
 const VIEWS = {

@@ -45,15 +45,16 @@ export function aiUnavailableChip(capability = null, href = AI_HELP_HREF) {
 // The control itself when its `capability` (or any of an array of them) can
 // generate, otherwise the chip (or `fallback`). With `cachedKey`, a control
 // that only opens content already in the lesson cache replaces the
-// placeholder once the cache confirms it.
+// placeholder once the cache confirms it (a valid saved value); `saved` is
+// shown then instead of `control`, such as an "Open saved lesson" button.
 export function gateAi(control, options = {}) {
-  const { capability = null, href = AI_HELP_HREF, cachedKey = null, fallback = null } = options;
+  const { capability = null, href = AI_HELP_HREF, cachedKey = null, fallback = null, saved = null } = typeof options === 'string' ? { href: options } : options;
   if (store.aiAvailable(capability)) return control;
   const placeholder = fallback || aiUnavailableChip(capability, href);
   if (cachedKey) {
     store.hasCachedLesson(cachedKey).then(found => {
       if (!found || !placeholder.parentNode) return;
-      placeholder.replaceWith(control);
+      placeholder.replaceWith(saved || control);
       refreshIcons();
     });
   }
@@ -66,6 +67,22 @@ export function generateAnotherButton(onRegen, capability) {
   const btn = el(`<button class="ai-regen flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink"><i data-lucide="refresh-cw" class="w-4 h-4"></i>Generate a different version</button>`);
   btn.onclick = onRegen;
   return gateAi(btn, { capability });
+}
+
+// After a first generation the server did not store: the content stays on
+// screen, and Retry save sends the same value again (no new AI call).
+export function offerRetrySave(key) {
+  if (!store.isUnsavedCached(key)) return;
+  toast('Generated, but not saved on this server', 'error', {
+    id: 'unsaved:' + key,
+    action: {
+      label: 'Retry save',
+      onClick: async () => {
+        if (await store.retrySaveCached(key)) toast('Saved', 'success', { id: 'unsaved:' + key });
+        else offerRetrySave(key);
+      },
+    },
+  });
 }
 
 // `render(value)` returns a detached node and may throw. Both helpers render
@@ -109,6 +126,7 @@ export async function showGenerated(stage, { key, generate, render, loading, ret
     stage.replaceChildren(render(value));
     refreshIcons();
     onShow?.(value);
+    offerRetrySave(key);
     return value;
   } catch (err) {
     console.error(err);
