@@ -103,8 +103,10 @@ const consumerFiles = [
 const ref = (name, flags = '') => new RegExp(`(?<![\\w$])(?<!(?:^|[^.])\\.)${name}\\b`, flags);
 
 // Kept on purpose: the fail-closed Commune stub that tests/isolation.test.mjs
-// asserts on, so a future Commune view cannot quietly reach a remote service.
-const KEEP = new Set(['src/js/coop.js']);
+// asserts on, so a future Commune view cannot quietly reach a remote service;
+// and the figure engine, a classic script that scripts/build-figures.mjs
+// inlines into every src/figures/ page (HAR-34), never imported by the app.
+const KEEP = new Set(['src/js/coop.js', 'src/js/figures/engine.js']);
 // Exports kept with no importer: ai-status.js's helper list is asserted on by
 // tests/ai-status-imports.test.mjs (the calendar gateAi hotfix).
 const KEEP_EXPORTS = new Set(['src/js/ai-status.js: AI_HELP_HREF']);
