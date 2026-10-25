@@ -638,6 +638,103 @@ describe('family data safety in the store', { concurrency: false }, () => {
     assert.equal(plainPin(await serverState()), false);
   });
 
+  // A legacy family: schedule records saved without a topicId for a seven-card
+  // set, against a saved two-card set (the server stores objects only).
+  const legacyRecall = (sid, topic) => Object.fromEntries(Array.from({ length: 7 }, (_, i) => [`${topic}::${i}`, { box: 0, due: 0, reps: 1, lapses: 0, last: 0 }]));
+  const saveRecallCache = async (topic) => {
+    const cards = [0, 1].map((i) => ({ id: `${topic}::${i}`, front: `Q${i}?`, back: `A${i}` }));
+    const res = await realFetch(`${baseUrl}/api/lessons/${encodeURIComponent('recall:' + topic)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cards }) });
+    assert.equal(res.status, 204);
+  };
+  const until = async (check, ms = 3000) => {
+    const start = Date.now();
+    while (!(await check())) {
+      if (Date.now() - start > ms) assert.fail('timed out');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  };
+
+  test('the orphan prune on first load saves once, at once, like a migration', async () => {
+    const sid = 's-prune-once';
+    await saveRecallCache('prune-once');
+    await otherDevicePut((doc) => ({ ...doc, recall: { ...doc.recall, [sid]: legacyRecall(sid, 'prune-once') } }));
+    await store.loadAll();
+    const before = (await serverState()).version;
+    statusEvents.length = 0;
+    assert.equal(store.recallDueCount(sid), 7);
+    // No flushSaves: the repair is not debounced, so it lands well inside the
+    // 400 ms a normal change waits before saving.
+    await until(async () => (await serverState()).version > before, 300);
+    const saved = await serverState();
+    assert.equal(saved.version, before + 1);
+    assert.deepEqual(Object.keys(saved.recall[sid]).sort(), ['prune-once::0', 'prune-once::1']);
+    assert.equal(store.recallDueCount(sid), 2);
+    await store.flushSaves();
+    assert.equal((await serverState()).version, before + 1, 'saved once');
+  });
+
+  test('two tabs pruning the same orphans: the losing tab reloads without a toast', async () => {
+    const sid = 's-prune-race';
+    await saveRecallCache('prune-race');
+    await otherDevicePut((doc) => ({ ...doc, recall: { ...doc.recall, [sid]: legacyRecall(sid, 'prune-race') } }));
+    await store.loadAll();
+    // The other tab prunes and saves just before this tab's repair save.
+    const wrapped = globalThis.fetch;
+    let raced = false;
+    globalThis.fetch = async (path, options = {}) => {
+      if (!raced && path === '/api/state' && options.method === 'PUT') {
+        raced = true;
+        await otherDevicePut((doc) => ({ ...doc, recall: { ...doc.recall, [sid]: { 'prune-race::0': doc.recall[sid]['prune-race::0'], 'prune-race::1': doc.recall[sid]['prune-race::1'] } } }));
+      }
+      return wrapped(path, options);
+    };
+    statusEvents.length = 0;
+    try {
+      store.recallDueCount(sid);
+      await until(() => raced);
+      await until(() => statusEvents.length > 0 || Object.keys(store.get().recall[sid] || {}).length === 2);
+      await store.flushSaves();
+    } finally {
+      globalThis.fetch = wrapped;
+    }
+    assert.equal(raced, true);
+    assert.equal(statusEvents.includes('conflict'), false, `events: ${statusEvents}`);
+    assert.deepEqual(Object.keys(store.get().recall[sid]).sort(), ['prune-race::0', 'prune-race::1']);
+    assert.deepEqual(Object.keys((await serverState()).recall[sid]).sort(), ['prune-race::0', 'prune-race::1']);
+  });
+
+  test('a read-only family (newer schema) is never pruned or written', async () => {
+    const sid = 's-prune-readonly';
+    await saveRecallCache('prune-readonly');
+    // The server refuses to store a newer schema over HTTP (409), so the file is
+    // written as a newer Harrington on the same data directory would leave it.
+    const writeDoc = async (mutate) => {
+      const current = await serverState();
+      await writeFile(stateFile(), JSON.stringify({ ...mutate(current), version: current.version + 1 }));
+    };
+    const schema = (await serverState()).schemaVersion;
+    await writeDoc((doc) => ({ ...doc, schemaVersion: 99, recall: { ...doc.recall, [sid]: legacyRecall(sid, 'prune-readonly') } }));
+    try {
+      await store.loadAll();
+      assert.equal(store.isReadOnly(), true);
+      const before = (await serverState()).version;
+      statusEvents.length = 0;
+      assert.equal(store.recallDueCount(sid), 7);
+      // Long enough for the cache read and an immediate save to have landed.
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      assert.equal(Object.keys(store.get().recall[sid]).length, 7, 'not pruned in memory');
+      assert.equal((await serverState()).version, before, 'nothing written');
+      assert.equal(statusEvents.includes('read-only'), false, 'no refused save either');
+    } finally {
+      await writeDoc((doc) => {
+        const { [sid]: _gone, ...recall } = doc.recall;
+        return { ...doc, schemaVersion: schema, recall };
+      });
+      await store.loadAll();
+    }
+    assert.equal(store.isReadOnly(), false);
+  });
+
   test('a load that migrates the PIN saves once, at once; a load with nothing to migrate never writes', async () => {
     await olderDocumentOnDisk('2580');
     const before = (await serverState()).version;

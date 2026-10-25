@@ -61,6 +61,14 @@ export async function loadLesson(id) {
   return response.json();
 }
 
+// Keys and saved times (ms) of cached entries under one prefix, newest first,
+// at most `limit` (the server caps it too). No content.
+export async function listLessons(prefix, limit) {
+  const response = await request(`/api/lessons?prefix=${encodeURIComponent(prefix)}&limit=${limit}`);
+  const body = await response.json();
+  return Array.isArray(body?.lessons) ? body.lessons : [];
+}
+
 export async function saveLesson(id, value) {
   await request(`/api/lessons/${encodeURIComponent(id)}`, {
     method: 'PUT',
