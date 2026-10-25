@@ -124,7 +124,8 @@ export default defineConfig({
     { name: 'ai-unreachable', testMatch: /(^|[\\/])ai-unreachable\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appAiUnreachable } },
     { name: 'lessons-only', testMatch: /(^|[\\/])lessons-only\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appLessonsOnly } },
     { name: 'settings', testMatch: /(^|[\\/])settings\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appSettings } },
-    { name: 'mobile', testMatch: /(^|[\\/])mobile\.spec\.mjs$/, use: { ...mobile, baseURL: URLS.appAi } },
+    // The phone project runs mobile.spec and the calendar tests tagged @mobile.
+    { name: 'mobile', testMatch: /(^|[\\/])(mobile|calendar)\.spec\.mjs$/, grep: /mobile\.spec\.mjs|@mobile/, use: { ...mobile, baseURL: URLS.appAi } },
     {
       name: 'walkthrough',
       testMatch: /(^|[\\/])walkthrough\.spec\.mjs$/,

@@ -82,7 +82,7 @@ yourself to force one.
 | `ai-unreachable` | 1280×900 | `ai-unreachable.spec.mjs` | a provider that is down: the "couldn't reach" copy and Try again |
 | `settings` | 1280×900 | `settings.spec.mjs` | Settings > AI provider: save, test and remove a provider, with the key never in a response |
 | `lessons-only` | 1280×900 | `lessons-only.spec.mjs` | only lessons switched on: the "Not switched on yet" chip, a live lesson, cached content still opening |
-| `mobile` | 390×844, touch | `mobile.spec.mjs` | asserts no horizontal overflow on every route |
+| `mobile` | 390×844, touch | `mobile.spec.mjs`, and the `calendar.spec.mjs` tests tagged `@mobile` | asserts no horizontal overflow on every route; the tagged calendar tests run here and in `desktop` |
 | `walkthrough` | 1280×900 | `walkthrough.spec.mjs` | video on: parent and child walkthroughs |
 | `walkthrough-mobile` | 390×844 | `walkthrough-mobile.spec.mjs` | video on: phone walkthrough |
 
