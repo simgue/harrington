@@ -116,7 +116,9 @@ name (`HARRINGTON_PUBLISHED_HOST`, as with `tailscale serve` or Caddy in
 [DEPLOYMENT.md](DEPLOYMENT.md)). Behind such a proxy every family device
 reaches Harrington from this computer's own address, so that address no
 longer tells this computer apart. A request that arrives through a proxy
-(with `X-Forwarded-For` or a similar header) is refused for the same reason.
+(with `X-Forwarded-For` or a similar header) is refused for the same reason,
+and so is one that names Harrington by anything other than `localhost` or a
+loopback address, as a DNS rebinding page would.
 With the token set, any signed-in device can save.
 
 **Under Docker or Compose the page is read-only, even at the host computer.**

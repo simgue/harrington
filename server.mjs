@@ -451,12 +451,15 @@ function accessTokenEnabled() {
 // forwarding headers is refused for the same reason, even when Harrington
 // does not know it is shared. Those headers are only ever a reason to refuse,
 // never to allow: any client can set them.
+// On an unshared server the Host header must name this computer too: a DNS
+// rebinding page reaches 127.0.0.1 as same-origin, but under its own name.
 const LOCAL_ONLY = 'AI provider settings can only be changed from a signed-in device once an access token is set, or, while Harrington is not shared with other devices, from the computer running it';
 const FORWARDING_HEADERS = ['forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-real-ip'];
 function canChangeAiSettings(req) {
   if (accessTokenEnabled()) return true;
   if (shared || FORWARDING_HEADERS.some((name) => name in req.headers)) return false;
-  return isLoopbackAddress(req.socket.remoteAddress);
+  const hostName = hostHeaderName(req);
+  return isLoopbackAddress(req.socket.remoteAddress) && (hostName === 'localhost' || isLoopbackAddress(hostName));
 }
 function refuseRemote(req, res) {
   if (canChangeAiSettings(req)) return false;

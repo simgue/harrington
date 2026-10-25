@@ -1388,6 +1388,27 @@ describe('AI provider settings from another device', { concurrency: false }, () 
       await withToken.stop();
     }
 
+    // DNS rebinding (THREAT-MODEL.md G1): an unshared server answers to any
+    // name, but a settings write under a name other than this computer's is
+    // refused, and the page says it is read-only there.
+    const rebound = await spawnHarrington();
+    try {
+      const port = new URL(rebound.url).port;
+      const write = { baseUrl: 'http://attacker.test/v1', model: 'm' };
+      const refused = await sendWithHost(port, 'rebind.attacker.test', { body: write });
+      assert.equal(refused.status, 403);
+      assert.deepEqual(refused.json(), { error: LOCAL_ONLY });
+      assert.equal((await sendWithHost(port, `rebind.attacker.test:${port}`, { method: 'DELETE' })).status, 403);
+      assert.equal((await sendWithHost(port, 'rebind.attacker.test', { method: 'POST', path: '/api/settings/ai/test' })).status, 403);
+      assert.equal((await sendWithHost(port, 'rebind.attacker.test', { method: 'GET' })).json().canChange, false);
+      await assert.rejects(stat(join(rebound.dir, 'secrets.json')), { code: 'ENOENT' });
+      for (const name of [`localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`]) {
+        assert.equal((await sendWithHost(port, name, { body: write })).status, 200, name);
+      }
+    } finally {
+      await rebound.stop();
+    }
+
     // Not known to be shared, but the request came through a proxy: refused.
     // Without the proxy's headers, the computer itself can still save.
     const local = await spawnHarrington();
@@ -1632,6 +1653,21 @@ function getWithHost(port, hostHeader, path = '/api/health') {
     });
     req.on('error', reject);
     req.end();
+  });
+}
+
+// The same for a settings write: method, JSON body and extra headers.
+function sendWithHost(port, hostHeader, { method = 'PUT', path = '/api/settings/ai', body = null } = {}) {
+  return new Promise((resolve, reject) => {
+    const headers = { Host: hostHeader, ...(body ? { 'Content-Type': 'application/json' } : {}) };
+    const req = httpRequest({ host: '127.0.0.1', port, path, method, headers }, (res) => {
+      let text = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => { text += chunk; });
+      res.on('end', () => resolve({ status: res.statusCode, json: () => JSON.parse(text) }));
+    });
+    req.on('error', reject);
+    req.end(body ? JSON.stringify(body) : undefined);
   });
 }
 
