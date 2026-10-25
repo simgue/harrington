@@ -8,7 +8,8 @@
 //   tour        – false (default) marks the welcome tour as seen before load
 //   fixedClock  – true (default) pins Date to FIXED_NOW (timers keep running)
 import { test as base, expect } from '@playwright/test';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FIXED_NOW, URLS } from './support/env.mjs';
@@ -52,6 +53,18 @@ export class Api {
   }
 
   async reset() { await this.putState({ schemaVersion: SCHEMA_VERSION, students: [] }); }
+
+  // Restores `doc` the way a parent restores a backup (README, "Backup and
+  // restore"): family-state.json is replaced as it is, `version` and
+  // `writeId` included, so the server's version can move backwards. The
+  // launcher (start-app.mjs) leaves the data directory's path in the system
+  // temp folder, named after the port.
+  async restoreState(doc) {
+    const { port } = new URL(this.baseURL);
+    const { dataDir } = JSON.parse(await readFile(join(tmpdir(), `harrington-e2e-${port}.json`), 'utf8'));
+    await writeFile(join(dataDir, 'family-state.json'), `${JSON.stringify(doc, null, 2)}\n`);
+    expect((await this.getState()).state.version).toBe(doc.version);
+  }
 
   async seed(options) {
     const state = familyState(options);
