@@ -657,11 +657,11 @@ scrolling sideways.
 
 | Topic | Records | Insights | List |
 | --- | --- | --- | --- |
-| ![Topic](screenshots/mobile/05-topic.jpg) | ![Records](screenshots/mobile/06-records.jpg) | ![Insights](screenshots/mobile/07-insights.jpg) | ![List](screenshots/mobile/08-list-section.jpg) |
+| ![Topic](screenshots/mobile/05-topic.jpg) | ![Records](screenshots/mobile/06-records.jpg) | ![Insights](screenshots/mobile/07-insights.jpg) | ![List](screenshots/mobile/09-list-section.jpg) |
 
 | Child view | Quest log | Guide | Learners |
 | --- | --- | --- | --- |
-| ![Child view](screenshots/mobile/09-child-view.jpg) | ![Quest log](screenshots/mobile/10-quest-log.jpg) | ![Guide](screenshots/mobile/11-guide.jpg) | ![Learners](screenshots/mobile/12-learner-switcher.jpg) |
+| ![Child view](screenshots/mobile/10-child-view.jpg) | ![Quest log](screenshots/mobile/11-quest-log.jpg) | ![Guide](screenshots/mobile/12-guide.jpg) | ![Learners](screenshots/mobile/13-learner-switcher.jpg) |
 
 **What the tests assert** (`mobile.spec.mjs`): no horizontal overflow on the
 dashboard, calendar, world map, skill tree, topic page, records, insights,
@@ -673,11 +673,17 @@ recording and calendar-extra delete buttons are at least 44 × 44 px, and at
 360 px the learner menu does not scroll sideways or cut a name off (F14); the
 "Include my notes" checkbox is at least 20 px with a 44 px label that ticks it;
 the top-bar bell opens on the active learner, filters by learner, dismisses
-items, and keeps "No backup recorded" quiet for 30 days (HAR-27).
+items, and keeps "No backup recorded" quiet for 30 days (HAR-27); the
+level-set workbook route fits, its Yes / Not yet / Unsure answers are 44 px
+targets, and the observation checklist fits and saves (HAR-24).
 
 | Learner selector with Export and Import | Notifications bell |
 | --- | --- |
-| ![Learner selector with Export and Import](screenshots/mobile/13-learner-menu-family-data.jpg) | ![Notifications bell](screenshots/mobile/15-notifications.jpg) |
+| ![Learner selector with Export and Import](screenshots/mobile/14-learner-menu-family-data.jpg) | ![Notifications bell](screenshots/mobile/18-notifications.jpg) |
+
+| Level-set workbook sheet | Observation check |
+| --- | --- |
+| ![Level-set workbook sheet](screenshots/mobile/16-levelset-sheet.jpg) | ![Observation check](screenshots/mobile/17-observation-checklist.jpg) |
 
 ---
 
