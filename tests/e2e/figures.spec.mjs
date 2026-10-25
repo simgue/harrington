@@ -152,20 +152,22 @@ test('topic page: "See how it works" shows the figure in a sandboxed frame; pres
 test('Ice in the sun: ice melts at any temperature above freezing, slowly when cloudy, fastest in the sun', async ({ page }) => {
   await page.goto('/figures/mt_iGSfQg3g5c.html');
   const state = () => page.evaluate(() => ({ ice: [...window.__st.ice], T: [...window.__st.T] }));
-  // Cloudy, 62°F: both cubes are already melting, slowly.
-  await expect.poll(async () => (await state()).ice[0], { timeout: 5_000 }).toBeLessThan(0.95);
+  // Cloudy, 62°F: both cubes are already melting, slowly (most of a minute).
+  await expect.poll(async () => (await state()).ice[0], { timeout: 8_000 }).toBeLessThan(0.97);
   const cloudy = await state();
   expect(cloudy.T.map(Math.round)).toEqual([62, 62]);
-  expect(cloudy.ice[0]).toBeGreaterThan(0.5);
+  expect(cloudy.ice[0]).toBeGreaterThan(0.85);
   // Sun out, right dish in the shade: the sunny cube melts first and its dish is warmer.
   await page.getByRole('button', { name: 'Sun comes out' }).click();
   await page.waitForTimeout(2_000);
   const sunny = await state();
   expect(sunny.ice[0]).toBeLessThan(sunny.ice[1]);
   expect(sunny.T[0]).toBeGreaterThan(sunny.T[1]);
-  // The shaded cube keeps melting (74°F is above freezing), and both are gone in the end.
-  await expect.poll(async () => (await state()).ice[1], { timeout: 20_000 }).toBe(0);
-  expect((await state()).ice[0]).toBe(0);
+  // The sunny cube is gone within a few seconds; the shaded one keeps melting (74°F is above freezing).
+  await expect.poll(async () => (await state()).ice[0], { timeout: 10_000 }).toBe(0);
+  const shaded = (await state()).ice[1];
+  expect(shaded).toBeGreaterThan(0);
+  await expect.poll(async () => (await state()).ice[1], { timeout: 5_000 }).toBeLessThan(shaded);
 });
 
 test('a figure cannot navigate its own frame to another origin', async ({ page, gotoApp }) => {

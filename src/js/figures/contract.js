@@ -13,6 +13,32 @@ export const MAX_LABEL = 20;
 export const ENGINE_NOTICE = '/* Harrington figure engine (src/js/figures/engine.js). MIT License. Copyright (c) 2026 April Zhu;'
   + ' Copyright (c) 2026 Tolga Cohce. The full notice is in src/js/figures/engine.js and NOTICE. */';
 
+// The Content-Security-Policy for a file the server serves from src/, given its
+// path relative to src/ as resolved on disk. The app shell (index.html) may
+// frame only same-origin pages, so a figure cannot navigate its frame to
+// another origin; every other HTML page, and anything under figures/, is a
+// figure: inline script and style only, no network, framed only by
+// Harrington and always sandboxed to an opaque origin. Compared without
+// regard to case, because macOS and Windows serve figures/x.html for
+// FIGURES/x.html too; a page that is not the shell is never left unsandboxed.
+export const APP_CSP = "frame-src 'self'";
+export const FIGURE_CSP = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline'",
+  "style-src 'unsafe-inline'",
+  'img-src data:',
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'self'",
+  'sandbox allow-scripts',
+].join('; ');
+export function contentPolicyFor(relativePath) {
+  const p = String(relativePath).replace(/\\/g, '/').toLowerCase();
+  if (p === 'index.html') return APP_CSP;
+  if (p.endsWith('.html') || p.endsWith('.htm') || p.startsWith('figures/')) return FIGURE_CSP;
+  return null;
+}
+
 // src/figures/<topicId>.html, where the id is a taxonomy topic id.
 const FILE = /^(mt_[A-Za-z0-9_-]{4,40})\.html$/;
 export const figureIdOf = (fileName) => FILE.exec(fileName)?.[1] ?? null;

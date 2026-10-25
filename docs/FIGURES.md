@@ -13,7 +13,8 @@ finds it by its file name and the app shows it on that topic.
 ## The contract a figure page meets
 
 The checks marked *(checked)* are in `src/js/figures/contract.js`: the server
-skips a page that fails one (and names it in its log), and `npm test` fails.
+skips a page that fails one (and names it in its log, an oversized page
+included), and `npm test` fails.
 The rest are checked by the e2e suite (`tests/e2e/figures.spec.mjs`).
 
 1. **File name** is `src/figures/<topicId>.html`, where `<topicId>` is the
@@ -63,8 +64,11 @@ The rest are checked by the e2e suite (`tests/e2e/figures.spec.mjs`).
    `<html data-errors>`, no request.
 9. **Content**: one clear mechanism a child aged 5 to 8 can press and see
    why it happens; the real sequence of steps, with nothing appearing where it
-   could not get to; American English in short, plain sentences; no emoji or
-   symbols in drawn text.
+   could not get to; American English in short, plain sentences. Text drawn
+   in the SVG (`tx()`, `tag()`) is letters, digits and plain punctuation only:
+   no emoji and no symbols such as `°`, `✓` or `→` (they render as blobs
+   under the hand-drawn filter). HTML text the engine sets (button labels,
+   notes, `stats`) may use `°F`.
 
 ### How a page is tied to a topic and an age band
 
@@ -121,7 +125,8 @@ At start the app asks `GET /api/figures` for the list (`[{ id, title, hint }]`
 of the pages that meet the checked rules) and shows "See how it works" on a
 topic whose id is in it: on the topic page (with a **Full size** button that
 opens the route `#figure/<topicId>`), on the child view's topic card, and on
-that route. The frame is
+that route. The list is read when the app starts: after dropping a page in, reload
+Harrington in the browser to see it (no server restart is needed). The frame is
 `<iframe src="figures/<topicId>.html" sandbox="allow-scripts">` with **no
 query string**: labels start on and nothing is pressed. The page runs in an
 opaque origin: it cannot read the app's cookie, storage or page, open windows
@@ -129,9 +134,12 @@ or submit forms. The server sends every `/figures/*.html` page a
 Content-Security-Policy with `default-src 'none'` (inline script and style
 only, `data:` images, no requests), `frame-ancestors 'self'` and
 `sandbox allow-scripts`, so the same holds when a page is opened on its own.
-The policy follows the file, however the address is spelled
-(`/figures//x.html`, `/figures/%2Fx.html`). The app's own pages send
-`frame-src 'self'`, so a figure cannot navigate its frame to another origin.
+The policy is decided on the resolved file, ignoring case: only the app shell
+(`index.html`) is left unsandboxed, with `frame-src 'self'` so a figure cannot
+navigate its frame to another origin, and every other HTML page gets the
+figure policy, so `/figures//x.html`, `/figures/%2Fx.html` and (on macOS or
+Windows) `/FIGURES/x.html` are all sandboxed (`contentPolicyFor` in
+`contract.js`).
 Viewing or pressing a figure writes nothing to the family data.
 
 ### Query parameters a page understands
@@ -178,7 +186,7 @@ assemble the page.
    call. Start from a figure that is close (`mt_B3W5EfimJw.js`, the toy cart,
    is the simplest) and read `tools/colorfigures/SKILL.md` and its two
    examples. Never declare a name the engine owns (the list in `SKILL.md`,
-   plus `LABEL_K`, `noteError`, `CORE_CSS` and `filterFor`); prefix short names.
+   plus `LABEL_K`, `noteError`, `CORE_CSS`, `filterFor` and `_clipN`); prefix short names.
 3. Build and look:
 
    ```bash
@@ -250,9 +258,9 @@ fails rule 4. To bring one over:
   five body colors. Every control is at least 44 px; a picker stays inside the
   frame on a phone.
 - On a small screen the label pills grow (`LABEL_K`, up to 3×) so their text
-  stays at least 11.5 px. On a 390 px phone the inside of the topic page's
+  stays at about 11 px or more (the engine aims for 11.5 px). On a 390 px phone the inside of the topic page's
   frame is about 314 × 574 (36rem tall there, 34rem on a desktop), so a
-  figure with five long actions in four rows still gets 11 px labels; the
+  figure with five long actions in five rows still gets 11 px labels; the
   e2e suite checks every page and such a worst case. Check the phone shot for
   pills that overlap each other or the moving parts, and aim the pills
   outward.

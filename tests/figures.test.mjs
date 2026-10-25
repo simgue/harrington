@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { ENGINE_NOTICE, figureIdOf, figureLabels, figureMeta, figureProblems } from '../src/js/figures/contract.js';
+import { APP_CSP, ENGINE_NOTICE, FIGURE_CSP, contentPolicyFor, figureIdOf, figureLabels, figureMeta, figureProblems } from '../src/js/figures/contract.js';
 import { buildAll, sourceIds } from '../scripts/build-figures.mjs';
 
 const root = new URL('..', import.meta.url);
@@ -135,4 +135,18 @@ test('figureFor is null for every topic until the list has loaded, and for an un
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+test('the server policy: only the app shell is unsandboxed, whatever the case or separator of a path', () => {
+  assert.equal(contentPolicyFor('index.html'), APP_CSP);
+  assert.equal(contentPolicyFor('INDEX.HTML'), APP_CSP);
+  // On macOS and Windows these name the same file as figures/mt_x.html; all are figures.
+  for (const path of ['figures/mt_x.html', 'Figures/mt_x.html', 'FIGURES/mt_x.html', 'FiGuReS/MT_X.HTML', 'figures\\mt_x.html',
+    'figures/notes.txt', 'other.html', 'docs/page.htm', 'js/../figures/x.html']) {
+    assert.equal(contentPolicyFor(path), FIGURE_CSP, path);
+  }
+  for (const path of ['js/app.js', 'css/styles.css', 'vendor/lucide.min.js', 'docs/GUIDE.md']) assert.equal(contentPolicyFor(path), null, path);
+  assert.match(FIGURE_CSP, /default-src 'none'/);
+  assert.match(FIGURE_CSP, /sandbox allow-scripts/);
+  assert.doesNotMatch(FIGURE_CSP, /allow-same-origin/);
 });

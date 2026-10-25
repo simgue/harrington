@@ -129,6 +129,7 @@ test('lists a page dropped into src/figures/ at once, and skips one that breaks 
   await symlink(fileURLToPath(new URL('../src/js', import.meta.url)), join(root, 'src', 'js'));
   const page = await readFile(new URL('../src/figures/mt_B3W5EfimJw.html', import.meta.url), 'utf8');
   await writeFile(join(figures, 'mt_zzDropInBroken.html'), page.replace('</body>', '<a href="https://example.org">more</a></body>'));
+  await writeFile(join(figures, 'mt_zzDropInTooBig.html'), page.replace('</body>', `<!-- ${'x'.repeat(100 * 1024)} --></body>`));
   const server = spawn(process.execPath, ['server.mjs'], {
     cwd: root,
     env: { ...process.env, HARRINGTON_HOST: '127.0.0.1', HARRINGTON_PORT: '0', HARRINGTON_DATA_DIR: join(root, 'data'),
@@ -146,6 +147,7 @@ test('lists a page dropped into src/figures/ at once, and skips one that breaks 
     const list = async () => (await (await fetch(`${url}/api/figures`)).json()).figures;
     assert.deepEqual(await list(), []);
     assert.match(log, /Figure mt_zzDropInBroken\.html is not shown: it has an http\(s\) URL/);
+    assert.match(log, /Figure mt_zzDropInTooBig\.html is not shown: it is \d+ bytes \(the limit is 102400\)/);
     // A good page dropped in while the server runs is listed on the next request.
     await writeFile(join(figures, 'mt_zzDropInGood.html'), page.replace('<title>Toy cart</title>', '<title>Dropped in</title>'));
     const [good] = await list();

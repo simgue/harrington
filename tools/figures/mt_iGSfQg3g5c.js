@@ -132,9 +132,10 @@ function run(){
       const want = st.sunny ? COOL + (target(i) - COOL) * (1 - st.cloud) : target(i);
       st.T[i] += (want - st.T[i]) * Math.min(1, dt * .9);
       // above freezing the ice melts, faster the warmer the air, and faster again in direct sunlight:
-      // about 3.5 s in the sun, about 12 s in the shade, about 16 s on a cloudy day
+      // about 5 s in the sun, about 40 s in the shade, about a minute on a cloudy day (so a figure
+      // left alone still has its ice when the child comes to it)
       const sunOnIce = lit(i) ? .16 * (1 - st.cloud) : 0;
-      const melt = Math.min(st.ice[i], (Math.max(0, st.T[i] - FREEZE) / (HOT - FREEZE) * .13 + sunOnIce) * dt);
+      const melt = Math.min(st.ice[i], (Math.max(0, st.T[i] - FREEZE) / (HOT - FREEZE) * .04 + sunOnIce) * dt);
       st.ice[i] -= melt; st.water[i] = Math.min(1, st.water[i] + melt);
     }
     if (st.moving){

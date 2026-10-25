@@ -382,7 +382,7 @@ test('"See how it works" on a phone: the figure fits, its controls are 44 px and
 });
 
 // Label text in the topic page's frame on a 390 px phone (HAR-34 review): at least 11 px for every
-// page in src/figures/, and for a worst case built here: five long actions (three or four rows) and
+// page in src/figures/, and for a worst case built here: five long actions (up to five rows) and
 // six labels, served in place of the cart's page.
 const label11 = async (page, gotoApp, id) => {
     await gotoApp({ seed: {}, hash: `topic/${id}` });

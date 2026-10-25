@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { redactNames } from './src/js/redact.js';
 import { SCHEMA_VERSION, schemaVersionOf } from './src/js/schema.js';
 import { validateDocument } from './src/js/document.js';
-import { MAX_FIGURE_BYTES, figureIdOf, figureMeta, figureProblems } from './src/js/figures/contract.js';
+import { MAX_FIGURE_BYTES, contentPolicyFor, figureIdOf, figureMeta, figureProblems } from './src/js/figures/contract.js';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(repoRoot, 'src');
@@ -52,23 +52,6 @@ const MIME = {
   '.woff2': 'font/woff2',
 };
 
-// The "See how it works" figures (src/figures/*.html, HAR-34) are self-contained
-// pages shown in a sandboxed iframe. This policy keeps them that way even when
-// one is opened directly: inline script and style only, no network, framed
-// only by Harrington itself, and always sandboxed to an opaque origin.
-const FIGURE_CSP = [
-  "default-src 'none'",
-  "script-src 'unsafe-inline'",
-  "style-src 'unsafe-inline'",
-  'img-src data:',
-  "base-uri 'none'",
-  "form-action 'none'",
-  "frame-ancestors 'self'",
-  'sandbox allow-scripts',
-].join('; ');
-// The app's own pages may frame only same-origin pages, so a figure cannot
-// navigate its frame to another origin (frame-src governs a frame's navigations).
-const APP_CSP = "frame-src 'self'";
 const figuresDir = join(publicDir, 'figures');
 
 const writeQueues = new Map();
@@ -693,7 +676,11 @@ async function listFigures() {
     if (!id) continue;
     const path = join(dir, name);
     const details = await stat(path).catch(() => null);
-    if (!details?.isFile() || details.size > MAX_FIGURE_BYTES) continue;
+    if (!details?.isFile()) continue;
+    if (details.size > MAX_FIGURE_BYTES) {
+      console.warn(`Figure ${name} is not shown: it is ${details.size} bytes (the limit is ${MAX_FIGURE_BYTES})`);
+      continue;
+    }
     const html = await readFile(path, 'utf8');
     const problems = figureProblems(name, html);
     if (problems.length) {
@@ -857,15 +844,15 @@ async function serveStatic(req, res, url) {
   try {
     const details = await stat(path);
     if (!details.isFile()) throw Object.assign(new Error('Not found'), { code: 'ENOENT' });
+    // Decided on the resolved file, not the URL, and without regard to case (see contentPolicyFor).
+    const policy = contentPolicyFor(path.slice(publicDir.length + 1));
     res.writeHead(200, {
       'Cache-Control': extname(path) === '.html' ? 'no-cache' : 'public, max-age=3600',
       'Content-Type': MIME[extname(path).toLowerCase()] || 'application/octet-stream',
       'Content-Length': details.size,
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'SAMEORIGIN',
-      // Decided on the resolved file, not the URL: /figures//x.html and /figures/%2Fx.html are the same file.
-      ...(path.startsWith(`${figuresDir}${sep}`) ? { 'Content-Security-Policy': FIGURE_CSP }
-        : extname(path).toLowerCase() === '.html' ? { 'Content-Security-Policy': APP_CSP } : {}),
+      ...(policy ? { 'Content-Security-Policy': policy } : {}),
     });
     if (req.method === 'HEAD') res.end();
     else streamFile(res, path);

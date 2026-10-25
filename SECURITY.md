@@ -79,11 +79,14 @@ acknowledge your report and work on a fix as quickly as we reasonably can.
   plain sight.
 - The "See how it works" figures (`src/figures/*.html`) run in an iframe
   sandboxed to `allow-scripts`, so in an opaque origin with no access to the
-  app, its cookie or its storage. The server sends every file under
-  `src/figures/` a policy with `default-src 'none'` and
-  `sandbox allow-scripts`, decided on the resolved file whatever the URL's
-  spelling, and the app's pages send `frame-src 'self'`, so a figure cannot
-  load anything or navigate its frame to another origin. `/api/figures`
+  app, its cookie or its storage. The server decides each file's policy on
+  its resolved path, ignoring case: only the app shell (`index.html`) gets
+  `frame-src 'self'`, so a figure cannot navigate its frame to another
+  origin; every other HTML page and every file under `src/figures/` gets
+  `default-src 'none'` and `sandbox allow-scripts`, so a figure cannot load
+  anything even when it is opened directly, by any spelling of its address
+  (`/figures//x.html`, `/figures/%2Fx.html`, or `/FIGURES/x.html` on a
+  case-insensitive file system). `/api/figures`
   lists only pages that pass `src/js/figures/contract.js` (no URL, external
   script, link or frame tag).
 - Please never include real children's personal data in a report.
