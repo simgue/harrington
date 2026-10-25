@@ -297,7 +297,8 @@ npm run backup
 which writes `backups/harrington-<timestamp>.tar.gz` (Git ignores `backups/`).
 It leaves out `secrets.json` on purpose, so a backup never carries an API key;
 after a restore, enter the key again under Settings > AI provider.
-To restore, stop Harrington, replace `data/private/` with the archive's
+To restore, stop Harrington, close it on every device (a tab left open can
+save its own copy over the restored data), replace `data/private/` with the archive's
 contents (`tar -xzf backups/harrington-<timestamp>.tar.gz -C data`), and start
 it again. With Docker, back up the `harrington-data` volume instead.
 Set `HARRINGTON_BACKUP_DIR` to write somewhere else; the server reads the same
