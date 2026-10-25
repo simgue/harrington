@@ -57,7 +57,9 @@ rebinding*, where a web page on someone else's domain re-points that domain at
 your Harrington and reads it through the family's browser. If a device you use
 gets that `421`, add the name it uses to `HARRINGTON_ALLOWED_HOSTS` and restart.
 A server left on loopback with no published address answers to any name, as
-before.
+before, which leaves it open to DNS rebinding from a web page open on the same
+computer: turn the access token on there too ("What a family should do",
+item 1, below).
 
 Make a token with:
 

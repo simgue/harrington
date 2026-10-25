@@ -89,7 +89,7 @@ D = denial of service, E = elevation of privilege.
 
 | | Threat | Current control | Gap | Severity | Proposed fix |
 | --- | --- | --- | --- | --- | --- |
-| S/T/I | DNS rebinding: a page re-points its own name at the host and reads and writes as same-origin | Host-name allowlist, **only once the server is shared** (`server.mjs:549`, `:550`). `tests/server.test.mjs` "a shared server answers only to the family's host names and IP addresses" passes; "a loopback server answers to any host name, as before" pins the gap. | G1: the default loopback server answers any name. Reproduced in Chromium, with `--host-resolver-rules` standing in for the rebinding DNS answer: the page read the learners and saved a change (204). That flag skips the browser's own defenses, so it shows what the server allows, not which browsers let a page get that far. Firefox and Safari have no prompt before a public page reaches a loopback address; recent Chrome and Edge ask first (the Local Network Access permission), which lowers the risk there but does not remove it, since a family member can allow it. Browser behavior was not tested here. | **Blocker** | Always check Host: `localhost`, loopback and IP literals, plus the configured names |
+| S/T/I | DNS rebinding: a page re-points its own name at the host and reads and writes as same-origin | Host-name allowlist, **only once the server is shared** (`server.mjs:549`, `:550`). `tests/server.test.mjs` "a shared server answers only to the family's host names and IP addresses" passes; "a loopback server answers to any host name, as before" pins the gap. | G1: the default loopback server answers any name. Reproduced in Chromium, with `--host-resolver-rules` standing in for the rebinding DNS answer: the page read the learners and saved a change (204). That flag skips the browser's own defenses, so it shows what the server allows, not which browsers let a page get that far. Chrome, Edge and recent Firefox ask before a public page reaches a loopback address (a local-network permission prompt), which lowers the risk there but does not remove it, since a family member can allow it. Safari was not checked, and no browser's behavior was tested here. | **Blocker** | Always check Host: `localhost`, loopback and IP literals, plus the configured names |
 | T | CSRF on family data | `Sec-Fetch-Site` must be same-origin or none and the body JSON (`server.mjs:212`, `:219`); SameSite=Strict cookie when the token is on. `tests/server.test.mjs` "rejects cross-site and non-JSON state writes without touching the file". | none found for `/api/state` | | |
 | T/D | CSRF on the AI relay | None: `/api/ai` parses a `text/plain` body (a simple request, no preflight) | G5: with no token, any page makes the server call the provider (reproduced) | Minor | Apply the `/api/state` checks to every write route |
 | T | CSRF on lessons and recordings | `PUT` and `DELETE` need a CORS preflight, which the server never grants (probed: OPTIONS gets 405) | none found (but see G5 for consistency) | | |
@@ -130,7 +130,7 @@ D = denial of service, E = elevation of privilege.
 | T/E | Crafted import runs script or breaks views | One validator on import and on every save (`src/js/document.js:255`, `server.mjs:161`); learner colors forced to the palette. `tests/import-validation.test.mjs`; `tests/e2e/hostile-import.spec.mjs`; `tests/e2e/data-safety.spec.mjs` "import refuses files that are not a family export", "an imported analysis renders as text, not markup". Probed: markup in a name is stored and shown as text. | G11: unknown top-level fields (a 4.9 MB one was accepted), and lists under keys that are no learner (including `__proto__`), are kept and re-exported | Minor | Cap and report unknown fields; drop orphan keys |
 | I | Export by email, backup on a USB stick | None: plaintext JSON and `tar.gz` | G4: no encryption, no warning at export, no guidance | Major | This PR adds the family guidance; add the warning, then optional encryption |
 | I | Export or backup carries the token or the key | Neither is in the data folder on `main`. Probed: no token or key in a backup archive. On #37, `scripts/backup.mjs` leaves out `secrets.json` (code read only). | none found on `main` | | Keep `secrets.json` out (residual R5) |
-| D | Restore loses data | `npm run backup`; health warns when the newest archive is over a week old (`server.mjs:269`); `tests/server.test.mjs` "health reports the age in days of the newest archive" | Docker restore not run (no daemon here) | | |
+| D | Restore loses data | `npm run backup`; health warns when the newest archive is over a week old (`server.mjs:269`); `tests/server.test.mjs` "health reports the age in days of the newest archive" HAR-44: a restore under an open tab is undone by that tab's next edit (TB9). Docker restore not run (no daemon here). | | Family checklist item 10: close Harrington on every device first |
 
 ### TB7: host operating system
 
@@ -162,13 +162,14 @@ accepts it only if that is still the current version.
 | D | A change in flight is lost when the page reloads or closes | The unload beacon carries the version in its body (`server.mjs:227`, `backend.js:51`); `tests/server.test.mjs` "accepts an unload beacon with the version in the body"; `tests/e2e/access-token.spec.mjs` saves through a real beacon. But `saveNow` clears `dirty` before its PUT (`store.js:494`), that PUT is a plain `fetch` with no `keepalive` (`backend.js:40`), and `handlePageHidden` returns early when nothing is dirty (`store.js:525`), so a PUT still in flight at unload is neither finished nor re-sent. Beacons above about 64 KB are refused and fall back to that same fetch. | Known: HAR-43 | | A "sending" state the unload path re-sends, `keepalive` under 64 KB, and a leave-page warning above it |
 | T/D | A restore or a second server under open tabs | One host and one data folder (DEPLOYMENT.md "The one rule"); never two servers on one folder or a synced folder. The server cannot see a restore. | HAR-44 above; otherwise documented | | Family checklist line: close Harrington on every device before restoring |
 | R | Which device made a change | A random `writeId` per save, kept only to recognize the tab's own writes | Accepted residual R4 | | |
-| E | A signed-out device joins the sync | Every `/api/state` read and write is behind the cookie gate (TB1) | none found | | |
+| E | A signed-out device joins the sync | With the token on, every `/api/state` read and write is behind the cookie gate (TB1). With it off, any device that reaches the server reads and writes the document. | none found with the token on; with it off, documented (DEPLOYMENT.md option 3, family checklist item 1) | | |
 
 ## 5. Gaps
 
 Each gap was reproduced in the sandbox (section 8) unless it says "by code
 reading". **[GAPS.md](GAPS.md) has each gap's reproduction steps and
-proposed fix**, so each one can become a ticket.
+proposed fix**, so each one can become a ticket. The practices that would
+have prevented them, for HAR-36, are in [PRACTICES.md](PRACTICES.md).
 
 | # | Severity | Gap | Boundary, profile |
 | --- | --- | --- | --- |
@@ -226,7 +227,8 @@ owner's explicit acceptance.
   the token is on or when the socket's address is loopback
   (`canChangeAiSettings`, `server.mjs:447-448` on its head `3eb7e92`). An
   omitted field is left unchanged (`server.mjs:368` there), so a write that
-  changes only the base URL keeps the stored key and sends it to the new
+  changes only the base URL (plus a model, if none is stored: `server.mjs:411`
+  there refuses a base URL without one) keeps the stored key and sends it to the new
   address. Two paths reach that write without the token (both by code
   reading, not probed):
   - **Through the documented reverse proxies.** `tailscale serve` and Caddy
@@ -282,7 +284,8 @@ Sandbox on the review machine, all secrets fake:
 7. **Tests run:** `node --test tests/server.test.mjs tests/pin.test.mjs
    tests/family-data.test.mjs tests/isolation.test.mjs
    tests/import-validation.test.mjs tests/schema.test.mjs
-   tests/hosting.test.mjs` (187 passed), and the desktop project of
+   tests/hosting.test.mjs` (187 passed at `1b9cce0`, 194 at `fc59f0b` after
+   #33 added tests), and the desktop project of
    `access-token`, `api`, `child-view`, `data-safety` and `hostile-import`
    e2e specs (21 passed).
 8. **Review round 1 (on `fc59f0b`):** the sync rows (TB9) and HAR-41 were

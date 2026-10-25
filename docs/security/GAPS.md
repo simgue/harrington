@@ -12,6 +12,13 @@ The sandbox used throughout:
   `HARRINGTON_ACCESS_TOKEN`.
 - **Second device:** curl with `--interface` set to the host's non-loopback
   address (written `192.0.2.2` below).
+- **AI provider, for G5, G9 and G14:** add `HARRINGTON_AI_BASE_URL` and
+  `HARRINGTON_AI_MODEL` pointing at a stub that records each request, such as
+  `node tests/e2e/mock-ai-server.mjs --port 4311` (its `GET /__log` lists every
+  prompt it received) with `HARRINGTON_AI_BASE_URL=http://127.0.0.1:4311/v1`
+  and any model name. Without
+  them, `/api/ai` answers 503 "AI is not configured" and those steps cannot
+  show anything.
 
 **Count: 1 Blocker, 3 Major, 10 Minor.** The findings the exploratory tester
 already filed (HAR-38 to HAR-41, HAR-43, HAR-44) are listed in the threat
@@ -30,13 +37,12 @@ model and not repeated here.
   `Sec-Fetch-Site` reads `same-origin` and the `/api/state` write check
   passes.
 - **Browsers:**
-  - Firefox and Safari have no prompt before a public page reaches a loopback
-    address.
-  - Recent Chrome and Edge ask first (the Local Network Access permission).
-    That lowers the risk but does not remove it, because a family member can
-    allow it.
+  - Chrome, Edge and recent Firefox ask before a public page reaches a
+    loopback address (a local-network permission prompt). That lowers the
+    risk but does not remove it, because a family member can allow it.
+  - Safari was not checked.
   - The reproduction below skips the browser's own defenses, so it shows what
-    the server allows. Browser behavior was not tested.
+    the server allows. No browser's behavior was tested here.
 - **With #37:** its settings writes are allowed from a loopback socket, so a
   rebinding page could repoint the AI provider and receive the stored key
   (THREAT-MODEL.md section 7).
