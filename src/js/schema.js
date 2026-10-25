@@ -35,10 +35,15 @@ export const MIGRATIONS = [
   // every save (PR #32) that validateDocument now refuses, which would block
   // every save (HAR-39): over-long names and record texts are shortened,
   // birth years clamped and non-object entries dropped, with a notification
-  // listing what changed and naming the server's copy of the document as it
-  // was (formatCopyName; `from` is the format the migration started from).
-  // context.now fixes the date in tests.
-  (doc, { now, from } = {}) => repairDocument(doc, { ...(now === undefined ? {} : { now }), copy: formatCopyName(from) }),
+  // listing what changed. context.keepsCopy is set only for a document loaded
+  // from the server, whose first save in the new format keeps the stored file
+  // (formatCopyName; `from` is the format the migration started from): the
+  // notice then names that file. An import never names one, as the server
+  // keeps no copy of it. context.now fixes the date in tests.
+  (doc, { now, from, keepsCopy = false } = {}) => repairDocument(doc, {
+    ...(now === undefined ? {} : { now }),
+    copy: keepsCopy ? formatCopyName(from) : null,
+  }),
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

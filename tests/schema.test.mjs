@@ -45,7 +45,8 @@ test('the schema is the length of the migration chain', () => {
 // Every vN.input.json is a document at schema N; migrating it must give its
 // vN.expected.json, which is always at the current schema. The PIN step's salt
 // is injected so the expected hash is fixed.
-const FIXTURE_CONTEXT = { context: { salt: 'a'.repeat(32), now: Date.UTC(2026, 0, 15) } };
+// keepsCopy: as loaded from the server, whose notice names the kept copy.
+const FIXTURE_CONTEXT = { context: { salt: 'a'.repeat(32), now: Date.UTC(2026, 0, 15), keepsCopy: true } };
 const inputs = (await readdir(fixturesDir)).filter((f) => /^v\d+\.input\.json$/.test(f)).sort();
 test('the fixtures cover every older schema', () => {
   assert.deepEqual(inputs, Array.from({ length: SCHEMA_VERSION }, (_, n) => `v${n}.input.json`));
@@ -240,6 +241,27 @@ test('import migrates an older export before saving it, and export carries the f
   const exported = await store.exportDocument();
   assert.equal(exported.schemaVersion, SCHEMA_VERSION);
   await assert.rejects(store.importDocument({ schemaVersion: SCHEMA_VERSION + 1, students: [] }), /newer version of Harrington/);
+});
+
+test('an imported older export is repaired, but its notice names no server copy (none is kept for an import)', async () => {
+  await load({ ...(await readFixture('v0.expected.json')), version: 65 });
+  assert.equal(await store.importDocument(await readFixture('v2.input.json')), true);
+  const saved = puts.at(-1);
+  assert.equal(saved.students[0].name.length, NAME_MAX);
+  const [note] = saved.notifications.filter((n) => n.type === 'repair' && n.body.includes('shortened'));
+  assert.ok(note, 'the repair is listed');
+  assert.doesNotMatch(note.body, /family-state\.format-/);
+  // Nothing to repair and no copy: an imported format 0 or 1 file gets no notice.
+  assert.equal(await store.importDocument(await readFixture('v1.input.json')), true);
+  assert.deepEqual(puts.at(-1).notifications.filter((n) => n.type === 'repair'), []);
+});
+
+test('the notice names the kept copy first, so the 2,000-character cap never cuts it', () => {
+  const learners = Array.from({ length: 40 }, (_, i) => ({ id: `s${i}`, name: `Learner ${i} ${'x'.repeat(70)}`, birthYear: 1970 }));
+  const out = repairDocument({ students: learners }, { now: 1, copy: 'family-state.format-2.json' });
+  const [note] = out.notifications;
+  assert.ok(note.body.length <= 2_000);
+  assert.match(note.body, /^The family data as it was before this update is kept on the Harrington server, in its data folder, as family-state\.format-2\.json\./);
 });
 
 test('import moves an off-palette learner color to the nearest palette color and counts it', async () => {

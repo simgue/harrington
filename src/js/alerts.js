@@ -105,7 +105,7 @@ export function welcome({ welcomed }) {
     type: 'welcome',
     learnerId: null,
     title: 'Welcome to Harrington',
-    body: 'The bell lists what needs a parent: open daily picks after 3 pm, a learner with no evidence this week, and a missing or old backup. Dismiss an item once it is handled.',
+    body: 'The bell lists what needs a parent: open daily picks after 3 pm, a learner with no evidence this week, a missing or old backup, and any repair Harrington made to the family data. Dismiss an item once it is handled.',
   };
 }
 

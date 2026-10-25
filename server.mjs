@@ -182,7 +182,9 @@ function parseIfMatch(header) {
 }
 
 // Writes family-state.format-<n>.json beside the state file unless an earlier
-// upgrade already kept one for that format.
+// upgrade already kept one for that format. A plain child-view PIN (formats 0
+// and 1) is left out: the PIN is only ever stored as its salted hash, and the
+// upgraded file has that.
 async function keepFormatCopy(format, stored) {
   const path = join(dataDir, formatCopyName(format));
   try {
@@ -191,7 +193,13 @@ async function keepFormatCopy(format, stored) {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
-  await writeFileAtomic(path, `${JSON.stringify(stored, null, 2)}\n`);
+  const settings = stored?.settings;
+  let copy = stored;
+  if (settings && typeof settings === 'object' && !Array.isArray(settings) && 'parentPin' in settings) {
+    const { parentPin: _plain, ...rest } = settings;
+    copy = { ...stored, settings: rest };
+  }
+  await writeFileAtomic(path, `${JSON.stringify(copy, null, 2)}\n`);
 }
 
 // Compare-and-swap inside the state file's write queue: two writers holding the

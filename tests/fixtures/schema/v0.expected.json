@@ -32,7 +32,16 @@
     ]
   },
   "tests": {},
-  "notifications": [],
+  "notifications": [
+    {
+      "id": "n_repair_1768435200000",
+      "type": "repair",
+      "title": "Harrington updated the family data format",
+      "body": "The family data as it was before this update is kept on the Harrington server, in its data folder, as family-state.format-0.json.",
+      "read": false,
+      "createdAt": 1768435200000
+    }
+  ],
   "graphView": "atlas",
   "schemaVersion": 3
 }

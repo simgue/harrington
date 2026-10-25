@@ -154,7 +154,9 @@ function applyDocument(data) {
   // (HAR-38). The schema 3 repair drops them for good on the migrating load;
   // one in a current document (a hand edit) is dropped in memory here, and
   // the next save carries the cleaned document.
-  const { doc } = dropBrokenEntries(migrateDocument(raw));
+  // Loaded from the server: its first save in a newer format keeps the stored
+  // file, so the migration's notice can name that copy (schema.js).
+  const { doc } = dropBrokenEntries(migrateDocument(raw, { context: { keepsCopy: true } }));
   unknownFields = Object.fromEntries(Object.entries(doc)
     .filter(([key]) => !DOCUMENT_KEYS.includes(key) && !BOOKKEEPING_FIELDS.includes(key) && !RETIRED_FIELDS.includes(key)));
   const fields = documentFields(doc);

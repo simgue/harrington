@@ -411,8 +411,9 @@ const shorten = (text, max) => `${text.slice(0, max - SHORTENED_MARKER.length).t
 // - a record text over its TEXT_MAX bound is shortened, ending in
 //   SHORTENED_MARKER;
 // - non-object entries are dropped (dropBrokenEntries).
-// Each change is listed in one "repair" notification for the parent. Returns
-// the repaired document, or the same object when nothing needed repair.
+// Each change is listed in one "repair" notification for the parent, which
+// also names `copy` when given. Returns the repaired document, or the same
+// object when nothing needed repair and no copy is named.
 // `now` is injectable for tests (the notification's date, this year); `copy`
 // names the server's copy of the unrepaired document (schema.js
 // formatCopyName), which the notice points to.
@@ -464,13 +465,17 @@ export function repairDocument(doc, { now = Date.now(), copy = null } = {}) {
     }
     if (changed) out = { ...out, records };
   }
-  if (!notes.length) return doc;
-  if (copy) notes.push(`The family data as it was before is kept on the Harrington server, in its data folder, as ${copy}.`);
+  // The kept copy is announced even when nothing needed repair (an older
+  // format's file is still replaced), and first, so the length cap below
+  // never cuts it.
+  const repaired = notes.length > 0;
+  if (!repaired && !copy) return doc;
+  if (copy) notes.unshift(`The family data as it was before this update is kept on the Harrington server, in its data folder, as ${copy}.`);
   const body = notes.join(' ');
   const note = {
     id: `n_repair_${now}`,
     type: 'repair',
-    title: 'Harrington repaired some family data',
+    title: repaired ? 'Harrington repaired some family data' : 'Harrington updated the family data format',
     body: body.length > 2_000 ? `${body.slice(0, 1_999)}…` : body,
     read: false,
     createdAt: now,

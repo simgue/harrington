@@ -310,10 +310,12 @@ values saved before the server checked every save, shortening a name over 60
 characters or an over-long note, clamping a birth year and dropping unreadable
 entries), and a load that migrated saves the result once. The notification
 bell lists each change the repair made until it is dismissed, and the first
-save in the new format keeps the stored file as it was, beside
-`family-state.json`, as `family-state.format-<n>.json`. An older export is
-checked after the same migration, so it imports as it would load. A document whose `schemaVersion` is not a whole number also
-opens read-only, with its own banner. A file from a newer version of Harrington is
+save in the new format keeps the stored file as it was (without a plain
+child-view PIN), beside `family-state.json`, as `family-state.format-<n>.json`;
+the bell names that file. An older export is checked after the same
+migration, so it imports as it would load; the server keeps no copy of an
+import. A document whose `schemaVersion` is not a whole number also opens
+read-only, with its own banner. A file from a newer version of Harrington is
 refused at import; a document from a newer version already on the server
 opens read-only, with a banner, and nothing is saved until this Harrington is
 updated. Top-level fields this version does not know are kept as they are.

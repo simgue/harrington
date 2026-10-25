@@ -407,6 +407,19 @@ test('the first save in a newer format keeps the stored document as family-state
   assert.deepEqual(JSON.parse(await readFile(copy, 'utf8')), older);
 });
 
+test('the kept copy of a format 1 document leaves out its plain child-view PIN', async () => {
+  const copy = join(dataDir, formatCopyName(1));
+  await rm(copy, { force: true });
+  const older = { schemaVersion: 1, version: 60, students: [{ id: 'p1', name: 'Pin Learner', birthYear: 2018 }], settings: { parentPin: '2468', calendar: { homeDays: [1, 2] } } };
+  await writeFile(join(dataDir, 'family-state.json'), JSON.stringify(older));
+  const upgraded = { ...older, schemaVersion: SCHEMA_VERSION, settings: { parentPinHash: 'a'.repeat(64), parentPinSalt: 'b'.repeat(32), calendar: { homeDays: [1, 2] } } };
+  assert.equal((await putState(upgraded, '"v60"')).status, 204);
+  const kept = JSON.parse(await readFile(copy, 'utf8'));
+  assert.equal('parentPin' in kept.settings, false);
+  assert.deepEqual(kept.settings, { calendar: { homeDays: [1, 2] } });
+  assert.doesNotMatch(await readFile(copy, 'utf8'), /2468/);
+});
+
 test('persists lesson cache entries and recordings', async () => {
   const lesson = { title: 'Counting outdoors', activities: ['Gather ten leaves'] };
   const lessonId = encodeURIComponent('number/counting');
