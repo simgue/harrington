@@ -11,7 +11,7 @@
 //   node tests/e2e/start-app.mjs --port 4316 --token
 //                                     # no AI provider, access token required
 import { spawn } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +38,11 @@ const dataDir = await mkdtemp(join(tmpdir(), `harrington-e2e-${unreachable ? 'ai
 await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
 for (const name of TAXONOMY_FILES) await copyFile(join(CACHE_DIR, name), join(dataDir, 'taxonomy', name));
 log(`data dir ${dataDir} (taxonomy ${hadCache ? 'from cache' : `downloaded from ${upstream}`})`);
+// Where a spec finds this server's data directory (Api.restoreState replaces
+// family-state.json there, as a restore from a backup does). One file per
+// port, overwritten by every run and removed when the server stops.
+const pointer = join(tmpdir(), `harrington-e2e-${portArg}.json`);
+await writeFile(pointer, JSON.stringify({ dataDir }));
 
 const env = {
   ...process.env,
@@ -71,6 +76,7 @@ async function stop(code) {
     await new Promise((resolve) => { child.once('exit', resolve); setTimeout(resolve, 3000); });
   }
   await rm(dataDir, { recursive: true, force: true }).catch(() => {});
+  await rm(pointer, { force: true }).catch(() => {});
   process.exit(code);
 }
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => stop(0));
