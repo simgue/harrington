@@ -332,12 +332,16 @@ describe('family data safety in the store', { concurrency: false }, () => {
     assert.ok(store.get().students.some((s) => s.id === 'laptop2'));
   });
 
-  test('a save whose response was lost is not mistaken for the next one', async () => {
+  test('a save whose response was lost is sent again and recognised as already landed', async () => {
     const id = store.get().students[0].id;
-    // The PUT reaches the server and commits, but the response never arrives.
+    // The keepalive PUT reaches the server and commits, but the response
+    // never arrives. The store sends the same body again as a plain request
+    // (sendState); that one gets a 412 carrying the body's own writeId.
     const routed = globalThis.fetch;
+    const attempts = [];
     globalThis.fetch = async (path, options) => {
       if (options?.method !== 'PUT') return routed(path, options);
+      attempts.push(options.keepalive === true);
       globalThis.fetch = routed;
       await routed(path, options);
       throw new TypeError('Failed to fetch');
@@ -349,10 +353,12 @@ describe('family data safety in the store', { concurrency: false }, () => {
     } finally {
       globalThis.fetch = routed;
     }
-    assert.deepEqual(statusEvents, ['failed']);
-    assert.equal((await serverState()).progress[id].rhymes.status, 'mastered', 'the first save committed');
+    assert.deepEqual(attempts, [true], 'the first attempt was the keepalive request');
+    assert.deepEqual(statusEvents, ['saved']);
+    const committed = await serverState();
+    assert.equal(committed.progress[id].rhymes.status, 'mastered', 'the first save committed');
 
-    // A second edit: its PUT gets a 412 carrying our own writeId.
+    // A second edit saves on top of it, once.
     store.setStatus(id, 'count-to-5', 'none');
     await store.flushSaves();
     assert.equal(statusEvents.at(-1), 'saved');

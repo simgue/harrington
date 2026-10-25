@@ -301,7 +301,9 @@ container (`%` must be written `\%` inside a crontab):
 15 2 * * * mkdir -p /home/parent/harrington/backups && /usr/bin/docker run --rm -v harrington_harrington-data:/data:ro -v /home/parent/harrington/backups:/backups alpine tar -czf /backups/harrington-docker-$(date +\%Y-\%m-\%dT\%H-\%M-\%S).tar.gz -C / data >> /home/parent/harrington/backups/backup.log 2>&1
 ```
 
-To restore it: `docker compose down`, then
+To restore it, close Harrington on every device first (a tab left open would
+otherwise see its next change refused and offer to put it back on the
+restored data), then `docker compose down`, then
 `docker run --rm -v harrington_harrington-data:/data -v /home/parent/harrington/backups:/backups alpine sh -c 'rm -rf /data/* && tar -xzf /backups/FILE.tar.gz -C /'`,
 then `docker compose up -d`.
 
@@ -387,9 +389,10 @@ Each item closes a way family data could leak or be lost today.
    Docker, `http://host.docker.internal:11434/v1` as the README shows. Never
    send it to a provider on the internet over plain `http://`.
 10. **Close Harrington on every device before restoring a backup.** A tab
-    left open can save its own copy over the restored data with its next
-    edit. Close every tab and the home-screen app on each tablet, phone and
-    computer, restore, start Harrington, then open it again.
+    left open sees its next change refused, reloads the restored data and
+    offers to put that change back, which is confusing in the middle of a
+    restore. Close every tab and the home-screen app on each tablet, phone
+    and computer, restore, start Harrington, then open it again.
 11. **Update with care:** export, run a backup, then update (see "Export
     before every upgrade" above).
 

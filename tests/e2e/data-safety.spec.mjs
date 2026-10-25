@@ -404,6 +404,81 @@ test('two tabs opened together on the dashboard raise no conflict (F17, fixed)',
   await other.close();
 });
 
+// A note of 45 KB: the family document takes seconds to upload on a slow
+// uplink, and stays under the 64 KB a keepalive request may carry.
+const LONG_NOTE = { type: 'observation', title: 'A long observation', note: 'x'.repeat(45_000) };
+const statusButton = (page, label) => page.getByRole('group', { name: 'Set status' }).getByRole('button', { name: label, exact: true });
+
+test('a reload in the middle of a slow save keeps the change (HAR-43)', async ({ page, api, gotoApp }) => {
+  await gotoApp({ seed: { records: [LONG_NOTE] }, hash: `topic/${TOPICS.oneToOne.id}` });
+  // About 16 KB/s up: the PUT takes a few seconds, as a large family on a
+  // slow home uplink does.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Network.enable');
+  await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: 16 * 1024 });
+  const put = page.waitForRequest((r) => r.url().endsWith('/api/state') && r.method() === 'PUT');
+  await setTopicStatus(page, 'Learning');
+  await put;
+  // The PUT is on the wire, its body still uploading, when the page reloads.
+  expect((await api.getState()).state.progress?.[ROWAN]?.[TOPICS.oneToOne.id]).toBeUndefined();
+  await page.reload();
+  await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  // The request outlives the page (keepalive): the change reaches the server.
+  await api.waitForState((s) => s.progress?.[ROWAN]?.[TOPICS.oneToOne.id]?.status === 'learning');
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1, name: TOPICS.oneToOne.name })).toBeVisible();
+  await expect(statusButton(page, 'Learning')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a document too large for a beacon: closing while it saves asks first, and staying finishes the save (HAR-43)', async ({ page, api, gotoApp }) => {
+  // The PUT is held on the wire until the test lets it through.
+  let release; const held = new Promise((r) => { release = r; });
+  let started; const putStarted = new Promise((r) => { started = r; });
+  await page.route('**/api/state', async (route) => {
+    if (route.request().method() === 'PUT') { started(); await held; }
+    await route.continue();
+  });
+  // Two long notes: over the 64 KB a beacon or a keepalive request may carry.
+  await gotoApp({ seed: { records: [LONG_NOTE, { ...LONG_NOTE, title: 'Another long observation' }] }, hash: `topic/${TOPICS.oneToOne.id}` });
+  // The click is the user activation the browser wants before it shows a beforeunload dialog.
+  await setTopicStatus(page, 'Learning');
+  await putStarted;
+  const dialog = page.waitForEvent('dialog');
+  await page.close({ runBeforeUnload: true });
+  const asked = await dialog;
+  expect(asked.type()).toBe('beforeunload');
+  await asked.dismiss(); // stay on the page
+  release();
+  await api.waitForState((s) => s.progress?.[ROWAN]?.[TOPICS.oneToOne.id]?.status === 'learning');
+});
+
+test('a backup restored while a tab is open is not undone by that tab\'s next change (HAR-44)', async ({ page, api, gotoApp }) => {
+  await gotoApp({ seed: {}, hash: `topic/${TOPICS.oneToOne.id}` });
+  // The tab saves twice; the first save is what the backup holds.
+  await setTopicStatus(page, 'Learning');
+  const backup = await api.waitForState((s) => s.progress?.[ROWAN]?.[TOPICS.oneToOne.id]?.status === 'learning');
+  await setTopicStatus(page, 'Practicing');
+  const later = await api.waitForState((s) => s.progress?.[ROWAN]?.[TOPICS.oneToOne.id]?.status === 'practicing');
+  expect(later.version).toBeGreaterThan(backup.version);
+
+  // The parent restores the backup with this tab still open: the server now
+  // holds an older version that carries the tab's own writeId.
+  await api.restoreState(backup);
+
+  // The tab's next change is not saved over the restored copy: the tab
+  // reloads it and names what it did not keep. Try again puts the change back.
+  await setTopicStatus(page, 'Mastered');
+  const conflict = page.locator('#toast-root').getByRole('alert').filter({ hasText: 'Another device saved changes first' });
+  await expect(conflict).toHaveText(/Not kept here: One-to-one counting marked mastered\./);
+  await expect(statusButton(page, 'Learning')).toHaveAttribute('aria-pressed', 'true');
+  const restored = (await api.getState()).state;
+  expect(restored.progress[ROWAN][TOPICS.oneToOne.id].status).toBe('learning');
+  await conflict.getByRole('button', { name: 'Try again' }).click();
+  const state = await api.waitForState((s) => s.progress?.[ROWAN]?.[TOPICS.oneToOne.id]?.status === 'mastered');
+  expect(state.version).toBe(restored.version + 1);
+  await expect(page.locator('#toast-root').getByText(/Another device saved/)).toHaveCount(0);
+});
+
 test('removing a learner now clears all of their data', async ({ page, api, gotoApp }) => {
   const wren = LEARNERS.wren.id;
   await gotoApp({
