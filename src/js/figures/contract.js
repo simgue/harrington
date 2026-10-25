@@ -37,9 +37,27 @@ export function figureMeta(html) {
   return { title: title == null ? '' : decode(title).trim(), hint: hint == null ? '' : decode(hint).trim() };
 }
 
-// The part labels a page draws: tag(point, dx, dy, 'TEXT', on) with TEXT as a string literal.
+// The part labels a page draws: every string literal in the text argument of
+// tag(point, dx, dy, TEXT, on), so a plain 'BULB' and both labels of a
+// conditional (st.cut ? 'CUT WIRE' : 'WIRE') count. A label built any other
+// way (a variable, a template) is not seen, and the contract asks for literals.
 export function figureLabels(html) {
-  return [...new Set([...html.matchAll(/\btag\([^;]*?,\s*'([^']+)'\s*[,)]/g)].map((m) => m[1]))];
+  const labels = new Set();
+  for (const call of html.matchAll(/\btag\(/g)) {
+    // split the call's arguments at top-level commas, skipping strings and brackets
+    const args = [];
+    let depth = 0, quote = null, start = call.index + call[0].length;
+    for (let i = start; i < html.length; i += 1) {
+      const c = html[i];
+      if (quote) { if (c === '\\') i += 1; else if (c === quote) quote = null; continue; }
+      if (c === "'" || c === '"' || c === '`') quote = c;
+      else if ('([{'.includes(c)) depth += 1;
+      else if (')]}'.includes(c)) { if (depth === 0) { args.push(html.slice(start, i)); break; } depth -= 1; }
+      else if (c === ',' && depth === 0) { args.push(html.slice(start, i)); start = i + 1; }
+    }
+    for (const lit of (args[3] || '').matchAll(/'([^'\\]*)'|"([^"\\]*)"/g)) labels.add(lit[1] ?? lit[2]);
+  }
+  return [...labels];
 }
 
 // Everything wrong with a page, as short phrases; [] when it meets the contract.

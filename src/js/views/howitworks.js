@@ -9,7 +9,8 @@ import { getData } from '../data.js';
 import { figureFor } from '../figures/index.js';
 import { el, esc, refreshIcons } from '../ui.js';
 
-const FRAME_HEIGHT = { normal: 'h-[30rem] sm:h-[34rem]', large: 'h-[34rem] sm:h-[42rem]' };
+// Taller on a phone, where the actions wrap into more rows above the figure.
+const FRAME_HEIGHT = { normal: 'h-[36rem] sm:h-[34rem]', large: 'h-[38rem] sm:h-[42rem]' };
 
 // The figure frame with its hint line, or null when the topic has no figure.
 export function howItWorksFrame(topic, { size = 'normal' } = {}) {

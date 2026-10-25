@@ -41,10 +41,14 @@ The rest are checked by the e2e suite (`tests/e2e/figures.spec.mjs`).
    `contract.js`, and draws through `mountFigure({...})`. The build script
    does all three; see "Write a figure" below.
 6. **Labels** *(checked)*: 3 to 6 part labels, each one or two capital words
-   ("BULB", "HEAVY BLOCK"), drawn with `tag(point, dx, dy, 'TEXT', on)` with
-   `'TEXT'` as a single-quoted string literal. `on = true` while that part is
-   working. Labels are **on by default**; the page's **Labels on** button
-   hides them.
+   ("BULB", "HEAVY BLOCK"), drawn with `tag(point, dx, dy, TEXT, on)`. TEXT
+   is written as string literals: a plain `'BULB'`, or literals inside an
+   expression such as `st.cut ? 'CUT WIRE' : 'WIRE'` (each literal is a
+   label and counts toward the 3 to 6). A label held in a variable or built
+   with a template string is not seen by the check, so don't. `on = true`
+   while that part is working. Labels are **on by default**; the page's
+   **Labels on** button hides them. On a 390 px phone the label text is at
+   least 10 px *(e2e)*.
 7. **Buttons** *(e2e)*: 2 to 5 actions, in the order a child would press
    them, each at least 44 px tall (the engine's shell does this). Every press,
    in order or out of it, changes the drawing or shows a short note
@@ -173,7 +177,7 @@ assemble the page.
    node scripts/build-figures.mjs <topicId>
    node scripts/shot-figure.mjs <topicId> --out idle.png
    node scripts/shot-figure.mjs <topicId> --query "press=Heat@200,Put the lid@2500" --wait 5000 --out run.png
-   node scripts/shot-figure.mjs <topicId> --width 360 --height 470 --out phone.png
+   node scripts/shot-figure.mjs <topicId> --width 316 --height 576 --out phone.png
    ```
 
    The shot script exits 1 on a script error, an unknown label, `NaN` in the
@@ -193,7 +197,7 @@ Before a figure is merged, a reviewer checks:
 - [ ] The file is `src/figures/<topicId>.html` for a Science topic whose ages
       overlap 5 to 8, and it is the right topic for what the figure shows.
 - [ ] `npm run build:figures -- --check`, `npm test` and `npm run e2e` pass.
-- [ ] The idle view, the main sequence and the phone view (360 × 470) look
+- [ ] The idle view, the main sequence and the phone view (316 × 576, the frame on a 390 px phone) look
       right: nothing floats, overlaps or crosses another part; labels don't
       cover each other or anything moving; the shadow sits under the object.
 - [ ] The steps follow the real process; nothing appears where it could not
@@ -217,8 +221,12 @@ Keep its source next to it if you can: when the engine changes,
   is one column for the frame: the actions, the figure, then **Labels on** and
   five body colors. Every control is at least 44 px; a picker stays inside the
   frame on a phone.
-- On a small screen the label pills grow (`LABEL_K`) so their text stays
-  about 9 px or more; check the phone shot for overlaps.
+- On a small screen the label pills grow (`LABEL_K`, up to 3×) so their text
+  stays at least 10.5 px. On a 390 px phone the topic page's frame is about
+  316 × 576 (taller than on a desktop, where it is 34rem), so a figure with
+  five actions in three rows still gets its 10 px. Check the phone shot for
+  pills that overlap each other or the moving parts, and aim the pills
+  outward.
 - Action labels, choices, notes and stats are set with `textContent`.
 - `mountFigure`'s `fig`, `hint`, `idea`, `readout`, `credit` and
   `buttonsLabel` options are gone.

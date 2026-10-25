@@ -329,10 +329,11 @@ function mountFigure(cfg){
 
   const art = document.getElementById('art');
   const ui = { st };
-  // labels at least ~11 px tall on screen: 8.6 units at the reference zoom is 8.6 × (drawn width / 585) px
-  // (the drawn width: a short, wide frame letterboxes the 4:3 view)
+  // label text at least 10.5 px on screen: 8.6 units at the reference zoom is 8.6 × (drawn width / 585) px
+  // (the drawn width: a short, wide frame letterboxes the 4:3 view). Up to 3× on a phone; a figure drawn
+  // under ~230 px wide gets smaller labels rather than pills that bury it.
   const fitLabels = () => { const r = svg.getBoundingClientRect(), w = Math.min(r.width, r.height * 4 / 3);
-    LABEL_K = w > 0 ? Math.min(2.2, Math.max(1, 11 / (8.6 * w / INK_REF_VB))) : 1; };
+    LABEL_K = w > 0 ? Math.min(3, Math.max(1, 10.5 / (8.6 * w / INK_REF_VB))) : 1; };
   addEventListener('resize', () => { fitLabels(); ui.render(); });
   fitLabels();
   ui.render = () => { _clipN = 0; document.documentElement.style.setProperty('--accent', PALS[st.pal].l); art.innerHTML = inkScale(cfg.scene(st, PALS[st.pal])); ui.drawStats(); };

@@ -60,6 +60,11 @@ test('the contract accepts a good page and names each broken rule', () => {
   assert.deepEqual(figureProblems('mt_B3W5EfimJw.html', GOOD), []);
   assert.deepEqual(figureMeta(GOOD), { title: 'Toy & cart', hint: 'Push the cart, then pull it back.' });
   assert.deepEqual(figureLabels(GOOD), ['PUSH', 'ROPE', 'HEAVY BLOCK']);
+  // Labels in a conditional, in double quotes, or next to a call in another argument all count;
+  // the engine's own definition and a bare tag() add nothing.
+  const tricky = `tag([1, 2, 3], 4, -5, st.cut ? 'CUT WIRE' : 'WIRE', st.on) + tag(p, dx(1, 2), dy, "BULB");
+    function tag(p3, dx, dy, text, on=false){} tag(); tag(a, b, c, 'BATTERY', f(1, 'x'));`;
+  assert.deepEqual(figureLabels(tricky), ['CUT WIRE', 'WIRE', 'BULB', 'BATTERY']);
   const cases = [
     ['cart.html', GOOD, 'file name'],
     ['mt_B3W5EfimJw.htm', GOOD, 'file name'],

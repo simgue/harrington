@@ -1,5 +1,7 @@
 // 390×844 phone viewport: every route renders without sideways scrolling, and
 // the phone-only chrome (top bar, bottom nav) works.
+import { readdirSync } from 'node:fs';
+import { figureIdOf } from '../../src/js/figures/contract.js';
 import { test, expect, modal, closeModal, expectToast, noHorizontalOverflow, childView, leaveChildView } from './fixtures.mjs';
 import { LEARNERS, TOPICS } from './support/family.mjs';
 import { TODAY_KEY } from './support/env.mjs';
@@ -12,6 +14,7 @@ const ROUTES = [
   ['topic', `topic/${TOPICS.oneToOne.id}`],
   ['records', 'records'],
   ['insights', 'insights'],
+  ['levelset', `levelset/${LEARNERS.rowan.id}`],
 ];
 
 for (const [name, hash] of ROUTES) {
@@ -116,9 +119,20 @@ test('learner menu: 44px targets with names, names not cut off (F14)', async ({ 
   await gotoApp({ seed: {} });
   await page.getByRole('button', { name: 'Switch learner' }).click();
   const menu = modal(page);
-  for (const name of ['Placement for Wren Example', 'Edit Wren Example', 'Remove learner Wren Example']) {
+  const actions = ['Placement for Wren Example', 'Level-set workbook for Wren Example', 'Edit Wren Example', 'Remove learner Wren Example'];
+  for (const name of actions) {
     await expectTapTarget(menu.getByRole('button', { name, exact: true }), name);
   }
+  // HAR-24: at 390 px the four actions sit in a two-by-two grid under the name,
+  // each label whole and its icon full size.
+  const boxes = await Promise.all(actions.map((name) => menu.getByRole('button', { name, exact: true }).boundingBox()));
+  expect(new Set(boxes.map((b) => Math.round(b.y))).size, 'two rows').toBe(2);
+  for (const name of actions) {
+    const button = menu.getByRole('button', { name, exact: true });
+    expect(await button.evaluate((n) => n.scrollWidth - n.clientWidth), `${name} overflows`).toBeLessThanOrEqual(0);
+    expect((await button.locator('svg').boundingBox()).width, `${name} icon`).toBeGreaterThanOrEqual(15);
+  }
+  await expect(menu.getByRole('button', { name: 'Level-set workbook for Wren Example' })).toContainText('Workbook');
   await expectTapTarget(menu.getByRole('button', { name: 'Switch', exact: true }).first(), 'Switch');
   await expectTapTarget(menu.getByRole('button', { name: 'Add', exact: true }), 'Add');
   await noHorizontalOverflow(page);
@@ -137,7 +151,43 @@ test('learner menu at 360 px: no sideways scroll and the full name shows (F14)',
     expect(await label.evaluate((n) => n.scrollWidth - n.clientWidth), `${name} is cut off`).toBeLessThanOrEqual(0);
   }
   await expectTapTarget(menu.getByRole('button', { name: 'Remove learner Wren Example' }), 'Remove learner at 360 px');
+  await expectTapTarget(menu.getByRole('button', { name: 'Level-set workbook for Wren Example' }), 'Workbook at 360 px');
+  expect((await menu.getByRole('button', { name: 'Placement for Wren Example' }).locator('svg').boundingBox()).width, 'Placement icon at 360 px').toBeGreaterThanOrEqual(15);
   await shot('learner-menu-360', { full: false });
+});
+
+test('level-set workbook on a phone: a sheet, 44 px answers, no sideways scroll (HAR-24)', async ({ page, gotoApp, shot, errors }) => {
+  await gotoApp({ seed: {}, hash: `levelset/${LEARNERS.rowan.id}` });
+  await page.getByRole('tab', { name: /Numeracy/ }).click();
+  await page.getByRole('button', { name: 'Start the numeracy workbook' }).click();
+  const groups = page.getByRole('radiogroup');
+  await expect(groups.first()).toBeVisible();
+  await noHorizontalOverflow(page);
+  for (const name of ['Yes', 'Not yet', 'Unsure']) {
+    await expectTapTarget(groups.first().getByRole('radio', { name, exact: true }), `${name} answer`);
+  }
+  await expectTapTarget(page.getByRole('tab', { name: /Literacy/ }), 'Literacy tab');
+  await groups.first().getByRole('radio', { name: 'Yes', exact: true }).click();
+  await expect(groups.first().getByRole('radio', { name: 'Yes', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await shot('levelset-sheet', { full: false });
+  expect(errors).toEqual([]);
+});
+
+test('observation check on a phone: the checklist fits and saves (HAR-24)', async ({ page, api, gotoApp, shot, errors }) => {
+  await gotoApp({ seed: {}, hash: `topic/${TOPICS.oneToOne.id}` });
+  await page.getByRole('button', { name: 'Check mastery by observation' }).click();
+  const m = modal(page);
+  await expect(m.getByRole('heading', { name: 'Check mastery by observation' })).toBeVisible();
+  await noHorizontalOverflow(page);
+  const boxes = m.getByRole('checkbox');
+  await expect(boxes).toHaveCount(3);
+  await expectTapTarget(m.locator('#ob-items label').first(), 'evidence row');
+  await boxes.first().check();
+  await shot('observation-checklist', { full: false });
+  await m.getByRole('button', { name: 'Save observation' }).click();
+  await expectToast(page, 'Observation saved: 1 of 3 seen');
+  await api.waitForState((s) => (s.tests?.[LEARNERS.rowan.id] || []).some((t) => t.mode === 'observed'));
+  expect(errors).toEqual([]);
 });
 
 test('record, recording and calendar extra delete buttons are 44px targets (F14)', async ({ page, api, gotoApp }) => {
@@ -316,3 +366,21 @@ test('"See how it works" on a phone: the figure fits, its controls are 44 px and
   await shot('topic-figure', { locator: section });
   expect(errors).toEqual([]);
 });
+
+// Every figure in src/figures/ (the PM's included), in the topic page's frame on a 390 px phone:
+// label text is at least 10 px on screen (HAR-34 review).
+for (const name of readdirSync(new URL('../../src/figures/', import.meta.url)).filter(figureIdOf)) {
+  const id = figureIdOf(name);
+  test(`"See how it works" on a phone: ${id} labels are at least 10 px`, async ({ page, gotoApp }) => {
+    await gotoApp({ seed: {}, hash: `topic/${id}` });
+    const frameEl = page.locator('iframe[sandbox="allow-scripts"]');
+    await frameEl.scrollIntoViewIfNeeded();
+    const box = await frameEl.boundingBox();
+    test.info().annotations.push({ type: 'frame', description: `${Math.round(box.width)} x ${Math.round(box.height)}` });
+    const frame = page.frameLocator('iframe[sandbox="allow-scripts"]');
+    await expect(frame.locator('#fig .tag').first()).toBeVisible();
+    const sizes = await frame.locator('#fig .tag text').evaluateAll((texts) => texts.map((t) => parseFloat(t.getAttribute('font-size')) * t.getScreenCTM().a));
+    expect(sizes.length).toBeGreaterThan(0);
+    expect(Math.min(...sizes), `label text in a ${Math.round(box.width)} x ${Math.round(box.height)} frame`).toBeGreaterThanOrEqual(10);
+  });
+}

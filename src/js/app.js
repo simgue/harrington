@@ -14,6 +14,7 @@ import { renderGraph } from './views/graph.js';
 import { renderRecords } from './views/records.js';
 import { renderInsights } from './views/insights.js';
 import { renderFigure } from './views/howitworks.js';
+import { renderLevelset } from './views/levelset.js';
 
 const app = document.getElementById('app');
 
@@ -83,6 +84,7 @@ function render() {
     records: renderRecords,
     insights: renderInsights,
     figure: renderFigure,
+    levelset: renderLevelset,
     onboard: renderOnboard,
   };
   const viewFn = views[route.name] || renderDashboard;
