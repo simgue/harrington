@@ -236,10 +236,10 @@ function settingsForm(s) {
     await syncHealth();
   };
 
-  // Without an access token, only the computer running Harrington may change
-  // these. Last, so every control added above is covered.
+  // Without an access token, only the computer running an unshared Harrington
+  // may change these. Last, so every control added above is covered.
   if (s.canChange === false) {
-    form.querySelector('#actions').before(el(`<p class="read-only-note text-sm text-[#a4473a]">AI provider settings can only be changed from the computer running Harrington, or from any signed-in device once an access token is set.</p>`));
+    form.querySelector('#actions').before(el(`<p class="read-only-note text-sm text-[#a4473a]">AI provider settings can only be changed from a signed-in device once an access token is set, or, while Harrington is not shared with other devices, from the computer running it.</p>`));
     form.querySelectorAll('input, button, select, textarea').forEach((node) => {
       node.disabled = true;
       node.classList.add('opacity-50', 'cursor-not-allowed');

@@ -109,7 +109,7 @@ test('from another device without an access token the page is read-only, every c
     route.fulfill({ response, json: { ...(await response.json()), canChange: false } });
   });
   await gotoApp({ seed: {}, hash: 'settings' });
-  await expect(page.getByText('AI provider settings can only be changed from the computer running Harrington, or from any signed-in device once an access token is set.')).toBeVisible();
+  await expect(page.getByText('AI provider settings can only be changed from a signed-in device once an access token is set, or, while Harrington is not shared with other devices, from the computer running it.')).toBeVisible();
   const form = page.locator('form');
   const controls = form.locator('input, button, select, textarea');
   expect(await controls.count()).toBeGreaterThan(15);

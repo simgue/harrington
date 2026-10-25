@@ -440,12 +440,23 @@ function accessTokenEnabled() {
   return authEnabled;
 }
 
-// Repointing the provider would send it every later prompt, so without an
-// access token only the computer running Harrington may change it (or run
-// the connection test). The socket address decides; X-Forwarded-For does not.
-const LOCAL_ONLY = 'AI provider settings can only be changed from the computer running Harrington, or from any signed-in device once an access token is set';
+// Repointing the provider would send it every later prompt (and keep the
+// stored key), so without an access token only the computer running
+// Harrington may change it or run the connection test, and only while
+// Harrington is not shared. Once it is shared (bound beyond loopback, or
+// published under another name: the same signal as the host-name allowlist),
+// a reverse proxy such as `tailscale serve` or Caddy delivers every family
+// device from 127.0.0.1, so the socket address no longer tells this computer
+// apart: settings then need the token. A request that carries a proxy's
+// forwarding headers is refused for the same reason, even when Harrington
+// does not know it is shared. Those headers are only ever a reason to refuse,
+// never to allow: any client can set them.
+const LOCAL_ONLY = 'AI provider settings can only be changed from a signed-in device once an access token is set, or, while Harrington is not shared with other devices, from the computer running it';
+const FORWARDING_HEADERS = ['forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-real-ip'];
 function canChangeAiSettings(req) {
-  return accessTokenEnabled() || isLoopbackAddress(req.socket.remoteAddress);
+  if (accessTokenEnabled()) return true;
+  if (shared || FORWARDING_HEADERS.some((name) => name in req.headers)) return false;
+  return isLoopbackAddress(req.socket.remoteAddress);
 }
 function refuseRemote(req, res) {
   if (canChangeAiSettings(req)) return false;

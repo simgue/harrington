@@ -106,13 +106,23 @@ directory, so it does include `secrets.json`; the volume backup command in
 
 Until an [access token](DEPLOYMENT.md#option-3-the-built-in-access-token)
 protects Harrington, these settings can only be changed (and tested) from the
-computer running it, or from any signed-in device once an access token is
-set; other devices can read the page but not save. Anything
-else could repoint the provider and receive every later prompt.
+computer running it, and only while Harrington is not shared with other
+devices; other devices can read the page but not save. Anything else could
+repoint the provider, keep the saved key, and receive every later prompt.
+
+**Once Harrington is shared, saving here needs the access token.** Shared
+means bound beyond loopback (`HARRINGTON_HOST`) or published under another
+name (`HARRINGTON_PUBLISHED_HOST`, as with `tailscale serve` or Caddy in
+[DEPLOYMENT.md](DEPLOYMENT.md)). Behind such a proxy every family device
+reaches Harrington from this computer's own address, so that address no
+longer tells this computer apart. A request that arrives through a proxy
+(with `X-Forwarded-For` or a similar header) is refused for the same reason.
+With the token set, any signed-in device can save.
 
 **Under Docker or Compose the page is read-only, even at the host computer.**
-The container sees the browser as another device, so this is intended. There
-are two ways to set the provider there: set an
+The container binds beyond loopback and sees the browser as another device,
+so this is intended. There are two ways to set the provider there, as for
+any shared server: set an
 [access token](DEPLOYMENT.md#option-3-the-built-in-access-token) (then any
 signed-in device can save here), or use the environment variables below.
 

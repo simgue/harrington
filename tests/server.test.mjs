@@ -1314,7 +1314,7 @@ describe('AI provider settings from another device', { concurrency: false }, () 
   const lanAddress = Object.values(networkInterfaces()).flat()
     .find((entry) => entry && entry.family === 'IPv4' && !entry.internal)?.address;
 
-  test('without an access token, only this computer can change or test the provider', { skip: !lanAddress && 'no non-loopback IPv4 interface here' }, async () => {
+  test('without an access token, a server shared on the network refuses every change, from any address', { skip: !lanAddress && 'no non-loopback IPv4 interface here' }, async () => {
     const harrington = await spawnHarrington({ HARRINGTON_HOST: '0.0.0.0' });
     const port = new URL(harrington.url).port;
     const remote = `http://${lanAddress}:${port}`;
@@ -1329,7 +1329,7 @@ describe('AI provider settings from another device', { concurrency: false }, () 
       const view = await (await fetch(`${remote}/api/settings/ai`)).json();
       assert.equal(view.canChange, false);
 
-      const LOCAL_ONLY = 'AI provider settings can only be changed from the computer running Harrington, or from any signed-in device once an access token is set';
+      const LOCAL_ONLY = 'AI provider settings can only be changed from a signed-in device once an access token is set, or, while Harrington is not shared with other devices, from the computer running it';
       for (const response of [
         await put(remote),
         // A forged header changes nothing: the socket address decides.
@@ -1342,13 +1342,64 @@ describe('AI provider settings from another device', { concurrency: false }, () 
       }
       await assert.rejects(stat(join(harrington.dir, 'secrets.json')), { code: 'ENOENT' });
 
-      // The same server, from this computer.
-      const saved = await put(local);
-      assert.equal(saved.status, 200);
-      assert.equal((await saved.json()).canChange, true);
-      assert.equal((await (await fetch(`${remote}/api/health`)).json()).aiConfigured, true);
+      // Bound beyond loopback, the server is shared: this computer needs the
+      // token too, since a proxy on it would look the same.
+      assert.equal((await put(local)).status, 403);
+      assert.equal((await (await fetch(`${local}/api/settings/ai`)).json()).canChange, false);
+      await assert.rejects(stat(join(harrington.dir, 'secrets.json')), { code: 'ENOENT' });
     } finally {
       await harrington.stop();
+    }
+  });
+  // Behind tailscale serve or Caddy (DEPLOYMENT.md options 1 and 2) every
+  // family device reaches Harrington from 127.0.0.1, so a shared server
+  // needs the token for settings even from loopback.
+  test('a shared server behind a reverse proxy needs the access token, even from 127.0.0.1', async () => {
+    const LOCAL_ONLY = 'AI provider settings can only be changed from a signed-in device once an access token is set, or, while Harrington is not shared with other devices, from the computer running it';
+    const put = (base, headers = {}) => fetch(`${base}/api/settings/ai`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ baseUrl: 'http://attacker.test/v1', model: 'm' }),
+    });
+    const proxied = await spawnHarrington({ HARRINGTON_PUBLISHED_HOST: 'family-host.example-tailnet.ts.net' });
+    try {
+      assert.equal((await (await fetch(`${proxied.url}/api/settings/ai`)).json()).canChange, false);
+      for (const response of [
+        await put(proxied.url),
+        await fetch(`${proxied.url}/api/settings/ai`, { method: 'DELETE' }),
+        await fetch(`${proxied.url}/api/settings/ai/test`, { method: 'POST' }),
+      ]) {
+        assert.equal(response.status, 403);
+        assert.deepEqual(await response.json(), { error: LOCAL_ONLY });
+      }
+      await assert.rejects(stat(join(proxied.dir, 'secrets.json')), { code: 'ENOENT' });
+    } finally {
+      await proxied.stop();
+    }
+
+    // Shared and signed in: the token is what lets a device save.
+    const TOKEN = 'family-proxy-token-0123456789ab';
+    const withToken = await spawnHarrington({ HARRINGTON_PUBLISHED_HOST: 'family-host.example-tailnet.ts.net', HARRINGTON_ACCESS_TOKEN: TOKEN });
+    try {
+      const login = await fetch(`${withToken.url}/login?token=${encodeURIComponent(TOKEN)}`, { redirect: 'manual' });
+      const cookie = (login.headers.get('set-cookie') || '').split(';')[0];
+      assert.equal((await put(withToken.url, { Cookie: cookie })).status, 200);
+    } finally {
+      await withToken.stop();
+    }
+
+    // Not known to be shared, but the request came through a proxy: refused.
+    // Without the proxy's headers, the computer itself can still save.
+    const local = await spawnHarrington();
+    try {
+      for (const header of ['X-Forwarded-For', 'Forwarded', 'X-Forwarded-Host', 'X-Real-IP']) {
+        const response = await put(local.url, { [header]: header === 'Forwarded' ? 'for=100.64.0.7' : '100.64.0.7' });
+        assert.equal(response.status, 403, header);
+      }
+      await assert.rejects(stat(join(local.dir, 'secrets.json')), { code: 'ENOENT' });
+      assert.equal((await put(local.url)).status, 200);
+    } finally {
+      await local.stop();
     }
   });
   test('with an access token, a signed-in device elsewhere can change the provider and others get 401', { skip: !lanAddress && 'no non-loopback IPv4 interface here' }, async () => {

@@ -22,7 +22,10 @@ tagged a release yet; everything below is on `main`.
   export and `npm run backup`. Values saved in the app win over the
   `HARRINGTON_AI_*` environment, and `/api/health` reports `aiSource`. Until
   an access token is set, only the computer running Harrington can change or
-  test them (HAR-26).
+  test them, and only while it is not shared: a server bound beyond loopback
+  or published under another name (such as behind `tailscale serve` or
+  Caddy), or a request carrying a proxy's forwarding headers, needs the token
+  (HAR-26).
 - Harrington can be shared with the family's other devices: `HARRINGTON_HOST`
   chooses the bind address, `HARRINGTON_ACCESS_TOKEN` makes `/api/*` (except
   health) require a sign-in cookie set once per device by the form at `/login`
