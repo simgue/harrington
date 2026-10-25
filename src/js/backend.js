@@ -33,15 +33,40 @@ export async function loadState() {
   return request('/api/state').then((response) => response.json());
 }
 
-// Saves only if the server still holds `version`. `writeId` is stored on the
-// document so this tab can recognise its own write later. Resolves to the new version.
-// Rejects with `status: 412` and `body` set to the server's current document
-// when another tab or device saved first.
-export async function saveState(value, version, writeId) {
+// A request that must outlive the page (a fetch with keepalive, a beacon)
+// may carry about 64 KB of body: Chromium caps the bodies in flight per page
+// at 65,536 bytes, for both kinds together. Larger documents go as plain
+// requests, which the browser aborts on unload (the store warns before that).
+export const UNLOAD_BODY_LIMIT = 64 * 1024;
+const encoder = new TextEncoder();
+export function fitsUnload(body) {
+  return encoder.encode(body).length < UNLOAD_BODY_LIMIT;
+}
+
+// True when fetch here keeps a request alive past unload (every current
+// browser; Firefox from 133). Such a request shares the unload budget above
+// with beacons: Chromium refuses one that would exceed it before sending.
+export function supportsKeepalive() {
+  return typeof Request === 'function' && 'keepalive' in Request.prototype;
+}
+
+// The PUT body for `value`: the document plus the `writeId` the server stores
+// so this tab can recognise its own write later.
+export function stateBody(value, writeId) {
+  return JSON.stringify({ ...value, writeId });
+}
+
+// Saves only if the server still holds `version`. `body` comes from stateBody.
+// Resolves to the new version. Rejects with `status: 412` and `body` set to
+// the server's current document when another tab or device saved first.
+// keepalive: the request finishes even if the page is closed or reloaded
+// before the response arrives (bodies under UNLOAD_BODY_LIMIT only).
+export async function saveState(body, version, { keepalive = false } = {}) {
   const response = await request('/api/state', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'If-Match': `"v${version}"` },
-    body: JSON.stringify({ ...value, writeId }),
+    body,
+    ...(keepalive ? { keepalive: true } : {}),
   });
   return versionFromEtag(response) ?? version + 1;
 }
@@ -59,6 +84,14 @@ export async function loadLesson(id) {
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`Could not load lesson (${response.status})`);
   return response.json();
+}
+
+// Keys and saved times (ms) of cached entries under one prefix, newest first,
+// at most `limit` (the server caps it too). No content.
+export async function listLessons(prefix, limit) {
+  const response = await request(`/api/lessons?prefix=${encodeURIComponent(prefix)}&limit=${limit}`);
+  const body = await response.json();
+  return Array.isArray(body?.lessons) ? body.lessons : [];
 }
 
 export async function saveLesson(id, value) {

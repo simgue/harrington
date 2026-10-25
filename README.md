@@ -93,7 +93,9 @@ Lessons, print & go sheets, mastery tests, challenges, recall cards, activity
 instructions, discussion analysis, progress reviews and adaptive suggestions
 need a local AI provider (see [Optional local model](#optional-local-model-ollama)).
 Without one, those buttons are replaced by a quiet "Needs a local AI provider"
-link (and left out of the child view). The curriculum is downloaded once on
+link (and left out of the child view). Lessons and print & go sheets saved
+on the server earlier still open: the topic page shows "Open saved lesson", and
+Records lists them under "Saved lessons". The curriculum is downloaded once on
 first start and does not update on its own.
 
 ## Highlights
@@ -270,8 +272,9 @@ npm run backup
 ```
 
 which writes `backups/harrington-<timestamp>.tar.gz` (Git ignores `backups/`).
-To restore, stop Harrington, close it on every device (a tab left open can
-save its own copy over the restored data), replace `data/private/` with the archive's
+To restore, stop Harrington, close it on every device (a tab left open would
+otherwise see its next change refused and offer to put it back on the restored
+data), replace `data/private/` with the archive's
 contents (`tar -xzf backups/harrington-<timestamp>.tar.gz -C data`), and start
 it again. With Docker, back up the `harrington-data` volume instead.
 Set `HARRINGTON_BACKUP_DIR` to write somewhere else; the server reads the same

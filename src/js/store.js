@@ -77,7 +77,14 @@ export async function refreshHealth() {
 // last version we saw; a 412 means another tab or device saved first, so we
 // replace local state with the server's copy (no field-level merging).
 let stateVersion = 0;
+// A change is pending until the server has it: `dirty` while it is only in
+// this tab, then `sending` holds the snapshot whose PUT is in flight, as
+// { json, version, writeId, keepalive, fits } (fits: small enough for a
+// beacon or a keepalive request). Both are off once the PUT resolves
+// (synced), and on again if it fails. See syncStatus(). Whenever either
+// changes, syncUnloadGuard() follows.
 let dirty = false;
+let sending = null;
 let saving = false;
 let saveTimer = null;
 let saveQueue = Promise.resolve();
@@ -93,6 +100,12 @@ let pendingAudioDeletes = [];
 // Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'rejected' | 'read-only' | 'failed', error?, automatic? }
 export function onSaveStatus(fn) { saveListeners.add(fn); return () => saveListeners.delete(fn); }
 function saveStatus(event) { saveListeners.forEach(fn => { try { fn(event); } catch (e) { console.warn(e); } }); }
+
+// Where this tab's changes are: 'dirty' (edited here, not yet sent),
+// 'sending' (a PUT is in flight and nothing was edited since) or 'synced'.
+export function syncStatus() {
+  return dirty ? 'dirty' : sending ? 'sending' : 'synced';
+}
 
 function objectOr(value, fallback) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
@@ -177,6 +190,7 @@ function saveIfMigrated(migrated) {
   if (!migrated) return Promise.resolve(true);
   const pending = dirty;
   dirty = true;
+  syncUnloadGuard();
   migrationOnly = !pending;
   return flushSaves();
 }
@@ -378,6 +392,7 @@ function reloadFromServer(doc) {
   clearTimeout(saveTimer);
   saveTimer = null;
   dirty = false;
+  syncUnloadGuard();
   // A pending beacon carried the version we are discarding, so it cannot land.
   unconfirmedBeacon = null;
   let changes = [];
@@ -410,6 +425,15 @@ function deleteRemovedAudio() {
   for (const item of ready) backend.deleteAudio(item.path).catch(() => {});
 }
 
+// True when the server document is a write of ours that landed since we
+// last looked. The writeId alone is not enough: a backup restored over the
+// server can carry an old write of this tab, and then the version has moved
+// backwards. That document is not ours any more, it is what the parent chose
+// to go back to (HAR-44).
+function isOwnNewerWrite(doc) {
+  return versionOf(doc) > stateVersion && ownWrites.includes(doc.writeId);
+}
+
 // Compares the server document with what we know. Returns true when local
 // state stays (the server holds our own write or nothing new), false after
 // reloading because another tab or device saved.
@@ -417,16 +441,16 @@ function reconcile(doc) {
   const beaconId = unconfirmedBeacon;
   unconfirmedBeacon = null;
   const version = versionOf(doc);
-  if (beaconId && doc.writeId === beaconId) {
+  if (isOwnNewerWrite(doc)) {
     stateVersion = version;
     markSynced(documentFields(doc));
     deleteRemovedAudio();
+    // Our beacon did not land, a later save of ours did; send its changes again.
+    if (beaconId && doc.writeId !== beaconId) persist();
     return true;
   }
-  if (version === stateVersion || ownWrites.includes(doc.writeId)) {
-    stateVersion = Math.max(stateVersion, version);
-    if (ownWrites.includes(doc.writeId)) { markSynced(documentFields(doc)); deleteRemovedAudio(); }
-    // Our beacon did not land; send its changes again.
+  if (version === stateVersion) {
+    // Nothing landed, our beacon included; send its changes again.
     if (beaconId) persist();
     return true;
   }
@@ -444,22 +468,52 @@ async function conflictDocument(error) {
 
 // Runs one save. `makeData()` builds the body just before sending (null means
 // nothing to send). A 412 caused by our own earlier write, such as an unload
-// beacon, adopts that version and tries again; any other 412 reloads.
+// beacon, adopts that version and tries again; any other 412 reloads, a
+// restored backup carrying an old write of ours included (isOwnNewerWrite).
+// One PUT. A keepalive request shares the browser's unload budget with
+// beacons (backend.js): while a beacon is still uploading, Chromium refuses
+// the request before it is sent ("Failed to fetch"). A keepalive request
+// that got no answer is therefore sent again at once as a plain request; if
+// the first did reach the server, the second gets a 412 naming its own
+// writeId and saveWith counts it as landed.
+async function sendState(body, keepalive) {
+  try {
+    return await backend.saveState(body, stateVersion, { keepalive });
+  } catch (e) {
+    if (!keepalive || e.status !== undefined) throw e;
+    sending = { ...sending, keepalive: false };
+    return backend.saveState(body, stateVersion);
+  }
+}
+
 async function saveWith(makeData) {
-  if (readOnly) { dirty = false; saveStatus({ type: 'read-only' }); return false; }
+  if (readOnly) { dirty = false; syncUnloadGuard(); saveStatus({ type: 'read-only' }); return false; }
   saving = true;
   // Kept across attempts: after a 412 caused by our own earlier write, the
-  // body is sent again even if makeData() has nothing new.
+  // body is sent again even if makeData() has nothing new. (Its containers
+  // are the state's own, so the retry carries edits made since.)
   let data = null;
   try {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       if (unconfirmedBeacon && !reconcile(await backend.loadState())) return false;
       data = makeData() ?? data;
       if (data === null) return true;
+      const writeId = newWriteId();
       try {
         // Frozen before sending: edits made while the save is in flight are not on the server yet.
         const sent = JSON.stringify(data);
-        const next = await backend.saveState(data, stateVersion, newWriteId());
+        const body = backend.stateBody(data, writeId);
+        const fits = backend.fitsUnload(body);
+        const keepalive = fits && backend.supportsKeepalive();
+        // Pending until the server answers: if the page is hidden meanwhile,
+        // handlePageHidden sends this same snapshot as a beacon, and
+        // handleBeforeUnload warns when neither can outlive the page (HAR-43).
+        sending = { json: sent, version: stateVersion, writeId, keepalive, fits };
+        syncUnloadGuard();
+        let next;
+        try { next = await sendState(body, keepalive); } finally { sending = null; syncUnloadGuard(); }
+        // The beacon copy of this body, if one went out, cannot land now.
+        if (unconfirmedBeacon === writeId) unconfirmedBeacon = null;
         stateVersion = Math.max(stateVersion, next);
         markSynced(sent);
         if (!dirty) migrationOnly = false;
@@ -469,16 +523,23 @@ async function saveWith(makeData) {
       } catch (e) {
         if (e.status !== 412) throw e;
         const doc = await conflictDocument(e);
-        if (!ownWrites.includes(doc.writeId)) { reloadFromServer(doc); return false; }
+        if (!isOwnNewerWrite(doc)) { reloadFromServer(doc); return false; }
         if (doc.writeId === unconfirmedBeacon) unconfirmedBeacon = null;
         stateVersion = versionOf(doc);
         markSynced(documentFields(doc));
         deleteRemovedAudio();
+        if (doc.writeId === writeId) {
+          // This very body landed, as the beacon copy sent on unload.
+          if (!dirty) migrationOnly = false;
+          saveStatus({ type: 'saved' });
+          return true;
+        }
       }
     }
     throw new Error('Family data kept changing while saving');
   } catch (e) {
     dirty = true;
+    syncUnloadGuard();
     console.warn('save failed', e);
     // 422 and 409: the server refused the document itself (document.js and
     // the data format rules), so retrying the same data will not help.
@@ -514,6 +575,7 @@ function persist({ automatic = false } = {}) {
   if (readOnly) { saveStatus({ type: 'read-only', automatic }); return; }
   migrationOnly = false;
   dirty = true;
+  syncUnloadGuard();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSaves, 400);
 }
@@ -523,14 +585,28 @@ function persist({ automatic = false } = {}) {
 // the body. We cannot see the result, so the version is not advanced; the
 // beacon's writeId is checked against the server when the tab returns or
 // before the next save. A save still in flight uses the same version, so
-// exactly one of the two wins and the other recognises it.
+// exactly one of the two wins, and the other is recognised and sent again
+// as long as the tab is still open (reconcile, saveWith). A tab that closes
+// with both on the wire cannot do that, which is why handleBeforeUnload
+// warns when a change is pending on top of a save in flight.
+// With nothing edited since, a save still in flight is at risk too: its PUT
+// is aborted with the page unless it was sent with keepalive. So the same
+// snapshot goes out again as a beacon, with the same writeId: whichever of
+// the two lands, the other gets a 412 naming it and stands down (saveWith).
 export function handlePageHidden() {
-  if (!dirty || readOnly) return;
+  if (readOnly) return;
+  if (!dirty) {
+    if (sending && !sending.keepalive && sending.fits && backend.beaconState(JSON.parse(sending.json), sending.version, sending.writeId)) {
+      unconfirmedBeacon = sending.writeId;
+    }
+    return;
+  }
   clearTimeout(saveTimer);
   saveTimer = null;
   const writeId = newWriteId();
   if (backend.beaconState(snapshotData(), stateVersion, writeId)) {
     dirty = false;
+    syncUnloadGuard();
     unconfirmedBeacon = writeId;
   } else {
     console.warn('The browser refused to send family data on unload (beacons are limited to about 64 KB); saving normally instead.');
@@ -538,14 +614,51 @@ export function handlePageHidden() {
   }
 }
 
-// Coming back to a tab: confirm an unload beacon, or load a newer copy another
-// device saved rather than discovering the conflict on the next edit.
+export const UNLOAD_WARNING = 'Harrington is still saving your changes. Leave anyway?';
+
+// The page is about to be closed or reloaded. The browser is asked to confirm
+// (with its own leave-page text; desktop browsers only) when a change would
+// not survive the page: a save in flight whose body is too large for a
+// beacon or a keepalive request (about 64 KB), a pending change that large,
+// or a pending change on top of a save in flight (if the save lands first,
+// the beacon of the newer change is refused with nobody left to send it
+// again). A pending change at risk is saved right away, so staying finishes
+// it. Returns true when it warned.
+export function handleBeforeUnload(event) {
+  if (readOnly) return false;
+  let atRisk = Boolean(sending && !sending.fits);
+  if (dirty && (sending || !backend.fitsUnload(JSON.stringify(snapshotData())))) {
+    flushSaves();
+    atRisk = true;
+  }
+  if (!atRisk) return false;
+  event.preventDefault();
+  event.returnValue = UNLOAD_WARNING; // what older browsers look at
+  return true;
+}
+
+// The beforeunload listener is on only while a change is pending or a save
+// is in flight: a page listening for beforeunload is kept out of the
+// back/forward cache (Firefox), so at rest there is none.
+let unloadGuardOn = false;
+function syncUnloadGuard() {
+  if (typeof window === 'undefined') return;
+  const wanted = dirty || sending !== null;
+  if (wanted === unloadGuardOn) return;
+  unloadGuardOn = wanted;
+  if (wanted) window.addEventListener('beforeunload', handleBeforeUnload);
+  else window.removeEventListener('beforeunload', handleBeforeUnload);
+}
+
+// Coming back to a tab: confirm an unload beacon, or load a changed copy
+// (another device saved, or a backup was restored and the version went back)
+// rather than discovering the conflict on the next edit.
 async function syncOnVisible() {
   if (saving) return;
   if (!unconfirmedBeacon) {
     if (dirty) return;
     const { stateVersion: serverVersion } = await backend.health();
-    if (!Number.isSafeInteger(serverVersion) || serverVersion <= stateVersion || dirty) return;
+    if (!Number.isSafeInteger(serverVersion) || serverVersion === stateVersion || dirty) return;
   }
   reconcile(await backend.loadState());
 }
@@ -634,6 +747,7 @@ export function importDocument(doc) {
   clearTimeout(saveTimer);
   saveTimer = null;
   dirty = false;
+  syncUnloadGuard();
   saveQueue = saveQueue.catch(() => {}).then(async () => {
     const ok = await saveWith(() => data);
     if (ok) {
@@ -1113,8 +1227,20 @@ export function dueRecallCards(studentId, { cardIds = null, topicId = null } = {
       && (!topicId || c.topicId === topicId))
     .map(([id, c]) => ({ id, ...c }));
 }
+// Card ids are `${topicId}::${n}`; older records may lack a topicId.
+const recallTopicOf = (id, c) => c?.topicId || String(id).split('::')[0];
+
+// Cards due today, minus entries whose card is gone from a card set this
+// session has already read. Topics not read yet are checked in the background
+// (reconcileRecallDue), which prunes their orphans and emits if any were found.
 export function recallDueCount(studentId) {
-  return dueRecallCards(studentId).length;
+  const due = dueRecallCards(studentId);
+  const live = due.filter(c => {
+    const known = knownRecallIds(recallTopicOf(c.id, c));
+    return !known || known.has(c.id);
+  });
+  reconcileRecallDue(studentId).catch(() => {});
+  return live.length;
 }
 // A regenerated card set replaces a topic's cards for every learner. Card ids
 // are positional, so old scheduling state would attach to different questions
@@ -1129,11 +1255,23 @@ export function resetRecallTopic(topicId) {
   if (changed) { persist(); emit(); }
 }
 // Removes a learner's scheduling records for cards that no longer exist.
-export function dropRecallCards(studentId, cardIds) {
+// `save: false` leaves saving to the caller.
+export function dropRecallCards(studentId, cardIds, { save = true } = {}) {
   const r = recallOf(studentId);
   const gone = cardIds.filter(id => id in r);
   gone.forEach(id => { delete r[id]; });
-  if (gone.length) { persist(); emit(); }
+  if (gone.length && save) { persist(); emit(); }
+  return gone.length;
+}
+// The one place orphans are found: a learner's records for `topicId` whose
+// card is not in `cards` (the topic's current, validated card set) are dropped.
+// Used by "Due today" and by the due count. Returns how many were dropped.
+export function dropOrphanRecall(studentId, topicId, cards, { save = true } = {}) {
+  const known = new Set(cards.map(c => c.id));
+  const gone = Object.entries(recallOf(studentId))
+    .filter(([id, c]) => recallTopicOf(id, c) === topicId && !known.has(id))
+    .map(([id]) => id);
+  return dropRecallCards(studentId, gone, { save });
 }
 
 // ---- Spaced practice for missed mastery-test questions ----
@@ -1477,6 +1615,8 @@ const CACHE_KINDS = { 'topic:': 'lesson', 'print:': 'printables', 'act:': 'activ
 const lessonCache = new Map();
 const existsMemo = new Map(); // key -> Promise<boolean>, for the no-provider "Open" upgrade
 const inflight = new Map();   // key -> Promise of a generation in progress
+const unsaved = new Set();    // keys generated this session that the server did not store
+const recallChecked = new Map(); // topicId -> Promise, one cache read per session for the due count
 
 export function cacheKind(key) {
   const prefix = Object.keys(CACHE_KINDS).find(p => String(key).startsWith(p));
@@ -1508,9 +1648,54 @@ export function isValidCached(kind, value) {
         && (v.independentActivity == null || (isObject(v.independentActivity) && listsOrAbsent(v.independentActivity, ['steps'])));
     case 'printables': return Array.isArray(v.printables) && v.printables.some(p => isObject(p) && isObject(p.content) && hasContent(p.content));
     case 'activity': return Array.isArray(v.steps) && v.steps.some(hasContent) && listsOrAbsent(v, ['materials']);
-    case 'recall': return Array.isArray(v.cards) && v.cards.some(c => isObject(c) && text(c.front) && text(c.back));
+    case 'recall': return Array.isArray(v.cards) && v.cards.some(isValidRecallCard);
     default: return true;
   }
+}
+
+// One recall card as the session renders it: an id to schedule, a front and a
+// back, and an optional text hint.
+function isValidRecallCard(c) {
+  return isObject(c) && text(c.id) && text(c.front) && text(c.back) && (c.hint == null || typeof c.hint === 'string');
+}
+
+// The usable cards of a recall cache value, how many malformed ones were left
+// out, and the ids of those that still carry one.
+export function recallCardsOf(value) {
+  const list = normalizeCached('recall', value)?.cards;
+  const all = Array.isArray(list) ? list : [];
+  const cards = all.filter(isValidRecallCard);
+  const droppedIds = all.filter(c => !isValidRecallCard(c) && text(c?.id)).map(c => c.id);
+  return { cards, dropped: all.length - cards.length, droppedIds };
+}
+
+// Ids of a topic's card set when this session has read it, otherwise null.
+function knownRecallIds(topicId) {
+  const value = lessonCache.get('recall:' + topicId);
+  return value ? new Set(recallCardsOf(value).cards.map(c => c.id)) : null;
+}
+
+// Reads each due topic's card set once per session (never generating) and
+// drops orphaned schedule entries. Resolves to how many were dropped.
+// The prune is a repair that loading makes, so it is saved like a migration
+// (saveIfMigrated): once, right away, and a conflict with a tab that saved
+// first reloads silently (the reloaded document is repaired again). A
+// read-only store is never repaired.
+async function reconcileRecallDue(studentId) {
+  // A newer document is never written, so it is not repaired either.
+  if (readOnly) return 0;
+  const topics = new Set(dueRecallCards(studentId).map(c => recallTopicOf(c.id, c)));
+  let dropped = 0;
+  for (const topicId of topics) {
+    if (!recallChecked.has(topicId)) recallChecked.set(topicId, getCachedLesson('recall:' + topicId));
+    await recallChecked.get(topicId);
+    // Read the live value: a regenerate may have replaced it since.
+    const value = lessonCache.get('recall:' + topicId);
+    // Checked again after the read: the store may have gone read-only meanwhile.
+    if (value && !readOnly) dropped += dropOrphanRecall(studentId, topicId, recallCardsOf(value).cards, { save: false });
+  }
+  if (dropped) { saveIfMigrated(true); emit(); }
+  return dropped;
 }
 
 export function invalidResult() {
@@ -1543,13 +1728,50 @@ export async function saveCachedLesson(id, data) {
   catch (e) { console.warn('Could not save to the lesson cache', e); return false; }
   lessonCache.set(id, value);
   existsMemo.set(id, Promise.resolve(true));
+  unsaved.delete(id);
   return true;
+}
+
+// Whether `id` was generated this session but the server did not store it.
+export function isUnsavedCached(id) { return unsaved.has(id); }
+
+// Tries again to store a generated value the server refused. No AI call.
+// Concurrent retries for one key share a single save.
+const retrying = new Map(); // key -> Promise<boolean>
+export function retrySaveCached(id) {
+  if (!unsaved.has(id)) return Promise.resolve(true);
+  if (!retrying.has(id)) {
+    const save = saveCachedLesson(id, lessonCache.get(id));
+    retrying.set(id, save);
+    save.finally(() => retrying.delete(id)).catch(() => {});
+  }
+  return retrying.get(id);
+}
+
+// Saved entries under the given prefixes, newest first, that pass their
+// kind's validator (each is read once and kept for this session, so opening
+// it makes no further request). At most `limit`; [] when the listing fails.
+export async function savedLessons(prefixes, limit = 8) {
+  let listed;
+  // A few more than `limit`, since entries that fail their validator are skipped.
+  try { listed = (await Promise.all(prefixes.map(p => backend.listLessons(p, limit * 3)))).flat(); }
+  catch { return []; }
+  listed = listed.filter(e => typeof e?.key === 'string' && prefixes.some(p => e.key.startsWith(p)));
+  listed.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  const valid = [];
+  for (const entry of listed) {
+    if (valid.length >= limit) break;
+    if (await hasCachedLesson(entry.key)) valid.push({ key: entry.key, savedAt: entry.savedAt });
+  }
+  return valid;
 }
 
 // Test-only: drops this tab's copies, as a fresh session would start.
 export function forgetCachedLessons() {
   lessonCache.clear();
   existsMemo.clear();
+  unsaved.clear();
+  recallChecked.clear();
 }
 
 // Whether a valid cached value exists, memoized for the session. Only a
@@ -1576,7 +1798,10 @@ export function hasCachedLesson(id) {
 // `force` skips the cache (regenerate). `accept(fresh)` runs before saving
 // (views pass a trial render) and a throw there leaves the cache untouched.
 // Concurrent calls for one key share a single generation. Without a provider
-// a cache miss rejects as "not configured".
+// a cache miss rejects as "not configured". When the server will not store a
+// first generation, the result is still returned and kept for this session
+// (isUnsavedCached, retrySaveCached), so it is never paid for twice; a
+// regenerate that cannot be stored rejects and the previous version stays.
 export function generateCached(id, generate, { force = false, accept = null } = {}) {
   if (inflight.has(id)) return inflight.get(id);
   const kind = cacheKind(id);
@@ -1591,7 +1816,11 @@ export function generateCached(id, generate, { force = false, accept = null } = 
     if (accept) {
       try { accept(fresh); } catch (e) { console.error(e); throw invalidResult(); }
     }
-    if (!(await saveCachedLesson(id, fresh))) throw new Error('Harrington could not save the result');
+    if (!(await saveCachedLesson(id, fresh))) {
+      if (force) throw new Error('Harrington could not save the result');
+      lessonCache.set(id, fresh);
+      unsaved.add(id);
+    }
     return fresh;
   })();
   inflight.set(id, run);
