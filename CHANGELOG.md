@@ -10,9 +10,12 @@ tagged a release yet; everything below is on `main`.
 - A change made just before the page was reloaded or closed is no longer
   lost while its save is still on the wire: the change stays pending until the
   server answers, a save under 64 KB keeps itself alive past unload
-  (`keepalive`), a browser without that sends the same snapshot again as a
-  beacon from `pagehide`, and a document too large for either gets a
-  "still saving" warning before the page is left (HAR-43).
+  (`keepalive`; one the browser refuses while an unload beacon is still
+  uploading is sent again at once as a plain request), a browser without
+  keepalive sends the same snapshot again as a beacon from `pagehide`, and
+  when a change could not survive the page (a document too large for either,
+  or a change made while a save is still on the wire) desktop browsers ask
+  with their leave-page confirmation before the page is left (HAR-43).
 - Restoring an older backup while a tab is open is no longer silently undone
   by that tab's next change. The tab recognised the restored document as one
   of its own earlier writes and saved its whole state over it; now a server

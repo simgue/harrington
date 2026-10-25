@@ -44,12 +44,10 @@ export function fitsUnload(body) {
 }
 
 // True when fetch here keeps a request alive past unload (every current
-// browser; Firefox from 133) and `body` is small enough for that.
-function supportsKeepalive() {
+// browser; Firefox from 133). Such a request shares the unload budget above
+// with beacons: Chromium refuses one that would exceed it before sending.
+export function supportsKeepalive() {
   return typeof Request === 'function' && 'keepalive' in Request.prototype;
-}
-export function keepsAlive(body) {
-  return supportsKeepalive() && fitsUnload(body);
 }
 
 // The PUT body for `value`: the document plus the `writeId` the server stores

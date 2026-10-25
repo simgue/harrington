@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { SCHEMA_VERSION } from '../src/js/schema.js';
+import { installFakeDom } from './support/fake-dom.mjs';
 
 // A change stays pending until the server has it (HAR-43): `dirty` while it
 // is only in this tab, `sending` while its PUT is in flight, `synced` once the
@@ -11,6 +12,15 @@ import { SCHEMA_VERSION } from '../src/js/schema.js';
 // A 412 that carries an old write of this tab at an older version is a
 // restored backup, not our own write (HAR-44): the tab reloads it and says so.
 
+// The page: the store registers its unload listeners on it. Which
+// beforeunload listeners are on is recorded, since a page with one is kept
+// out of the back/forward cache.
+const { window } = installFakeDom();
+const unloadListeners = new Set();
+const { addEventListener: addListener, removeEventListener: removeListener } = window;
+window.addEventListener = (type, fn) => { if (type === 'beforeunload') unloadListeners.add(fn); addListener(type, fn); };
+window.removeEventListener = (type, fn) => { if (type === 'beforeunload') unloadListeners.delete(fn); removeListener(type, fn); };
+
 // A stand-in for the server's versioned document, with the same
 // compare-and-swap as server.mjs: the version must match, a fresh writeId is kept.
 const server = {
@@ -19,6 +29,9 @@ const server = {
   beacons: [],   // every accepted beacon: { version, writeId, bytes, status, parsed, landed }
   refusedBeacons: 0,
   failNextPut: false,
+  // Chromium refuses a keepalive request that would exceed the unload
+  // budget, before sending it, while a beacon is still uploading.
+  refuseKeepalive: false,
 };
 function write(expected, body) {
   if (expected !== server.doc.version) return { status: 412, body: server.doc };
@@ -45,6 +58,7 @@ globalThis.fetch = async (path, options = {}) => {
     const sent = Number(/"v(\d+)"/.exec(options.headers['If-Match'])[1]);
     const record = { version: sent, writeId: body.writeId, keepalive: options.keepalive === true, bytes: options.body.length, status: null };
     server.puts.push(record);
+    if (record.keepalive && server.refuseKeepalive) { record.status = 'refused'; throw new TypeError('Failed to fetch'); }
     if (holdPuts) await holdPuts.promise;
     if (server.failNextPut) { server.failNextPut = false; record.status = 500; return reply(500, { error: 'down' }); }
     const result = write(sent, body);
@@ -92,12 +106,15 @@ const unloadEvent = () => ({ defaultPrevented: false, returnValue: undefined, pr
 
 test('a change is dirty, then sending while its PUT is in flight, then synced', async () => {
   assert.equal(store.syncStatus(), 'synced');
+  assert.equal(unloadListeners.size, 0, 'at rest the page listens for no beforeunload');
   holdPuts = gate();
   store.setStatus('s1', 'a', 'learning');
   assert.equal(store.syncStatus(), 'dirty');
+  assert.equal(unloadListeners.size, 1);
   const flushed = store.flushSaves();
   await tick();
   assert.equal(store.syncStatus(), 'sending');
+  assert.equal(unloadListeners.size, 1);
   assert.equal(server.puts.length, 1);
   assert.equal(server.puts[0].keepalive, true, 'under 64 KB, the request outlives the page on its own');
   // Hidden while the PUT is in flight: the keepalive request needs no beacon.
@@ -106,8 +123,44 @@ test('a change is dirty, then sending while its PUT is in flight, then synced', 
   holdPuts.release(); holdPuts = null;
   await flushed;
   assert.equal(store.syncStatus(), 'synced');
+  assert.equal(unloadListeners.size, 0, 'synced: the listener is gone again');
   assert.equal(types().at(-1), 'saved');
   assert.equal(server.doc.progress.s1.a.status, 'learning');
+});
+
+test('a keepalive PUT the browser refuses while a beacon is uploading is sent again at once as a plain request', async () => {
+  server.refuseKeepalive = true;
+  const puts = server.puts.length;
+  store.setStatus('s1', 'a2', 'practicing');
+  await store.flushSaves();
+  server.refuseKeepalive = false;
+  assert.deepEqual(server.puts.slice(puts).map((p) => [p.keepalive, p.status]), [[true, 'refused'], [false, 204]]);
+  assert.equal(types().at(-1), 'saved');
+  assert.equal(store.syncStatus(), 'synced');
+  assert.equal(server.doc.progress.s1.a2.status, 'practicing');
+});
+
+test('a change made while a save is in flight: leaving warns, staying saves both', async () => {
+  holdPuts = gate();
+  store.setStatus('s1', 'a3', 'learning');
+  const first = store.flushSaves();
+  await tick();
+  assert.equal(store.syncStatus(), 'sending');
+  store.setStatus('s1', 'a4', 'learning');
+  assert.equal(store.syncStatus(), 'dirty');
+  // If the save landed first, a beacon of the newer change would be refused
+  // with nobody left to send it again: the browser asks before the page goes.
+  const event = unloadEvent();
+  assert.equal(store.handleBeforeUnload(event), true);
+  assert.equal(event.defaultPrevented, true);
+  assert.equal(unloadListeners.size, 1);
+  holdPuts.release(); holdPuts = null;
+  await first;
+  await store.flushSaves();
+  assert.equal(store.syncStatus(), 'synced');
+  assert.equal(server.doc.progress.s1.a3.status, 'learning');
+  assert.equal(server.doc.progress.s1.a4.status, 'learning');
+  assert.equal(unloadListeners.size, 0);
 });
 
 test('a save that fails is pending again, not lost', async () => {
@@ -205,7 +258,7 @@ test('a document too large for a beacon: no keepalive, the beacon is refused, an
   const beacons = server.beacons.length;
   store.handlePageHidden();
   assert.equal(server.beacons.length, beacons, 'too large for a beacon');
-  assert.equal(server.refusedBeacons, 1);
+  assert.equal(server.refusedBeacons, 0, 'known too large in advance: not even offered');
   const event = unloadEvent();
   assert.equal(store.handleBeforeUnload(event), true);
   assert.equal(event.defaultPrevented, true);
