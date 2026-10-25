@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
-import { SCHEMA_VERSION } from '../src/js/schema.js';
+import { SCHEMA_VERSION, formatCopyName } from '../src/js/schema.js';
 
 const repoRoot = new URL('..', import.meta.url);
 let child;
@@ -389,6 +389,22 @@ test('migrates a legacy state document without a version as version 0', async ()
   assert.equal((await putState(legacy, '"v1"')).status, 412);
   assert.equal((await putState(legacy, '"v0"')).status, 204);
   assert.equal((await (await fetch(`${baseUrl}/api/state`)).json()).version, 1);
+});
+
+test('the first save in a newer format keeps the stored document as family-state.format-N.json, once', async () => {
+  const copy = join(dataDir, formatCopyName(2));
+  await rm(copy, { force: true });
+  const older = { schemaVersion: 2, version: 40, students: [{ id: 'k1', name: 'Kept Learner', birthYear: 2018 }], records: { k1: [{ id: 'r', type: 'note', note: 'the whole note' }] } };
+  await writeFile(join(dataDir, 'family-state.json'), JSON.stringify(older));
+  const repaired = { ...older, schemaVersion: SCHEMA_VERSION, records: { k1: [{ id: 'r', type: 'note', note: 'the whole' }] } };
+  assert.equal((await putState(repaired, '"v40"')).status, 204);
+  assert.deepEqual(JSON.parse(await readFile(copy, 'utf8')), older, 'the copy is the document as stored');
+  // A save in the same format writes no copy; a later upgrade from format 2
+  // again keeps the first copy.
+  assert.equal((await putState(repaired, '"v41"')).status, 204);
+  await writeFile(join(dataDir, 'family-state.json'), JSON.stringify({ ...older, version: 50, students: [] }));
+  assert.equal((await putState({ ...repaired, version: 50 }, '"v50"')).status, 204);
+  assert.deepEqual(JSON.parse(await readFile(copy, 'utf8')), older);
 });
 
 test('persists lesson cache entries and recordings', async () => {

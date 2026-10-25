@@ -141,6 +141,11 @@ test('step 2 -> 3 repairs data the server now refuses on load, saves once withou
   assert.match(note.body, /shortened to “Sample Twelve Longname/);
   assert.match(note.body, /The birth year of .* was 1985, outside 1990 to \d{4}, and is now 1990\./);
   assert.match(note.body, /The note of a record for .* “Long talk” was longer than 50,000 characters and was shortened\./);
+  assert.match(note.body, /kept on the Harrington server, in its data folder, as family-state\.format-2\.json\./);
+  // The bell shows it; it is not the old notification log, so the welcome
+  // still shows for a family that never saw it.
+  assert.deepEqual(store.repairNotices().map((n) => n.id), [note.id]);
+  assert.equal(store.welcomed(), false);
   // Loaded again, the repaired document needs nothing: no second save.
   await load({ ...served });
   assert.equal(puts.length, 0);

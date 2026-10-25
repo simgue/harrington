@@ -219,7 +219,7 @@ function studentFields(s = null) {
   return `
       <div>
         <label for="sf-name" class="text-sm font-medium block mb-1.5">Name</label>
-        <input id="sf-name" name="name" required maxlength="${store.NAME_FIELD_MAX}" value="${esc(s?.name || '')}" class="${inputCls}" />
+        <input id="sf-name" name="name" required maxlength="${store.NAME_MAX}" value="${esc(s?.name || '')}" class="${inputCls}" />
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
@@ -434,6 +434,8 @@ function reportBlockedWrite(automatic = false) {
   toast(`Not saved. ${store.readOnlyMessage()}`, 'error');
 }
 let retryToast = null;
+// Toast actions are 44 px tap targets.
+const TOAST_BUTTON = 'shrink-0 min-h-11 min-w-11 px-1 underline font-600';
 let conflictToast = null;
 
 function clearSaveProblems() {
@@ -471,7 +473,7 @@ function showConflict({ discarded = [], retry = null } = {}) {
   const msg = lost ? `Another device saved changes first. Not kept here: ${lost}.` : 'Another device saved changes. Reloaded the latest.';
   const node = el(`<div role="alert" class="px-4 py-2.5 rounded-lg text-sm font-medium bg-ink text-white shadow-lg flex items-center gap-3">
     <span>${esc(msg)}</span>
-    ${retry ? '<button class="underline font-600 shrink-0">Try again</button>' : ''}
+    ${retry ? `<button class="${TOAST_BUTTON}">Try again</button>` : ''}
   </div>`);
   conflictToast = node;
   const close = () => { node.remove(); if (conflictToast === node) conflictToast = null; };
@@ -492,13 +494,18 @@ function showTooLarge() {
 
 // reason: the server's explanation when it refused the data itself (422,
 // 409). The same data would be refused again, so there is no Retry then.
+// The toast always names the current problem: every change is checked as it
+// is made, so a parent who fixes one problem can be shown the next one.
+let retryReason = null;
 function showRetry(reason = null) {
-  if (retryToast) return;
+  if (retryToast && retryReason === reason) return;
   const root = document.getElementById('toast-root');
   if (!root) return;
-  retryToast = el(`<div role="alert" class="px-4 py-2.5 rounded-lg text-sm font-medium bg-[#a4473a] text-white shadow-lg flex items-center gap-3">
-    <span>${reason ? `Harrington refused these changes: ${esc(reason)}` : 'Could not save changes to Harrington.'}</span>
-    ${reason ? '<button class="dismiss underline font-600">Dismiss</button>' : '<button class="retry underline font-600">Retry</button>'}
+  retryToast?.remove();
+  retryReason = reason;
+  retryToast = el(`<div role="alert" class="px-4 py-1 rounded-lg text-sm font-medium bg-[#a4473a] text-white shadow-lg flex items-center gap-3">
+    <span class="py-1.5">${reason ? `Harrington refused these changes: ${esc(reason)}` : 'Could not save changes to Harrington.'}</span>
+    ${reason ? `<button class="dismiss ${TOAST_BUTTON}">Dismiss</button>` : `<button class="retry ${TOAST_BUTTON}">Retry</button>`}
   </div>`);
   retryToast.querySelector('button').onclick = () => {
     retryToast?.remove(); retryToast = null;

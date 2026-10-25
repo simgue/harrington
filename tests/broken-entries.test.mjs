@@ -90,6 +90,12 @@ test('the next save carries the cleaned document, which the server accepts', asy
   for (const key of ['records', 'tests', 'challenges', 'suggestions']) assert.ok(allObjects(writes[0][key][ID]), key);
 });
 
+test('a learner that is not an object is dropped too', () => {
+  const { doc, dropped } = dropBrokenEntries({ students: [null, { id: 'a', name: 'Kept' }, 3] });
+  assert.deepEqual(doc.students, [{ id: 'a', name: 'Kept' }]);
+  assert.equal(dropped, 2);
+});
+
 test('dropBrokenEntries returns the same document when nothing is broken', () => {
   const clean = { students: [], records: { a: [{ id: 'r' }] }, recall: { a: { c: { due: 0 } } } };
   const out = dropBrokenEntries(clean);

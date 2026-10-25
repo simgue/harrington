@@ -13,7 +13,8 @@
 // update the expected file of every older fixture (tests/schema.test.mjs).
 // Migrations are synchronous. One that needs outside input, such as the salt
 // for hashing the child-view PIN, reads it from `context`, which the caller
-// passes to migrateDocument.
+// passes to migrateDocument; `context.from` is the format the document had
+// before the first step.
 import { migratePinSettings } from './pin.js';
 import { repairDocument } from './document.js';
 
@@ -34,12 +35,20 @@ export const MIGRATIONS = [
   // every save (PR #32) that validateDocument now refuses, which would block
   // every save (HAR-39): over-long names and record texts are shortened,
   // birth years clamped and non-object entries dropped, with a notification
-  // listing what changed (document.js repairDocument). context.now fixes the
-  // date in tests.
-  (doc, { now } = {}) => repairDocument(doc, now === undefined ? {} : { now }),
+  // listing what changed and naming the server's copy of the document as it
+  // was (formatCopyName; `from` is the format the migration started from).
+  // context.now fixes the date in tests.
+  (doc, { now, from } = {}) => repairDocument(doc, { ...(now === undefined ? {} : { now }), copy: formatCopyName(from) }),
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
+
+// The copy of the family data the server keeps when the first save in a newer
+// format replaces a document stored in format `format` (server.mjs), named in
+// the repair notice so a parent can get back what a migration changed.
+export function formatCopyName(format) {
+  return `family-state.format-${format}.json`;
+}
 
 // The schema a document declares; one without the field is schema 0. Null
 // when the field is there but is not a whole number of zero or more.
@@ -68,7 +77,7 @@ export function migrateDocument(doc, { migrations = MIGRATIONS, context = {} } =
   if (from === null || from >= migrations.length) return doc;
   let next = { ...doc };
   for (let v = from; v < migrations.length; v++) {
-    next = { ...migrations[v]({ ...next }, context), schemaVersion: v + 1 };
+    next = { ...migrations[v]({ ...next }, { ...context, from }), schemaVersion: v + 1 };
   }
   return next;
 }

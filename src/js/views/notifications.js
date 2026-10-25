@@ -25,6 +25,7 @@ function currentAlerts() {
     backupAgeDays: store.backupAge(),
     dismissed: store.dismissedAlerts(),
     welcomed: store.welcomed(),
+    notices: store.repairNotices(),
   });
 }
 

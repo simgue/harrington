@@ -147,3 +147,27 @@ test('a change the document rules refuse says so, and its action does not confir
   await store.flushSaves();
   assert.deepEqual(writes, ['PUT /api/state']);
 });
+
+test('the refusal toast names the current problem once the parent fixes the first', async () => {
+  reset();
+  store.get().students[0].birthYear = 1800;
+  store.setStatus(STUDENT.id, 't_count', 'practicing');
+  await settle();
+  const refusals = () => toasts().filter((t) => t.startsWith('Harrington refused'));
+  assert.equal(refusals().length, 1);
+  assert.match(refusals()[0], /birth year/);
+  // The birth year is fixed, but the name is now too long.
+  store.get().students[0].birthYear = 2020;
+  store.get().students[0].name = 'x'.repeat(61);
+  store.setStatus(STUDENT.id, 't_count', 'mastered');
+  await settle();
+  assert.equal(refusals().length, 1, 'one toast, not two');
+  assert.match(refusals()[0], /name longer than 60 characters/);
+  assert.doesNotMatch(refusals()[0], /birth year/);
+  // Fixed too: the next change saves and the toast goes.
+  store.get().students[0].name = STUDENT.name;
+  store.setStatus(STUDENT.id, 't_count', 'learning');
+  await store.flushSaves();
+  await settle();
+  assert.equal(refusals().length, 0);
+});

@@ -6,7 +6,7 @@ import { isIP } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { redactNames } from './src/js/redact.js';
-import { SCHEMA_VERSION, schemaVersionOf } from './src/js/schema.js';
+import { SCHEMA_VERSION, formatCopyName, schemaVersionOf } from './src/js/schema.js';
 import { validateDocument } from './src/js/document.js';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
@@ -181,6 +181,19 @@ function parseIfMatch(header) {
   return Number.parseInt(match[1], 10);
 }
 
+// Writes family-state.format-<n>.json beside the state file unless an earlier
+// upgrade already kept one for that format.
+async function keepFormatCopy(format, stored) {
+  const path = join(dataDir, formatCopyName(format));
+  try {
+    await stat(path);
+    return;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  await writeFileAtomic(path, `${JSON.stringify(stored, null, 2)}\n`);
+}
+
 // Compare-and-swap inside the state file's write queue: two writers holding the
 // same version cannot both succeed.
 function writeStateIfMatch(expected, data) {
@@ -195,6 +208,10 @@ function writeStateIfMatch(expected, data) {
     if (schema < storedSchema) {
       return { ok: false, refused: { status: 409, error: `The family data is format ${storedSchema}; this save is format ${schema}. Reload Harrington.` } };
     }
+    // The first save in a newer format replaces a document a migration
+    // changed (the format 3 repair shortens long texts): keep the stored file
+    // as it was, once per format, so nothing is lost for good.
+    if (stored !== null && schema > storedSchema) await keepFormatCopy(storedSchema, stored);
     const { version: _version, updatedAt: _updatedAt, writeId, ...rest } = data;
     // An optional client-chosen id lets a tab recognise its own write later,
     // such as an unload beacon whose response it never saw. A body that merely

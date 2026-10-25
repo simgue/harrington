@@ -32,12 +32,10 @@ export const MASTERY_STATUSES = ['none', 'learning', 'practicing', 'mastered'];
 // 'note' is the label the record views fall back to for an older record.
 export const RECORD_TYPES = ['observation', 'question', 'discussion', 'assessment', 'recording', 'note'];
 export const MIN_BIRTH_YEAR = 1990;
-// The longest name the Add and Edit learner forms accept (their maxlength).
-export const NAME_FIELD_MAX = 60;
-// The longest name a saved document may hold: above the forms' limit, so a
-// name typed before the forms had one still loads (longer ones are shortened
-// by the schema 3 repair, see repairDocument).
-export const NAME_MAX = 100;
+// The one limit on a learner's name: the Add and Edit forms' maxlength and
+// what a save accepts. A longer name saved before there was a limit is
+// shortened by the format 3 repair (repairDocument).
+export const NAME_MAX = 60;
 // Generous bounds: they stop a hostile file, not a long transcript.
 export const TEXT_MAX = { title: 1_000, note: 50_000, transcript: 200_000, analysis: 200_000, topicName: 1_000 };
 
@@ -337,12 +335,18 @@ const LEARNER_LISTS = ['records', 'tests', 'challenges', 'suggestions'];
 const LEARNER_ENTRY_MAPS = ['progress', 'recall', 'practice', 'adaptations'];
 
 // Returns { doc, dropped }: `doc` is the same object when nothing was dropped,
-// else a copy with every non-object entry removed from the learner lists and
-// maps, plan extras and daily days.
+// else a copy with every non-object entry removed from the learners, their
+// lists and maps, plan extras and daily days.
 export function dropBrokenEntries(doc) {
   if (!isObject(doc)) return { doc, dropped: 0 };
   let dropped = 0;
   const out = { ...doc };
+  // A learner that is not an object at all (null in students) would send
+  // every route to the failure screen.
+  if (Array.isArray(doc.students)) {
+    const kept = doc.students.filter(isObject);
+    if (kept.length !== doc.students.length) { dropped += doc.students.length - kept.length; out.students = kept; }
+  }
   const perLearner = (key, clean) => {
     if (!isObject(doc[key])) return;
     let changed = false;
@@ -409,8 +413,10 @@ const shorten = (text, max) => `${text.slice(0, max - SHORTENED_MARKER.length).t
 // - non-object entries are dropped (dropBrokenEntries).
 // Each change is listed in one "repair" notification for the parent. Returns
 // the repaired document, or the same object when nothing needed repair.
-// `now` is injectable for tests (the notification's date, this year).
-export function repairDocument(doc, { now = Date.now() } = {}) {
+// `now` is injectable for tests (the notification's date, this year); `copy`
+// names the server's copy of the unrepaired document (schema.js
+// formatCopyName), which the notice points to.
+export function repairDocument(doc, { now = Date.now(), copy = null } = {}) {
   if (!isObject(doc)) return doc;
   const notes = [];
   const { doc: cleaned, dropped } = dropBrokenEntries(doc);
@@ -459,6 +465,7 @@ export function repairDocument(doc, { now = Date.now() } = {}) {
     if (changed) out = { ...out, records };
   }
   if (!notes.length) return doc;
+  if (copy) notes.push(`The family data as it was before is kept on the Harrington server, in its data folder, as ${copy}.`);
   const body = notes.join(' ');
   const note = {
     id: `n_repair_${now}`,

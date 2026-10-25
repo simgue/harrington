@@ -129,16 +129,22 @@ tagged a release yet; everything below is on `main`.
   lists no longer leaves the landing page on the loading screen: such entries
   are skipped, and a page that still fails to render shows the error with
   Export and a link to the records (HAR-38).
-- Data saved before the server checked every save (a name over 100
+- Data saved before the server checked every save (a name over 60
   characters, a note over 50,000, a birth year before 1990) no longer blocks
-  every save: data format 3 repairs it once on load and lists the changes in
-  a notification. Save and import errors name the learner and the record, a
-  refused change never shows its confirmation, the Add learner form limits
-  the name like the Edit form, and a data format number that is not a number
-  gets its own read-only wording (HAR-39).
+  every save: data format 3 repairs it once on load, the bell lists each
+  change until it is dismissed, and the server keeps the file as it was
+  (`family-state.format-2.json`). An older export is checked after the same
+  repair, so it imports. Save and import errors name the learner and the
+  record, the refusal names the current problem, a refused change never
+  shows its confirmation, one 60-character name limit applies to both
+  learner forms and every save, and a data format number that is not a
+  number gets its own read-only wording (HAR-39).
 - On a phone, the "refused" and "could not save" toast sits above the bottom
   navigation, and the learner sheet makes room for it, so Export and Import
-  stay usable (HAR-40).
+  stay usable; taps beside a toast reach the page, and toast buttons are
+  44 px targets (HAR-40).
+- A learner entry that is not an object no longer sends every page to the
+  failure screen.
 - The calendar's clean-up of extras whose topic is gone no longer says "Not
   saved" while the data is read-only.
 - Record cards, the recordings folder and the recorder escape every value

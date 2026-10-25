@@ -305,10 +305,13 @@ loaded or imported.
 The family document carries `schemaVersion`, its data format (currently 3).
 Older documents and exports are migrated when they are loaded or imported
 (`src/js/schema.js`; step 1 to 2 hashes a plain PIN; step 2 to 3 repairs
-values saved before the server checked every save, shortening an over-long
-name or note, clamping a birth year and dropping unreadable entries, and
-lists what it changed in a notification), and a load that migrated saves the
-result once. A document whose `schemaVersion` is not a whole number also
+values saved before the server checked every save, shortening a name over 60
+characters or an over-long note, clamping a birth year and dropping unreadable
+entries), and a load that migrated saves the result once. The notification
+bell lists each change the repair made until it is dismissed, and the first
+save in the new format keeps the stored file as it was, beside
+`family-state.json`, as `family-state.format-<n>.json`. An older export is
+checked after the same migration, so it imports as it would load. A document whose `schemaVersion` is not a whole number also
 opens read-only, with its own banner. A file from a newer version of Harrington is
 refused at import; a document from a newer version already on the server
 opens read-only, with a banner, and nothing is saved until this Harrington is

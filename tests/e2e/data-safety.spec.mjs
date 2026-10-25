@@ -135,6 +135,36 @@ async function serveDocument(page, doc) {
   return writes;
 }
 
+test('a format 2 file the server now refuses is repaired once, and the bell names every change (HAR-39)', async ({ page, gotoApp, errors }) => {
+  const doc = { ...familyState({ learners: ['rowan'], active: 'rowan' }), schemaVersion: 2, notifications: [] };
+  const id = doc.students[0].id;
+  doc.students[0] = { ...doc.students[0], name: `Rowan ${'Example'.repeat(17)}`.slice(0, 127), birthYear: 1980 };
+  doc.records = { ...doc.records, [id]: [{ id: 'r_long', type: 'note', title: 'Long reading log', note: 'x'.repeat(60_015), createdAt: Date.now() }] };
+  const puts = [];
+  await page.route('**/api/state', (route) => {
+    const request = route.request();
+    if (request.method() === 'GET') return route.fulfill({ status: 200, contentType: 'application/json', headers: { ETag: '"v7"' }, body: JSON.stringify({ ...doc, version: 7 }) });
+    puts.push(JSON.parse(request.postData()));
+    return route.fulfill({ status: 204, headers: { ETag: '"v8"' } });
+  });
+  await gotoApp({ seed: null });
+  await expect.poll(() => puts.length).toBe(1);
+  expect(puts[0].schemaVersion).toBe(SCHEMA_VERSION);
+  expect(puts[0].students[0].name).toHaveLength(60);
+
+  // The repair is not silent: the bell lists it, with each change and where
+  // the original is kept, and the first-run welcome still shows beside it.
+  await page.getByRole('button', { name: /^Notifications, 3 new/ }).first().click();
+  const panel = modal(page);
+  const notice = panel.getByText('Harrington repaired some family data').locator('xpath=..');
+  await expect(notice).toContainText('A learner name longer than 60 characters was shortened');
+  await expect(notice).toContainText('was 1980, outside 1990');
+  await expect(notice).toContainText('“Long reading log” was longer than 50,000 characters and was shortened');
+  await expect(notice).toContainText('family-state.format-2.json');
+  await expect(panel.getByText('Welcome to Harrington')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('a null recall card or practice item no longer hangs the landing page on the loading screen (HAR-38)', async ({ page, gotoApp, errors }) => {
   const doc = { ...familyState({ learners: ['rowan'], active: 'rowan' }), schemaVersion: SCHEMA_VERSION };
   const id = doc.students[0].id;
@@ -180,6 +210,14 @@ test('at 390 px the refusal toast docks above the navigation and the learner she
   await expect(refusal).toBeVisible();
   await expect(page.getByText(/^Marked as/)).toHaveCount(0);
   expect(writes).toEqual([]);
+
+  // Its Dismiss is a 44 px tap target, and the toast area lets taps beside
+  // a toast through to the page.
+  const dismissBox = await page.locator('#toast-root').getByRole('button', { name: 'Dismiss' }).boundingBox();
+  expect(Math.round(dismissBox.height)).toBeGreaterThanOrEqual(44);
+  expect(Math.round(dismissBox.width)).toBeGreaterThanOrEqual(44);
+  expect(await page.locator('#toast-root').evaluate((root) => [getComputedStyle(root).pointerEvents, getComputedStyle(root.firstElementChild).pointerEvents]))
+    .toEqual(['none', 'auto']);
 
   // Above the bottom navigation, which stays tappable.
   const toastBox = await refusal.boundingBox();

@@ -1,7 +1,7 @@
 // App state + persistence through the family-owned Harrington server.
 import * as backend from './backend.js';
 import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, schemaVersionOf } from './schema.js';
-import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, dropBrokenEntries, LEARNER_KEYS, RETIRED_FIELDS, MIN_BIRTH_YEAR, NAME_FIELD_MAX, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
+import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, dropBrokenEntries, LEARNER_KEYS, RETIRED_FIELDS, MIN_BIRTH_YEAR, NAME_MAX, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
 import { formatCount } from './format.js';
 import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 import { getData } from './data.js';
@@ -9,7 +9,7 @@ import { pruneDismissed } from './alert-dismissals.js';
 import { normalizeSession } from './levelset.js';
 import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
 
-export { MIN_BIRTH_YEAR, NAME_FIELD_MAX };
+export { MIN_BIRTH_YEAR, NAME_MAX };
 
 export const MASTERY = {
   none:       { label: 'Not started', rank: 0, color: '#d2c6ad' },
@@ -621,6 +621,9 @@ export function inspectImport(doc) {
   if (isNewerSchema(doc)) {
     return fail(`The file comes from a newer version of Harrington (data format ${doc.schemaVersion}; this one reads up to ${SCHEMA_VERSION}). Update Harrington, then import it.`);
   }
+  // An older export is checked as it will be saved: migrated, so what the
+  // format 3 repair fixes on the server (a long name, say) imports the same.
+  if (schemaVersionOf(doc) < SCHEMA_VERSION) doc = migrateDocument(doc);
   const problem = validateDocument(doc);
   if (problem) return fail(problem);
   const learners = doc.students.map(s => ({
@@ -1347,7 +1350,11 @@ export function earnedBadges(studentId) { return readGame(studentId).badges; }
 
 // ---- Notification bell (family-wide; items are computed in alerts.js) ----
 // True when the family saw the old first-run welcome, so the bell skips its own.
-export function welcomed() { return state.notifications.length > 0; }
+// A repair notice (below) is not that log, so it never hides the welcome.
+export function welcomed() { return state.notifications.some(n => !isRepairNotice(n)); }
+// What the data format 3 repair changed, for the bell (alerts.js repairNotices).
+const isRepairNotice = n => isObject(n) && n.type === 'repair' && typeof n.id === 'string';
+export function repairNotices() { return state.notifications.filter(isRepairNotice); }
 export function dismissedAlerts() { return state.dismissedAlerts; }
 // Records a dismissal for each key. Expired snoozes and past days' picks are
 // dropped so the map stays small; permanent dismissals are kept.

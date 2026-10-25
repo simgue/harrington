@@ -6,6 +6,8 @@ import { test } from 'node:test';
 // The store saves through fetch; these tests never save.
 globalThis.fetch = async () => { throw new Error('no network in this test'); };
 const store = await import('../src/js/store.js');
+const { SCHEMA_VERSION } = await import('../src/js/schema.js');
+const { validateDocument } = await import('../src/js/document.js');
 
 // An export from before birth months, interests, settings and versioning:
 // the first palette's color, progress and records only.
@@ -23,7 +25,9 @@ const olderExport = () => ({
 
 const current = () => ({
   ...olderExport(),
-  schemaVersion: 1,
+  // At the current format, so each case meets the rules as they are: an older
+  // file is migrated (and repaired) first, which its own tests below cover.
+  schemaVersion: SCHEMA_VERSION,
   students: [{ id: 's_new', name: 'Sample Fourteen', birthYear: 2018, birthMonth: 4, color: store.PALETTE[2], startDate: '2026-09-01' }],
   activeStudentId: 's_new',
   progress: { s_new: { 'count-to-5': { status: 'learning', updatedAt: 1_700_000_200_000 } } },
@@ -51,7 +55,7 @@ const current = () => ({
     lane: 'numeracy', observe: ['count-to-5'],
     lanes: { numeracy: { version: 2, lane: 'numeracy', age: 6, sheets: [{ kind: 'section', domain: 'Counting', level: 5, dir: 'up', part: 1, seq: 1, ids: ['count-to-5'], savedAt: 1 }], answers: { 'count-to-5': 'unsure' }, elapsedMs: 0, startedAt: 0, done: true, frontier: { status: 'unsure', ids: [], waitingOn: [], unsure: ['count-to-5'] }, placed: null }, literacy: null },
   } },
-  settings: { parentPin: '2468', calendar: { homeDays: [1, 2, 3, 4], breaks: [{ start: '2026-12-21', end: '2027-01-01', label: 'Winter break' }] } },
+  settings: { parentPinHash: 'a'.repeat(64), parentPinSalt: 'b'.repeat(32), calendar: { homeDays: [1, 2, 3, 4], breaks: [{ start: '2026-12-21', end: '2027-01-01', label: 'Winter break' }] } },
 });
 
 test('a valid older export and a current one pass', () => {
@@ -66,9 +70,10 @@ test('a valid older export and a current one pass', () => {
   const sparse = current();
   Object.assign(sparse.students[0], { birthYear: null, birthMonth: null, startDate: undefined, color: undefined });
   sparse.interests.s_new = null;
-  sparse.settings = { parentPin: null, calendar: null };
+  sparse.settings = { calendar: null };
   assert.equal(store.inspectImport(sparse).ok, true);
-  assert.equal(store.inspectImport({ ...current(), settings: { parentPin: 1357, calendar: {} } }).ok, true);
+  // An older file's plain PIN, even a number, is hashed on the way in.
+  assert.equal(store.inspectImport({ ...current(), schemaVersion: 1, settings: { parentPin: 1357, calendar: {} } }).ok, true);
 });
 
 test('a document with no level-set section, or an empty one, passes', () => {
@@ -85,7 +90,7 @@ test('a document with no level-set section, or an empty one, passes', () => {
 
 const learnerCases = [
   ['an empty name', { name: '   ' }, 'Learner 1 in the file has an empty name.'],
-  ['a long name', { name: 'x'.repeat(101) }, 'Learner 1 in the file has a name longer than 100 characters.'],
+  ['a long name', { name: 'x'.repeat(61) }, 'Learner 1 in the file has a name longer than 60 characters.'],
   ['a birth year before 1990', { birthYear: 1989 }, 'The learner “Sample Fourteen” in the file has a birth year outside 1990 to this year.'],
   ['a future birth year', { birthYear: new Date().getFullYear() + 1 }, 'The learner “Sample Fourteen” in the file has a birth year outside 1990 to this year.'],
   ['a birth year as text', { birthYear: '2018' }, 'The learner “Sample Fourteen” in the file has a birth year outside 1990 to this year.'],
@@ -185,15 +190,21 @@ const mapCases = [
   ['a level-set observation entry that is not text', (d) => { d.levelset.s_new.observe = [5]; }, 'The file\'s level-set workbook is not in the expected shape.'],
   ['a level-set tab that is not text', (d) => { d.levelset.s_new.lane = 1; }, 'The file\'s level-set workbook is not in the expected shape.'],
   ['settings as a list', (d) => { d.settings = []; }, 'The file\'s settings are not in the expected shape.'],
-  ['a three-digit PIN', (d) => { d.settings.parentPin = '123'; }, 'The file\'s child-view PIN is not four digits.'],
-  ['a PIN with letters', (d) => { d.settings.parentPin = '12a4'; }, 'The file\'s child-view PIN is not four digits.'],
-  ['a PIN object', (d) => { d.settings.parentPin = { pin: '1234' }; }, 'The file\'s child-view PIN is not four digits.'],
   ['a home day of 7', (d) => { d.settings.calendar.homeDays = [1, 7]; }, 'The file\'s calendar settings are not in the expected shape.'],
   ['home days as text', (d) => { d.settings.calendar.homeDays = 'weekdays'; }, 'The file\'s calendar settings are not in the expected shape.'],
   ['a break without an end', (d) => { d.settings.calendar.breaks = [{ start: '2026-12-21' }]; }, 'The file\'s calendar settings are not in the expected shape.'],
   ['a break label that is not text', (d) => { d.settings.calendar.breaks[0].label = ['Winter']; }, 'The file\'s calendar settings are not in the expected shape.'],
   ['a calendar that is a list', (d) => { d.settings.calendar = []; }, 'The file\'s calendar settings are not in the expected shape.'],
 ];
+// A plain PIN only exists before format 2; the server still checks its shape
+// on such a save, so the rule is checked on the document as given.
+for (const [label, pin] of [['a three-digit PIN', '123'], ['a PIN with letters', '12a4'], ['a PIN object', { pin: '1234' }]]) {
+  test(`refuses ${label} in a format 1 document`, () => {
+    const doc = { ...current(), schemaVersion: 1, settings: { parentPin: pin } };
+    assert.equal(validateDocument(doc), 'The file\'s child-view PIN is not four digits.');
+  });
+}
+
 for (const [label, mutate, error] of mapCases) {
   test(`refuses ${label}`, () => {
     const doc = current();
@@ -224,7 +235,7 @@ test('the record types and mastery statuses checked match the ones the app write
 
 test('a per-learner problem names the learner, cut to 40 characters, or the file when no learner has that id', () => {
   const long = current();
-  long.students[0].name = `Sample ${'Fourteen'.repeat(10)}`;
+  long.students[0].name = `Sample ${'Fourteen'.repeat(6)}`;
   long.game.s_new.xp = -1;
   assert.equal(store.inspectImport(long).error, `${'Sample FourteenFourteenFourteenFourteenF'.slice(0, 39)}…'s XP is not a number of zero or more.`);
   const orphan = current();
@@ -232,15 +243,28 @@ test('a per-learner problem names the learner, cut to 40 characters, or the file
   assert.match(store.inspectImport(orphan).error, /^A record in the file \(records item 1\) has a type other than/);
 });
 
-test('both learner name fields take their limit from document.js, within what a save accepts', async () => {
+test('both learner name fields take the one name limit from document.js', async () => {
   const { readFile } = await import('node:fs/promises');
-  const { NAME_FIELD_MAX, NAME_MAX } = await import('../src/js/document.js');
-  assert.ok(NAME_FIELD_MAX <= NAME_MAX);
-  assert.equal(store.NAME_FIELD_MAX, NAME_FIELD_MAX);
+  const { NAME_MAX } = await import('../src/js/document.js');
+  assert.equal(store.NAME_MAX, NAME_MAX);
   for (const file of ['src/js/app.js', 'src/js/views/shell.js']) {
     const source = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
     const nameInputs = source.match(/<input[^>]*name="name"[^>]*>/g) || [];
     assert.equal(nameInputs.length, 1, `${file} has one learner name field`);
-    assert.match(nameInputs[0], /maxlength="\$\{store\.NAME_FIELD_MAX\}"/, file);
+    assert.match(nameInputs[0], /maxlength="\$\{store\.NAME_MAX\}"/, file);
   }
+});
+
+test('an older export is checked as it will be saved: what the format 3 repair fixes imports', () => {
+  const doc = current();
+  doc.schemaVersion = 2;
+  doc.students[0].name = `Sample ${'Fourteen'.repeat(15)}`;
+  doc.students[0].birthYear = 1980;
+  doc.records.s_new[0].note = 'x'.repeat(60_015);
+  doc.recall.s_new.broken = null;
+  const check = store.inspectImport(doc);
+  assert.equal(check.ok, true, check.error);
+  assert.equal(check.learners[0].name.length, 60, 'the preview shows the name as it will be saved');
+  // The same file at the current format is refused, with the reason.
+  assert.match(store.inspectImport({ ...doc, schemaVersion: SCHEMA_VERSION }).error, /has a name longer than 60 characters/);
 });
