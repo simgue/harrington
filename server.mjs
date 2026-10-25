@@ -538,6 +538,53 @@ async function loadTaxonomyFile(name) {
   return body;
 }
 
+// ---- Saved lessons listing ----
+// Keys and saved times for one cache prefix, never content. Read-only.
+const LESSON_LIST_PREFIXES = new Set(['topic:', 'print:', 'recall:']);
+const LESSON_LIST_MAX = 200; // the newest entries; a `limit` above this is clamped
+
+async function listLessons(prefix, limit) {
+  const names = await readdir(lessonsDir).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  const entries = [];
+  for (const name of names) {
+    if (!name.endsWith('.json')) continue; // skips in-flight .tmp files
+    const encoded = name.slice(0, -'.json'.length);
+    const key = Buffer.from(encoded, 'base64url').toString('utf8');
+    if (Buffer.from(key, 'utf8').toString('base64url') !== encoded || !key.startsWith(prefix)) continue;
+    entries.push({ key, path: join(lessonsDir, name) });
+  }
+  const listed = await Promise.all(entries.map(async ({ key, path }) => {
+    try {
+      return { key, savedAt: Math.round((await stat(path)).mtimeMs) };
+    } catch (error) {
+      if (error.code === 'ENOENT') return null; // removed since readdir
+      throw error;
+    }
+  }));
+  return listed.filter(Boolean).sort((a, b) => b.savedAt - a.savedAt || a.key.localeCompare(b.key)).slice(0, limit);
+}
+
+// `limit` is optional: absent means LESSON_LIST_MAX, and any whole number is
+// clamped to 1..LESSON_LIST_MAX. Anything else is a 400.
+function lessonListLimit(raw) {
+  if (raw === null) return LESSON_LIST_MAX;
+  if (!/^\d+$/.test(raw)) throw Object.assign(new Error('limit must be a whole number'), { statusCode: 400 });
+  return Math.min(LESSON_LIST_MAX, Math.max(1, Number.parseInt(raw, 10)));
+}
+
+async function handleLessonList(req, res, url) {
+  const prefix = url.searchParams.get('prefix');
+  if (!LESSON_LIST_PREFIXES.has(prefix)) {
+    sendJson(res, 400, { error: 'prefix must be one of topic:, print: or recall:' });
+    return;
+  }
+  const limit = lessonListLimit(url.searchParams.get('limit'));
+  sendJson(res, 200, { lessons: await listLessons(prefix, limit) });
+}
+
 // ---- Bind address and access token (HAR-25) ----
 // An IP address, `localhost`, or a plain DNS name (a mesh name such as
 // `family-host.tailnet-name.ts.net` resolves to the mesh interface).
@@ -741,6 +788,11 @@ async function handleApi(req, res, url) {
       await handleStateWrite(req, res);
       return true;
     }
+  }
+
+  if (url.pathname === '/api/lessons' && req.method === 'GET') {
+    await handleLessonList(req, res, url);
+    return true;
   }
 
   const lessonKey = routeKey(url.pathname, '/api/lessons/');
