@@ -7,6 +7,7 @@ import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { activityIdeas } from '../resources.js';
 import { openRecorder } from '../recorder.js';
 import { growthIcon, stageForStatus, GROWTH } from '../meadow.js';
+import { howItWorksFrame } from './howitworks.js';
 import { canYouPrompt } from '../phrasing.js';
 
 // The static ideas are written for grown-ups; drop any that are about scores.
@@ -32,6 +33,9 @@ export function openChildTopic(topic) {
         <p class="text-sm font-600" style="color:${GROWTH[stage].color}">${GROWTH[stage].kid}</p>
       </div>
     </div>
+    <section class="mt-5 ct-how hidden" aria-labelledby="ct-how">
+      <h3 id="ct-how" class="font-display text-xl font-600 mb-2">See how it works</h3>
+    </section>
     ${prompts.length ? `<section class="mt-5" aria-labelledby="ct-try">
       <h3 id="ct-try" class="font-display text-xl font-600 mb-2">Try these</h3>
       <ul class="space-y-2">${prompts.map(p => `<li class="meadow-card px-4 py-3 flex gap-3 text-[15px] leading-snug"><i data-lucide="sparkle" class="w-5 h-5 shrink-0 text-butter-deep mt-0.5"></i><span>${esc(p)}</span></li>`).join('')}</ul>
@@ -47,6 +51,13 @@ export function openChildTopic(topic) {
       <span class="w-9 h-9 rounded-full bg-butter text-ink flex items-center justify-center"><i data-lucide="mic" class="w-5 h-5"></i></span>Tell about it</button>
     <button id="done" class="mt-2 w-full px-4 py-2.5 rounded-full text-ink-soft font-medium hover:bg-paper transition-colors">Back to my garden</button>
   </div>`);
+
+  const figure = howItWorksFrame(topic);
+  if (figure) {
+    const how = body.querySelector('.ct-how');
+    how.appendChild(figure);
+    how.classList.remove('hidden');
+  }
 
   const m = openModal(body, { wide: true });
   body.querySelector('#tell').onclick = () => { m.close(); openRecorder(student.id, topic); };

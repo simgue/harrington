@@ -1,4 +1,5 @@
 import { loadTaxonomy } from './data.js';
+import { loadFigures } from './figures/index.js';
 import * as store from './store.js';
 import { maybeShowWelcome } from './views/guide.js';
 import { el, refreshIcons, toast } from './ui.js';
@@ -14,6 +15,7 @@ import { renderGraph } from './views/graph.js';
 import { renderRecords } from './views/records.js';
 import { renderInsights } from './views/insights.js';
 import { renderFind } from './views/find.js';
+import { renderFigure } from './views/howitworks.js';
 import { renderLevelset } from './views/levelset.js';
 
 const app = document.getElementById('app');
@@ -58,7 +60,8 @@ async function boot() {
   renderLoading('Loading your homeschool workspace\u2026');
   try {
     await Promise.all([store.connect(), store.loadAll()]);
-    await loadTaxonomy();
+    // loadFigures never throws: without its list no figure shows.
+    await Promise.all([loadTaxonomy(), loadFigures()]);
     taxonomyReady = true;
   } catch (e) {
     console.error(e);
@@ -86,6 +89,7 @@ function render() {
     records: renderRecords,
     insights: renderInsights,
     find: renderFind,
+    figure: renderFigure,
     levelset: renderLevelset,
     onboard: renderOnboard,
   };

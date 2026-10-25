@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer, request as httpRequest } from 'node:http';
-import { mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { SCHEMA_VERSION } from '../src/js/schema.js';
 
@@ -83,6 +84,80 @@ test('serves Harrington and reports self-hosted health', async () => {
   const page = await fetch(baseUrl);
   assert.equal(page.status, 200);
   assert.match(await page.text(), /<title>Harrington/);
+});
+
+test('serves a figure page with a policy that allows no network and always sandboxes it (HAR-34)', async () => {
+  const figure = await fetch(`${baseUrl}/figures/mt_B3W5EfimJw.html`);
+  assert.equal(figure.status, 200);
+  assert.match(figure.headers.get('content-type'), /^text\/html/);
+  const csp = figure.headers.get('content-security-policy');
+  for (const directive of ["default-src 'none'", "script-src 'unsafe-inline'", "frame-ancestors 'self'", 'sandbox allow-scripts']) {
+    assert.ok(csp.split('; ').includes(directive), `${directive} in ${csp}`);
+  }
+  assert.doesNotMatch(csp, /connect-src|allow-same-origin/);
+  // The policy follows the file, not the spelling of the URL: these reach the same page.
+  for (const variant of ['/figures//mt_B3W5EfimJw.html', '/figures/%2Fmt_B3W5EfimJw.html', '/figures/./mt_B3W5EfimJw.html', '/js/../figures/mt_B3W5EfimJw.html', '/FIGURES/../figures/mt_B3W5EfimJw.html']) {
+    const res = await fetch(`${baseUrl}${variant}`);
+    assert.equal(res.status, 200, variant);
+    assert.equal(res.headers.get('content-security-policy'), csp, variant);
+  }
+  // The app's pages may frame only same-origin pages, so a figure cannot navigate its frame away.
+  assert.equal((await fetch(baseUrl)).headers.get('content-security-policy'), "frame-src 'self'");
+  assert.equal((await fetch(`${baseUrl}/index.html`)).headers.get('content-security-policy'), "frame-src 'self'");
+  assert.equal((await fetch(`${baseUrl}/js/app.js`)).headers.get('content-security-policy'), null);
+});
+
+test('lists every figure page in src/figures/ with the title and hint it carries (HAR-34)', async () => {
+  const res = await fetch(`${baseUrl}/api/figures`);
+  assert.equal(res.status, 200);
+  const { figures } = await res.json();
+  const files = (await readdir(new URL('../src/figures/', import.meta.url))).filter((n) => n.endsWith('.html'));
+  assert.deepEqual(figures.map((f) => `${f.id}.html`), files.sort());
+  const cart = figures.find((f) => f.id === 'mt_B3W5EfimJw');
+  assert.equal(cart.title, 'Toy cart');
+  assert.match(cart.hint, /^Push the cart/);
+  assert.equal((await fetch(`${baseUrl}/api/figures`, { method: 'POST' })).status, 405);
+});
+
+test('lists a page dropped into src/figures/ at once, and skips one that breaks the contract (HAR-34)', async () => {
+  // Its own server in a temporary checkout (server.mjs, src/js linked, its own src/figures/),
+  // so the repository's figures folder is never touched while other test files read it.
+  const root = await mkdtemp(join(tmpdir(), 'harrington-figures-'));
+  const figures = join(root, 'src', 'figures');
+  await mkdir(figures, { recursive: true });
+  await writeFile(join(root, 'server.mjs'), await readFile(new URL('../server.mjs', import.meta.url)));
+  await symlink(fileURLToPath(new URL('../src/js', import.meta.url)), join(root, 'src', 'js'));
+  const page = await readFile(new URL('../src/figures/mt_B3W5EfimJw.html', import.meta.url), 'utf8');
+  await writeFile(join(figures, 'mt_zzDropInBroken.html'), page.replace('</body>', '<a href="https://example.org">more</a></body>'));
+  await writeFile(join(figures, 'mt_zzDropInTooBig.html'), page.replace('</body>', `<!-- ${'x'.repeat(100 * 1024)} --></body>`));
+  const server = spawn(process.execPath, ['server.mjs'], {
+    cwd: root,
+    env: { ...process.env, HARRINGTON_HOST: '127.0.0.1', HARRINGTON_PORT: '0', HARRINGTON_DATA_DIR: join(root, 'data'),
+      HARRINGTON_ACCESS_TOKEN: '', HARRINGTON_PUBLISHED_HOST: '', HARRINGTON_ALLOWED_HOSTS: '', HARRINGTON_AI_BASE_URL: '', HARRINGTON_AI_MODEL: '' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let log = '';
+  server.stderr.on('data', (chunk) => { log += chunk.toString(); });
+  try {
+    const url = await new Promise((done, fail) => {
+      const timer = setTimeout(() => fail(new Error('server did not start')), 5000);
+      let out = '';
+      server.stdout.on('data', (chunk) => { out += chunk.toString(); const m = out.match(/http:\/\/127\.0\.0\.1:(\d+)/); if (m) { clearTimeout(timer); done(m[0]); } });
+    });
+    const list = async () => (await (await fetch(`${url}/api/figures`)).json()).figures;
+    assert.deepEqual(await list(), []);
+    assert.match(log, /Figure mt_zzDropInBroken\.html is not shown: it has an http\(s\) URL/);
+    assert.match(log, /Figure mt_zzDropInTooBig\.html is not shown: it is \d+ bytes \(the limit is 102400\)/);
+    // A good page dropped in while the server runs is listed on the next request.
+    await writeFile(join(figures, 'mt_zzDropInGood.html'), page.replace('<title>Toy cart</title>', '<title>Dropped in</title>'));
+    const [good] = await list();
+    assert.equal(good.id, 'mt_zzDropInGood');
+    assert.equal(good.title, 'Dropped in');
+    assert.match(good.hint, /^Push the cart/);
+  } finally {
+    server.kill('SIGTERM');
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test('health reports the age in days of the newest archive in HARRINGTON_BACKUP_DIR', async () => {
@@ -1074,6 +1149,7 @@ describe('access token and bind address', { concurrency: false }, () => {
       });
       assert.equal(put.status, 401);
       assert.equal((await fetch(`${guarded.url}/api/taxonomy/topics.json`)).status, 401);
+      assert.equal((await fetch(`${guarded.url}/api/figures`)).status, 401);
       // The sign-in gate runs before the document checks and the AI guard:
       // a body they would refuse (422, 409, 400) still gets 401 when signed out.
       const invalid = await fetch(`${guarded.url}/api/state`, {
