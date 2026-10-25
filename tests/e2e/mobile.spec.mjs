@@ -211,6 +211,19 @@ test('record, recording and calendar extra delete buttons are 44px targets (F14)
   await noHorizontalOverflow(page);
 });
 
+test('calendar pace, rest-day Done and Go to, and Remove break are 44px targets (F14)', async ({ page, gotoApp }) => {
+  const calendar = { homeDays: [1, 2, 3, 4, 5], breaks: [{ start: '2026-10-05', end: '2026-10-09', label: 'Fall break' }] };
+  await gotoApp({ seed: { extra: { settings: { calendar }, plan: { [LEARNERS.rowan.id]: { moves: {}, extras: {}, done: { [TODAY_KEY]: 1790000000000 } } } } }, hash: 'calendar' });
+  await expectTapTarget(page.getByRole('button', { name: 'Catch-up first', exact: true }), 'Catch-up first');
+  await expectTapTarget(page.getByRole('button', { name: 'Mixed', exact: true }), 'Mixed');
+  // Today is inside the break and was marked done before it.
+  await expectTapTarget(page.getByRole('button', { name: 'Done', exact: true }), 'Done on a rest day');
+  await expectTapTarget(page.getByRole('button', { name: 'Go to Monday' }), 'Go to Monday');
+  await page.getByRole('button', { name: 'Home days & breaks' }).click();
+  await expectTapTarget(modal(page).getByRole('button', { name: 'Remove Fall break' }), 'Remove break');
+  await noHorizontalOverflow(page);
+});
+
 test('the "Include my notes" opt-in is a comfortable target and its label toggles it', async ({ page, gotoApp }) => {
   await gotoApp({ seed: { records: [{ type: 'discussion', title: 'Talked about sharing', note: 'Split 6 grapes between 2 bowls.' }] }, hash: 'records' });
   const box = page.getByRole('checkbox', { name: 'Include my notes in this request' });
