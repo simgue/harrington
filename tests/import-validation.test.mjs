@@ -39,7 +39,7 @@ const current = () => ({
     { id: 'n2', type: 'curriculum', title: 'New topics', meta: { sampleNames: ['Rhymes'], addedBySubject: { English: ['rhymes'] } } },
   ],
   suggestions: { s_new: [{ id: 'g1', kind: 'advance', subject: 'Mathematics', domain: 'Counting', status: 'pending' }] },
-  plan: { s_new: { moves: { 'count-to-5': '2026-09-02' }, done: { '2026-09-01': true }, extras: { '2026-09-03': [{ id: 'x1', title: 'Extra' }] } } },
+  plan: { s_new: { moves: { 'count-to-5': '2026-09-02' }, done: { '2026-09-01': true }, extras: { '2026-09-03': [{ id: 'x1', title: 'Extra' }] }, pace: 'mixed' } },
   daily: { s_new: { '2026-09-01': { offers: { literacy: ['rhymes'], numeracy: ['count-to-5'] }, picks: { literacy: 'rhymes' } } } },
   adaptations: { s_new: { 'Mathematics|Counting': { level: 'advanced', since: 1 } } },
   recall: { s_new: { c1: { topicId: 'count-to-5', box: 1, due: 1, reps: 0, lapses: 0 } } },
@@ -66,6 +66,12 @@ test('a valid older export and a current one pass', () => {
     { name: 'Sample Thirteen', topics: 0, records: 0, tests: 0 },
   ]);
   assert.equal(store.inspectImport(current()).ok, true);
+  // Both catch-up paces, and none (the default), are accepted.
+  for (const pace of ['catch-up-first', 'mixed', undefined]) {
+    const doc = current();
+    if (pace) doc.plan.s_new.pace = pace; else delete doc.plan.s_new.pace;
+    assert.equal(store.inspectImport(doc).ok, true, String(pace));
+  }
   // Absent and null optional fields are fine.
   const sparse = current();
   Object.assign(sparse.students[0], { birthYear: null, birthMonth: null, startDate: undefined, color: undefined });
@@ -150,6 +156,8 @@ const mapCases = [
   ['a plan that is a number', (d) => { d.plan.s_new = 5; }, 'The file\'s "plan" section is not in the expected shape.'],
   ['a plan that is text', (d) => { d.plan.s_new = 'x'; }, 'The file\'s "plan" section is not in the expected shape.'],
   ['plan moves that are a number', (d) => { d.plan.s_new.moves = 5; }, 'The file\'s "plan" section is not in the expected shape.'],
+  ['a catch-up pace that is not one of the two paces', (d) => { d.plan.s_new.pace = 'fast'; }, 'The file\'s "plan" section is not in the expected shape.'],
+  ['a catch-up pace that is a number', (d) => { d.plan.s_new.pace = 2; }, 'The file\'s "plan" section is not in the expected shape.'],
   ['plan extras for a day that are not a list', (d) => { d.plan.s_new.extras['2026-09-03'] = { id: 'x1' }; }, 'The file\'s "plan" section is not in the expected shape.'],
   ['daily choices that are a number', (d) => { d.daily.s_new = 5; }, 'The file\'s "daily" section is not in the expected shape.'],
   ['a day\'s choices that are text', (d) => { d.daily.s_new['2026-09-01'] = 'x'; }, 'The file\'s "daily" section is not in the expected shape.'],
