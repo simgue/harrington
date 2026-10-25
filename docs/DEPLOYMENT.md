@@ -345,7 +345,7 @@ access token.
 ## What a family should do
 
 A short checklist from the threat model ([security/THREAT-MODEL.md](security/THREAT-MODEL.md)).
-Each item closes a way family data could leak today.
+Each item closes a way family data could leak or be lost today.
 
 1. **Turn the access token on, even if Harrington runs only on one
    computer.** Without it, a web page open in a browser on the host can trick
@@ -379,10 +379,16 @@ Each item closes a way family data could leak today.
    names are replaced, but nicknames, other people's names, and everything
    said in a recorded discussion you ask it to analyze are sent as they are,
    and so are your notes when you tick "Include my notes". A provider on the
-   host computer (Ollama) keeps all of it at home. Set
-   `HARRINGTON_AI_BASE_URL` to `https://`, or to `http://127.0.0.1`, never to
-   plain `http://` on another computer.
-10. **Update with care:** export, run a backup, then update (see "Export
+   host computer (Ollama) keeps all of it at home. Use `https://` for a
+   provider on the internet. Plain `http://` is fine while it stays on your
+   computer or your home network: `http://127.0.0.1:11434/v1`, or, from
+   Docker, `http://host.docker.internal:11434/v1` as the README shows. Never
+   send it to a provider on the internet over plain `http://`.
+10. **Close Harrington on every device before restoring a backup.** A tab
+    left open can save its own copy over the restored data with its next
+    edit. Close every tab and the home-screen app on each tablet, phone and
+    computer, restore, start Harrington, then open it again.
+11. **Update with care:** export, run a backup, then update (see "Export
     before every upgrade" above).
 
 ## Verifying recording from a second device

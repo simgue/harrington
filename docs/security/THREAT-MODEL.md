@@ -9,11 +9,12 @@ token, the hardening PR #32) was reviewed inside its own PR. This document
 looks at how they fit together.
 
 - **Code reviewed:** `main` at `1b9cce0` (PR #32 merged), then re-checked
-  against `f8c43e6`. What landed in between (#45, a tool under `tools/` that the
-  server does not serve and the image does not ship; #39, copy and docs, and
-  prompt wording for a learner with no birth year) changes no control or line
-  cited here. Open PRs (#33, #37, #40, #41, #42) are not probed. Section 7
-  notes what they change.
+  against `fc59f0b`. What landed in between changes no control cited here:
+  #45 is a tool under `tools/` that the server does not serve and the image
+  does not ship; #39 is copy, docs and prompt wording for a learner with no
+  birth year; #33 adds the level-set workbook and its `document.js` rule.
+  Line numbers are those of `fc59f0b`. Open PRs (#37, #40, #41, #42) are
+  not probed. Section 7 notes what they change.
 - **Method:** each control below was read in the code and checked by running
   the test that pins it. The gaps were reproduced against a sandbox deployment
   (section 8). PR descriptions were used only to find claims to check.
@@ -47,6 +48,7 @@ looks at how they fit together.
 | TB6 | Files leaving and entering the host: export, import, backup, restore | A1 and A2 in transit and at rest, on USB sticks and in mailboxes |
 | TB7 | Host operating system: other local users, a lost or stolen laptop, the Docker container | Data folder, backups, environment holding A4 and A5 |
 | TB8 | Time: a newer or older Harrington reading the same data | Data format (`schemaVersion`) and migrations |
+| TB9 | Device to device (sync): several tabs and devices saving one family document, and a restore under an open tab | Versioned saves, the 412 conflict path, the unload beacon |
 
 ## 3. Attacker profiles
 
@@ -87,7 +89,7 @@ D = denial of service, E = elevation of privilege.
 
 | | Threat | Current control | Gap | Severity | Proposed fix |
 | --- | --- | --- | --- | --- | --- |
-| S/T/I | DNS rebinding: a page re-points its own name at the host and reads and writes as same-origin | Host-name allowlist, **only once the server is shared** (`server.mjs:549`, `:550`). `tests/server.test.mjs` "a shared server answers only to the family's host names and IP addresses" passes; "a loopback server answers to any host name, as before" pins the gap. | G1: the default loopback server answers any name. Reproduced in Chromium: read the learners and saved a change (204). | **Blocker** | Always check Host: `localhost`, loopback and IP literals, plus the configured names |
+| S/T/I | DNS rebinding: a page re-points its own name at the host and reads and writes as same-origin | Host-name allowlist, **only once the server is shared** (`server.mjs:549`, `:550`). `tests/server.test.mjs` "a shared server answers only to the family's host names and IP addresses" passes; "a loopback server answers to any host name, as before" pins the gap. | G1: the default loopback server answers any name. Reproduced in Chromium, with `--host-resolver-rules` standing in for the rebinding DNS answer: the page read the learners and saved a change (204). That flag skips the browser's own defenses, so it shows what the server allows, not which browsers let a page get that far. Firefox and Safari have no prompt before a public page reaches a loopback address; recent Chrome and Edge ask first (the Local Network Access permission), which lowers the risk there but does not remove it, since a family member can allow it. Browser behavior was not tested here. | **Blocker** | Always check Host: `localhost`, loopback and IP literals, plus the configured names |
 | T | CSRF on family data | `Sec-Fetch-Site` must be same-origin or none and the body JSON (`server.mjs:212`, `:219`); SameSite=Strict cookie when the token is on. `tests/server.test.mjs` "rejects cross-site and non-JSON state writes without touching the file". | none found for `/api/state` | | |
 | T/D | CSRF on the AI relay | None: `/api/ai` parses a `text/plain` body (a simple request, no preflight) | G5: with no token, any page makes the server call the provider (reproduced) | Minor | Apply the `/api/state` checks to every write route |
 | T | CSRF on lessons and recordings | `PUT` and `DELETE` need a CORS preflight, which the server never grants (probed: OPTIONS gets 405) | none found (but see G5 for consistency) | | |
@@ -107,11 +109,11 @@ D = denial of service, E = elevation of privilege.
 
 | | Threat | Current control | Gap | Severity | Proposed fix |
 | --- | --- | --- | --- | --- | --- |
-| I | Learner names reach the provider | Redacted in the browser (`src/js/ai.js:48`) and again on the server from the stored names (`server.mjs:413`). `tests/server.test.mjs` "replaces every learner name in the family document before forwarding". Replayed: "Ada Fakename" and "Will" became "the child" in every body. | Documented limits: nicknames ("Addy"), other people ("Grandma Odile in Lyon") and a common-word name degrading text ("what the child the child be able to do") | | Residual R1 |
+| I | Learner names reach the provider | Redacted in the browser (`src/js/ai.js:48`) and again on the server from the stored names (`server.mjs:413`). `tests/server.test.mjs` "replaces every learner name in the family document before forwarding". Replayed: "Ada Fakename" and "Will" became "the child" in every body. | HAR-41 (known, a fixable bug): a stored name that carries punctuation is matched only with that punctuation, so a nickname typed into the learner's name in parentheses or quotes, and a comma-joined name, leave the machine (reproduced, see section 5). Documented limits: a nickname that is not part of the stored name ("Addy"), other people ("Grandma Odile in Lyon"), and a common-word name degrading text ("what the child the child be able to do") | | Fix HAR-41 in `src/js/redact.js`; the rest is residual R1 |
 | I | Parent notes reach the provider without consent | Browser leaves notes out unless the parent opts in (`ai.js:447`, `:479`); the server removes stored notes, whole and line by line, unless `includeNotes: true` (`server.mjs:385`, `:409`). `tests/server.test.mjs` "removes stored parent notes unless the request says the parent opted in". Replayed: no note without the opt-in. Probed: a verbatim note is replaced by `[note removed]`, a paraphrase is not. | G9: `includeNotes` is trusted as the request states it, for any request | Minor | Tie it to the capability on #37; residual R1 |
 | I | Transcripts reach the provider | Sent whenever the parent asks for an analysis; documented | Accepted (R1) | | |
 | I | Cookie, client IP or other headers forwarded | The server builds a fresh request with only `model` and `{ role, content }` (`server.mjs:362`, `:446`). Logged at the provider: `Content-Type`, `Authorization` and Node's defaults only. `tests/server.test.mjs` "refuses messages that are not { role, content: string } with 400". | none found | | |
-| I | API key leaked | Key only in the `Authorization` header; provider errors are generic (`server.mjs:466`). `tests/server.test.mjs` "keeps provider failures fail-closed without leaking secrets". | G14: a non-loopback `http://` base URL is accepted, so the key and prompts cross the network in clear | Minor | Refuse or warn on it |
+| I | API key leaked | Key only in the `Authorization` header; provider errors are generic (`server.mjs:466`). `tests/server.test.mjs` "keeps provider failures fail-closed without leaking secrets". | G14: a plain `http://` base URL on a public host is accepted, so the key and prompts cross the internet in clear. Plain HTTP that stays on the computer or the home network (the README's Docker URL `http://host.docker.internal:11434/v1`, loopback, private addresses) is fine. | Minor | Refuse plain `http://` to public hosts only |
 | T | Provider response injects markup | Responses are escaped (`ai.js:8`, views use `esc()`); stored analysis through the allowlist. Probed: `<img onerror>` from the provider rendered as text. | none found | | |
 | D/T | Anyone spends AI credit | Cookie gate when the token is on | G5 (no-token cross-site), G1 (rebinding) | | |
 
@@ -125,7 +127,7 @@ D = denial of service, E = elevation of privilege.
 
 | | Threat | Current control | Gap | Severity | Proposed fix |
 | --- | --- | --- | --- | --- | --- |
-| T/E | Crafted import runs script or breaks views | One validator on import and on every save (`src/js/document.js:238`, `server.mjs:161`); learner colors forced to the palette. `tests/import-validation.test.mjs`; `tests/e2e/hostile-import.spec.mjs`; `tests/e2e/data-safety.spec.mjs` "import refuses files that are not a family export", "an imported analysis renders as text, not markup". Probed: markup in a name is stored and shown as text. | G11: unknown top-level fields (a 4.9 MB one was accepted), and lists under keys that are no learner (including `__proto__`), are kept and re-exported | Minor | Cap and report unknown fields; drop orphan keys |
+| T/E | Crafted import runs script or breaks views | One validator on import and on every save (`src/js/document.js:255`, `server.mjs:161`); learner colors forced to the palette. `tests/import-validation.test.mjs`; `tests/e2e/hostile-import.spec.mjs`; `tests/e2e/data-safety.spec.mjs` "import refuses files that are not a family export", "an imported analysis renders as text, not markup". Probed: markup in a name is stored and shown as text. | G11: unknown top-level fields (a 4.9 MB one was accepted), and lists under keys that are no learner (including `__proto__`), are kept and re-exported | Minor | Cap and report unknown fields; drop orphan keys |
 | I | Export by email, backup on a USB stick | None: plaintext JSON and `tar.gz` | G4: no encryption, no warning at export, no guidance | Major | This PR adds the family guidance; add the warning, then optional encryption |
 | I | Export or backup carries the token or the key | Neither is in the data folder on `main`. Probed: no token or key in a backup archive. On #37, `scripts/backup.mjs` leaves out `secrets.json` (code read only). | none found on `main` | | Keep `secrets.json` out (residual R5) |
 | D | Restore loses data | `npm run backup`; health warns when the newest archive is over a week old (`server.mjs:269`); `tests/server.test.mjs` "health reports the age in days of the newest archive" | Docker restore not run (no daemon here) | | |
@@ -143,14 +145,30 @@ D = denial of service, E = elevation of privilege.
 
 | | Threat | Current control | Gap | Severity | Proposed fix |
 | --- | --- | --- | --- | --- | --- |
-| T | Older data loaded by a newer app | Ordered migrations (`src/js/schema.js`); a plain PIN hashed on load (`src/js/store.js:152`). `tests/schema.test.mjs`, `tests/family-data.test.mjs`, `tests/pin.test.mjs` "a plain PIN from an older family document migrates to the hash". Probed: the legacy sandbox document (no version, plain PIN) came back hashed after the first load. | none found | | |
-| T | Newer data written back by an older app | Read-only in the browser (`store.js:143`); the server refuses a newer format (409) and a save older than the stored one (409) (`server.mjs:165`, `:195`). `tests/server.test.mjs` "refuses a save the app could not render (422) or a data format it does not know (409)"; `tests/e2e/data-safety.spec.mjs` read-only tests. Probed both directions with curl. | none found | | |
+| T | Older data loaded by a newer app | Ordered migrations (`src/js/schema.js`); a plain PIN hashed on load (`src/js/store.js:155`). `tests/schema.test.mjs`, `tests/family-data.test.mjs`, `tests/pin.test.mjs` "a plain PIN from an older family document migrates to the hash". Probed: the legacy sandbox document (no version, plain PIN) came back hashed after the first load. | none found | | |
+| T | A stored document the validator refuses, or that hangs a view | The server validates every write (`server.mjs:161`) but not reads; the store loads `/api/state` without validating it (`store.js:184`, against `validateDocument` at `:605` for imports only). `document.js:141-142` does refuse a non-object recall or practice entry, so such a document cannot be saved, but one already on disk loads. | Known: HAR-38 (a null recall or practice entry hangs the landing route), HAR-39 (pre-#32 data blocks every save) | | Validate and repair on load |
+| T | Newer data written back by an older app | Read-only in the browser (`store.js:146`); the server refuses a newer format (409) and a save older than the stored one (409) (`server.mjs:165`, `:195`). `tests/server.test.mjs` "refuses a save the app could not render (422) or a data format it does not know (409)"; `tests/e2e/data-safety.spec.mjs` read-only tests. Probed both directions with curl. | none found | | |
+
+### TB9: device to device (sync)
+
+Every tab on every device edits the one family document on the host. There
+is no merge: a save carries the version it started from, and the server
+accepts it only if that is still the current version.
+
+| | Threat | Current control | Gap | Severity | Proposed fix |
+| --- | --- | --- | --- | --- | --- |
+| T | Two devices save at once and one overwrites the other | Compare-and-swap inside the state file's write queue (`server.mjs:186`); `If-Match` required, else 428 (`server.mjs:230`); a stale save gets 412 with the current document, and the browser reloads it and names the change it lost, with Try again (`store.js:469`, `:374`). `tests/server.test.mjs` "lets only one of several concurrent writers with the same version succeed", "rejects a stale or missing If-Match without writing"; `tests/store-conflict.test.mjs` "a losing status change is named once and Try again re-applies it"; `tests/e2e/data-safety.spec.mjs` "two tabs: the losing tab says which change it discarded…". | none found | | |
+| T | A tab adopts the server's document as its own earlier write when it is not | On 412, a document whose `writeId` is one of the tab's last 16 writes (`store.js:85`, `:361`) is treated as the tab's own write, whose response it never saw: the tab takes its version and re-sends its state (`store.js:469-471`; the same rule on return to the tab, `:423`). The version is not checked to have moved forward. | Known: HAR-44. Restoring an older `family-state.json` while a tab is open brings back a document carrying one of that tab's own `writeId`s, so the tab's next edit silently overwrites the restore. | | Adopt only a document whose version is newer than the last one the tab saw; otherwise reload and show the conflict. The family checklist now says to close Harrington everywhere before restoring. |
+| D | A change in flight is lost when the page reloads or closes | The unload beacon carries the version in its body (`server.mjs:227`, `backend.js:51`); `tests/server.test.mjs` "accepts an unload beacon with the version in the body"; `tests/e2e/access-token.spec.mjs` saves through a real beacon. But `saveNow` clears `dirty` before its PUT (`store.js:494`), that PUT is a plain `fetch` with no `keepalive` (`backend.js:40`), and `handlePageHidden` returns early when nothing is dirty (`store.js:525`), so a PUT still in flight at unload is neither finished nor re-sent. Beacons above about 64 KB are refused and fall back to that same fetch. | Known: HAR-43 | | A "sending" state the unload path re-sends, `keepalive` under 64 KB, and a leave-page warning above it |
+| T/D | A restore or a second server under open tabs | One host and one data folder (DEPLOYMENT.md "The one rule"); never two servers on one folder or a synced folder. The server cannot see a restore. | HAR-44 above; otherwise documented | | Family checklist line: close Harrington on every device before restoring |
+| R | Which device made a change | A random `writeId` per save, kept only to recognize the tab's own writes | Accepted residual R4 | | |
+| E | A signed-out device joins the sync | Every `/api/state` read and write is behind the cookie gate (TB1) | none found | | |
 
 ## 5. Gaps
 
 Each gap was reproduced in the sandbox (section 8) unless it says "by code
-reading". The PR body carries the same list with reproduction steps, so each
-one can become a ticket.
+reading". **[GAPS.md](GAPS.md) has each gap's reproduction steps and
+proposed fix**, so each one can become a ticket.
 
 | # | Severity | Gap | Boundary, profile |
 | --- | --- | --- | --- |
@@ -167,7 +185,7 @@ one can become a ticket.
 | G11 | Minor | Validator keeps unknown top-level fields and lists under non-learner keys | TB6, P3 |
 | G12 | Minor | The first person to press Grown-ups sets the family PIN; no attempt limit | TB3, P1 |
 | G13 | Minor | Docker image runs as root | TB7 |
-| G14 | Minor | A plain `http://` AI base URL to another machine is accepted (by code reading) | TB4, P2 |
+| G14 | Minor | A plain `http://` AI base URL on a public host is accepted (by code reading) | TB4, P2 |
 
 Count: **1 Blocker, 3 Major, 10 Minor.**
 
@@ -176,12 +194,14 @@ Count: **1 Blocker, 3 Major, 10 Minor.**
 The exploratory tester has already reported these, so they are not gaps in
 this list. They are placed in the model so the tickets can cite it.
 
-| Finding | Where it sits here |
-| --- | --- |
-| A null entry in the active learner's recall or practice section hangs the landing route on the loading screen, with no Export available | A8 (availability), TB6 and TB8: a document that passes the server's validator can still stop the app, and the way out (Export) is behind it |
-| Data saved before #32 that the validator now refuses blocks every save, with no repair path, and the toast names a position rather than the learner | A8, TB8 (a later version reading older data): the server refuses with 422, so the family is stuck rather than losing data |
-| The persistent refusal toast covers Export and the bottom navigation at 390 px | A8: the same recovery path as above, on a phone |
-| A nickname in parentheses or quotes is not redacted from notes sent to the AI provider | TB4, residual R1: redaction matches stored learner names only |
+| Ticket | Finding | Where it sits here |
+| --- | --- | --- |
+| HAR-38 | A null entry in the active learner's recall or practice section hangs the landing route on the loading screen, with no Export available | A8 (availability), TB8. The server validates writes but not reads, and the store loads `/api/state` without validating it (`store.js:184`). `document.js:141-142` does refuse a non-object recall or practice entry, so such a document cannot be saved now, but one already on disk (written before #32, or edited by hand) loads and stops the app, with Export behind it. |
+| HAR-39 | Data saved before #32 that the validator now refuses blocks every save, with no repair path, and the toast names a position rather than the learner | A8, TB8 (a later version reading older data): the server refuses with 422, so the family is stuck rather than losing data |
+| HAR-40 | The persistent refusal toast covers Export, Import and the bottom navigation at 390 px | A8: the same recovery path as above, on a phone |
+| HAR-41 | Redaction misses a nickname in parentheses or quotes, and comma-joined names | TB4, a fixable bug, not a residual risk. `src/js/redact.js:10` splits a stored name only on whitespace, hyphens and apostrophes (`NAME_SEP`), so other punctuation stays inside a name token, and that token matches only with its punctuation. Reproduced with `redactNames()`: stored "Alexander (Xander) Fakename" leaves a bare "Xander" in the text (only "(Xander)" is replaced); stored `Elizabeth "Lizzy" Fakename` leaves "Lizzy"; stored "Fakename, Ivy" leaves "Fakename". Fix: split stored names on any run of characters that are not letters or digits (keeping the hyphen and apostrophe variants), plus a test for each case. |
+| HAR-43 | A change in flight is lost silently when the page reloads or closes before its PUT finishes | TB9, A8 |
+| HAR-44 | Restoring an older backup while a tab is open is silently undone by that tab's next edit | TB9, TB6, A8; family checklist line added |
 
 ## 6. Residual risks for the owner to sign
 
@@ -191,7 +211,7 @@ owner's explicit acceptance.
 
 | # | Risk | Why it stays | Mitigation in place | Accepted by / date |
 | --- | --- | --- | --- | --- |
-| R1 | A cloud AI provider receives topic text, ages, statistics, discussion transcripts (nicknames and other people's names as spoken) and, when the parent opts in, notes (a nickname in parentheses or quotes included, a known finding) | Redaction matches stored learner names only, and not a one-letter name (SECURITY.md); a transcript is the input the parent asked to analyze | Browser and server redaction, notes opt-in, local-provider-first rollout (#37), family guidance | |
+| R1 | A cloud AI provider receives topic text, ages, statistics, discussion transcripts (a nickname that is not part of a learner's stored name, and other people's names, as spoken) and, when the parent opts in, notes | Redaction can only match names Harrington knows, and not a one-letter name (SECURITY.md); once HAR-41 is fixed, that includes a nickname typed into the learner's name; a transcript is the input the parent asked to analyze | Browser and server redaction, notes opt-in, local-provider-first rollout (#37), family guidance | |
 | R2 | Anyone holding a signed-in device, a child included, has full read and write access | One family token, no accounts or roles | Child-view PIN as a screen gate; OS guided access in the family guide | |
 | R3 | The child-view PIN is recoverable from any export or backup in milliseconds | 4 digits; the hash only keeps it out of plain sight | Documented in SECURITY.md | |
 | R4 | No record of which device made a change | No per-device identity | Versioned saves, conflict messages | |
@@ -204,18 +224,30 @@ owner's explicit acceptance.
 - **#37 (HAR-26, in-app AI provider settings, capability allowlist).** Adds
   `PUT/DELETE /api/settings/ai` and `POST /api/settings/ai/test`, allowed when
   the token is on or when the socket's address is loopback
-  (`server.mjs:408` on its head `2c485f5`). A rebinding page's requests arrive
-  from the loopback address with `Sec-Fetch-Site: same-origin`, so, with G1
-  open, a web page could point the provider at its own server and receive
-  every later prompt, and the stored key with them, if the base URL is
-  changed and the key kept (by code reading). **G1 should land before or with
-  #37.** It also makes `notesAllowed()` check the capability (G9), and must
-  pass the guarded messages, never `body.messages`, to its provider call
-  (its own merge note). `secrets.json` is written 0600 and excluded from
+  (`canChangeAiSettings`, `server.mjs:447-448` on its head `3eb7e92`). An
+  omitted field is left unchanged (`server.mjs:368` there), so a write that
+  changes only the base URL keeps the stored key and sends it to the new
+  address. Two paths reach that write without the token (both by code
+  reading, not probed):
+  - **Through the documented reverse proxies.** `tailscale serve` and Caddy
+    (`reverse_proxy 127.0.0.1:4173`, DEPLOYMENT.md options 1 and 2) connect to
+    Harrington from 127.0.0.1, so every family device, and every other device
+    on the tailnet or the home network, looks like loopback. With the token
+    off, any of them can repoint the provider and receive the key and every
+    later prompt.
+  - **Through DNS rebinding (G1).** A rebinding page's requests arrive from the
+    loopback address with `Sec-Fetch-Site: same-origin`.
+
+  **Ordering conditions for #37:** G1 lands before or with it; and when
+  Harrington is shared (bind or published address not loopback), either drop
+  the loopback exception or refuse settings writes while the token is off.
+  #37 also makes `notesAllowed()` check the capability (G9), and must pass
+  the guarded messages, never `body.messages`, to its provider call (its own
+  merge note). `secrets.json` is written 0600 and excluded from
   `npm run backup` and the documented Docker volume backup (R5).
-- **#33 (HAR-24, evidence checklist and level-set placement).** Adds a
-  `levelset` field; until `documentFields` lists it, it rides through as an
-  unknown field (G11), unvalidated.
+- **#33 (HAR-24, evidence checklist and level-set placement), merged as
+  `fc59f0b`.** `levelset` is now a listed field with an outer-shape rule in
+  `document.js`; the inside of a session is checked when it is read.
 - **#39 (copy and docs sweep), merged as `f8c43e6`.** Its SECURITY.md
   wording on what reaches the provider matches R1 and section 4 TB4.
 - **#40, #41, #42 (calendar, recall shelf, topic finder).** New stored fields
@@ -253,3 +285,7 @@ Sandbox on the review machine, all secrets fake:
    tests/hosting.test.mjs` (187 passed), and the desktop project of
    `access-token`, `api`, `child-view`, `data-safety` and `hostile-import`
    e2e specs (21 passed).
+8. **Review round 1 (on `fc59f0b`):** the sync rows (TB9) and HAR-41 were
+   checked by reading `store.js`, `backend.js` and `redact.js` at the cited
+   lines and by calling `redactNames()` with the three name shapes; #37's
+   settings gate was read on its head `3eb7e92`.
