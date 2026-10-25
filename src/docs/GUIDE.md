@@ -43,6 +43,42 @@ calendar, records and recordings. **Export** and **Import** (a copy of the
 family data) are in the sidebar's family box; on a phone or tablet they are at
 the bottom of the learner selector.
 
+### Finding where a learner is: the level-set workbook
+
+Open the learner selector and press **Workbook** beside a learner (next to
+**Placement**). The workbook works without AI. It covers literacy and
+numeracy, one at a time:
+
+1. It goes one area at a time (for numeracy: counting, place value, adding
+   and subtracting, mathematical thinking). Each area starts with its topics
+   for about one year below your child's age. A sheet is one area and never
+   more than twelve topics. Each topic comes with "Can they…?" questions.
+2. Mark each topic **Yes** if you have seen your child do it, **Not yet** if
+   not, or **Unsure** if you want to check by watching first.
+3. **Save this sheet and continue.** This keeps your answers. Nothing is
+   marked mastered yet.
+4. The next sheet depends on your answers in that area. All Yes moves that
+   area up a year. All Not yet moves it down a year. One area's answers never
+   stop another area. After that, the workbook asks about the foundations of
+   each Not yet topic, until nothing is left to ask.
+5. At the end, **where to start** lists the topics to teach next: the ones
+   you marked Not yet whose foundations are known. If they still wait on
+   topics you marked Unsure, it says so and lists those first.
+6. **Confirm what to mark** lists, subject by subject, every topic your Yes
+   answers would mark mastered, including the foundations they build on in
+   other subjects. Nothing is written until you confirm. Confirming writes
+   one record in Records, which you can undo.
+
+Topics marked Unsure wait under **Waiting for an observation check** once you
+confirm. Each one links to its topic page, where "Check mastery by
+observation" takes it off the list. **Print this sheet** gives you a paper
+copy of the current sheet. Every answer is saved as you go, so you can stop
+and pick up later. Sittings are meant to last about twenty minutes, a sheet
+or two. The workbook shows how long the current sitting has run and suggests
+a pause at twenty minutes. **Change answers** on a saved sheet opens it
+again and removes the sheets after it. If you had already confirmed the
+list, that undoes it too.
+
 ---
 
 ## Dashboard
@@ -154,6 +190,18 @@ Open a topic from the map, the dashboard or a record.
 prompt, how the topic connects (comes before / leads to), records for the
 topic, activity and game ideas, reference links, and manual status.
 
+**Check mastery by observation** works without AI. Press it under the topic
+mastery test, ask the suggested question or just watch your child at work, and
+tick each piece of evidence you see. Add a note if you like, typed or as a
+voice note. When every item is ticked, the topic is marked mastered, just as
+passing a quiz would. Fewer ticks are still saved in Records, and nothing
+changes. A section counts as passed once every topic in it has passed a quiz
+or an observation check. Topics marked by placement, by the workbook or by
+hand do not count toward that, so those sections keep their own check. When
+the last section of a subject passes this way, the subject does too. Records
+and Insights label these checks "observed". Your child's view never shows
+them; their topic card asks the same things as "Can you…?"
+
 **Reference links** are searches on Khan Academy, BBC Bitesize, Wikipedia and
 YouTube. YouTube results are not filtered for children, so the link reads
 "YouTube search (supervise)".
@@ -204,6 +252,8 @@ A day-by-day plan from your start date, on the home days you choose.
 - **Subject summary.** How many topics are mastered, practicing, learning or
   not started in each subject.
 - **Recommended next.** The best unlocked topics in that subject.
+- **Observation checks.** The topics, sections and subjects you checked by
+  watching, each labeled "observed".
 - **Progress review, subject test and adaptive suggestions.** Needs a local AI
   provider; see the README.
 
@@ -261,7 +311,9 @@ Everything below stays off until `HARRINGTON_AI_BASE_URL` and
 `HARRINGTON_AI_MODEL` are set (see the README):
 
 - Ready-to-teach lessons and print & go materials
-- Topic, section and subject mastery tests, and certificates
+- Topic, section and subject mastery tests (quizzes), and certificates. The
+  observation check on a topic page needs no AI and can master topics,
+  sections and subjects on its own.
 - Timed challenges and adaptive (parent-approved) difficulty suggestions
 - Recall cards and memory review
 - Activity instructions, "Explain simply" and "Make a mini-quiz"

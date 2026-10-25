@@ -51,6 +51,10 @@ const current = () => ({
     { id: 'rq1', text: 'how to tell the time', createdAt: 1_700_000_700_000, topicId: 'count-to-5' },
     { id: 'rq2', text: 'volcanoes', createdAt: 1_700_000_600_000, topicId: null },
   ] },
+  levelset: { s_new: {
+    lane: 'numeracy', observe: ['count-to-5'],
+    lanes: { numeracy: { version: 2, lane: 'numeracy', age: 6, sheets: [{ kind: 'section', domain: 'Counting', level: 5, dir: 'up', part: 1, seq: 1, ids: ['count-to-5'], savedAt: 1 }], answers: { 'count-to-5': 'unsure' }, elapsedMs: 0, startedAt: 0, done: true, frontier: { status: 'unsure', ids: [], waitingOn: [], unsure: ['count-to-5'] }, placed: null }, literacy: null },
+  } },
   settings: { parentPin: '2468', calendar: { homeDays: [1, 2, 3, 4], breaks: [{ start: '2026-12-21', end: '2027-01-01', label: 'Winter break' }] } },
 });
 
@@ -69,6 +73,18 @@ test('a valid older export and a current one pass', () => {
   sparse.settings = { parentPin: null, calendar: null };
   assert.equal(store.inspectImport(sparse).ok, true);
   assert.equal(store.inspectImport({ ...current(), settings: { parentPin: 1357, calendar: {} } }).ok, true);
+});
+
+test('a document with no level-set section, or an empty one, passes', () => {
+  const absent = current();
+  delete absent.levelset;
+  assert.equal(store.inspectImport(absent).ok, true, 'no levelset key');
+  assert.equal(store.inspectImport({ ...current(), levelset: {} }).ok, true, 'an empty section');
+  assert.equal(store.inspectImport({ ...current(), levelset: { s_new: {} } }).ok, true, 'an empty workbook for a learner');
+  assert.equal(store.inspectImport({ ...current(), levelset: { s_new: { lanes: {}, observe: [] } } }).ok, true, 'no lanes started');
+  assert.equal(store.inspectImport({ ...current(), levelset: { s_new: null } }).ok, true, 'a learner with nothing saved');
+  // A key a newer Harrington adds is not checked as a workbook.
+  assert.equal(store.inspectImport({ ...current(), futureWorkbook: { future: true } }).ok, true);
 });
 
 const learnerCases = [
@@ -176,6 +192,12 @@ const mapCases = [
   ['a request date that is text', (d) => { d.requests.s_new[0].createdAt = 'today'; }, 'A topic request in the file (requests item 1) has a date that is not a number.'],
   ['a request date that is infinite', (d) => { d.requests.s_new[0].createdAt = Infinity; }, 'A topic request in the file (requests item 1) has a date that is not a number.'],
   ['a request topic that is a number', (d) => { d.requests.s_new[0].topicId = 42; }, 'A topic request in the file (requests item 1) has a topic that is not a topic id.'],
+  ['a learner\'s level-set workbook that is a list', (d) => { d.levelset.s_new = []; }, 'The file\'s level-set workbook is not in the expected shape.'],
+  ['level-set lanes as a list', (d) => { d.levelset.s_new.lanes = [{}]; }, 'The file\'s level-set workbook is not in the expected shape.'],
+  ['a level-set lane session that is text', (d) => { d.levelset.s_new.lanes.numeracy = 'sheet 1'; }, 'The file\'s level-set workbook is not in the expected shape.'],
+  ['a level-set observation list that is not a list', (d) => { d.levelset.s_new.observe = 'count-to-5'; }, 'The file\'s level-set workbook is not in the expected shape.'],
+  ['a level-set observation entry that is not text', (d) => { d.levelset.s_new.observe = [5]; }, 'The file\'s level-set workbook is not in the expected shape.'],
+  ['a level-set tab that is not text', (d) => { d.levelset.s_new.lane = 1; }, 'The file\'s level-set workbook is not in the expected shape.'],
   ['settings as a list', (d) => { d.settings = []; }, 'The file\'s settings are not in the expected shape.'],
   ['a three-digit PIN', (d) => { d.settings.parentPin = '123'; }, 'The file\'s child-view PIN is not four digits.'],
   ['a PIN with letters', (d) => { d.settings.parentPin = '12a4'; }, 'The file\'s child-view PIN is not four digits.'],

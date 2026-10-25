@@ -14,6 +14,7 @@ import { renderGraph } from './views/graph.js';
 import { renderRecords } from './views/records.js';
 import { renderInsights } from './views/insights.js';
 import { renderFind } from './views/find.js';
+import { renderLevelset } from './views/levelset.js';
 
 const app = document.getElementById('app');
 
@@ -85,6 +86,7 @@ function render() {
     records: renderRecords,
     insights: renderInsights,
     find: renderFind,
+    levelset: renderLevelset,
     onboard: renderOnboard,
   };
   const viewFn = views[route.name] || renderDashboard;

@@ -192,10 +192,11 @@ describe('family data safety in the store', { concurrency: false }, () => {
     store.saveDailyOffers(id, '2026-09-27', { literacy: ['rhymes'], numeracy: ['count-to-5'] });
     store.setInterests(id, { chips: ['Animals'], text: 'bridges' });
     store.logRequest(id, 'how to count to five', 'count-to-5');
+    store.queueObservation(id, 'count-to-5');
     await store.flushSaves();
 
     const before = await serverState();
-    const keys = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations', 'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests', 'requests'];
+    const keys = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations', 'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests', 'requests', 'levelset'];
     for (const key of keys) assert.ok(before[key][id], `${key} was populated`);
 
     store.removeStudent(id);
