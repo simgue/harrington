@@ -7,6 +7,12 @@ tagged a release yet; everything below is on `main`.
 ## [Unreleased]
 
 ### Changed
+- Calendar follow-ups from the HAR-18 review: rest days and breaks pause the
+  daily rhythm (no pick-one choices; the dashboard and calendar name the next
+  learning day), Extra practice opens its own topic's retries, a done day that
+  becomes a rest day can still be reopened, the stretch only suggests
+  unlocked topics, other days say "New on <weekday>", and a per-learner
+  Catch-up pace setting (Catch-up first, the default, or Mixed).
 - Harrington can be shared with the family's other devices: `HARRINGTON_HOST`
   chooses the bind address, `HARRINGTON_ACCESS_TOKEN` makes `/api/*` (except
   health) require a sign-in cookie set once per device by the form at `/login`

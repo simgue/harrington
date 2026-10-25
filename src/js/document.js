@@ -154,6 +154,8 @@ function learnerMapsProblem(doc) {
   for (const plan of Object.values(doc.plan || {})) {
     for (const part of ['moves', 'done', 'extras']) if (!absent(plan[part]) && !isObject(plan[part])) return shape('plan');
     if (!Object.values(plan.extras || {}).every(list => Array.isArray(list) && list.every(isObject))) return shape('plan');
+    // The catch-up pace (scheduler.js PACES); absent means the default.
+    if (!absent(plan.pace) && !['catch-up-first', 'mixed'].includes(plan.pace)) return shape('plan');
   }
   for (const days of Object.values(doc.daily || {})) {
     for (const day of Object.values(days)) {
