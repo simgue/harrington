@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { redactNames } from './src/js/redact.js';
 import { SCHEMA_VERSION, formatCopyName, schemaVersionOf } from './src/js/schema.js';
 import { validateDocument } from './src/js/document.js';
+import { MAX_FIGURE_BYTES, contentPolicyFor, figureIdOf, figureMeta, figureProblems } from './src/js/figures/contract.js';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(repoRoot, 'src');
@@ -50,6 +51,8 @@ const MIME = {
   '.webp': 'image/webp',
   '.woff2': 'font/woff2',
 };
+
+const figuresDir = join(publicDir, 'figures');
 
 const writeQueues = new Map();
 
@@ -734,6 +737,33 @@ async function handleLogin(req, res, url) {
   signIn(req, res, token);
 }
 
+// The figure pages in src/figures/ that meet the contract, with the title and
+// hint each page carries. A page that breaks it is left out (and named in the log).
+async function listFigures() {
+  const dir = figuresDir;
+  const names = await readdir(dir).catch(() => []);
+  const figures = [];
+  for (const name of names.sort()) {
+    const id = figureIdOf(name);
+    if (!id) continue;
+    const path = join(dir, name);
+    const details = await stat(path).catch(() => null);
+    if (!details?.isFile()) continue;
+    if (details.size > MAX_FIGURE_BYTES) {
+      console.warn(`Figure ${name} is not shown: it is ${details.size} bytes (the limit is ${MAX_FIGURE_BYTES})`);
+      continue;
+    }
+    const html = await readFile(path, 'utf8');
+    const problems = figureProblems(name, html);
+    if (problems.length) {
+      console.warn(`Figure ${name} is not shown: ${problems.join('; ')}`);
+      continue;
+    }
+    figures.push({ id, ...figureMeta(html) });
+  }
+  return figures;
+}
+
 async function handleApi(req, res, url) {
   if (url.pathname === '/api/health' && req.method === 'GET') {
     const signedIn = isSignedIn(req);
@@ -762,6 +792,15 @@ async function handleApi(req, res, url) {
 
   if (url.pathname.startsWith('/api/') && !isSignedIn(req)) {
     sendUnauthorized(res);
+    return true;
+  }
+
+  if (url.pathname === '/api/figures') {
+    if (req.method !== 'GET') {
+      sendJson(res, 405, { error: 'Method not allowed' });
+      return true;
+    }
+    sendJson(res, 200, { figures: await listFigures() });
     return true;
   }
 
@@ -882,12 +921,15 @@ async function serveStatic(req, res, url) {
   try {
     const details = await stat(path);
     if (!details.isFile()) throw Object.assign(new Error('Not found'), { code: 'ENOENT' });
+    // Decided on the resolved file, not the URL, and without regard to case (see contentPolicyFor).
+    const policy = contentPolicyFor(path.slice(publicDir.length + 1));
     res.writeHead(200, {
       'Cache-Control': extname(path) === '.html' ? 'no-cache' : 'public, max-age=3600',
       'Content-Type': MIME[extname(path).toLowerCase()] || 'application/octet-stream',
       'Content-Length': details.size,
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'SAMEORIGIN',
+      ...(policy ? { 'Content-Security-Policy': policy } : {}),
     });
     if (req.method === 'HEAD') res.end();
     else streamFile(res, path);

@@ -1,7 +1,8 @@
 // Storybook Meadow theme. Pastel tones are fills; text on them uses the
 // matching *-deep partner so it stays readable (all pairs ≥ 4.5:1).
 module.exports = {
-  content: ['./src/**/*.{html,js}'],
+  // The figure pages and their engine style themselves; their words must not add app utilities.
+  content: ['./src/**/*.{html,js}', '!./src/figures/**', '!./src/js/figures/engine.js'],
   theme: {
     extend: {
       fontFamily: {
