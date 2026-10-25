@@ -220,6 +220,14 @@ with the token (or open `https://harrington.home.arpa` if the token is off).
   address bar, but the link itself stays in the browser's history (see below);
 - the cookie is derived from the token, so changing the token signs every
   device out; sign them in again with the new token.
+- **AI provider settings** (Settings > AI provider) need the token to change
+  once Harrington is shared (bound beyond loopback, or published under another
+  name as in options 1 and 2) or when a request comes through a reverse proxy
+  that adds `X-Forwarded-For` or a similar header. Without the token, only the
+  computer running an unshared Harrington can change them. A forwarder that
+  adds no such header, such as `ssh -L`, in front of an unshared server looks
+  like that computer itself, so set the token before forwarding to it (see
+  [AI-SETUP.md](AI-SETUP.md)).
 
 On its own, with Harrington bound straight to the LAN:
 
