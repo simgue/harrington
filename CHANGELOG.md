@@ -92,6 +92,24 @@ tagged a release yet; everything below is on `main`.
   child-view PIN (PR #38's `migratePinSettings`). Importing a file from a
   newer data format is refused with a message to update Harrington, and the
   server refuses a plain PIN at the current format.
+- "Check mastery by observation" on every topic page works without AI: tick
+  the topic's evidence items as you watch (with its suggested question and an
+  optional typed or voice note). A full tick marks the topic mastered like a
+  passed quiz. A section passes once every topic in it has a passed quiz or
+  observation (placed or hand-set topics do not count), and its subject's
+  last section passes the subject. Records and Insights
+  label these checks "observed"; the child view never shows them (HAR-24).
+- Level-set workbook, from the learner selector's Workbook button next to
+  Placement, works without AI. For literacy and numeracy it asks "Can
+  they…?" about one area at a time, at most twelve topics a sheet, starting
+  each area a year below the learner's age; the parent marks each Yes, Not
+  yet or Unsure. Each area moves up or down a year on its own answers, then
+  the walk follows the foundations of each Not yet and says where to start.
+  Saving a sheet keeps its answers only; at the end the parent sees every
+  topic Yes would mark mastered, by subject, and confirms it as one undoable
+  placement record. Unsure topics then wait for an observation check. Sheets
+  print, answers save as you go so sittings resume, and the workbook
+  suggests a pause at twenty minutes (HAR-24).
 - Today's pick-one stops record evidence for the pick: the note and voice
   forms offer an opt-in "Mark curriculum coverage" checkbox, and a pick shows
   "Evidence recorded" only once a linked record claims coverage. Each stop

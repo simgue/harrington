@@ -7,6 +7,7 @@ import { formatCount } from './format.js';
 import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 import { getData } from './data.js';
 import { pruneDismissed } from './alert-dismissals.js';
+import { normalizeSession } from './levelset.js';
 import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
 
 export { MIN_BIRTH_YEAR };
@@ -26,7 +27,8 @@ let state = {
   progress: {},       // studentId -> { topicId -> { status, updatedAt } }
   records: {},        // studentId -> [ {id, topicId, type, title, note, rating, questions, createdAt,
                       //   coverage?: [{topicId, topicName}], source?: {kind: 'daily-pick'|'invitation', key}} ]
-  tests: {},          // studentId -> [ {id, subject, mode, score, total, pct, passed, createdAt} ]
+  tests: {},          // studentId -> [ {id, scope, subject, topicId?, sectionId?, mode, score, total, pct, passed, createdAt} ]
+                      //   mode: 'digital' | 'printable' | 'observed' (evidence checklist, no AI)
   plan: {},           // studentId -> { moves:{topicId:dateKey}, done:{dateKey:true}, extras:{dateKey:[items]} }
   challenges: {},     // studentId -> [ {id, topicId, subject, domain, correct, total, seconds, createdAt} ]
   adaptations: {},    // studentId -> { 'Subject|Domain': { level:'advanced', since } }
@@ -39,6 +41,7 @@ let state = {
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
   daily: {},          // studentId -> { 'yyyy-mm-dd': { offers: {literacy:[topicId], numeracy:[topicId]}, picks: {literacy, numeracy} } }
   interests: {},      // studentId -> { chips: [label], text: '' }  (what the learner is into, parent-entered)
+  levelset: {},       // studentId -> { lanes: { literacy|numeracy: session }, observe: [topicId] }  (level-set workbook)
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
   settings: {},       // family-wide: { parentPinHash, parentPinSalt, calendar: { homeDays:[0-6], breaks:[{start, end, label}] } }
 };
@@ -777,7 +780,8 @@ function forgetTodaysChoices(studentId) {
 }
 // Writes one assessment record carrying the changed ids and their previous
 // entries, then marks them mastered with a single persist + emit.
-export function applyPlacement(studentId, { topicIds, title, subject, domain = null, maxAge }) {
+// `levelset` ({ lane, sheet }) marks a placement made by the level-set workbook.
+export function applyPlacement(studentId, { topicIds, title, subject, domain = null, maxAge, levelset = null }) {
   if (!topicIds || !topicIds.length) return null;
   const p = state.progress[studentId] || {};
   const previous = {};
@@ -787,7 +791,7 @@ export function applyPlacement(studentId, { topicIds, title, subject, domain = n
   const rec = {
     id: 'r_' + Math.random().toString(36).slice(2, 9), createdAt: at,
     type: 'assessment', title, note: '',
-    placement: { subject, domain, maxAge, topicIds: [...topicIds], previous, at, undoneAt: null },
+    placement: { subject, domain, maxAge, topicIds: [...topicIds], previous, at, undoneAt: null, ...(levelset ? { levelset } : {}) },
   };
   state.records[studentId] = state.records[studentId] || [];
   state.records[studentId].unshift(rec);
@@ -813,6 +817,54 @@ export function undoPlacement(studentId, recordId) {
   forgetTodaysChoices(studentId);
   persist(); emit();
   return { reverted, kept };
+}
+
+// ---- Level-set workbook (per learner and lane, resumable) ----
+// A session is the workbook's own state (sheets, answers, sitting time); the
+// mastery it marks goes through applyPlacement above so Records can undo it.
+export function levelsetFor(studentId) {
+  const v = state.levelset[studentId];
+  return {
+    lanes: v && v.lanes && typeof v.lanes === 'object' && !Array.isArray(v.lanes) ? v.lanes : {},
+    observe: v && Array.isArray(v.observe) ? v.observe.filter(id => typeof id === 'string') : [],
+    lane: v && typeof v.lane === 'string' ? v.lane : null, // the tab last open
+  };
+}
+export function setLevelsetLane(studentId, lane) {
+  const cur = levelsetFor(studentId);
+  state.levelset[studentId] = { ...cur, lane };
+  persist(); emit();
+}
+// A malformed stored session reads as none, so the route starts over
+// instead of crashing.
+export function levelsetSession(studentId, lane) {
+  return normalizeSession(levelsetFor(studentId).lanes[lane]);
+}
+// `quiet` saves without re-rendering, for a click that updates its own row.
+export function saveLevelsetSession(studentId, lane, session, { quiet = false } = {}) {
+  const cur = levelsetFor(studentId);
+  const lanes = { ...cur.lanes };
+  if (session) lanes[lane] = session; else delete lanes[lane];
+  state.levelset[studentId] = { ...cur, lanes };
+  persist();
+  if (!quiet) emit();
+}
+// Topics the parent was unsure about wait for an observation check on their
+// topic page; saving one there takes it off the list (applyObservation).
+export function queueObservation(studentId, topicIds, { quiet = false } = {}) {
+  const cur = levelsetFor(studentId);
+  const observe = [...cur.observe];
+  for (const id of [].concat(topicIds || [])) if (id && !observe.includes(id)) observe.push(id);
+  state.levelset[studentId] = { ...cur, observe };
+  persist();
+  if (!quiet) emit();
+}
+export function unqueueObservation(studentId, topicIds, { quiet = false } = {}) {
+  const cur = levelsetFor(studentId);
+  const drop = new Set([].concat(topicIds || []));
+  state.levelset[studentId] = { ...cur, observe: cur.observe.filter(id => !drop.has(id)) };
+  persist();
+  if (!quiet) emit();
 }
 
 // ---- Records (notes / observations / questions) ----
@@ -872,6 +924,10 @@ export function lastTopicTest(studentId, topicId) {
   return (state.tests[studentId] || []).filter(t => t.scope === 'topic' && t.topicId === topicId)
     .sort((a, b) => b.createdAt - a.createdAt)[0] || null;
 }
+// True when any topic result (a quiz or an observation) for the topic passed.
+export function topicTestPassed(studentId, topicId) {
+  return (state.tests[studentId] || []).some(t => t.scope === 'topic' && t.topicId === topicId && t.passed);
+}
 export function addTestResult(studentId, result) {
   state.tests[studentId] = state.tests[studentId] || [];
   const full = { id: 't_' + Math.random().toString(36).slice(2, 9), createdAt: Date.now(), scope: 'subject', ...result };
@@ -879,6 +935,39 @@ export function addTestResult(studentId, result) {
   markActivity(studentId);
   persist(); emit();
   return full;
+}
+
+// ---- Mastery by observation (non-AI) ----
+// Saves an evidence checklist in one persist + emit: the test-shaped results
+// (topic, plus any section or subject it completes), an assessment record
+// for Records, and, on a full pass, the topic marked mastered exactly as a
+// passed topic test does; today's picks stay, as they do for a quiz. A topic
+// waiting in the level-set observation queue leaves it.
+export function applyObservation(studentId, { results = [], record = null, masterTopicId = null }) {
+  const at = Date.now();
+  const tests = state.tests[studentId] = state.tests[studentId] || [];
+  const saved = results.map((r, i) => ({ id: 't_' + Math.random().toString(36).slice(2, 9), createdAt: at + i, ...r }));
+  // Newest first, as addTestResult does; the topic result stays first.
+  tests.unshift(...[...saved].reverse());
+  let rec = null;
+  if (record) {
+    rec = { id: 'r_' + Math.random().toString(36).slice(2, 9), createdAt: at, type: 'assessment', ...record };
+    if (rec.observed && saved[0]) rec.observed = { ...rec.observed, testId: saved[0].id };
+    state.records[studentId] = state.records[studentId] || [];
+    state.records[studentId].unshift(rec);
+  }
+  if (masterTopicId) {
+    const p = state.progress[studentId] = state.progress[studentId] || {};
+    if (p[masterTopicId]?.status !== 'mastered') p[masterTopicId] = { status: 'mastered', updatedAt: at };
+  }
+  const topicId = results[0]?.topicId;
+  const ls = levelsetFor(studentId);
+  if (topicId && ls.observe.includes(topicId)) {
+    state.levelset[studentId] = { ...ls, observe: ls.observe.filter(id => id !== topicId) };
+  }
+  activityOf(studentId)[dateKeyLocal(at)] = true;
+  persist(); emit();
+  return { tests: saved, record: rec };
 }
 
 // ---- Adaptive plan overrides (moves, completed days, extra practice items) ----
