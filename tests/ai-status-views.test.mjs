@@ -399,3 +399,25 @@ test('with lessons only switched on, only lesson controls are live', async () =>
     await store.refreshHealth();
   }
 });
+
+// A provider is set up but lessons are switched off: a lesson saved earlier
+// still opens from the topic page as "Open saved lesson" (#41), with no AI call.
+test('with lessons switched off, a saved lesson opens as "Open saved lesson"', async () => {
+  aiConfigured = true;
+  aiCapabilities = ['recall'];
+  try {
+    await store.refreshHealth();
+    const before = aiCalls.length;
+    const root = await mount(VIEWS['topic (mastered)']);
+    const open = clickables(root).find((node) => node.textContent.trim() === 'Open saved lesson');
+    assert.ok(open, 'an "Open saved lesson" button');
+    open.click();
+    await settle();
+    assert.equal(aiCalls.length, before);
+    assert.doesNotMatch(document.body.textContent, UNCONFIGURED);
+  } finally {
+    aiConfigured = false;
+    aiCapabilities = null;
+    await store.refreshHealth();
+  }
+});
