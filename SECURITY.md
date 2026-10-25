@@ -77,6 +77,15 @@ acknowledge your report and work on a fix as quickly as we reasonably can.
   carries one. Anyone who can read the data folder or an export can still
   recover a 4-digit PIN by trying them all; the hash only keeps it out of
   plain sight.
+- The "See how it works" figures (`src/figures/*.html`) run in an iframe
+  sandboxed to `allow-scripts`, so in an opaque origin with no access to the
+  app, its cookie or its storage. The server sends every file under
+  `src/figures/` a policy with `default-src 'none'` and
+  `sandbox allow-scripts`, decided on the resolved file whatever the URL's
+  spelling, and the app's pages send `frame-src 'self'`, so a figure cannot
+  load anything or navigate its frame to another origin. `/api/figures`
+  lists only pages that pass `src/js/figures/contract.js` (no URL, external
+  script, link or frame tag).
 - Please never include real children's personal data in a report.
 
 Thank you for helping keep families using Harrington safe.

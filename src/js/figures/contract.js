@@ -6,6 +6,7 @@
 export const MAX_FIGURE_BYTES = 100 * 1024;
 export const MAX_TITLE = 40;
 export const MAX_HINT = 90;
+export const MAX_LABEL = 20;
 
 // Every page carries this pointer to the engine's MIT notice (the notice itself
 // names the product, which may not appear in a page).
@@ -19,6 +20,8 @@ export const figureIdOf = (fileName) => FILE.exec(fileName)?.[1] ?? null;
 // Nothing in a page may reach outside it or credit anyone in the UI.
 const FORBIDDEN = [
   [/https?:\/\//i, 'an http(s) URL'],
+  // a protocol-relative address in a string, attribute or url(): '//host/x', src=//host, url(//host)
+  [/["'`(=]\s*\/\/[^\s/"'`]/, 'a protocol-relative (//host) URL'],
   [/colorfigures/i, 'the name Colorfigures'],
   [/april-zhu/i, 'april-zhu'],
   [/made with/i, 'a "Made with" line'],
@@ -75,7 +78,8 @@ export function figureProblems(fileName, html) {
   const labels = figureLabels(html);
   if (labels.length < 3 || labels.length > 6) problems.push(`it has ${labels.length} labels (3 to 6)`);
   for (const label of labels) {
-    if (!/^[A-Z][A-Z]{0,11}(?: [A-Z]{1,11})?$/.test(label)) problems.push(`the label "${label}" is not one or two capital words`);
+    if (!/^[A-Z]+(?: [A-Z]+)?$/.test(label)) problems.push(`the label "${label}" is not one or two words in capital letters A to Z`);
+    else if (label.length > MAX_LABEL) problems.push(`the label "${label}" is longer than ${MAX_LABEL} characters`);
   }
   return problems;
 }

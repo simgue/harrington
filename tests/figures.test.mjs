@@ -82,7 +82,14 @@ test('the contract accepts a good page and names each broken rule', () => {
     ['mt_B3W5EfimJw.html', GOOD.replaceAll('mountFigure(', 'mount('), 'mountFigure'],
     ['mt_B3W5EfimJw.html', GOOD.replace("'ROPE'", "'PUSH'").replace("'HEAVY BLOCK'", "'PUSH'"), 'labels'],
     ['mt_B3W5EfimJw.html', GOOD.replace("'ROPE'", "'Rope'"), 'capital'],
+    ['mt_B3W5EfimJw.html', GOOD.replace("'ROPE'", "st.cut ? 'CUT ROPE' : 'rope'"), 'capital'],
+    ['mt_B3W5EfimJw.html', GOOD.replace("'ROPE'", "'PRECIPITATION RECORDER'"), 'longer than 20'],
+    ['mt_B3W5EfimJw.html', GOOD.replace('</body>', "<script>location.href = '//example.org/x';</script></body>"), 'protocol-relative'],
+    ['mt_B3W5EfimJw.html', GOOD.replace('</body>', '<img src=//example.org/x.png></body>'), 'protocol-relative'],
+    ['mt_B3W5EfimJw.html', GOOD.replace('</body>', '<div style="background:url(//example.org/x.png)"></div></body>'), 'protocol-relative'],
   ];
+  // Long words are fine (up to 20 characters a label), and so are comments that start with //.
+  assert.deepEqual(figureProblems('mt_B3W5EfimJw.html', GOOD.replace("'ROPE'", "'PRECIPITATION'").replace('</script></body>', '// a comment\n</script></body>')), []);
   for (const [name, html, expected] of cases) {
     const problems = figureProblems(name, html);
     assert.ok(problems.some((p) => p.includes(expected)), `${expected}: ${problems.join(' | ') || 'no problem found'}`);

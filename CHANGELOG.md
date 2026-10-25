@@ -75,7 +75,8 @@ tagged a release yet; everything below is on `main`.
   three: a toy cart (Pushes & Pulls), ice in the sun (Sunlight warms things
   up) and a simple circuit (Building a simple circuit). Each is a
   self-contained page, `src/figures/<topicId>.html`, shown in an iframe
-  sandboxed to `allow-scripts` with a no-network CSP; labels start on,
+  sandboxed to `allow-scripts` with a no-network CSP (and the app's pages
+  send `frame-src 'self'`, so a figure cannot navigate away); labels start on,
   nothing is saved, and no AI provider is needed. `GET /api/figures` lists
   the pages that meet the contract in `docs/FIGURES.md`, so a new page
   dropped into `src/figures/` needs no other change. The figure engine is a

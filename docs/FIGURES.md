@@ -31,24 +31,28 @@ The rest are checked by the e2e suite (`tests/e2e/figures.spec.mjs`).
      it up and push again."). The app shows it under the frame. Write `&amp;`
      and `&quot;` for `&` and `"`.
 4. **Self-contained and quiet** *(checked)*: no `http://` or `https://`
-   anywhere; no `<script src=…>`, `<link>`, `<iframe>`, `<object>`,
+   anywhere, and no protocol-relative address (`'//host/x'`, `src=//host`,
+   `url(//host)`); no `<script src=…>`, `<link>`, `<iframe>`, `<object>`,
    `<embed>` or `<base>`; and no "Colorfigures", "april-zhu" or "Made with"
    (in any case). Everything (engine, figure script, styles) is inline. The
-   server's policy blocks every request from the page anyway.
+   server's policy blocks every request from the page anyway, and the app's
+   pages allow frames only from their own origin, so a figure cannot
+   navigate its frame elsewhere either.
 5. **Built on Harrington's engine** *(checked)*: the page inlines
    `src/js/figures/engine.js` (from its `// ---- engine ----` line down),
    carries the engine notice line exactly as `ENGINE_NOTICE` in
    `contract.js`, and draws through `mountFigure({...})`. The build script
    does all three; see "Write a figure" below.
-6. **Labels** *(checked)*: 3 to 6 part labels, each one or two capital words
-   ("BULB", "HEAVY BLOCK"), drawn with `tag(point, dx, dy, TEXT, on)`. TEXT
+6. **Labels** *(checked)*: 3 to 6 part labels, each one or two words in
+   capital letters A to Z, at most 20 characters in all ("BULB",
+   "HEAVY BLOCK", "PRECIPITATION"), drawn with `tag(point, dx, dy, TEXT, on)`. TEXT
    is written as string literals: a plain `'BULB'`, or literals inside an
    expression such as `st.cut ? 'CUT WIRE' : 'WIRE'` (each literal is a
    label and counts toward the 3 to 6). A label held in a variable or built
    with a template string is not seen by the check, so don't. `on = true`
    while that part is working. Labels are **on by default**; the page's
    **Labels on** button hides them. On a 390 px phone the label text is at
-   least 10 px *(e2e)*.
+   least 11 px *(e2e)*.
 7. **Buttons** *(e2e)*: 2 to 5 actions, in the order a child would press
    them, each at least 44 px tall (the engine's shell does this). Every press,
    in order or out of it, changes the drawing or shows a short note
@@ -105,8 +109,9 @@ original skill) is ignored. The page shell, the Labels switch, the colors and
 
 ### Errors
 
-The engine records every uncaught script error, and every `?press=` label
-it cannot find, in `<html data-errors="…">`. `scripts/shot-figure.mjs` and
+The engine records every uncaught script error, every unhandled promise
+rejection, and every `?press=` label it cannot find, in
+`<html data-errors="…">`. `scripts/shot-figure.mjs` and
 the e2e suite fail when it is not empty. Read it while authoring with
 `document.documentElement.dataset.errors`; the figure's state is `window.__st`.
 
@@ -124,6 +129,9 @@ or submit forms. The server sends every `/figures/*.html` page a
 Content-Security-Policy with `default-src 'none'` (inline script and style
 only, `data:` images, no requests), `frame-ancestors 'self'` and
 `sandbox allow-scripts`, so the same holds when a page is opened on its own.
+The policy follows the file, however the address is spelled
+(`/figures//x.html`, `/figures/%2Fx.html`). The app's own pages send
+`frame-src 'self'`, so a figure cannot navigate its frame to another origin.
 Viewing or pressing a figure writes nothing to the family data.
 
 ### Query parameters a page understands
@@ -176,8 +184,8 @@ assemble the page.
    ```bash
    node scripts/build-figures.mjs <topicId>
    node scripts/shot-figure.mjs <topicId> --out idle.png
-   node scripts/shot-figure.mjs <topicId> --query "press=Heat@200,Put the lid@2500" --wait 5000 --out run.png
-   node scripts/shot-figure.mjs <topicId> --width 316 --height 576 --out phone.png
+   node scripts/shot-figure.mjs <topicId> --query "press=Push hard@200,Pull back@2500" --wait 5000 --out run.png
+   node scripts/shot-figure.mjs <topicId> --width 314 --height 574 --out phone.png
    ```
 
    The shot script exits 1 on a script error, an unknown label, `NaN` in the
@@ -197,7 +205,7 @@ Before a figure is merged, a reviewer checks:
 - [ ] The file is `src/figures/<topicId>.html` for a Science topic whose ages
       overlap 5 to 8, and it is the right topic for what the figure shows.
 - [ ] `npm run build:figures -- --check`, `npm test` and `npm run e2e` pass.
-- [ ] The idle view, the main sequence and the phone view (316 × 576, the frame on a 390 px phone) look
+- [ ] The idle view, the main sequence and the phone view (314 × 574, the inside of the frame on a 390 px phone) look
       right: nothing floats, overlaps or crosses another part; labels don't
       cover each other or anything moving; the shadow sits under the object.
 - [ ] The steps follow the real process; nothing appears where it could not
@@ -215,6 +223,26 @@ A page supplied without a source works the same once it meets the contract.
 Keep its source next to it if you can: when the engine changes,
 `npm run build:figures` rebuilds only the pages that have one.
 
+### Converting a page made with the authoring skill
+
+A page made with `tools/colorfigures/` (or from its `scripts/build.py`)
+inlines the original engine, which has the credit footer and its links, so it
+fails rule 4. To bring one over:
+
+1. Take the figure's own script: the inline `<script>` that defines the
+   geometry and calls `mountFigure` (in a built page, the last `<script>`;
+   the one before it is the original engine, which you drop).
+2. Save it as `tools/figures/<topicId>.js` with the `// title:` and
+   `// hint:` lines at the top.
+3. In the `mountFigure({...})` call, keep `title`, `size`, `palette`,
+   `state`, `scene`, `buttons`, `stats`, `acts` and `params`. `fig`, `hint`,
+   `idea`, `readout`, `credit` and `buttonsLabel` can stay (they are
+   ignored), but move the hint to the `// hint:` line.
+4. Check it uses no name the engine owns (step 2 of "Write a figure") and that its
+   labels are capital literals, then `node scripts/build-figures.mjs <topicId>`
+   and continue from step 3 of "Write a figure". The build adds the engine
+   and the notice line.
+
 ### What Harrington's engine changes from the skill
 
 - The page has no header, footer, hint text, wobble slider or credit link. It
@@ -222,9 +250,10 @@ Keep its source next to it if you can: when the engine changes,
   five body colors. Every control is at least 44 px; a picker stays inside the
   frame on a phone.
 - On a small screen the label pills grow (`LABEL_K`, up to 3×) so their text
-  stays at least 10.5 px. On a 390 px phone the topic page's frame is about
-  316 × 576 (taller than on a desktop, where it is 34rem), so a figure with
-  five actions in three rows still gets its 10 px. Check the phone shot for
+  stays at least 11.5 px. On a 390 px phone the inside of the topic page's
+  frame is about 314 × 574 (36rem tall there, 34rem on a desktop), so a
+  figure with five long actions in four rows still gets 11 px labels; the
+  e2e suite checks every page and such a worst case. Check the phone shot for
   pills that overlap each other or the moving parts, and aim the pills
   outward.
 - Action labels, choices, notes and stats are set with `textContent`.

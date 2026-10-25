@@ -270,6 +270,7 @@ const filterFor = k => `<filter id="hand" x="-3%" y="-3%" width="106%" height="1
    animate(step): calls step(dt seconds) every frame and re-renders until step returns false. */
 const noteError = m => { document.documentElement.dataset.errors = (document.documentElement.dataset.errors || '') + ' ' + m + ';'; };
 addEventListener('error', e => noteError(e.message));
+addEventListener('unhandledrejection', e => noteError(`Unhandled rejection: ${e.reason && e.reason.message || e.reason}`));
 function mountFigure(cfg){
   document.title = cfg.title;
   const style = document.createElement('style'); style.textContent = CORE_CSS; document.head.appendChild(style);
@@ -309,11 +310,11 @@ function mountFigure(cfg){
 
   const art = document.getElementById('art');
   const ui = { st };
-  // label text at least 10.5 px on screen: 8.6 units at the reference zoom is 8.6 × (drawn width / 585) px
+  // label text at least 11.5 px on screen: 8.6 units at the reference zoom is 8.6 × (drawn width / 585) px
   // (the drawn width: a short, wide frame letterboxes the 4:3 view). Up to 3× on a phone; a figure drawn
-  // under ~230 px wide gets smaller labels rather than pills that bury it.
+  // under ~260 px wide gets smaller labels rather than pills that bury it.
   const fitLabels = () => { const r = svg.getBoundingClientRect(), w = Math.min(r.width, r.height * 4 / 3);
-    LABEL_K = w > 0 ? Math.min(3, Math.max(1, 10.5 / (8.6 * w / INK_REF_VB))) : 1; };
+    LABEL_K = w > 0 ? Math.min(3, Math.max(1, 11.5 / (8.6 * w / INK_REF_VB))) : 1; };
   addEventListener('resize', () => { fitLabels(); ui.render(); });
   fitLabels();
   ui.render = () => { _clipN = 0; document.documentElement.style.setProperty('--accent', PALS[st.pal].l); art.innerHTML = inkScale(cfg.scene(st, PALS[st.pal])); ui.drawStats(); };

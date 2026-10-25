@@ -66,6 +66,10 @@ const FIGURE_CSP = [
   "frame-ancestors 'self'",
   'sandbox allow-scripts',
 ].join('; ');
+// The app's own pages may frame only same-origin pages, so a figure cannot
+// navigate its frame to another origin (frame-src governs a frame's navigations).
+const APP_CSP = "frame-src 'self'";
+const figuresDir = join(publicDir, 'figures');
 
 const writeQueues = new Map();
 
@@ -681,7 +685,7 @@ async function handleLogin(req, res, url) {
 // The figure pages in src/figures/ that meet the contract, with the title and
 // hint each page carries. A page that breaks it is left out (and named in the log).
 async function listFigures() {
-  const dir = join(publicDir, 'figures');
+  const dir = figuresDir;
   const names = await readdir(dir).catch(() => []);
   const figures = [];
   for (const name of names.sort()) {
@@ -859,7 +863,9 @@ async function serveStatic(req, res, url) {
       'Content-Length': details.size,
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'SAMEORIGIN',
-      ...(/^figures\/[^/]+\.html$/.test(relative) ? { 'Content-Security-Policy': FIGURE_CSP } : {}),
+      // Decided on the resolved file, not the URL: /figures//x.html and /figures/%2Fx.html are the same file.
+      ...(path.startsWith(`${figuresDir}${sep}`) ? { 'Content-Security-Policy': FIGURE_CSP }
+        : extname(path).toLowerCase() === '.html' ? { 'Content-Security-Policy': APP_CSP } : {}),
     });
     if (req.method === 'HEAD') res.end();
     else streamFile(res, path);

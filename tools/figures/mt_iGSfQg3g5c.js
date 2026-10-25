@@ -4,7 +4,9 @@
    stands over the right dish. When the sun comes out from behind the cloud, sunlight warms the dish it reaches:
    its thermometer climbs and its ice melts fast; the dish in the shade stays cooler and its ice melts slowly.
    Real sequence: ice from the tray -> into each dish -> sun comes out -> the sunny dish warms first and its ice
-   melts -> pour away the water, take fresh ice from the tray. */
+   melts -> pour away the water, take fresh ice from the tray.
+   Ice melts whenever it is warmer than 32°F, faster the warmer it is, so it melts on a cloudy day too, only
+   slower; sunlight falling on the ice melts it faster still. */
 const BW = 86, BD = 170, BH = 4;
 const DR = 15, DZ = BH + 3;                       // dish radius, dish top
 const DISH = [[46, 136], [51, 78]];               // left dish (always in the open), right dish (under the roof)
@@ -16,7 +18,8 @@ const SUN = [54, 44, 99];
 const ICE = { l: '#eef9fd', m: '#c9eaf6', d: '#9fd0e4' };
 const PLASTIC = matOf('#a9cde8');
 const SHADEM = { l: '#f4e7c9', m: '#dccca8', d: '#a8977a' };
-const WARM = 74, HOT = 96, COOL = 62;             // degrees F: cloudy day, in the shade, in the sun
+const WARM = 74, HOT = 96, COOL = 62;             // degrees F: in the shade, in the sun, cloudy day
+const FREEZE = 32;                                // ice melts at any temperature above this
 
 const st = { pal: 'mustard', sunny: false, cloud: 1, shade: true, ice: [1, 1], water: [0, 0], T: [COOL, COOL], tray: 6, moving: null, running: false };
 
@@ -118,7 +121,7 @@ function scene(st){
 /* ---------- behavior ---------- */
 let ui;
 const steady = () => !st.moving && Math.abs(st.cloud - (st.sunny ? 0 : 1)) < .001
-  && st.T.every((T, i) => Math.abs(T - target(i)) < .3) && st.ice.every((v, i) => v <= 0 || st.T[i] <= COOL + 2);
+  && st.T.every((T, i) => Math.abs(T - target(i)) < .3) && st.ice.every((v, i) => v <= 0 || st.T[i] <= FREEZE);
 function run(){
   if (st.running) return;
   st.running = true;
@@ -128,8 +131,10 @@ function run(){
     for (let i = 0; i < 2; i++){
       const want = st.sunny ? COOL + (target(i) - COOL) * (1 - st.cloud) : target(i);
       st.T[i] += (want - st.T[i]) * Math.min(1, dt * .9);
-      // warmer than a cool day melts the ice: about 4 s in the sun, much longer in the shade
-      const melt = Math.min(st.ice[i], Math.max(0, st.T[i] - (COOL + 2)) / (HOT - COOL - 2) * .26 * dt);
+      // above freezing the ice melts, faster the warmer the air, and faster again in direct sunlight:
+      // about 3.5 s in the sun, about 12 s in the shade, about 16 s on a cloudy day
+      const sunOnIce = lit(i) ? .16 * (1 - st.cloud) : 0;
+      const melt = Math.min(st.ice[i], (Math.max(0, st.T[i] - FREEZE) / (HOT - FREEZE) * .13 + sunOnIce) * dt);
       st.ice[i] -= melt; st.water[i] = Math.min(1, st.water[i] + melt);
     }
     if (st.moving){
@@ -190,3 +195,4 @@ ui = mountFigure({
     if (q.has('tray')) st.tray = Math.max(0, Math.min(6, +q.get('tray')));
   },
 });
+run();   // ice above freezing starts melting at once, slowly while the sun is behind the cloud

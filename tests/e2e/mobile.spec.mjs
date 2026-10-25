@@ -1,7 +1,8 @@
 // 390×844 phone viewport: every route renders without sideways scrolling, and
 // the phone-only chrome (top bar, bottom nav) works.
 import { readdirSync } from 'node:fs';
-import { figureIdOf } from '../../src/js/figures/contract.js';
+import { ENGINE_NOTICE, figureIdOf, figureProblems } from '../../src/js/figures/contract.js';
+import { engineSource } from '../../scripts/build-figures.mjs';
 import { test, expect, modal, closeModal, expectToast, noHorizontalOverflow, childView, leaveChildView } from './fixtures.mjs';
 import { LEARNERS, TOPICS } from './support/family.mjs';
 import { TODAY_KEY } from './support/env.mjs';
@@ -367,11 +368,10 @@ test('"See how it works" on a phone: the figure fits, its controls are 44 px and
   expect(errors).toEqual([]);
 });
 
-// Every figure in src/figures/ (the PM's included), in the topic page's frame on a 390 px phone:
-// label text is at least 10 px on screen (HAR-34 review).
-for (const name of readdirSync(new URL('../../src/figures/', import.meta.url)).filter(figureIdOf)) {
-  const id = figureIdOf(name);
-  test(`"See how it works" on a phone: ${id} labels are at least 10 px`, async ({ page, gotoApp }) => {
+// Label text in the topic page's frame on a 390 px phone (HAR-34 review): at least 11 px for every
+// page in src/figures/, and for a worst case built here: five long actions (three or four rows) and
+// six labels, served in place of the cart's page.
+const label11 = async (page, gotoApp, id) => {
     await gotoApp({ seed: {}, hash: `topic/${id}` });
     const frameEl = page.locator('iframe[sandbox="allow-scripts"]');
     await frameEl.scrollIntoViewIfNeeded();
@@ -381,6 +381,34 @@ for (const name of readdirSync(new URL('../../src/figures/', import.meta.url)).f
     await expect(frame.locator('#fig .tag').first()).toBeVisible();
     const sizes = await frame.locator('#fig .tag text').evaluateAll((texts) => texts.map((t) => parseFloat(t.getAttribute('font-size')) * t.getScreenCTM().a));
     expect(sizes.length).toBeGreaterThan(0);
-    expect(Math.min(...sizes), `label text in a ${Math.round(box.width)} x ${Math.round(box.height)} frame`).toBeGreaterThanOrEqual(10);
-  });
+    expect(Math.min(...sizes), `label text in a ${Math.round(box.width)} x ${Math.round(box.height)} frame`).toBeGreaterThanOrEqual(11);
+};
+for (const name of readdirSync(new URL('../../src/figures/', import.meta.url)).filter(figureIdOf)) {
+  const id = figureIdOf(name);
+  test(`"See how it works" on a phone: ${id} labels are at least 11 px`, async ({ page, gotoApp }) => label11(page, gotoApp, id));
 }
+
+test('"See how it works" on a phone: a figure with five long actions and six labels keeps 11 px labels', async ({ page, gotoApp }) => {
+  const script = `const st = { on: false };
+ui = mountFigure({ title: 'Five actions', size: [40, 60, 40], state: st,
+  scene: (st, m) => box(0, 0, 0, 40, 60, 30, m, tone, 1.4)
+    + tag([40, 50, 30], -40, -30, 'HEATER', st.on) + tag([40, 10, 30], 40, -30, 'THERMOMETER')
+    + tag([20, 0, 15], 50, 10, 'WATER TANK') + tag([40, 30, 0], 0, 30, 'FLOAT')
+    + tag([0, 60, 20], -50, 0, st.on ? 'STEAM' : 'LID') ,
+  buttons: ['Fill the kettle with water', 'Switch the kettle on', 'Wait for the water to boil', 'Pour into the cup', 'Empty what is left']
+    .map(label => ({ label, onClick: () => { st.on = !st.on; } })),
+});`;
+  const page5 = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Five actions</title>
+<meta name="description" content="Five long actions."></head><body><script>
+${ENGINE_NOTICE}
+${await engineSource()}
+</script><script>
+let ui;
+${script}
+</script></body></html>`;
+  expect(figureProblems('mt_B3W5EfimJw.html', page5)).toEqual([]);
+  await page.route('**/figures/mt_B3W5EfimJw.html', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: page5 }));
+  await label11(page, gotoApp, 'mt_B3W5EfimJw');
+  const rows = await page.frameLocator('iframe[sandbox="allow-scripts"]').locator('.act').evaluateAll((bs) => new Set(bs.map((b) => Math.round(b.getBoundingClientRect().top))).size);
+  expect(rows, 'the five actions wrap into several rows').toBeGreaterThanOrEqual(3);
+});

@@ -4,6 +4,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { test, expect, modal, childView } from './fixtures.mjs';
 import { figureIdOf, figureMeta } from '../../src/js/figures/contract.js';
+import { URLS } from './support/env.mjs';
 
 // Every page in src/figures/, found the way the server finds them: by file name.
 const DIR = new URL('../../src/figures/', import.meta.url);
@@ -103,6 +104,9 @@ for (const [id, meta] of Object.entries(FIGURES)) {
     // (as a script of the page's own, like the figure's code, not Playwright's evaluate)
     await page.evaluate(() => { const s = document.createElement('script'); s.textContent = "throw new Error('figure test error');"; document.body.append(s); });
     await expect.poll(() => page.evaluate(() => document.documentElement.dataset.errors || '')).toContain('figure test error');
+    // so does a promise that rejects with nothing to catch it
+    await page.evaluate(() => { const s = document.createElement('script'); s.textContent = "Promise.reject(new Error('async figure error'));"; document.body.append(s); });
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.errors || '')).toContain('Unhandled rejection: async figure error');
   });
 }
 
@@ -143,6 +147,43 @@ test('topic page: "See how it works" shows the figure in a sandboxed frame; pres
   await expect(page).toHaveURL(new RegExp(`#topic/${CART}$`));
   expect(errors).toEqual([]);
   expect(outside).toEqual([]);
+});
+
+test('Ice in the sun: ice melts at any temperature above freezing, slowly when cloudy, fastest in the sun', async ({ page }) => {
+  await page.goto('/figures/mt_iGSfQg3g5c.html');
+  const state = () => page.evaluate(() => ({ ice: [...window.__st.ice], T: [...window.__st.T] }));
+  // Cloudy, 62°F: both cubes are already melting, slowly.
+  await expect.poll(async () => (await state()).ice[0], { timeout: 5_000 }).toBeLessThan(0.95);
+  const cloudy = await state();
+  expect(cloudy.T.map(Math.round)).toEqual([62, 62]);
+  expect(cloudy.ice[0]).toBeGreaterThan(0.5);
+  // Sun out, right dish in the shade: the sunny cube melts first and its dish is warmer.
+  await page.getByRole('button', { name: 'Sun comes out' }).click();
+  await page.waitForTimeout(2_000);
+  const sunny = await state();
+  expect(sunny.ice[0]).toBeLessThan(sunny.ice[1]);
+  expect(sunny.T[0]).toBeGreaterThan(sunny.T[1]);
+  // The shaded cube keeps melting (74°F is above freezing), and both are gone in the end.
+  await expect.poll(async () => (await state()).ice[1], { timeout: 20_000 }).toBe(0);
+  expect((await state()).ice[0]).toBe(0);
+});
+
+test('a figure cannot navigate its own frame to another origin', async ({ page, gotoApp }) => {
+  const away = [];
+  page.on('request', (r) => { if (r.url().startsWith(URLS.mockAi)) away.push(r.url()); });
+  await gotoApp({ seed: {}, hash: `topic/${CART}` });
+  const frameEl = page.locator('iframe[title="Toy cart: how it works"]');
+  await expect(page.frameLocator('iframe[title="Toy cart: how it works"]').locator('.act').first()).toBeVisible();
+  const frame = page.frames().find((f) => f.url().includes(`/figures/${CART}.html`));
+  // Both spellings: a full URL and a protocol-relative one. The app page's frame-src 'self' refuses them.
+  const target = new URL('/health', URLS.mockAi);
+  for (const href of [target.href, `//${target.host}${target.pathname}`]) {
+    await frame.evaluate((h) => { location.href = h; }, href).catch(() => {});
+    await page.waitForTimeout(800);
+  }
+  expect(away).toEqual([]);
+  expect(page.frames().some((f) => f.url().startsWith(URLS.mockAi))).toBe(false);
+  await expect(frameEl).toHaveAttribute('sandbox', 'allow-scripts');
 });
 
 test('topic page: a topic without a figure has no "See how it works" section', async ({ page, gotoApp }) => {
