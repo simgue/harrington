@@ -270,9 +270,9 @@ npm run backup
 ```
 
 which writes `backups/harrington-<timestamp>.tar.gz` (Git ignores `backups/`).
-To restore, close Harrington in every browser tab first (a tab left open on
-the newer data would otherwise offer to save its next change over the restored
-copy), then stop Harrington, replace `data/private/` with the archive's
+To restore, stop Harrington, close it on every device (a tab left open would
+otherwise see its next change refused and offer to put it back on the restored
+data), replace `data/private/` with the archive's
 contents (`tar -xzf backups/harrington-<timestamp>.tar.gz -C data`), and start
 it again. With Docker, back up the `harrington-data` volume instead.
 Set `HARRINGTON_BACKUP_DIR` to write somewhere else; the server reads the same
