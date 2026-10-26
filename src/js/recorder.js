@@ -295,7 +295,7 @@ export function openRecorder(studentId, topic = null, section = null, options = 
       e.preventDefault();
       // Read-only family data: the record would be refused, so do not upload
       // its audio either (it would be left without a record).
-      if (store.isReadOnly()) { toast(`Not saved. ${store.READ_ONLY_MESSAGE}`, 'error'); return; }
+      if (store.isReadOnly()) { toast(`Not saved. ${store.readOnlyMessage()}`, 'error'); return; }
       const saveBtn = wrap.querySelector('#save');
       saveBtn.disabled = true;
       saveBtn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>Saving\u2026';

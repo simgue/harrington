@@ -4,6 +4,7 @@
 //
 // Keys (built in alerts.js):
 //   welcome, evidence:<learner>:<last record>  permanent; kept
+//   repair:<notice id>                         permanent; kept
 //   backup, backup:none                        snoozes; dropped once expired
 //   picks:<learner>:<yyyy-mm-dd>               one day only; dropped once that day is past
 

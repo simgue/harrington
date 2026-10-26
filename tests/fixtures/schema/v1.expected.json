@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "version": 12,
   "updatedAt": 1700000400000,
   "students": [
@@ -33,7 +33,16 @@
     ]
   },
   "tests": {},
-  "notifications": [],
+  "notifications": [
+    {
+      "id": "n_repair_1768435200000",
+      "type": "repair",
+      "title": "Harrington updated the family data format",
+      "body": "The family data as it was before this update is kept on the Harrington server, in its data folder, as family-state.format-1.json.",
+      "read": false,
+      "createdAt": 1768435200000
+    }
+  ],
   "graphView": "atlas",
   "settings": {
     "calendar": {

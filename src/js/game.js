@@ -44,7 +44,7 @@ function subjectPasses(studentId) {
 }
 function recallReviews(studentId) {
   const r = store.get().recall[studentId] || {};
-  return Object.values(r).reduce((n, c) => n + (c.reps || 0), 0);
+  return Object.values(r).reduce((n, c) => n + (c?.reps || 0), 0);
 }
 function challengeAces(studentId) {
   return (store.challengesFor(studentId) || []).filter(c => c.total && (c.correct / c.total) >= 0.8).length;

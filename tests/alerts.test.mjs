@@ -161,3 +161,12 @@ test('the bell never calls the AI and the curriculum-change sync is gone', async
   }
   await assert.rejects(readFile(new URL('../src/js/curriculum-sync.js', import.meta.url)), { code: 'ENOENT' });
 });
+
+test('a data repair notice shows in the bell until dismissed, family-wide and first', () => {
+  const notice = { id: 'n_repair_1', type: 'repair', title: 'Harrington repaired some family data', body: 'A learner name longer than 60 characters was shortened.' };
+  const items = buildAlerts({ now: Date.UTC(2026, 9, 7, 9), notices: [notice], welcomed: true });
+  assert.deepEqual(items[0], { key: 'repair:n_repair_1', type: 'repair', learnerId: null, title: notice.title, body: notice.body });
+  assert.deepEqual(buildAlerts({ now: Date.UTC(2026, 9, 7, 9), notices: [notice], welcomed: true, dismissed: { 'repair:n_repair_1': 1 } }), []);
+  // Permanent: a dismissal is kept however old.
+  assert.deepEqual(pruneDismissed({ 'repair:n_repair_1': 1 }, Date.UTC(2030, 0, 1)), { 'repair:n_repair_1': 1 });
+});

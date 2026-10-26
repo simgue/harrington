@@ -219,7 +219,7 @@ function studentFields(s = null) {
   return `
       <div>
         <label for="sf-name" class="text-sm font-medium block mb-1.5">Name</label>
-        <input id="sf-name" name="name" required maxlength="60" value="${esc(s?.name || '')}" class="${inputCls}" />
+        <input id="sf-name" name="name" required maxlength="${store.NAME_MAX}" value="${esc(s?.name || '')}" class="${inputCls}" />
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
@@ -318,7 +318,8 @@ function localDateKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-async function exportFamilyData() {
+// Also offered by app.js when a page fails to render.
+export async function exportFamilyData() {
   try {
     const doc = await store.exportDocument();
     const blob = new Blob([`${JSON.stringify(doc, null, 2)}\n`], { type: 'application/json' });
@@ -346,7 +347,7 @@ function disableImportIfReadOnly(button) {
 }
 
 function pickImportFile() {
-  if (store.isReadOnly()) { toast(store.READ_ONLY_MESSAGE, 'error'); return; }
+  if (store.isReadOnly()) { toast(store.readOnlyMessage(), 'error'); return; }
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'application/json,.json';
@@ -406,7 +407,7 @@ let tooLargeBanner = null;
 function readOnlyBanner() {
   return el(`<div role="alert" class="read-only-banner bg-[#8a6412] text-white px-4 py-2.5 text-sm font-medium text-center flex items-center justify-center gap-2">
     <i data-lucide="lock" class="w-4 h-4 shrink-0"></i>
-    <span>${esc(store.READ_ONLY_MESSAGE)}</span>
+    <span>${esc(store.readOnlyMessage())}</span>
   </div>`);
 }
 // Outside the shell (no main column yet), above #app.
@@ -421,7 +422,6 @@ function showReadOnly() {
 
 // A change the store refused because the data is read-only: say so, and keep
 // the action's own confirmation ("Record saved") from showing.
-const NOT_SAVED = `Not saved. ${store.READ_ONLY_MESSAGE}`;
 let lastNotSaved = 0;
 function reportBlockedWrite(automatic = false) {
   showReadOnly();
@@ -431,14 +431,32 @@ function reportBlockedWrite(automatic = false) {
   // One toast per burst of blocked writes (a click can persist twice).
   if (Date.now() - lastNotSaved < 1500) return;
   lastNotSaved = Date.now();
-  toast(NOT_SAVED, 'error');
+  toast(`Not saved. ${store.readOnlyMessage()}`, 'error');
 }
 let retryToast = null;
+// Toast actions are 44 px tap targets.
+const TOAST_BUTTON = 'shrink-0 min-h-11 min-w-11 px-1 underline font-600';
 let conflictToast = null;
 
 function clearSaveProblems() {
   tooLargeBanner?.remove(); tooLargeBanner = null;
   retryToast?.remove(); retryToast = null;
+  undockToast();
+}
+
+// The refusal toast stays until dismissed. #toast-root docks it above the
+// phone's bottom navigation; --docked-toast tells an open sheet (ui.js
+// openModal) how much of the screen's bottom it takes, so the sheet's Export
+// and Import stay clickable (HAR-40).
+function dockToast(node) {
+  requestAnimationFrame(() => {
+    if (!node.isConnected) return;
+    const space = Math.ceil(window.innerHeight - node.getBoundingClientRect().top) + 8;
+    document.documentElement.style.setProperty?.('--docked-toast', `${Math.max(0, space)}px`);
+  });
+}
+function undockToast() {
+  document.documentElement.style.removeProperty?.('--docked-toast');
 }
 
 function topicName(id) {
@@ -455,7 +473,7 @@ function showConflict({ discarded = [], retry = null } = {}) {
   const msg = lost ? `Another device saved changes first. Not kept here: ${lost}.` : 'Another device saved changes. Reloaded the latest.';
   const node = el(`<div role="alert" class="px-4 py-2.5 rounded-lg text-sm font-medium bg-ink text-white shadow-lg flex items-center gap-3">
     <span>${esc(msg)}</span>
-    ${retry ? '<button class="underline font-600 shrink-0">Try again</button>' : ''}
+    ${retry ? `<button class="${TOAST_BUTTON}">Try again</button>` : ''}
   </div>`);
   conflictToast = node;
   const close = () => { node.remove(); if (conflictToast === node) conflictToast = null; };
@@ -476,19 +494,26 @@ function showTooLarge() {
 
 // reason: the server's explanation when it refused the data itself (422,
 // 409). The same data would be refused again, so there is no Retry then.
+// The toast always names the current problem: every change is checked as it
+// is made, so a parent who fixes one problem can be shown the next one.
+let retryReason = null;
 function showRetry(reason = null) {
-  if (retryToast) return;
+  if (retryToast && retryReason === reason) return;
   const root = document.getElementById('toast-root');
   if (!root) return;
-  retryToast = el(`<div role="alert" class="px-4 py-2.5 rounded-lg text-sm font-medium bg-[#a4473a] text-white shadow-lg flex items-center gap-3">
-    <span>${reason ? `Harrington refused these changes: ${esc(reason)}` : 'Could not save changes to Harrington.'}</span>
-    ${reason ? '<button class="dismiss underline font-600">Dismiss</button>' : '<button class="retry underline font-600">Retry</button>'}
+  retryToast?.remove();
+  retryReason = reason;
+  retryToast = el(`<div role="alert" class="px-4 py-1 rounded-lg text-sm font-medium bg-[#a4473a] text-white shadow-lg flex items-center gap-3">
+    <span class="py-1.5">${reason ? `Harrington refused these changes: ${esc(reason)}` : 'Could not save changes to Harrington.'}</span>
+    ${reason ? `<button class="dismiss ${TOAST_BUTTON}">Dismiss</button>` : `<button class="retry ${TOAST_BUTTON}">Retry</button>`}
   </div>`);
   retryToast.querySelector('button').onclick = () => {
     retryToast?.remove(); retryToast = null;
+    undockToast();
     if (!reason) store.flushSaves();
   };
   root.appendChild(retryToast);
+  dockToast(retryToast);
 }
 
 store.onSaveStatus((event) => {
@@ -498,6 +523,11 @@ store.onSaveStatus((event) => {
   else if (type === 'conflict') { clearSaveProblems(); showConflict(event); }
   else if (type === 'too-large') showTooLarge();
   else if (type === 'failed') showRetry();
-  else if (type === 'rejected') showRetry(error?.message || null);
+  else if (type === 'rejected') {
+    // The save the action triggered was refused: its confirmation must not
+    // say otherwise (it is shown later in the same task).
+    holdConfirmations();
+    showRetry(error?.message || null);
+  }
   else if (type === 'read-only') reportBlockedWrite(automatic);
 });

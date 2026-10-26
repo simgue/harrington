@@ -32,9 +32,12 @@ export const MASTERY_STATUSES = ['none', 'learning', 'practicing', 'mastered'];
 // 'note' is the label the record views fall back to for an older record.
 export const RECORD_TYPES = ['observation', 'question', 'discussion', 'assessment', 'recording', 'note'];
 export const MIN_BIRTH_YEAR = 1990;
-const NAME_MAX = 100;
+// The one limit on a learner's name: the Add and Edit forms' maxlength and
+// what a save accepts. A longer name saved before there was a limit is
+// shortened by the format 3 repair (repairDocument).
+export const NAME_MAX = 60;
 // Generous bounds: they stop a hostile file, not a long transcript.
-const TEXT_MAX = { title: 1_000, note: 50_000, transcript: 200_000, analysis: 200_000, topicName: 1_000 };
+export const TEXT_MAX = { title: 1_000, note: 50_000, transcript: 200_000, analysis: 200_000, topicName: 1_000 };
 
 export const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
 const absent = v => v === undefined || v === null;
@@ -54,6 +57,13 @@ export const realDateKey = k => {
 const validLearnerId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) && !(id in Object.prototype);
 
 // What is wrong with one learner, as the end of "Learner 2 in the file …", or null.
+// A learner's name as a message gives it, or null when the name is itself
+// the problem (missing, empty or too long).
+function usableName(s) {
+  const name = typeof s?.name === 'string' ? s.name.trim() : '';
+  return name && name.length <= NAME_MAX ? nameOf(s) : null;
+}
+
 function learnerProblem(s) {
   if (!isObject(s) || typeof s.name !== 'string' || absent(s.id)) return 'is missing an id or name';
   if (!validLearnerId(s.id)) return 'has an id that is not 1 to 64 letters, digits, "-" or "_"';
@@ -162,35 +172,60 @@ function dismissedAlertsProblem(dismissed) {
   return ok ? null : 'The file\'s dismissed alerts are not in the expected shape.';
 }
 
+// The name a message gives the learner with `id`, so the parent knows whose
+// data to look at: the file's name for them (cut to 40 characters), or null
+// when the file names no such learner.
+const LABEL_MAX = 40;
+function learnerName(doc, id) {
+  return nameOf((Array.isArray(doc.students) ? doc.students : []).find(s => isObject(s) && s.id === id));
+}
+function nameOf(s) {
+  const name = typeof s?.name === 'string' ? s.name.trim() : '';
+  if (!name) return null;
+  return name.length > LABEL_MAX ? `${name.slice(0, LABEL_MAX - 1)}…` : name;
+}
+// " for Rowan" or "" when the learner has no name in the file.
+const forLearner = (doc, id) => { const name = learnerName(doc, id); return name ? ` for ${name}` : ''; };
+// "Rowan's" or "The file's".
+const whose = (doc, id) => { const name = learnerName(doc, id); return name ? `${name}'s` : 'The file\'s'; };
+
+// A record is named by its title; anything else (or a record without a usable
+// title) by its position.
+function itemLabel(item, section, i) {
+  const title = typeof item?.title === 'string' ? item.title.trim() : '';
+  if (!title || title.length > TEXT_MAX.title) return `${section} item ${i + 1}`;
+  return `“${title.length > LABEL_MAX ? `${title.slice(0, LABEL_MAX - 1)}…` : title}”`;
+}
+
 // Each learner's list in `section` must be an array whose items pass `check`.
 function listsProblem(doc, section, label, check) {
-  for (const list of Object.values(doc[section] || {})) {
+  for (const [id, list] of Object.entries(doc[section] || {})) {
     if (!Array.isArray(list)) return `The file's "${section}" section is not in the expected shape.`;
     for (const [i, item] of list.entries()) {
       const problem = check(item);
-      if (problem) return `A ${label} in the file (${section} item ${i + 1}) ${problem}.`;
+      if (problem) return `A ${label}${forLearner(doc, id)} in the file (${itemLabel(item, section, i)}) ${problem}.`;
     }
   }
   return null;
 }
 
-function progressProblem(progress) {
-  for (const entries of Object.values(progress || {})) {
+function progressProblem(doc) {
+  for (const [id, entries] of Object.entries(doc.progress || {})) {
     if (!isObject(entries)) return 'The file\'s "progress" section is not in the expected shape.';
     for (const entry of Object.values(entries)) {
       if (!isObject(entry) || !MASTERY_STATUSES.includes(entry.status)) {
-        return `The file's progress has a status other than ${MASTERY_STATUSES.join(', ')}.`;
+        return `${whose(doc, id)} progress has a status other than ${MASTERY_STATUSES.join(', ')}.`;
       }
     }
   }
   return null;
 }
 
-function gameProblem(game) {
-  for (const g of Object.values(game || {})) {
+function gameProblem(doc) {
+  for (const [id, g] of Object.entries(doc.game || {})) {
     if (!isObject(g)) return 'The file\'s "game" section is not in the expected shape.';
-    if (!absent(g.xp) && !(isFiniteNumber(g.xp) && g.xp >= 0)) return 'The file\'s XP is not a number of zero or more.';
-    if (!absent(g.badges) && !isObject(g.badges)) return 'The file\'s badges are not in the expected shape.';
+    if (!absent(g.xp) && !(isFiniteNumber(g.xp) && g.xp >= 0)) return `${whose(doc, id)} XP is not a number of zero or more.`;
+    if (!absent(g.badges) && !isObject(g.badges)) return `${whose(doc, id)} badges are not in the expected shape.`;
   }
   return null;
 }
@@ -272,9 +307,12 @@ export function validateDocument(doc) {
   if (!Array.isArray(doc.students)) return 'The file has no learner list.';
   const ids = new Set();
   for (const [index, s] of doc.students.entries()) {
+    // Named when the name itself is fine, else by position.
+    const name = usableName(s);
+    const who = name ? `The learner “${name}”` : `Learner ${index + 1}`;
     const problem = learnerProblem(s);
-    if (problem) return `Learner ${index + 1} in the file ${problem}.`;
-    if (ids.has(s.id)) return `Learner ${index + 1} in the file has the same id as another learner.`;
+    if (problem) return `${who} in the file ${problem}.`;
+    if (ids.has(s.id)) return `${who} in the file has the same id as another learner.`;
     ids.add(s.id);
   }
   if (!absent(doc.activeStudentId) && !ids.has(doc.activeStudentId)) {
@@ -292,13 +330,171 @@ export function validateDocument(doc) {
   }
   return learnerMapsProblem(doc)
     || dismissedAlertsProblem(doc.dismissedAlerts)
-    || progressProblem(doc.progress)
+    || progressProblem(doc)
     || listsProblem(doc, 'records', 'record', recordProblem)
     || listsProblem(doc, 'tests', 'test result', testProblem)
     || listsProblem(doc, 'challenges', 'challenge result', challengeProblem)
-    || gameProblem(doc.game)
+    || gameProblem(doc)
     || interestsProblem(doc.interests)
     || listsProblem(doc, 'requests', 'topic request', requestProblem)
     || levelsetProblem(doc.levelset)
     || settingsProblem(doc.settings, doc.schemaVersion);
+}
+
+// ---- Repairs ----
+
+// Per-learner lists and maps whose entries the views read as objects. A null
+// or other non-object entry (from a hand edit, or an older Harrington that did
+// not check) would throw while rendering (HAR-38), and the server refuses a
+// save that carries one, so it is dropped.
+const LEARNER_LISTS = ['records', 'tests', 'challenges', 'suggestions'];
+const LEARNER_ENTRY_MAPS = ['progress', 'recall', 'practice', 'adaptations'];
+
+// Returns { doc, dropped }: `doc` is the same object when nothing was dropped,
+// else a copy with every non-object entry removed from the learners, their
+// lists and maps, plan extras and daily days.
+export function dropBrokenEntries(doc) {
+  if (!isObject(doc)) return { doc, dropped: 0 };
+  let dropped = 0;
+  const out = { ...doc };
+  // A learner that is not an object at all (null in students) would send
+  // every route to the failure screen.
+  if (Array.isArray(doc.students)) {
+    const kept = doc.students.filter(isObject);
+    if (kept.length !== doc.students.length) { dropped += doc.students.length - kept.length; out.students = kept; }
+  }
+  const perLearner = (key, clean) => {
+    if (!isObject(doc[key])) return;
+    let changed = false;
+    const next = {};
+    for (const [id, value] of Object.entries(doc[key])) {
+      const [kept, lost] = clean(value);
+      if (lost) { dropped += lost; changed = true; }
+      if (kept !== undefined) next[id] = kept;
+    }
+    if (changed) out[key] = next;
+  };
+  const objectsOnly = (entries) => {
+    const kept = Object.fromEntries(Object.entries(entries).filter(([, v]) => isObject(v)));
+    return [kept, Object.keys(entries).length - Object.keys(kept).length];
+  };
+  for (const key of LEARNER_LISTS) {
+    perLearner(key, list => {
+      if (!Array.isArray(list)) return [[], 1];
+      const kept = list.filter(isObject);
+      return [kept.length === list.length ? list : kept, list.length - kept.length];
+    });
+  }
+  for (const key of LEARNER_ENTRY_MAPS) {
+    perLearner(key, entries => {
+      if (!isObject(entries)) return [{}, 1];
+      const [kept, lost] = objectsOnly(entries);
+      return [lost ? kept : entries, lost];
+    });
+  }
+  perLearner('plan', plan => {
+    if (!isObject(plan)) return [undefined, 1];
+    if (!isObject(plan.extras)) return [plan, 0];
+    let lost = 0;
+    const extras = {};
+    for (const [day, list] of Object.entries(plan.extras)) {
+      if (!Array.isArray(list)) { lost += 1; continue; }
+      const kept = list.filter(isObject);
+      lost += list.length - kept.length;
+      extras[day] = kept;
+    }
+    return [lost ? { ...plan, extras } : plan, lost];
+  });
+  perLearner('daily', days => {
+    if (!isObject(days)) return [{}, 1];
+    const [kept, lost] = objectsOnly(days);
+    return [lost ? kept : days, lost];
+  });
+  return dropped ? { doc: out, dropped } : { doc, dropped: 0 };
+}
+
+// Appended to a text a repair had to shorten.
+export const SHORTENED_MARKER = ' [shortened by Harrington]';
+const shorten = (text, max) => `${text.slice(0, max - SHORTENED_MARKER.length).trimEnd()}${SHORTENED_MARKER}`;
+
+// The schema 3 repair (HAR-39): data saved before the server checked every
+// save (PR #32) can hold values validateDocument now refuses, and every save
+// of it would be refused. Run once, on the load that migrates the document to
+// schema 3, and saved by that load's quiet migration save:
+// - a learner name over NAME_MAX characters is shortened;
+// - a birth year outside MIN_BIRTH_YEAR to this year is clamped into it (a
+//   year that is not a whole number is cleared);
+// - a record text over its TEXT_MAX bound is shortened, ending in
+//   SHORTENED_MARKER;
+// - non-object entries are dropped (dropBrokenEntries).
+// Each change is listed in one "repair" notification for the parent, which
+// also names `copy` when given. Returns the repaired document, or the same
+// object when nothing needed repair and no copy is named.
+// `now` is injectable for tests (the notification's date, this year); `copy`
+// names the server's copy of the unrepaired document (schema.js
+// formatCopyName), which the notice points to.
+export function repairDocument(doc, { now = Date.now(), copy = null } = {}) {
+  if (!isObject(doc)) return doc;
+  const notes = [];
+  const { doc: cleaned, dropped } = dropBrokenEntries(doc);
+  let out = cleaned;
+  if (dropped) notes.push(`${dropped === 1 ? 'An unreadable entry was' : `${dropped} unreadable entries were`} removed.`);
+  const thisYear = new Date(now).getFullYear();
+  if (Array.isArray(out.students)) {
+    let changed = false;
+    const students = out.students.map(s => {
+      if (!isObject(s)) return s;
+      let next = s;
+      if (typeof s.name === 'string' && s.name.trim().length > NAME_MAX) {
+        next = { ...next, name: s.name.trim().slice(0, NAME_MAX).trimEnd() };
+        notes.push(`A learner name longer than ${NAME_MAX} characters was shortened to “${nameOf(next)}”.`);
+      }
+      const year = s.birthYear;
+      if (!absent(year) && !(Number.isInteger(year) && year >= MIN_BIRTH_YEAR && year <= thisYear)) {
+        const fixed = Number.isInteger(year) ? Math.min(Math.max(year, MIN_BIRTH_YEAR), thisYear) : null;
+        next = { ...next, birthYear: fixed };
+        const who = nameOf(next) || 'a learner';
+        notes.push(fixed === null
+          ? `The birth year of ${who} was not a year and was cleared.`
+          : `The birth year of ${who} was ${year}, outside ${MIN_BIRTH_YEAR} to ${thisYear}, and is now ${fixed}.`);
+      }
+      if (next !== s) changed = true;
+      return next;
+    });
+    if (changed) out = { ...out, students };
+  }
+  if (isObject(out.records)) {
+    let changed = false;
+    const records = {};
+    for (const [id, list] of Object.entries(out.records)) {
+      records[id] = !Array.isArray(list) ? list : list.map(r => {
+        let next = r;
+        for (const [field, max] of Object.entries(TEXT_MAX)) {
+          if (typeof r[field] !== 'string' || r[field].length <= max) continue;
+          next = { ...next, [field]: shorten(r[field], max) };
+          const title = field !== 'title' && typeof r.title === 'string' && r.title.trim() ? ` “${r.title.trim().slice(0, LABEL_MAX)}”` : '';
+          notes.push(`The ${field} of a record${forLearner(out, id)}${title} was longer than ${max.toLocaleString('en-US')} characters and was shortened.`);
+        }
+        if (next !== r) changed = true;
+        return next;
+      });
+    }
+    if (changed) out = { ...out, records };
+  }
+  // The kept copy is announced even when nothing needed repair (an older
+  // format's file is still replaced), and first, so the length cap below
+  // never cuts it.
+  const repaired = notes.length > 0;
+  if (!repaired && !copy) return doc;
+  if (copy) notes.unshift(`The family data as it was before this update is kept on the Harrington server, in its data folder, as ${copy}.`);
+  const body = notes.join(' ');
+  const note = {
+    id: `n_repair_${now}`,
+    type: 'repair',
+    title: repaired ? 'Harrington repaired some family data' : 'Harrington updated the family data format',
+    body: body.length > 2_000 ? `${body.slice(0, 1_999)}…` : body,
+    read: false,
+    createdAt: now,
+  };
+  return { ...out, notifications: [...(Array.isArray(out.notifications) ? out.notifications : []), note] };
 }
