@@ -129,8 +129,9 @@ test('learner menu: 44px targets with names, names not cut off (F14)', async ({ 
   }
   // HAR-24: at 390 px the four actions sit in a two-by-two grid under the name,
   // each label whole and its icon full size.
-  const boxes = await Promise.all(actions.map((name) => menu.getByRole('button', { name, exact: true }).boundingBox()));
-  expect(new Set(boxes.map((b) => Math.round(b.y))).size, 'two rows').toBe(2);
+  // The phone panel slides up for 200 ms after opening; re-read until it settles.
+  const rows = async () => new Set((await Promise.all(actions.map((name) => menu.getByRole('button', { name, exact: true }).boundingBox()))).map((b) => Math.round(b.y))).size;
+  await expect.poll(rows, { message: 'two rows' }).toBe(2);
   for (const name of actions) {
     const button = menu.getByRole('button', { name, exact: true });
     expect(await button.evaluate((n) => n.scrollWidth - n.clientWidth), `${name} overflows`).toBeLessThanOrEqual(0);
