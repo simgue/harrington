@@ -505,7 +505,7 @@ describe('family data safety in the store', { concurrency: false }, () => {
     // A malformed entry is refused like any other bad learner field (document.js)...
     const broken = JSON.parse(JSON.stringify(exported));
     broken.requests[id].push({ id: 'rq_bad', text: 42, createdAt: 1 });
-    await assert.rejects(store.importDocument(broken), /topic request in the file .* has a text that is not text/);
+    await assert.rejects(store.importDocument(broken), /topic request for .* in the file .* has a text that is not text/);
     // ...while an oversized log and a learner the file does not have are cleaned on import.
     const tampered = JSON.parse(JSON.stringify(exported));
     tampered.requests[id] = Array.from({ length: store.REQUEST_LOG_MAX + 5 }, (_, i) => ({ id: `rq_t${i}`, text: `t${i}`, createdAt: 1000 + i, topicId: null }));
