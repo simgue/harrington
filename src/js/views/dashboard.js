@@ -46,6 +46,7 @@ export function renderDashboard(params, { navigate }) {
         <p class="text-sm font-medium text-brand flex items-center gap-1.5"><i data-lucide="sun" class="w-4 h-4"></i>${esc(greet)}</p>
         <h1 class="font-display text-3xl sm:text-[40px] leading-tight font-600 mt-0.5">${esc(name)}'s ${esc(weekday)}</h1>
         <p class="text-sm text-ink-soft mt-1">${esc(dateLabel)} · age ${esc(age)} · ${esc(formatCount(stats.totalMastered))} of ${esc(countLabel(stats.total, 'topic'))} mastered</p>
+        <button id="qfind" class="mt-0.5 min-h-11 inline-flex items-center gap-1.5 text-sm font-600 text-brand hover:text-brand-dark"><i data-lucide="search" class="w-4 h-4"></i>Find a topic</button>
       </div>
       <div class="flex flex-wrap gap-2">
         <button id="qmic" class="flex items-center gap-2.5 h-12 pl-1.5 pr-5 rounded-full bg-brand hover:bg-brand-dark text-paper-card text-sm font-600 transition-colors">
@@ -57,6 +58,7 @@ export function renderDashboard(params, { navigate }) {
     </div>
   </header>`);
   hero.querySelector('#qtime').onclick = () => navigate('graph');
+  hero.querySelector('#qfind').onclick = () => navigate('find');
   hero.querySelector('#qmic').onclick = () => openRecorder(active.id);
   hero.querySelector('#qrec').onclick = () => openRecordForm(active.id);
   hero.querySelector('#qkid').onclick = () => openKidMode();
