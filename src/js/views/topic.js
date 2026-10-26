@@ -15,6 +15,7 @@ import { openLesson, openActivityDetail, activityCacheKey } from './lesson.js';
 import { openPrintables } from './printables.js';
 import { recallSectionCard } from './recall.js';
 import { aiErrorBlock, aiUnavailableChip, gateAi } from '../ai-status.js';
+import { howItWorksFrame } from './howitworks.js';
 import { openObservation, canObserve } from './observation.js';
 
 export function renderTopic(params, { navigate }) {
@@ -91,6 +92,15 @@ export function renderTopic(params, { navigate }) {
   const grid = el(`<div class="grid lg:grid-cols-3 gap-5"></div>`);
   const mainCol = el(`<div class="lg:col-span-2 space-y-5"></div>`);
   const sideCol = el(`<div class="space-y-5"></div>`);
+
+  // --- See how it works (HAR-34): an interactive figure, for the topics that have one ---
+  const figure = howItWorksFrame(t);
+  if (figure) {
+    const full = `<button class="full-figure text-sm font-medium text-brand-dark flex items-center gap-1 min-h-[44px]"><i data-lucide="maximize-2" class="w-4 h-4"></i>Full size</button>`;
+    const how = section('mouse-pointer-click', 'See how it works', figure, full);
+    how.querySelector('.full-figure').onclick = () => navigate('figure', { id: t.id });
+    mainCol.appendChild(how);
+  }
 
   // --- Mastery control ---
   mainCol.appendChild(masterySection(t, active));

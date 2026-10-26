@@ -299,8 +299,9 @@ npm run backup
 which writes `backups/harrington-<timestamp>.tar.gz` (Git ignores `backups/`).
 It leaves out `secrets.json` on purpose, so a backup never carries an API key;
 after a restore, enter the key again under Settings > AI provider.
-To restore, stop Harrington, close it on every device (a tab left open can
-save its own copy over the restored data), replace `data/private/` with the archive's
+To restore, stop Harrington, close it on every device (a tab left open would
+otherwise see its next change refused and offer to put it back on the restored
+data), replace `data/private/` with the archive's
 contents (`tar -xzf backups/harrington-<timestamp>.tar.gz -C data`), and start
 it again. With Docker, back up the `harrington-data` volume instead.
 Set `HARRINGTON_BACKUP_DIR` to write somewhere else; the server reads the same
@@ -388,6 +389,10 @@ copyright and licence notice are preserved, and Homestead remains configured as
 the `upstream` Git remote for future comparison and selective updates.
 
 - **Application code:** MIT — see [`LICENSE`](LICENSE).
+- **Figure engine:** `src/js/figures/engine.js`, which draws the "See how it
+  works" figures, is forked from the Colorfigures skill by April Zhu (built on
+  iso-glow by April Zhu and iso-figure by Tolga Cohce), MIT. Its notice is in
+  the file's header comment and in [`NOTICE`](NOTICE).
 - **Curriculum data:** licensed separately by its authors (ODbL 1.0 for the
   database, CC BY-SA 4.0 for the text) and **must be attributed**. See
   [`NOTICE`](NOTICE) and [`DATA-LICENSE.md`](DATA-LICENSE.md) for details and

@@ -95,7 +95,14 @@ export async function refreshHealth(capability) {
 // last version we saw; a 412 means another tab or device saved first, so we
 // replace local state with the server's copy (no field-level merging).
 let stateVersion = 0;
+// A change is pending until the server has it: `dirty` while it is only in
+// this tab, then `sending` holds the snapshot whose PUT is in flight, as
+// { json, version, writeId, keepalive, fits } (fits: small enough for a
+// beacon or a keepalive request). Both are off once the PUT resolves
+// (synced), and on again if it fails. See syncStatus(). Whenever either
+// changes, syncUnloadGuard() follows.
 let dirty = false;
+let sending = null;
 let saving = false;
 let saveTimer = null;
 let saveQueue = Promise.resolve();
@@ -111,6 +118,12 @@ let pendingAudioDeletes = [];
 // Save status for the UI: { type: 'saved' | 'conflict' | 'too-large' | 'rejected' | 'read-only' | 'failed', error?, automatic? }
 export function onSaveStatus(fn) { saveListeners.add(fn); return () => saveListeners.delete(fn); }
 function saveStatus(event) { saveListeners.forEach(fn => { try { fn(event); } catch (e) { console.warn(e); } }); }
+
+// Where this tab's changes are: 'dirty' (edited here, not yet sent),
+// 'sending' (a PUT is in flight and nothing was edited since) or 'synced'.
+export function syncStatus() {
+  return dirty ? 'dirty' : sending ? 'sending' : 'synced';
+}
 
 function objectOr(value, fallback) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
@@ -193,6 +206,7 @@ function saveIfMigrated(migrated) {
   if (!migrated) return Promise.resolve(true);
   const pending = dirty;
   dirty = true;
+  syncUnloadGuard();
   migrationOnly = !pending;
   return flushSaves();
 }
@@ -394,6 +408,7 @@ function reloadFromServer(doc) {
   clearTimeout(saveTimer);
   saveTimer = null;
   dirty = false;
+  syncUnloadGuard();
   // A pending beacon carried the version we are discarding, so it cannot land.
   unconfirmedBeacon = null;
   let changes = [];
@@ -426,6 +441,15 @@ function deleteRemovedAudio() {
   for (const item of ready) backend.deleteAudio(item.path).catch(() => {});
 }
 
+// True when the server document is a write of ours that landed since we
+// last looked. The writeId alone is not enough: a backup restored over the
+// server can carry an old write of this tab, and then the version has moved
+// backwards. That document is not ours any more, it is what the parent chose
+// to go back to (HAR-44).
+function isOwnNewerWrite(doc) {
+  return versionOf(doc) > stateVersion && ownWrites.includes(doc.writeId);
+}
+
 // Compares the server document with what we know. Returns true when local
 // state stays (the server holds our own write or nothing new), false after
 // reloading because another tab or device saved.
@@ -433,16 +457,16 @@ function reconcile(doc) {
   const beaconId = unconfirmedBeacon;
   unconfirmedBeacon = null;
   const version = versionOf(doc);
-  if (beaconId && doc.writeId === beaconId) {
+  if (isOwnNewerWrite(doc)) {
     stateVersion = version;
     markSynced(documentFields(doc));
     deleteRemovedAudio();
+    // Our beacon did not land, a later save of ours did; send its changes again.
+    if (beaconId && doc.writeId !== beaconId) persist();
     return true;
   }
-  if (version === stateVersion || ownWrites.includes(doc.writeId)) {
-    stateVersion = Math.max(stateVersion, version);
-    if (ownWrites.includes(doc.writeId)) { markSynced(documentFields(doc)); deleteRemovedAudio(); }
-    // Our beacon did not land; send its changes again.
+  if (version === stateVersion) {
+    // Nothing landed, our beacon included; send its changes again.
     if (beaconId) persist();
     return true;
   }
@@ -460,22 +484,52 @@ async function conflictDocument(error) {
 
 // Runs one save. `makeData()` builds the body just before sending (null means
 // nothing to send). A 412 caused by our own earlier write, such as an unload
-// beacon, adopts that version and tries again; any other 412 reloads.
+// beacon, adopts that version and tries again; any other 412 reloads, a
+// restored backup carrying an old write of ours included (isOwnNewerWrite).
+// One PUT. A keepalive request shares the browser's unload budget with
+// beacons (backend.js): while a beacon is still uploading, Chromium refuses
+// the request before it is sent ("Failed to fetch"). A keepalive request
+// that got no answer is therefore sent again at once as a plain request; if
+// the first did reach the server, the second gets a 412 naming its own
+// writeId and saveWith counts it as landed.
+async function sendState(body, keepalive) {
+  try {
+    return await backend.saveState(body, stateVersion, { keepalive });
+  } catch (e) {
+    if (!keepalive || e.status !== undefined) throw e;
+    sending = { ...sending, keepalive: false };
+    return backend.saveState(body, stateVersion);
+  }
+}
+
 async function saveWith(makeData) {
-  if (readOnly) { dirty = false; saveStatus({ type: 'read-only' }); return false; }
+  if (readOnly) { dirty = false; syncUnloadGuard(); saveStatus({ type: 'read-only' }); return false; }
   saving = true;
   // Kept across attempts: after a 412 caused by our own earlier write, the
-  // body is sent again even if makeData() has nothing new.
+  // body is sent again even if makeData() has nothing new. (Its containers
+  // are the state's own, so the retry carries edits made since.)
   let data = null;
   try {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       if (unconfirmedBeacon && !reconcile(await backend.loadState())) return false;
       data = makeData() ?? data;
       if (data === null) return true;
+      const writeId = newWriteId();
       try {
         // Frozen before sending: edits made while the save is in flight are not on the server yet.
         const sent = JSON.stringify(data);
-        const next = await backend.saveState(data, stateVersion, newWriteId());
+        const body = backend.stateBody(data, writeId);
+        const fits = backend.fitsUnload(body);
+        const keepalive = fits && backend.supportsKeepalive();
+        // Pending until the server answers: if the page is hidden meanwhile,
+        // handlePageHidden sends this same snapshot as a beacon, and
+        // handleBeforeUnload warns when neither can outlive the page (HAR-43).
+        sending = { json: sent, version: stateVersion, writeId, keepalive, fits };
+        syncUnloadGuard();
+        let next;
+        try { next = await sendState(body, keepalive); } finally { sending = null; syncUnloadGuard(); }
+        // The beacon copy of this body, if one went out, cannot land now.
+        if (unconfirmedBeacon === writeId) unconfirmedBeacon = null;
         stateVersion = Math.max(stateVersion, next);
         markSynced(sent);
         if (!dirty) migrationOnly = false;
@@ -485,16 +539,23 @@ async function saveWith(makeData) {
       } catch (e) {
         if (e.status !== 412) throw e;
         const doc = await conflictDocument(e);
-        if (!ownWrites.includes(doc.writeId)) { reloadFromServer(doc); return false; }
+        if (!isOwnNewerWrite(doc)) { reloadFromServer(doc); return false; }
         if (doc.writeId === unconfirmedBeacon) unconfirmedBeacon = null;
         stateVersion = versionOf(doc);
         markSynced(documentFields(doc));
         deleteRemovedAudio();
+        if (doc.writeId === writeId) {
+          // This very body landed, as the beacon copy sent on unload.
+          if (!dirty) migrationOnly = false;
+          saveStatus({ type: 'saved' });
+          return true;
+        }
       }
     }
     throw new Error('Family data kept changing while saving');
   } catch (e) {
     dirty = true;
+    syncUnloadGuard();
     console.warn('save failed', e);
     // 422 and 409: the server refused the document itself (document.js and
     // the data format rules), so retrying the same data will not help.
@@ -530,6 +591,7 @@ function persist({ automatic = false } = {}) {
   if (readOnly) { saveStatus({ type: 'read-only', automatic }); return; }
   migrationOnly = false;
   dirty = true;
+  syncUnloadGuard();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSaves, 400);
 }
@@ -539,14 +601,28 @@ function persist({ automatic = false } = {}) {
 // the body. We cannot see the result, so the version is not advanced; the
 // beacon's writeId is checked against the server when the tab returns or
 // before the next save. A save still in flight uses the same version, so
-// exactly one of the two wins and the other recognises it.
+// exactly one of the two wins, and the other is recognised and sent again
+// as long as the tab is still open (reconcile, saveWith). A tab that closes
+// with both on the wire cannot do that, which is why handleBeforeUnload
+// warns when a change is pending on top of a save in flight.
+// With nothing edited since, a save still in flight is at risk too: its PUT
+// is aborted with the page unless it was sent with keepalive. So the same
+// snapshot goes out again as a beacon, with the same writeId: whichever of
+// the two lands, the other gets a 412 naming it and stands down (saveWith).
 export function handlePageHidden() {
-  if (!dirty || readOnly) return;
+  if (readOnly) return;
+  if (!dirty) {
+    if (sending && !sending.keepalive && sending.fits && backend.beaconState(JSON.parse(sending.json), sending.version, sending.writeId)) {
+      unconfirmedBeacon = sending.writeId;
+    }
+    return;
+  }
   clearTimeout(saveTimer);
   saveTimer = null;
   const writeId = newWriteId();
   if (backend.beaconState(snapshotData(), stateVersion, writeId)) {
     dirty = false;
+    syncUnloadGuard();
     unconfirmedBeacon = writeId;
   } else {
     console.warn('The browser refused to send family data on unload (beacons are limited to about 64 KB); saving normally instead.');
@@ -554,14 +630,51 @@ export function handlePageHidden() {
   }
 }
 
-// Coming back to a tab: confirm an unload beacon, or load a newer copy another
-// device saved rather than discovering the conflict on the next edit.
+export const UNLOAD_WARNING = 'Harrington is still saving your changes. Leave anyway?';
+
+// The page is about to be closed or reloaded. The browser is asked to confirm
+// (with its own leave-page text; desktop browsers only) when a change would
+// not survive the page: a save in flight whose body is too large for a
+// beacon or a keepalive request (about 64 KB), a pending change that large,
+// or a pending change on top of a save in flight (if the save lands first,
+// the beacon of the newer change is refused with nobody left to send it
+// again). A pending change at risk is saved right away, so staying finishes
+// it. Returns true when it warned.
+export function handleBeforeUnload(event) {
+  if (readOnly) return false;
+  let atRisk = Boolean(sending && !sending.fits);
+  if (dirty && (sending || !backend.fitsUnload(JSON.stringify(snapshotData())))) {
+    flushSaves();
+    atRisk = true;
+  }
+  if (!atRisk) return false;
+  event.preventDefault();
+  event.returnValue = UNLOAD_WARNING; // what older browsers look at
+  return true;
+}
+
+// The beforeunload listener is on only while a change is pending or a save
+// is in flight: a page listening for beforeunload is kept out of the
+// back/forward cache (Firefox), so at rest there is none.
+let unloadGuardOn = false;
+function syncUnloadGuard() {
+  if (typeof window === 'undefined') return;
+  const wanted = dirty || sending !== null;
+  if (wanted === unloadGuardOn) return;
+  unloadGuardOn = wanted;
+  if (wanted) window.addEventListener('beforeunload', handleBeforeUnload);
+  else window.removeEventListener('beforeunload', handleBeforeUnload);
+}
+
+// Coming back to a tab: confirm an unload beacon, or load a changed copy
+// (another device saved, or a backup was restored and the version went back)
+// rather than discovering the conflict on the next edit.
 async function syncOnVisible() {
   if (saving) return;
   if (!unconfirmedBeacon) {
     if (dirty) return;
     const { stateVersion: serverVersion } = await backend.health();
-    if (!Number.isSafeInteger(serverVersion) || serverVersion <= stateVersion || dirty) return;
+    if (!Number.isSafeInteger(serverVersion) || serverVersion === stateVersion || dirty) return;
   }
   reconcile(await backend.loadState());
 }
@@ -648,6 +761,7 @@ export function importDocument(doc) {
   clearTimeout(saveTimer);
   saveTimer = null;
   dirty = false;
+  syncUnloadGuard();
   saveQueue = saveQueue.catch(() => {}).then(async () => {
     const ok = await saveWith(() => data);
     if (ok) {

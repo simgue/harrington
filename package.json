@@ -11,6 +11,7 @@
     "build": "npm run build:css && npm run build:assets",
     "build:css": "tailwindcss -c tailwind.config.cjs -i src/css/tailwind-input.css -o src/css/tailwind.css --minify",
     "build:assets": "node scripts/build-assets.mjs",
+    "build:figures": "node scripts/build-figures.mjs",
     "test": "npm run build && node --test tests/*.test.mjs",
     "check": "node --test tests/dead-code.test.mjs tests/copy.test.mjs tests/ai-status*.test.mjs",
     "e2e": "node tests/e2e/run.mjs",

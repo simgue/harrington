@@ -6,6 +6,25 @@ tagged a release yet; everything below is on `main`.
 
 ## [Unreleased]
 
+### Fixed
+- A change made just before the page was reloaded or closed is no longer
+  lost while its save is still on the wire: the change stays pending until the
+  server answers, a save under 64 KB keeps itself alive past unload
+  (`keepalive`; one the browser refuses while an unload beacon is still
+  uploading is sent again at once as a plain request), a browser without
+  keepalive sends the same snapshot again as a beacon from `pagehide`, and
+  when a change could not survive the page (a document too large for either,
+  or a change made while a save is still on the wire) desktop browsers ask
+  with their leave-page confirmation before the page is left (HAR-43).
+- Restoring an older backup while a tab is open is no longer silently undone
+  by that tab's next change. The tab recognised the restored document as one
+  of its own earlier writes and saved its whole state over it; now a server
+  document counts as the tab's own write only when its version is newer than
+  the last one the tab saw, so the tab reloads the restored copy and shows the
+  "Another device saved changes first" toast with Try again. Coming back to a
+  tab after a restore reloads the restored copy too. The restore instructions
+  say to close every Harrington tab first (HAR-44).
+
 ### Changed
 - AI can be switched on one capability at a time with
   `HARRINGTON_AI_CAPABILITIES` (for example `lesson`; unset means all). Every
@@ -101,6 +120,19 @@ tagged a release yet; everything below is on `main`.
   plain, accurate wording (HAR-12).
 
 ### Added
+- "See how it works": interactive, hand-inked figures for Science topics for
+  ages 5 to 8, on the topic page and the child view's topic card. The first
+  three: a toy cart (Pushes & Pulls), ice in the sun (Sunlight warms things
+  up) and a simple circuit (Building a simple circuit). Each is a
+  self-contained page, `src/figures/<topicId>.html`, shown in an iframe
+  sandboxed to `allow-scripts` with a no-network CSP decided on the resolved
+  file, ignoring case (only the app shell is left unsandboxed, and it sends
+  `frame-src 'self'`, so a figure cannot navigate away); labels start on,
+  nothing is saved, and no AI provider is needed. `GET /api/figures` lists
+  the pages that meet the contract in `docs/FIGURES.md`, so a new page
+  dropped into `src/figures/` needs no other change. The figure engine is a
+  fork of the MIT Colorfigures engine in `src/js/figures/engine.js`, with no
+  links or credit text (HAR-34).
 - The family document and exports carry `schemaVersion` (now 2). Ordered
   migrations in `src/js/schema.js` run when a document is loaded or
   imported: step 0 to 1 adds the field, step 1 to 2 hashes a plain
