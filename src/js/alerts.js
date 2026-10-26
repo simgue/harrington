@@ -105,8 +105,21 @@ export function welcome({ welcomed }) {
     type: 'welcome',
     learnerId: null,
     title: 'Welcome to Harrington',
-    body: 'The bell lists what needs a parent: open daily picks after 3 pm, a learner with no evidence this week, and a missing or old backup. Dismiss an item once it is handled.',
+    body: 'The bell lists what needs a parent: open daily picks after 3 pm, a learner with no evidence this week, a missing or old backup, and any repair Harrington made to the family data. Dismiss an item once it is handled.',
   };
+}
+
+// (e) What the data format 3 repair changed (document.js repairDocument, a
+// stored notice of type "repair"), until the parent dismisses it. The repair
+// changes family data on a quiet load, so this is how the parent learns of it.
+export function repairNotices({ notices = [] }) {
+  return notices.map(n => ({
+    key: `repair:${n.id}`,
+    type: 'repair',
+    learnerId: null,
+    title: n.title,
+    body: n.body,
+  }));
 }
 
 // True when `item` was dismissed and the dismissal still holds at `now`.
@@ -117,8 +130,8 @@ function isDismissed(item, dismissed, now) {
 }
 
 // Every live item, family-wide ones first, then each learner's in roster order.
-export function buildAlerts({ now, students = [], daily = {}, records = {}, calendar = null, backupAgeDays, dismissed = {}, welcomed = false }) {
-  const items = [welcome({ welcomed }), backupOverdue({ backupAgeDays })];
+export function buildAlerts({ now, students = [], daily = {}, records = {}, calendar = null, backupAgeDays, dismissed = {}, welcomed = false, notices = [] }) {
+  const items = [...repairNotices({ notices }), welcome({ welcomed }), backupOverdue({ backupAgeDays })];
   const today = keyOf(new Date(now));
   for (const student of students) {
     items.push(picksStillOpen({ now, student, day: daily[student.id]?.[today] || null, calendar }));

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { isLoopbackAddress } from '../lib/loopback.mjs';
 import { AI_CAPABILITIES, parseCapabilities } from '../src/js/ai-capabilities.js';
-import { SCHEMA_VERSION } from '../src/js/schema.js';
+import { SCHEMA_VERSION, formatCopyName } from '../src/js/schema.js';
 
 const repoRoot = new URL('..', import.meta.url);
 let child;
@@ -385,10 +385,10 @@ test('refuses a save the app could not render (422) or a data format it does not
   const tag = `"v${before.version}"`;
   const learner = { id: 'v1', name: 'Valid Learner', birthYear: 2019 };
   for (const [body, error] of [
-    [{ students: [{ ...learner, id: 'constructor' }] }, 'Learner 1 in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
-    [{ students: [learner], records: { v1: [{ id: 'r', type: '<img src=x onerror=alert(1)>' }] } }, 'A record in the file (records item 1) has a type other than observation, question, discussion, assessment, recording, note.'],
-    [{ students: [learner], tests: { v1: [{ pct: '<b>' }] } }, 'A test result in the file (tests item 1) has a score outside 0 to 100%.'],
-    [{ students: [learner], game: { v1: { xp: '<b>' } } }, 'The file\'s XP is not a number of zero or more.'],
+    [{ students: [{ ...learner, id: 'constructor' }] }, 'The learner “Valid Learner” in the file has an id that is not 1 to 64 letters, digits, "-" or "_".'],
+    [{ students: [learner], records: { v1: [{ id: 'r', type: '<img src=x onerror=alert(1)>' }] } }, 'A record for Valid Learner in the file (records item 1) has a type other than observation, question, discussion, assessment, recording, note.'],
+    [{ students: [learner], tests: { v1: [{ pct: '<b>' }] } }, 'A test result for Valid Learner in the file (tests item 1) has a score outside 0 to 100%.'],
+    [{ students: [learner], game: { v1: { xp: '<b>' } } }, 'Valid Learner\'s XP is not a number of zero or more.'],
     [{ students: 'nope' }, 'The file has no learner list.'],
     [{ schemaVersion: 'one', students: [] }, 'schemaVersion must be a whole number'],
     [{ schemaVersion: SCHEMA_VERSION, students: [learner], settings: { parentPin: '2468' } }, 'The file keeps the child-view PIN in plain text, which this data format does not allow.'],
@@ -469,6 +469,35 @@ test('migrates a legacy state document without a version as version 0', async ()
   assert.equal((await putState(legacy, '"v1"')).status, 412);
   assert.equal((await putState(legacy, '"v0"')).status, 204);
   assert.equal((await (await fetch(`${baseUrl}/api/state`)).json()).version, 1);
+});
+
+test('the first save in a newer format keeps the stored document as family-state.format-N.json, once', async () => {
+  const copy = join(dataDir, formatCopyName(2));
+  await rm(copy, { force: true });
+  const older = { schemaVersion: 2, version: 40, students: [{ id: 'k1', name: 'Kept Learner', birthYear: 2018 }], records: { k1: [{ id: 'r', type: 'note', note: 'the whole note' }] } };
+  await writeFile(join(dataDir, 'family-state.json'), JSON.stringify(older));
+  const repaired = { ...older, schemaVersion: SCHEMA_VERSION, records: { k1: [{ id: 'r', type: 'note', note: 'the whole' }] } };
+  assert.equal((await putState(repaired, '"v40"')).status, 204);
+  assert.deepEqual(JSON.parse(await readFile(copy, 'utf8')), older, 'the copy is the document as stored');
+  // A save in the same format writes no copy; a later upgrade from format 2
+  // again keeps the first copy.
+  assert.equal((await putState(repaired, '"v41"')).status, 204);
+  await writeFile(join(dataDir, 'family-state.json'), JSON.stringify({ ...older, version: 50, students: [] }));
+  assert.equal((await putState({ ...repaired, version: 50 }, '"v50"')).status, 204);
+  assert.deepEqual(JSON.parse(await readFile(copy, 'utf8')), older);
+});
+
+test('the kept copy of a format 1 document leaves out its plain child-view PIN', async () => {
+  const copy = join(dataDir, formatCopyName(1));
+  await rm(copy, { force: true });
+  const older = { schemaVersion: 1, version: 60, students: [{ id: 'p1', name: 'Pin Learner', birthYear: 2018 }], settings: { parentPin: '2468', calendar: { homeDays: [1, 2] } } };
+  await writeFile(join(dataDir, 'family-state.json'), JSON.stringify(older));
+  const upgraded = { ...older, schemaVersion: SCHEMA_VERSION, settings: { parentPinHash: 'a'.repeat(64), parentPinSalt: 'b'.repeat(32), calendar: { homeDays: [1, 2] } } };
+  assert.equal((await putState(upgraded, '"v60"')).status, 204);
+  const kept = JSON.parse(await readFile(copy, 'utf8'));
+  assert.equal('parentPin' in kept.settings, false);
+  assert.deepEqual(kept.settings, { calendar: { homeDays: [1, 2] } });
+  assert.doesNotMatch(await readFile(copy, 'utf8'), /2468/);
 });
 
 test('persists lesson cache entries and recordings', async () => {

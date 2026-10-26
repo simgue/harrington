@@ -164,11 +164,13 @@ describe('family data safety in the store', { concurrency: false }, () => {
   test('reports a too-large save and keeps the change pending', async () => {
     const id = store.get().students[0].id;
     statusEvents.length = 0;
-    store.addRecord(id, { type: 'note', title: 'Huge', note: 'x'.repeat(5 * 1024 * 1024) });
+    // Each record is within the document rules (a transcript of up to
+    // 200,000 characters); together they pass the server's size limit.
+    for (let i = 0; i < 30; i += 1) store.addRecord(id, { type: 'discussion', title: `Long talk ${i}`, transcript: 'x'.repeat(190_000) });
     await store.flushSaves();
     assert.deepEqual(statusEvents, ['too-large']);
 
-    store.removeRecord(id, store.recordsFor(id)[0].id);
+    for (const r of store.recordsFor(id).filter((rec) => rec.title.startsWith('Long talk'))) store.removeRecord(id, r.id);
     await store.flushSaves();
     assert.equal(statusEvents.at(-1), 'saved');
   });
@@ -503,7 +505,7 @@ describe('family data safety in the store', { concurrency: false }, () => {
     // A malformed entry is refused like any other bad learner field (document.js)...
     const broken = JSON.parse(JSON.stringify(exported));
     broken.requests[id].push({ id: 'rq_bad', text: 42, createdAt: 1 });
-    await assert.rejects(store.importDocument(broken), /topic request in the file .* has a text that is not text/);
+    await assert.rejects(store.importDocument(broken), /topic request for .* in the file .* has a text that is not text/);
     // ...while an oversized log and a learner the file does not have are cleaned on import.
     const tampered = JSON.parse(JSON.stringify(exported));
     tampered.requests[id] = Array.from({ length: store.REQUEST_LOG_MAX + 5 }, (_, i) => ({ id: `rq_t${i}`, text: `t${i}`, createdAt: 1000 + i, topicId: null }));
@@ -522,7 +524,7 @@ describe('family data safety in the store', { concurrency: false }, () => {
     const target = exported.students[0];
     target.color = 'red"><img src=x onerror=alert(1)>';
     assert.equal(store.inspectImport(exported).ok, false);
-    await assert.rejects(store.importDocument(exported), /Learner 1 in the file has a color that is not a hex color/);
+    await assert.rejects(store.importDocument(exported), /The learner “Sample Learner” in the file has a color that is not a hex color/);
 
     target.color = '#3f7d5e'; // the first palette, before HAR-22
     target.name = '<b>Sample "Eleven"</b>';

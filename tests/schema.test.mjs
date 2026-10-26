@@ -29,7 +29,7 @@ Object.defineProperty(globalThis, 'navigator', {
 
 const schema = await import('../src/js/schema.js');
 const store = await import('../src/js/store.js');
-const { DOCUMENT_KEYS } = await import('../src/js/document.js');
+const { DOCUMENT_KEYS, MIN_BIRTH_YEAR, NAME_MAX, SHORTENED_MARKER, repairDocument, validateDocument } = await import('../src/js/document.js');
 const { SCHEMA_VERSION, MIGRATIONS, migrateDocument, schemaVersionOf } = schema;
 
 const fixturesDir = new URL('./fixtures/schema/', import.meta.url);
@@ -38,14 +38,15 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 const load = async (doc) => { served = doc; puts.length = 0; beacons.length = 0; await store.loadAll(); await store.flushSaves(); await settle(); };
 
 test('the schema is the length of the migration chain', () => {
-  assert.equal(SCHEMA_VERSION, 2);
+  assert.equal(SCHEMA_VERSION, 3);
   assert.equal(MIGRATIONS.length, SCHEMA_VERSION);
 });
 
 // Every vN.input.json is a document at schema N; migrating it must give its
 // vN.expected.json, which is always at the current schema. The PIN step's salt
 // is injected so the expected hash is fixed.
-const FIXTURE_CONTEXT = { context: { salt: 'a'.repeat(32) } };
+// keepsCopy: as loaded from the server, whose notice names the kept copy.
+const FIXTURE_CONTEXT = { context: { salt: 'a'.repeat(32), now: Date.UTC(2026, 0, 15), keepsCopy: true } };
 const inputs = (await readdir(fixturesDir)).filter((f) => /^v\d+\.input\.json$/.test(f)).sort();
 test('the fixtures cover every older schema', () => {
   assert.deepEqual(inputs, Array.from({ length: SCHEMA_VERSION }, (_, n) => `v${n}.input.json`));
@@ -112,13 +113,48 @@ test('a load that migrates saves once, right away, as a versioned save', async (
 test('step 1 -> 2 hashes a plain PIN on load, saves once, and keeps the PIN usable', async () => {
   await load({ ...(await readFixture('v1.input.json')), version: 70 });
   assert.equal(puts.length, 1);
-  assert.equal(puts[0].schemaVersion, 2);
+  assert.equal(puts[0].schemaVersion, SCHEMA_VERSION);
   assert.equal('parentPin' in puts[0].settings, false);
   assert.match(puts[0].settings.parentPinHash, /^[0-9a-f]{64}$/);
   assert.match(puts[0].settings.parentPinSalt, /^[0-9a-f]{32}$/);
   assert.deepEqual(puts[0].settings.calendar, { homeDays: [1, 2, 3, 4], breaks: [] });
   assert.equal(store.checkParentPin('2468'), true);
   assert.equal(store.checkParentPin('1111'), false);
+});
+
+test('step 2 -> 3 repairs data the server now refuses on load, saves once without a toast, and tells the parent', async () => {
+  const events = [];
+  const off = store.onSaveStatus((e) => events.push(e.type));
+  await load({ ...(await readFixture('v2.input.json')), version: 75 });
+  off();
+  assert.equal(puts.length, 1, 'one quiet migration save');
+  assert.deepEqual(events, ['saved']);
+  const saved = puts[0];
+  assert.equal(saved.schemaVersion, SCHEMA_VERSION);
+  assert.equal(validateDocument(saved), null, 'every later save is accepted');
+  assert.equal(saved.students[0].name.length, NAME_MAX);
+  assert.equal(saved.students[0].birthYear, MIN_BIRTH_YEAR);
+  assert.ok(saved.records.s_older1[1].note.endsWith(SHORTENED_MARKER));
+  assert.equal(saved.records.s_older1[1].note.length, 50_000);
+  assert.equal(saved.records.s_older1.length, 2, 'the null record is dropped');
+  const [note] = saved.notifications.filter((n) => n.type === 'repair');
+  assert.match(note.body, /3 unreadable entries were removed/);
+  assert.match(note.body, /shortened to “Sample Twelve Longname/);
+  assert.match(note.body, /The birth year of .* was 1985, outside 1990 to \d{4}, and is now 1990\./);
+  assert.match(note.body, /The note of a record for .* “Long talk” was longer than 50,000 characters and was shortened\./);
+  assert.match(note.body, /kept on the Harrington server, in its data folder, as family-state\.format-2\.json\./);
+  // The bell shows it; it is not the old notification log, so the welcome
+  // still shows for a family that never saw it.
+  assert.deepEqual(store.repairNotices().map((n) => n.id), [note.id]);
+  assert.equal(store.welcomed(), false);
+  // Loaded again, the repaired document needs nothing: no second save.
+  await load({ ...served });
+  assert.equal(puts.length, 0);
+});
+
+test('the repair leaves a document that needs none unchanged', () => {
+  const doc = { students: [{ id: 'a', name: 'Sample', birthYear: 2018 }], records: { a: [{ id: 'r', type: 'note', note: 'short' }] } };
+  assert.equal(repairDocument(doc), doc);
 });
 
 test('a current document with a hand-edited plain PIN is hashed and saved once too', async () => {
@@ -170,17 +206,23 @@ test('an unknown top-level field round-trips through load and save unchanged', a
   assert.deepEqual(Object.keys(puts[0]).sort(), [...DOCUMENT_KEYS, 'futureWorkbook', 'writeId'].sort());
 });
 
-for (const [label, schemaVersion] of [['a newer', SCHEMA_VERSION + 1], ['an unreadable', 'two']]) {
+const READ_ONLY_CASES = [
+  ['a newer', SCHEMA_VERSION + 1, /saved by a newer version of Harrington\. Update Harrington/],
+  // Updating cannot fix a format number that is not a number: its own wording.
+  ['an unreadable', 'two', /data format number Harrington cannot read/],
+];
+for (const [label, schemaVersion, message] of READ_ONLY_CASES) {
   test(`${label} data format opens read-only: no save, beacon or import`, async () => {
     await load({ ...(await readFixture('v0.expected.json')), schemaVersion, futureField: [1], version: 40 });
     assert.equal(store.isReadOnly(), true);
+    assert.match(store.readOnlyMessage(), message);
     assert.equal(store.get().students[0].name, 'Sample Twelve', 'the data is still shown');
     const statuses = [];
     const off = store.onSaveStatus((event) => statuses.push(event.type));
     store.setGraphView(store.graphView() === 'list' ? 'atlas' : 'list');
     await store.flushSaves();
     store.handlePageHidden();
-    await assert.rejects(store.importDocument(await readFixture('v0.expected.json')), /saved by a newer version of Harrington/);
+    await assert.rejects(store.importDocument(await readFixture('v0.expected.json')), message);
     await settle();
     off();
     assert.equal(puts.length, 0, 'nothing saved');
@@ -199,6 +241,27 @@ test('import migrates an older export before saving it, and export carries the f
   const exported = await store.exportDocument();
   assert.equal(exported.schemaVersion, SCHEMA_VERSION);
   await assert.rejects(store.importDocument({ schemaVersion: SCHEMA_VERSION + 1, students: [] }), /newer version of Harrington/);
+});
+
+test('an imported older export is repaired, but its notice names no server copy (none is kept for an import)', async () => {
+  await load({ ...(await readFixture('v0.expected.json')), version: 65 });
+  assert.equal(await store.importDocument(await readFixture('v2.input.json')), true);
+  const saved = puts.at(-1);
+  assert.equal(saved.students[0].name.length, NAME_MAX);
+  const [note] = saved.notifications.filter((n) => n.type === 'repair' && n.body.includes('shortened'));
+  assert.ok(note, 'the repair is listed');
+  assert.doesNotMatch(note.body, /family-state\.format-/);
+  // Nothing to repair and no copy: an imported format 0 or 1 file gets no notice.
+  assert.equal(await store.importDocument(await readFixture('v1.input.json')), true);
+  assert.deepEqual(puts.at(-1).notifications.filter((n) => n.type === 'repair'), []);
+});
+
+test('the notice names the kept copy first, so the 2,000-character cap never cuts it', () => {
+  const learners = Array.from({ length: 40 }, (_, i) => ({ id: `s${i}`, name: `Learner ${i} ${'x'.repeat(70)}`, birthYear: 1970 }));
+  const out = repairDocument({ students: learners }, { now: 1, copy: 'family-state.format-2.json' });
+  const [note] = out.notifications;
+  assert.ok(note.body.length <= 2_000);
+  assert.match(note.body, /^The family data as it was before this update is kept on the Harrington server, in its data folder, as family-state\.format-2\.json\./);
 });
 
 test('import moves an off-palette learner color to the nearest palette color and counts it', async () => {
