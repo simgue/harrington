@@ -53,7 +53,7 @@ function renderPrintables(topic, data, onRegen) {
   const all = el(`<button id="printall" class="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="printer" class="w-4 h-4"></i>Print all materials</button>`);
   all.onclick = () => printMaterials(topic, printables);
   wrap.appendChild(all);
-  wrap.appendChild(el(`<div class="mt-4 pt-2 border-t border-paper-line"></div>`)).appendChild(generateAnotherButton(onRegen));
+  wrap.appendChild(el(`<div class="mt-4 pt-2 border-t border-paper-line"></div>`)).appendChild(generateAnotherButton(onRegen, 'printables'));
   return wrap;
 }
 

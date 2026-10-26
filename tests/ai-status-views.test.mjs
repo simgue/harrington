@@ -90,12 +90,24 @@ const STATE = {
 // Cached lessons (what a family generated while a provider was set up).
 const LESSONS = new Map();
 let aiConfigured = false;
+// With a provider: the capabilities /api/health reports switched on (null
+// leaves the field out, as a server from before the allowlist did: all on).
+let aiCapabilities = null;
 const aiCalls = [];
+// What GET /api/settings/ai answers with no provider anywhere.
+const AI_SETTINGS = {
+  configured: false, baseUrl: '', model: '', timeoutMs: 180_000, capabilities: [], hasApiKey: false, apiKeyHint: null,
+  source: { baseUrl: 'none', model: 'none', apiKey: 'none', timeoutMs: 'none', capabilities: 'none' },
+  presets: [{ id: 'custom', label: 'OpenAI-compatible (custom)', baseUrl: '', model: '', cloud: false }],
+  canChange: true,
+};
 const json = (status, body, headers = {}) => ({ ok: status < 400, status, headers: new Headers(headers), json: async () => body, blob: async () => new Blob([]) });
 globalThis.fetch = async (url, options = {}) => {
   const path = String(url);
   const method = options.method || 'GET';
-  if (path === '/api/health') return json(200, { ok: true, aiConfigured });
+  if (path === '/api/health') return json(200, { ok: true, aiConfigured, ...(aiConfigured && aiCapabilities ? { aiCapabilities } : {}) });
+  if (path === '/api/settings/ai/test') return json(200, { ok: false, latencyMs: 0, error: 'not configured' });
+  if (path === '/api/settings/ai') return json(200, structuredClone(AI_SETTINGS));
   if (path === '/api/ai') { aiCalls.push(options.body); return json(503, { error: 'AI is not configured for this self-hosted Harrington server' }); }
   if (path === '/api/state') return method === 'GET' ? json(200, structuredClone(STATE), { ETag: '"v1"' }) : json(204, null, { ETag: '"v2"' });
   if (path.startsWith('/api/taxonomy/')) {
@@ -135,12 +147,15 @@ const { openChallenge } = await import('../src/js/views/challenge.js');
 const { openMasteryTest } = await import('../src/js/views/masterytest.js');
 const { renderDashboard } = await import('../src/js/views/dashboard.js');
 const { openKidMode } = await import('../src/js/views/kidmode.js');
+const { renderSettings } = await import('../src/js/views/settings.js');
 
 await store.connect();
 await store.loadAll();
 await loadTaxonomy();
 
-const UNCONFIGURED = /none is set up on this Harrington server/;
+// What a live AI control shows when it cannot generate: no provider, or a
+// capability the family has not switched on (HAR-26).
+const UNCONFIGURED = /none is set up on this Harrington server|isn['’]t switched on yet on this Harrington server/;
 const app = document.getElementById('app');
 const modalRoot = document.getElementById('modal-root');
 // Lets promises, timers due now and animation frames run, as a page does
@@ -291,6 +306,9 @@ const VIEWS = {
   // provider wording for children, HAR-13). Only the sweep applies.
   dashboard: { file: 'dashboard', chip: false, ...routeView(renderDashboard) },
   'child view': { file: 'kidmode', chip: false, scope: 'body', render: () => { openKidMode(); } },
+  // The AI provider page configures AI and never generates: no chip, and no
+  // control on it (Save, Test connection, Remove) reaches /api/ai.
+  settings: { file: 'settings', chip: false, ...routeView(renderSettings) },
 };
 
 // A new AI-backed view needs a case above: any view module that calls ai.js
@@ -357,6 +375,49 @@ test('with a provider, the sweep finds the live AI controls', async () => {
     assert.ok((await liveAiControls(VIEWS['child view'])).some((path) => /Beat the clock.* > .*Start challenge/.test(path)));
   } finally {
     aiConfigured = false;
+    await store.refreshHealth();
+  }
+});
+
+// A provider with only lessons switched on (the HAR-26 rollout): lesson
+// controls are live, the others show "Not switched on yet" and start nothing.
+test('with lessons only switched on, only lesson controls are live', async () => {
+  aiConfigured = true;
+  aiCapabilities = ['lesson'];
+  try {
+    await store.refreshHealth();
+    const view = VIEWS['topic (learning)'];
+    const live = await liveAiControls(view);
+    assert.ok(live.some((path) => /Open full lesson/.test(path)), live.join('\n'));
+    assert.ok(!live.some((path) => /Explain simply/.test(path)), live.join('\n'));
+    const root = await mount(view);
+    assert.ok([...chips(root)].some((chip) => /Not switched on yet/.test(chip.textContent)), 'a "Not switched on yet" chip');
+    assert.doesNotMatch(document.body.textContent, UNCONFIGURED);
+  } finally {
+    aiConfigured = false;
+    aiCapabilities = null;
+    await store.refreshHealth();
+  }
+});
+
+// A provider is set up but lessons are switched off: a lesson saved earlier
+// still opens from the topic page as "Open saved lesson" (#41), with no AI call.
+test('with lessons switched off, a saved lesson opens as "Open saved lesson"', async () => {
+  aiConfigured = true;
+  aiCapabilities = ['recall'];
+  try {
+    await store.refreshHealth();
+    const before = aiCalls.length;
+    const root = await mount(VIEWS['topic (mastered)']);
+    const open = clickables(root).find((node) => node.textContent.trim() === 'Open saved lesson');
+    assert.ok(open, 'an "Open saved lesson" button');
+    open.click();
+    await settle();
+    assert.equal(aiCalls.length, before);
+    assert.doesNotMatch(document.body.textContent, UNCONFIGURED);
+  } finally {
+    aiConfigured = false;
+    aiCapabilities = null;
     await store.refreshHealth();
   }
 });

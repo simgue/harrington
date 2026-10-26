@@ -124,14 +124,39 @@ export async function deleteAudio(name) {
   await request(`/api/audio/${encodeURIComponent(name)}`, { method: 'DELETE' });
 }
 
-// The server always uses its configured HARRINGTON_AI_MODEL.
+// The server always uses its configured AI model, and forwards the request
+// only when `capability` is switched on (HARRINGTON_AI_CAPABILITIES).
 // includeNotes: the parent ticked "Include my notes in this request"; without
 // it the server removes any stored parent note from the messages.
-export async function chat(messages, { includeNotes = false } = {}) {
+export async function chat(messages, capability, { includeNotes = false } = {}) {
   const response = await request('/api/ai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(includeNotes ? { messages, includeNotes: true } : { messages }),
+    body: JSON.stringify(includeNotes ? { messages, capability, includeNotes: true } : { messages, capability }),
   });
   return response.json();
+}
+
+// AI provider settings saved on the server (never the API key itself).
+export async function loadAiSettings() {
+  return request('/api/settings/ai').then((response) => response.json());
+}
+
+// `patch` fields left out are unchanged; null or '' clears a saved value.
+export async function saveAiSettings(patch) {
+  const response = await request('/api/settings/ai', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  return response.json();
+}
+
+export async function removeAiSettings() {
+  return request('/api/settings/ai', { method: 'DELETE' }).then((response) => response.json());
+}
+
+// One tiny request to the provider: { ok, latencyMs, status?, error? }.
+export async function testAiSettings() {
+  return request('/api/settings/ai/test', { method: 'POST' }).then((response) => response.json());
 }

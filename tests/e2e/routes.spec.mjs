@@ -14,7 +14,7 @@ const COUNTING = encodeURIComponent('Counting & Cardinality');
 
 // [name, hash, heading the route shows, extra seed, text when there is no
 // heading]. The route table is `views` in src/js/app.js (dashboard, calendar, graph, topic, records,
-// insights, find, levelset, figure, onboard); graph, topic, find, levelset and figure take parameters, so their variants
+// insights, settings, find, levelset, figure, onboard); graph, topic, find, levelset and figure take parameters, so their variants
 // are listed too, and an unknown route falls back to the dashboard.
 const ROUTES = [
   ['dashboard', '', "Rowan Example's Wednesday"],
@@ -30,6 +30,7 @@ const ROUTES = [
   ['topic: unknown id', 'topic/mt_no_such_topic', null, {}, 'Topic not found'],
   ['records', 'records', 'Records'],
   ['insights', 'insights', 'Teacher Insights'],
+  ['settings', 'settings', 'AI provider'],
   ['find', 'find', 'Find a topic'],
   ['find: request with a path', 'find?q=telling%20time&topic=mt_0XxyaQLRhn', 'Find a topic'],
   ['figure', 'figure/mt_B3W5EfimJw', 'Toy cart'],
@@ -112,6 +113,18 @@ for (const [name, hash, heading, seed = {}, text = null] of ROUTES) {
     expect(errors).toEqual([]);
   });
 }
+
+// The AI provider page configures AI and never generates: opening it, with
+// a provider (desktop) or without one (no-ai), sends nothing to /api/ai.
+test('the settings page renders without an AI request', async ({ page, gotoApp }) => {
+  const aiRequests = [];
+  page.on('request', (request) => { if (new URL(request.url()).pathname === '/api/ai') aiRequests.push(request.url()); });
+  await gotoApp({ hash: 'settings' });
+  await expect(viewContent(page).getByRole('heading', { name: 'AI provider', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Test connection' })).toBeVisible();
+  await page.waitForTimeout(750);
+  expect(aiRequests).toEqual([]);
+});
 
 test('route renders without errors: onboard (no learners yet)', async ({ page, gotoApp }) => {
   const errors = pageErrors(page);

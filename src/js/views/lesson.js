@@ -122,7 +122,7 @@ function renderLesson(L, topic, onRegen) {
       <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint"></i>
     </button>`);
     b.onclick = () => openPrintables(topic);
-    return gateAi(b, { cachedKey: 'print:' + topic.id, fallback: el('<span class="hidden"></span>') });
+    return gateAi(b, { capability: 'printables', cachedKey: 'print:' + topic.id, fallback: el('<span class="hidden"></span>') });
   })());
 
   // footer actions
@@ -130,7 +130,7 @@ function renderLesson(L, topic, onRegen) {
     <span id="regen"></span>
     <button id="printm" class="sm:hidden flex items-center gap-1.5 text-sm text-brand-dark font-medium"><i data-lucide="printer" class="w-4 h-4"></i>Print</button>
   </div>`);
-  footer.querySelector('#regen').replaceWith(generateAnotherButton(onRegen));
+  footer.querySelector('#regen').replaceWith(generateAnotherButton(onRegen, 'lesson'));
   footer.querySelector('#printm').onclick = () => printLesson(topic, L);
   wrap.appendChild(footer);
 
@@ -174,7 +174,7 @@ function renderActivityDetail(activity, detail, onRegen) {
   if (arr(detail.steps).length) wrap.appendChild(block('list-ordered', 'How to play', orderedList(arr(detail.steps))));
   if (detail.example) wrap.appendChild(el(`<div class="rounded-xl bg-paper border border-paper-line p-3.5"><p class="text-xs font-600 text-ink-faint uppercase tracking-wide mb-1">Example</p><p class="text-sm text-ink-soft leading-relaxed">${esc(detail.example)}</p></div>`));
   if (detail.tip) wrap.appendChild(el(`<div class="flex gap-2 text-sm text-ink-soft"><i data-lucide="lightbulb" class="w-4 h-4 text-[#8a6412] shrink-0 mt-0.5"></i><span>${esc(detail.tip)}</span></div>`));
-  wrap.appendChild(el(`<div class="pt-2 border-t border-paper-line"></div>`)).appendChild(generateAnotherButton(onRegen));
+  wrap.appendChild(el(`<div class="pt-2 border-t border-paper-line"></div>`)).appendChild(generateAnotherButton(onRegen, 'activity'));
   return wrap;
 }
 

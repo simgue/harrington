@@ -26,6 +26,25 @@ tagged a release yet; everything below is on `main`.
   say to close every Harrington tab first (HAR-44).
 
 ### Changed
+- AI can be switched on one capability at a time with
+  `HARRINGTON_AI_CAPABILITIES` (for example `lesson`; unset means all). Every
+  request names its capability, the server refuses the rest with 403,
+  `/api/health` reports `aiCapabilities`, and controls for a capability that is
+  off show "Not switched on yet" while cached content still opens. New
+  `scripts/ai-experiment.mjs` and docs/AI-SETUP.md run and record the
+  lessons-only local experiment (HAR-26).
+- Settings > AI provider sets the provider, its API key, the capabilities
+  switched on and the timeout from the app, with presets for Ollama and
+  Google Gemini and a connection test; no environment variables or restart.
+  The key stays on the server in `secrets.json` (owner-only), is never sent
+  back to the page (only its last four characters), and is left out of
+  export and `npm run backup`. Values saved in the app win over the
+  `HARRINGTON_AI_*` environment, and `/api/health` reports `aiSource`. Until
+  an access token is set, only the computer running Harrington can change or
+  test them, and only while it is not shared: a server bound beyond loopback
+  or published under another name (such as behind `tailscale serve` or
+  Caddy), a request carrying a proxy's forwarding headers, or one under a host
+  name other than this computer's (DNS rebinding), needs the token (HAR-26).
 - Calendar follow-ups from the HAR-18 review: rest days and breaks pause the
   daily rhythm (no pick-one choices; the dashboard and calendar name the next
   learning day), Extra practice opens its own topic's retries, a done day that

@@ -14,6 +14,7 @@ import { renderTopic } from './views/topic.js';
 import { renderGraph } from './views/graph.js';
 import { renderRecords } from './views/records.js';
 import { renderInsights } from './views/insights.js';
+import { renderSettings } from './views/settings.js';
 import { renderFind } from './views/find.js';
 import { renderFigure } from './views/howitworks.js';
 import { renderLevelset } from './views/levelset.js';
@@ -88,6 +89,7 @@ function render() {
     topic: renderTopic,
     records: renderRecords,
     insights: renderInsights,
+    settings: renderSettings,
     find: renderFind,
     figure: renderFigure,
     levelset: renderLevelset,

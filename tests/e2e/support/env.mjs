@@ -8,9 +8,12 @@ export const PORTS = {
   appAi: base + 2,
   appNoAi: base + 3,
   appAiUnreachable: base + 4,
-  // No AI, HARRINGTON_ACCESS_TOKEN set (HAR-25). base+5 is left for another
-  // app instance (PR #37).
+  // AI pointed at the mock, with HARRINGTON_AI_CAPABILITIES=lesson (HAR-26).
+  appLessonsOnly: base + 5,
+  // No AI, HARRINGTON_ACCESS_TOKEN set (HAR-25).
   appToken: base + 6,
+  // No AI in the environment: the settings spec sets the provider in the app.
+  appSettings: base + 7,
   // Nothing ever listens here: the app on appAiUnreachable points its AI
   // provider at this port to exercise "couldn't reach the AI provider".
   deadAi: base + 9,
@@ -21,6 +24,8 @@ export const URLS = {
   appAi: `http://127.0.0.1:${PORTS.appAi}`,
   appNoAi: `http://127.0.0.1:${PORTS.appNoAi}`,
   appAiUnreachable: `http://127.0.0.1:${PORTS.appAiUnreachable}`,
+  appLessonsOnly: `http://127.0.0.1:${PORTS.appLessonsOnly}`,
+  appSettings: `http://127.0.0.1:${PORTS.appSettings}`,
   appToken: `http://127.0.0.1:${PORTS.appToken}`,
   deadAi: `http://127.0.0.1:${PORTS.deadAi}`,
 };
