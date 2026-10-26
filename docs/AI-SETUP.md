@@ -30,10 +30,14 @@ vLLM. This guide uses Ollama.
 
 ```bash
 # Install Ollama from https://ollama.com, then pull an instruction model:
-ollama pull qwen2.5:7b
+ollama pull gemma4:26b
 # Check it answers on the OpenAI-compatible path:
 curl http://127.0.0.1:11434/v1/models
 ```
+
+LM Studio works the same way: start its local server, use the base URL
+`http://127.0.0.1:1234/v1`, and type the model id exactly as
+`GET /v1/models` lists it (`curl http://127.0.0.1:1234/v1/models`).
 
 ### Choosing a model for JSON reliability
 
@@ -42,15 +46,17 @@ not parse or lacks the lesson's shape (a non-empty objective and at least one
 teaching step). It does not use a provider's "JSON mode", so the model has to
 follow the instructions on its own.
 
-- **Start at 7 to 8 billion parameters**, instruction-tuned: for example
-  `qwen2.5:7b` or `llama3.1:8b`. Instruction models in this range usually
-  return clean JSON for lessons.
-- **3B and smaller** (such as `llama3.2`) are fast but more often wrap the
+- **Start with a mixture-of-experts instruct model**, such as `gemma4:26b`
+  (Gemma 4 26B-A4B) or `qwen3.6:35b-a3b` (Qwen3.6 35B-A3B). Only a few
+  billion of their parameters work on each token, so they answer at about the
+  speed of a small model while following the JSON instructions like a large
+  one.
+- **Check the memory first.** At 4-bit, a 26B-A4B needs about 16 GB and a
+  35B-A3B about 20 GB. A 32 GB computer runs one of these; 48 GB runs either
+  comfortably.
+- **Small dense models** (3B to 8B) download faster but more often wrap the
   JSON in prose, cut it off, or drop fields. Fine for trying the plumbing, not
   for judging lessons.
-- **Bigger is steadier but slower.** A 14B model is worth trying if the 7B
-  lessons are thin and the computer has the memory (roughly 10 GB free for a
-  4-bit 14B model).
 - **Give it room to finish.** A lesson is about 1,000 to 1,500 tokens of
   output. If lessons stop mid-sentence, raise Ollama's context
   (`OLLAMA_CONTEXT_LENGTH=8192 ollama serve`, or `num_ctx` in a Modelfile).
@@ -66,7 +72,8 @@ closed: the parent sees "took too long" with Try again, and nothing is cached.
 
 - **The first generation is the slowest**: the model is loaded into memory
   first, which can take from a few seconds to a minute.
-- After that, a 7B lesson typically takes **10 to 40 seconds** with a recent
+- After that, a lesson from one of the models above (a few billion active
+  parameters) typically takes **10 to 40 seconds** with a recent
   GPU or Apple silicon, and **1 to 3 minutes** on a CPU only. A CPU-only
   computer that keeps hitting the three-minute limit needs a smaller model or
   a longer timeout.
@@ -84,7 +91,7 @@ or go to `http://127.0.0.1:4173/#settings`.
 
 1. Pick a preset: **Ollama on this computer** fills
    `http://127.0.0.1:11434/v1`; type the model you pulled (for example
-   `qwen2.5:7b`). **Google Gemini** and **OpenAI-compatible (custom)** are
+   `gemma4:26b`). **Google Gemini** and **OpenAI-compatible (custom)** are
    below.
 2. Paste an API key if the provider needs one (Ollama doesn't).
 3. Under **Switched on**, leave only **Lessons** ticked.
@@ -139,7 +146,7 @@ a model beside it, so changing only the base URL also saves the model shown
 
 ```bash
 export HARRINGTON_AI_BASE_URL=http://127.0.0.1:11434/v1
-export HARRINGTON_AI_MODEL=qwen2.5:7b
+export HARRINGTON_AI_MODEL=gemma4:26b
 export HARRINGTON_AI_CAPABILITIES=lesson
 npm start
 ```
@@ -199,7 +206,7 @@ process and never go in family data or a committed file. Pick one of:
   ```bash
   # .env
   HARRINGTON_AI_BASE_URL=http://127.0.0.1:11434/v1
-  HARRINGTON_AI_MODEL=qwen2.5:7b
+  HARRINGTON_AI_MODEL=gemma4:26b
   HARRINGTON_AI_CAPABILITIES=lesson
   ```
 
@@ -288,7 +295,7 @@ or the environment, as the server would:
 
 ```bash
 export HARRINGTON_AI_BASE_URL=http://127.0.0.1:11434/v1
-export HARRINGTON_AI_MODEL=qwen2.5:7b
+export HARRINGTON_AI_MODEL=gemma4:26b
 export HARRINGTON_AI_CAPABILITIES=lesson
 
 node scripts/ai-experiment.mjs --data-dir ./data/scratch --learner "Sample Nine" --age 6

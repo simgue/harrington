@@ -226,11 +226,12 @@ Lesson generation stays off until a base URL and a model are both set. There
 is no default cloud URL or API key.
 
 ```bash
-# Install Ollama from https://ollama.com, then pull one instruction model:
-ollama pull llama3.2
+# Install Ollama from https://ollama.com, then pull one instruction model
+# (a mixture-of-experts model; about 16 GB of memory at 4-bit, see docs/AI-SETUP.md):
+ollama pull gemma4:26b
 
 export HARRINGTON_AI_BASE_URL=http://127.0.0.1:11434/v1
-export HARRINGTON_AI_MODEL=llama3.2
+export HARRINGTON_AI_MODEL=gemma4:26b
 # Optional. Ollama usually needs none; some reverse proxies want Bearer:
 # export HARRINGTON_AI_API_KEY=your-proxy-token
 
@@ -257,6 +258,10 @@ three minutes (`HARRINGTON_AI_TIMEOUT_MS` to override) and then fails closed.
 Docker on the same machine as Ollama typically needs
 `HARRINGTON_AI_BASE_URL=http://host.docker.internal:11434/v1`. Do not publish a
 key or a cloud endpoint in `compose.yaml`.
+
+LM Studio is an alternative local server: start its server and use
+`http://127.0.0.1:1234/v1` as the base URL, with the model id exactly as
+`GET /v1/models` lists it.
 
 ### URL-swap priming (same adapter, no batch job)
 
