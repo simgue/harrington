@@ -2,7 +2,7 @@
 import * as backend from './backend.js';
 import { AI_CAPABILITIES, capabilityOffMessage } from './ai-capabilities.js';
 import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, schemaVersionOf } from './schema.js';
-import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, LEARNER_KEYS, RETIRED_FIELDS, MIN_BIRTH_YEAR, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
+import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, LEARNER_KEYS, REQUEST_TEXT_MAX, RETIRED_FIELDS, MIN_BIRTH_YEAR, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
 import { formatCount } from './format.js';
 import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 import { getData } from './data.js';
@@ -41,6 +41,7 @@ let state = {
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
   daily: {},          // studentId -> { 'yyyy-mm-dd': { offers: {literacy:[topicId], numeracy:[topicId]}, picks: {literacy, numeracy} } }
   interests: {},      // studentId -> { chips: [label], text: '' }  (what the learner is into, parent-entered)
+  requests: {},       // studentId -> [ {id, text, createdAt, topicId|null} ]  (topic finder log, newest first)
   levelset: {},       // studentId -> { lanes: { literacy|numeracy: session }, observe: [topicId] }  (level-set workbook)
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
   settings: {},       // family-wide: { parentPinHash, parentPinSalt, calendar: { homeDays:[0-6], breaks:[{start, end, label}] } }
@@ -158,6 +159,8 @@ const FIELD_NORMALIZERS = {
   graphView: v => (v === 'list' ? 'list' : 'atlas'),
   settings: v => objectOr(v, {}),
   schemaVersion: v => v,
+  // The topic finder's log: well-formed entries of known learners only.
+  requests: (v, fields) => cleanRequestLogs(v, fields.students),
 };
 
 // The family fields of a stored document (or of the state), normalized.
@@ -756,6 +759,8 @@ export function importDocument(doc) {
   if (!check.ok) return Promise.reject(new Error(check.error));
   const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = migrateDocument(withValidActive(doc));
   data.students = data.students.map(s => ({ ...s, color: paletteColor(s.color) }));
+  // The topic finder's log: known learners only, newest first, capped.
+  if (data.requests) data.requests = cleanRequestLogs(data.requests, data.students);
   // Step 1 -> 2 hashed an older export's plain PIN; this catches a hand edit.
   if (data.settings !== undefined) data.settings = migratePinSettings(objectOr(data.settings, {}));
   clearTimeout(saveTimer);
@@ -1435,6 +1440,59 @@ export function setInterests(studentId, interests, { quiet = false } = {}) {
   persist();
   if (!quiet) emit();
   return interestsFor(studentId);
+}
+
+// ---- Topic requests (what the parent asked the topic finder) ----
+export const REQUEST_LOG_MAX = 50;
+export const REQUEST_TEXT_LEN = REQUEST_TEXT_MAX;
+// Keeps well-formed entries only, newest first, capped; tolerates anything an
+// import or an older document might hold.
+function cleanRequests(value) {
+  const seen = new Set();
+  const list = [];
+  for (const raw of Array.isArray(value) ? value : []) {
+    if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || !raw.id || seen.has(raw.id)) continue;
+    const text = typeof raw.text === 'string' ? raw.text.trim().replace(/\s+/g, ' ').slice(0, REQUEST_TEXT_LEN) : '';
+    if (!text || !Number.isFinite(raw.createdAt)) continue;
+    seen.add(raw.id);
+    list.push({ id: raw.id, text, createdAt: raw.createdAt, topicId: typeof raw.topicId === 'string' && raw.topicId ? raw.topicId : null });
+  }
+  return list.sort((a, b) => b.createdAt - a.createdAt).slice(0, REQUEST_LOG_MAX);
+}
+// On import: every known learner's log cleaned, unknown learners dropped.
+function cleanRequestLogs(logs, students) {
+  const out = {};
+  if (!logs || typeof logs !== 'object' || Array.isArray(logs)) return out;
+  for (const s of students) {
+    if (Object.prototype.hasOwnProperty.call(logs, s.id)) {
+      const list = cleanRequests(logs[s.id]);
+      if (list.length) out[s.id] = list;
+    }
+  }
+  return out;
+}
+// A copy, newest first.
+export function requestsFor(studentId) {
+  return cleanRequests(state.requests[studentId]);
+}
+// Logs a request; returns the new entry, or null for empty text.
+export function logRequest(studentId, text, topicId = null) {
+  const entry = { id: 'rq_' + Math.random().toString(36).slice(2, 10), text: String(text || ''), createdAt: Date.now(), topicId };
+  const list = cleanRequests([entry, ...cleanRequests(state.requests[studentId])]);
+  if (!list.some(r => r.id === entry.id)) return null;
+  state.requests[studentId] = list;
+  persist(); emit();
+  return list.find(r => r.id === entry.id);
+}
+// Records which topic the parent chose for a logged request.
+export function setRequestTopic(studentId, requestId, topicId) {
+  const list = cleanRequests(state.requests[studentId]);
+  const entry = list.find(r => r.id === requestId);
+  if (!entry || entry.topicId === topicId) return false;
+  entry.topicId = topicId || null;
+  state.requests[studentId] = list;
+  persist(); emit();
+  return true;
 }
 
 // Whether the student was active on each of the last `days` days, oldest first.

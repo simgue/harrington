@@ -14,7 +14,7 @@ const COUNTING = encodeURIComponent('Counting & Cardinality');
 
 // [name, hash, heading the route shows, extra seed, text when there is no
 // heading]. The route table is `views` in src/js/app.js (dashboard, calendar, graph, topic, records,
-// insights, settings, levelset, figure, onboard); graph, topic, levelset and figure take parameters, so their variants
+// insights, settings, find, levelset, figure, onboard); graph, topic, find, levelset and figure take parameters, so their variants
 // are listed too, and an unknown route falls back to the dashboard.
 const ROUTES = [
   ['dashboard', '', "Rowan Example's Wednesday"],
@@ -31,6 +31,8 @@ const ROUTES = [
   ['records', 'records', 'Records'],
   ['insights', 'insights', 'Teacher Insights'],
   ['settings', 'settings', 'AI provider'],
+  ['find', 'find', 'Find a topic'],
+  ['find: request with a path', 'find?q=telling%20time&topic=mt_0XxyaQLRhn', 'Find a topic'],
   ['figure', 'figure/mt_B3W5EfimJw', 'Toy cart'],
   ['figure: topic without one', `figure/${TOPICS.oneToOne.id}`, null, {}, 'No figure for this topic yet.'],
   ['levelset', `levelset/${LEARNERS.rowan.id}`, 'Level-set workbook'],

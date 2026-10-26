@@ -7,6 +7,7 @@ import { bannerText } from './hosting.js';
 import { renderShell } from './views/shell.js';
 import { graphHash, parseGraphHash } from './graph.js';
 import { commitNavigation } from './navigation.js';
+import { findHash, parseFindHash } from './finder.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderCalendar } from './views/calendar.js';
 import { renderTopic } from './views/topic.js';
@@ -14,6 +15,7 @@ import { renderGraph } from './views/graph.js';
 import { renderRecords } from './views/records.js';
 import { renderInsights } from './views/insights.js';
 import { renderSettings } from './views/settings.js';
+import { renderFind } from './views/find.js';
 import { renderFigure } from './views/howitworks.js';
 import { renderLevelset } from './views/levelset.js';
 
@@ -29,6 +31,7 @@ function navigate(name, params = {}, options = {}) {
 
 function hashFor(name, params = {}) {
   if (name === 'graph') return graphHash(params);
+  if (name === 'find') return findHash(params);
   return name + (params.id ? '/' + params.id : '');
 }
 
@@ -37,6 +40,8 @@ function parseHash() {
   if (!h) return { name: 'dashboard', params: {} };
   const graph = parseGraphHash(h);
   if (graph) return { name: 'graph', params: graph };
+  const find = parseFindHash(h);
+  if (find) return { name: 'find', params: find };
   const parts = h.split('/').map((part) => {
     try { return decodeURIComponent(part); }
     catch { return part; }
@@ -85,6 +90,7 @@ function render() {
     records: renderRecords,
     insights: renderInsights,
     settings: renderSettings,
+    find: renderFind,
     figure: renderFigure,
     levelset: renderLevelset,
     onboard: renderOnboard,
