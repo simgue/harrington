@@ -4,11 +4,13 @@ import { test, expect, modal, closeModal, expectToast } from './fixtures.mjs';
 import { LEARNERS, TOPICS } from './support/family.mjs';
 import { TODAY_KEY } from './support/env.mjs';
 
-// Telling Time: Hours and Half Hours, ages 5–6. With One-to-one counting
-// mastered and Comparing durations started, six steps remain.
+// Telling Time: Hours and Half Hours, ages 5–9 (2026-10-24 taxonomy). With
+// One-to-one counting mastered and How Many in Total? started, four steps
+// remain: How Many in Total? (in progress), Writing digits 0-9 (ready),
+// Reading and writing numbers to 20, then the topic itself.
 const TIME = { id: 'mt_0XxyaQLRhn', name: 'Telling Time: Hours and Half Hours' };
-const DURATIONS = { id: 'mt_TcG90kS8nu', name: 'Comparing durations' };
-const SEED = { progress: { [TOPICS.oneToOne.id]: 'mastered', [DURATIONS.id]: 'learning' } };
+const STARTED = { id: 'mt_dmNvjroCPT', name: 'How Many in Total?', domain: 'Counting & Cardinality' };
+const SEED = { progress: { [TOPICS.oneToOne.id]: 'mastered', [STARTED.id]: 'learning' } };
 const rowan = LEARNERS.rowan.id;
 
 const results = (page) => page.getByRole('region', { name: /^Closest topics for/ });
@@ -29,7 +31,7 @@ test('from the dashboard: a request finds topics, the path and the next step, an
   const list = results(page);
   await expect(list.getByRole('button')).toHaveCount(8);
   await expect(list.getByRole('button').first()).toContainText(/Telling time/i);
-  await expect(list.getByRole('button', { name: new RegExp(TIME.name) })).toContainText('Ages 5–6');
+  await expect(list.getByRole('button', { name: new RegExp(TIME.name) })).toContainText('Ages 5–9');
   await expect(list.getByRole('button', { name: new RegExp(TIME.name) })).toContainText('Fits age 6');
   await shot('results');
 
@@ -40,17 +42,17 @@ test('from the dashboard: a request finds topics, the path and the next step, an
   await expect(list.getByRole('button', { name: new RegExp(TIME.name) })).toHaveAttribute('aria-pressed', 'true');
   await expect(page).toHaveURL(new RegExp(`topic=${TIME.id}`));
   const p = path(page);
-  await expect(p).toContainText('6 steps to go for Rowan Example, counting the topic itself.');
+  await expect(p).toContainText('4 steps to go for Rowan Example, counting the topic itself.');
   await expect(p).toContainText('Builds on One-to-one counting (mastered).');
   const steps = p.locator('li.find-step');
-  await expect(steps).toHaveCount(6);
-  await expect(steps.first()).toContainText(DURATIONS.name);
+  await expect(steps).toHaveCount(4);
+  await expect(steps.first()).toContainText(STARTED.name);
   await expect(steps.first()).toContainText('In progress');
   await expect(steps.last()).toContainText(TIME.name);
   await expect(steps.last()).toContainText('Locked');
   await expect(steps.last()).toContainText(/Needs .+ first/);
-  await expect(p.locator('li.find-step[data-step-state="ready"]')).toHaveCount(2);
-  await expect(nextStep(page)).toContainText(DURATIONS.name);
+  await expect(p.locator('li.find-step[data-step-state="ready"]')).toHaveCount(1);
+  await expect(nextStep(page)).toContainText(STARTED.name);
   await shot('path');
 
   // The chosen topic is recorded on the same log entry, and the log shows it.
@@ -59,7 +61,7 @@ test('from the dashboard: a request finds topics, the path and the next step, an
 
   // Reload keeps the request and the choice (they ride in the address).
   await page.reload();
-  await expect(path(page).locator('li.find-step')).toHaveCount(6);
+  await expect(path(page).locator('li.find-step')).toHaveCount(4);
   await expect(page.getByLabel('What does Rowan Example want to learn?')).toHaveValue('I want to learn how to tell the time');
   expect(errors).toEqual([]);
 });
@@ -70,23 +72,23 @@ test('next step actions: add to today, plan it, open the topic, find it on the s
   await page.locator('div.grid-cols-7 > button').filter({ has: page.locator('span > span', { hasText: /^28$/ }) }).first().click();
   await page.goto(`/#find?q=telling%20time&topic=${TIME.id}`);
   const next = nextStep(page);
-  await expect(next).toContainText(DURATIONS.name);
+  await expect(next).toContainText(STARTED.name);
 
   await next.getByRole('button', { name: 'Add to today' }).click();
   await expectToast(page, /^(Moved to today in the calendar|Added to today as an extra lesson)$/);
   await api.waitForState((s) => {
     const plan = s.plan?.[rowan] || {};
-    return plan.moves?.[DURATIONS.id] === TODAY_KEY || (plan.extras?.[TODAY_KEY] || []).some((x) => x.topicId === DURATIONS.id);
+    return plan.moves?.[STARTED.id] === TODAY_KEY || (plan.extras?.[TODAY_KEY] || []).some((x) => x.topicId === STARTED.id);
   });
 
   // A second tap changes nothing and says so.
   await next.getByRole('button', { name: 'Add to today' }).click();
   await expectToast(page, 'Already on today in the calendar');
   const saved = (await api.getState()).state.plan[rowan];
-  expect((saved.extras?.[TODAY_KEY] || []).filter((x) => x.topicId === DURATIONS.id).length).toBeLessThanOrEqual(1);
+  expect((saved.extras?.[TODAY_KEY] || []).filter((x) => x.topicId === STARTED.id).length).toBeLessThanOrEqual(1);
 
   await next.getByRole('button', { name: 'Plan it' }).click();
-  await expect(modal(page).getByRole('heading', { name: `Plan “${DURATIONS.name}”` })).toBeVisible();
+  await expect(modal(page).getByRole('heading', { name: `Plan “${STARTED.name}”` })).toBeVisible();
   // Counted from today (Wednesday 7 October), not from a day picked earlier in the calendar.
   await expect(modal(page).getByLabel('Or pick a day')).toHaveValue('2026-10-08');
   await expect(modal(page).getByRole('button', { name: 'Next home day' })).toBeVisible();
@@ -95,10 +97,10 @@ test('next step actions: add to today, plan it, open the topic, find it on the s
   await closeModal(page);
 
   await next.getByRole('button', { name: 'Find on skill tree' }).click();
-  await expect(page).toHaveURL(new RegExp(`#graph/Mathematics/Measurement/\\d+\\?skill=${DURATIONS.id}$`));
+  await expect(page).toHaveURL(new RegExp(`#graph/Mathematics/${encodeURIComponent(STARTED.domain)}/\\d+\\?skill=${STARTED.id}$`));
   const questLog = page.getByRole('complementary', { name: 'Quest log' });
-  await expect(questLog.getByRole('heading', { name: DURATIONS.name })).toBeVisible();
-  await expect(page.locator(`button.skill-node[data-skill-id="${DURATIONS.id}"]`)).toHaveClass(/is-selected/);
+  await expect(questLog.getByRole('heading', { name: STARTED.name })).toBeVisible();
+  await expect(page.locator(`button.skill-node[data-skill-id="${STARTED.id}"]`)).toHaveClass(/is-selected/);
 
   // The skill tree links back to the finder.
   await page.getByRole('button', { name: 'Find a topic' }).click();
@@ -108,7 +110,7 @@ test('next step actions: add to today, plan it, open the topic, find it on the s
   await page.goBack();
   await expect(nextStep(page)).toBeVisible();
   await nextStep(page).getByRole('button', { name: 'Open topic page' }).click();
-  await expect(page.getByRole('heading', { level: 1, name: DURATIONS.name })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: STARTED.name })).toBeVisible();
 });
 
 test('no close match, an empty request, and a mastered topic', async ({ page, gotoApp, shot }) => {

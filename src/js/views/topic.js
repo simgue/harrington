@@ -97,8 +97,8 @@ export function renderTopic(params, { navigate }) {
 
   // Two column layout
   const grid = el(`<div class="grid lg:grid-cols-3 gap-5"></div>`);
-  const mainCol = el(`<div class="lg:col-span-2 space-y-5"></div>`);
-  const sideCol = el(`<div class="space-y-5"></div>`);
+  const mainCol = el(`<div class="lg:col-span-2 space-y-5 min-w-0"></div>`);
+  const sideCol = el(`<div class="space-y-5 min-w-0"></div>`);
 
   // --- Teaching guide: Marble's teaching research, for the topics that have it ---
   mainCol.appendChild(teachingGuideSection(t, { navigate }));
