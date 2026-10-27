@@ -98,7 +98,10 @@ switched on, the link reads "Not switched on yet" (see
 [docs/AI-SETUP.md](docs/AI-SETUP.md)). Lessons and print & go sheets saved
 on the server earlier still open: the topic page shows "Open saved lesson", and
 Records lists them under "Saved lessons". The curriculum is downloaded once on
-first start and does not update on its own.
+first start, at the revision pinned in `lib/taxonomy-pin.mjs` and checked
+against its SHA-256, and does not update on its own; see
+[docs/CURRICULUM.md](docs/CURRICULUM.md) for how the pin moves and what
+happens to topics a new revision retires.
 
 ## Highlights
 
@@ -269,7 +272,7 @@ The adapter is URL-swappable. Point `HARRINGTON_AI_BASE_URL` at any
 OpenAI-compatible `/v1` (Ollama, llama.cpp, vLLM, or a vendor/LiteLLM endpoint
 on the family server) without code changes.
 
-Do **not** pre-generate all ~1,590 Marble topics. The lesson cache is
+Do **not** pre-generate all ~1,845 Marble topics. The lesson cache is
 generate-once per topic the family actually opens. If a local model's JSON is
 weak, you may temporarily point at a stronger endpoint to fill **only the
 topics you open** (or a small focus band later), then switch back to Ollama.

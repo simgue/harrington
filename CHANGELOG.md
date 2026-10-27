@@ -25,6 +25,14 @@ tagged a release yet; everything below is on `main`.
 ### Fixed
 - The topic page no longer scrolls sideways on a phone when a topic has a
   long domain name: the header chips wrap and the columns can shrink.
+- Topics in a subject Harrington has no colour for are no longer dropped
+  (several views threw on one): a new subject shows in neutral grey with one
+  console warning until it is added to `SUBJECTS` (HAR-55).
+- Insights' "Recommended next" ranks topics within the chosen subject; a top
+  six across every subject could leave a smaller subject with nothing to
+  suggest though it had open topics (HAR-55).
+- The calendar no longer deletes extras whose topic left the curriculum, and a
+  level-set sheet holding a retired topic can still be saved (HAR-55).
 - A change made just before the page was reloaded or closed is no longer
   lost while its save is still on the wire: the change stays pending until the
   server answers, a save under 64 KB keeps itself alive past unload
@@ -44,6 +52,30 @@ tagged a release yet; everything below is on `main`.
   say to close every Harrington tab first (HAR-44).
 
 ### Changed
+- **Curriculum refresh: the Marble Skill Taxonomy moves to its 24 October 2026
+  revision** (`7bd8b67`, from `96a7933` of 8 July). 1,590 → 1,845 topics,
+  3,221 → 3,941 prerequisite links, 183 → 176 domain summaries, and 8 → 9
+  subjects: **Geography** (22 topics) is new; Mathematics +73, English +45,
+  Computing +31, Personal & Social Development +29, Science +29, History +19,
+  Life Skills +7. 113 topics moved their starting age, 44 were renamed and 34
+  reworded. **Today's choices may differ after the refresh**: daily choices,
+  the calendar track, sections and recommendations follow the new ages. An
+  existing install keeps its cached curriculum until the parent runs
+  `npm run taxonomy:check -- --install` (docs/CURRICULUM.md); `/api/health`
+  says `taxonomy: 'outdated'` until then (HAR-55).
+- One topic was retired, `mt_3XJkeIn6J6` ("Estimating answers (age 7+)").
+  Family data for a retired topic is kept and never refused on load or
+  import; it no longer counts toward progress, daily choices or due recall and
+  practice, Records lists it under **Archived topics**, and its old topic page
+  says "This topic is no longer in the curriculum" (HAR-55).
+- The taxonomy is pinned and checked (G10, HAR-55): `lib/taxonomy-pin.mjs`
+  holds the commit and the SHA-256 of each file, the server downloads from
+  that commit on raw.githubusercontent.com instead of jsDelivr `@main` and
+  refuses a file that does not match, and `/api/health` reports `taxonomy`
+  and `taxonomyRevision`. `HARRINGTON_TAXONOMY_UPSTREAM` still overrides it
+  for experiments, with a startup warning that the files are not checked.
+  New `npm run taxonomy:check` (run in CI) downloads and verifies the pinned
+  files; `docs/CURRICULUM.md` documents the bump path.
 - AI can be switched on one capability at a time with
   `HARRINGTON_AI_CAPABILITIES` (for example `lesson`; unset means all). Every
   request names its capability, the server refuses the rest with 403,

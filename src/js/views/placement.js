@@ -1,6 +1,6 @@
 // Placement modal: mark earlier topics as already mastered for a learner.
 // Parent-only; the child view never shows it.
-import { SUBJECTS, AGES, getData, hardPrereqs, topicAge } from '../data.js';
+import { AGES, getData, hardPrereqs, topicAge, subjectNames } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, openModal, refreshIcons, toast } from '../ui.js';
 import { selectPlacement, defaultMaxAge, subjectDomains, placementTitle } from '../placement.js';
@@ -11,7 +11,7 @@ const SELECT = 'w-full px-3.5 py-2.5 rounded-xl border border-paper-line bg-pape
 export function openPlacement(student, { subject = null } = {}) {
   if (!student) { toast('Add a student first', 'error'); return; }
   const d = getData();
-  const subjects = Object.keys(SUBJECTS);
+  const subjects = subjectNames();
   let sub = subjects.includes(subject) ? subject : subjects[0];
   let domain = '';
   // A learner with an Australian Curriculum year starts from the usual age of
