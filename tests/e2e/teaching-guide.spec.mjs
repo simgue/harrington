@@ -6,7 +6,7 @@ import { test, expect, noHorizontalOverflow } from './fixtures.mjs';
 import { TOPICS } from './support/family.mjs';
 
 const ONE = TOPICS.oneToOne; // Mathematics, has research
-const HISTORY = { id: 'mt_IR8kIjZn_V', name: 'Discovering Tutankhamun’s Tomb' }; // History has none
+const HISTORY = { id: 'mt_IR8kIjZn_V', name: "Discovering Tutankhamun's Tomb" }; // History has none
 
 // The first guide request on a fresh server splits the 23.5 MB file (a few seconds).
 const SPLIT = { timeout: 30_000 };
