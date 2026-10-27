@@ -2,7 +2,7 @@
 
 Harrington is a self-hosted family learning platform. It shows the open
 [Marble Skill Taxonomy](https://github.com/withmarbleapp/os-taxonomy) (about
-1,590 connected topics across 8 subjects) as a map for parents, offers small
+1,845 connected topics across 9 subjects) as a map for parents, offers small
 daily literacy and numeracy choices, and keeps a record of what your child
 actually did.
 
@@ -131,7 +131,7 @@ The child view itself shows no levels, XP or percentages.
 
 The connected curriculum, in two modes.
 
-- **World map.** The eight subjects as realms, with their domains as dots sized
+- **World map.** The nine subjects as realms, with their domains as dots sized
   by topic count. Mastery shows as a quiet tint rather than a percentage.
 - **Skill tree.** Enter a domain to see its topics as a tree. Solid links are
   **required** foundations; dashed links are **helpful** ones. Gateway domains
@@ -259,6 +259,10 @@ A day-by-day plan from your start date, on the home days you choose.
 - **Records.** Log an observation, question, discussion or assessment,
   optionally linked to a topic, with a title, notes and a confidence rating.
   Filter by type and open the linked topic from any record.
+- **Archived topics.** When a curriculum update retires a topic you had
+  worked on, nothing you recorded is lost: Records lists it as an archived
+  topic with what is kept, and it no longer counts toward progress or daily
+  choices.
 - **Voice recording.** Record a conversation from the dashboard, a topic page
   or the child view. Audio is saved on the computer that runs Harrington and
   plays back inline.
