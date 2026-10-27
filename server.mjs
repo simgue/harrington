@@ -9,6 +9,9 @@ import {
   MAX_TIMEOUT_MS, chatCompletion, knownCapabilities, readStoredAiSettings, resolveAiSettings, validTimeout,
 } from './lib/ai-provider.mjs';
 import { isLoopbackAddress } from './lib/loopback.mjs';
+import {
+  RESEARCH_FILE, readResearchIndex, readResearchRecord, splitTeachingResearch, validTopicId,
+} from './lib/teaching-research.mjs';
 import { AI_CAPABILITIES, capabilityOffMessage, parseCapabilities } from './src/js/ai-capabilities.js';
 import { redactNames } from './src/js/redact.js';
 import { SCHEMA_VERSION, formatCopyName, schemaVersionOf } from './src/js/schema.js';
@@ -41,7 +44,10 @@ const configuredPort = Number.parseInt(process.env.HARRINGTON_PORT || process.en
 const port = Number.isInteger(configuredPort) && configuredPort >= 0 ? configuredPort : 4173;
 const JSON_LIMIT = 5 * 1024 * 1024;
 const AUDIO_LIMIT = 100 * 1024 * 1024;
+// Served to the browser as they are. The teaching research is downloaded
+// through the same cache but only ever served one topic at a time.
 const TAXONOMY_FILES = new Set(['topics.json', 'dependencies.json', 'clusters.json', 'manifest.json']);
+const TAXONOMY_DOWNLOADS = new Set([...TAXONOMY_FILES, RESEARCH_FILE]);
 const TAXONOMY_UPSTREAM = process.env.HARRINGTON_TAXONOMY_UPSTREAM
   || 'https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@main/data';
 const AI_UNCONFIGURED = 'AI is not configured for this self-hosted Harrington server';
@@ -659,7 +665,7 @@ async function taxonomyCached() {
 }
 
 async function loadTaxonomyFile(name) {
-  if (!TAXONOMY_FILES.has(name)) {
+  if (!TAXONOMY_DOWNLOADS.has(name)) {
     throw Object.assign(new Error('Unknown taxonomy file'), { statusCode: 404 });
   }
   const cachePath = join(taxonomyDir, name);
@@ -680,6 +686,25 @@ async function loadTaxonomyFile(name) {
   await mkdir(taxonomyDir, { recursive: true });
   await atomicWrite(cachePath, body);
   return body;
+}
+
+// The teaching research, split into one file per topic on first use and
+// again only when the downloaded file changes. Concurrent first requests
+// share one download and one split.
+let researchIndex = null;
+function teachingResearchIndex() {
+  researchIndex ??= (async () => {
+    const existing = await readResearchIndex(taxonomyDir);
+    if (existing) return existing;
+    const started = Date.now();
+    const index = await splitTeachingResearch(await loadTaxonomyFile(RESEARCH_FILE), taxonomyDir);
+    console.log(`Split the teaching research into ${index.recordCount} topic files in ${Date.now() - started} ms`);
+    return index;
+  })().catch((error) => {
+    researchIndex = null; // the next request tries again
+    throw error;
+  });
+  return researchIndex;
 }
 
 // ---- Saved lessons listing ----
@@ -948,8 +973,37 @@ async function handleApi(req, res, url) {
     return true;
   }
 
+  if (url.pathname === '/api/taxonomy/research' && req.method === 'GET') {
+    const index = await teachingResearchIndex();
+    sendJson(res, 200, { topicIds: index.topicIds });
+    return true;
+  }
+
+  const researchId = routeKey(url.pathname, '/api/taxonomy/research/');
+  if (researchId !== null && req.method === 'GET') {
+    // The id is checked before the download and before any path is built.
+    if (!validTopicId(researchId)) {
+      sendJson(res, 400, { error: 'Invalid topic id' });
+      return true;
+    }
+    await teachingResearchIndex();
+    const record = await readResearchRecord(taxonomyDir, researchId);
+    if (record === null) sendJson(res, 404, { error: 'No teaching research for this topic' });
+    else {
+      send(res, 200, record, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'private, max-age=3600',
+      });
+    }
+    return true;
+  }
+
   const taxonomyName = routeKey(url.pathname, '/api/taxonomy/');
   if (taxonomyName !== null && req.method === 'GET') {
+    if (!TAXONOMY_FILES.has(taxonomyName)) {
+      sendJson(res, 404, { error: 'Unknown taxonomy file' });
+      return true;
+    }
     const body = await loadTaxonomyFile(taxonomyName);
     send(res, 200, body, {
       'Content-Type': 'application/json; charset=utf-8',

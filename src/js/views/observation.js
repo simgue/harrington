@@ -10,6 +10,7 @@ import { openRecorder } from '../recorder.js';
 import { checkableEvidence, assessmentQuestion } from '../phrasing.js';
 import { observedResult, observedRollup, observedTitle } from '../observe.js';
 import { sectionForTopic, subjectSections } from '../mastery.js';
+import { loadTeachingGuide } from '../teaching.js';
 
 // True when the topic has something a parent can watch for.
 export function canObserve(topic) {
@@ -36,6 +37,7 @@ export function openObservation(topic, student = store.activeStudent()) {
       <p class="text-[11px] font-600 uppercase tracking-wide text-ink-faint mb-1">Suggested question</p>
       <p class="text-sm text-ink-soft italic leading-relaxed">“${esc(question)}”</p>
     </div>` : ''}
+    <div id="ob-guide-q"></div>
     <fieldset>
       <legend class="text-sm font-medium mb-2">What did you see ${esc(student.name)} do?</legend>
       <div class="space-y-2" id="ob-items">${items.map((text, i) => `<label class="flex items-start gap-2.5 p-2.5 rounded-lg border border-paper-line bg-paper cursor-pointer hover:border-brand/40">
@@ -65,6 +67,17 @@ export function openObservation(topic, student = store.activeStudent()) {
   };
   boxes.forEach(b => { b.onchange = update; });
   update();
+
+  // A second question from the teaching guide, when the topic has one. The
+  // name is filled in here, in the browser.
+  loadTeachingGuide(topic.id).then(guide => {
+    const extra = guide?.check?.prompt ? guide.check.prompt.replace(/\{\{name\}\}/g, student.name) : '';
+    if (!extra || extra === question) return;
+    body.querySelector('#ob-guide-q').replaceWith(el(`<div class="rounded-xl bg-paper border border-paper-line p-3.5 mb-4">
+      <p class="text-[11px] font-600 uppercase tracking-wide text-ink-faint mb-1">${question ? 'Another question to try' : 'Suggested question'} · from the teaching guide</p>
+      <p class="text-sm text-ink-soft italic leading-relaxed">“${esc(extra)}”</p>
+    </div>`));
+  }).catch(() => {});
 
   const m = openModal(body);
   body.querySelector('#ob-cancel').onclick = () => m.close();

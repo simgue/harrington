@@ -21,6 +21,7 @@ import * as store from '../store.js';
 import { MASTERY, topicsMasteryStats, isUnlocked, blockingPrereqs } from '../mastery.js';
 import { el, esc, refreshIcons, toast } from '../ui.js';
 import { openLesson } from './lesson.js';
+import { offerTeachingGuide } from './teachingguide.js';
 import { gateAi } from '../ai-status.js';
 import { openRecordForm } from './records.js';
 import { GROWTH, growthChip, growthIcon, stageForSkillState, stageForStatus } from '../meadow.js';
@@ -698,6 +699,7 @@ function renderQuestLog(topic, { active, navigate, prereqsOf, unlocksOf, byId, s
   const lesson = el(`<button type="button" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium text-sm"><i data-lucide="book-open-text" class="w-4 h-4"></i>Open full lesson</button>`);
   lesson.onclick = () => openLesson(topic);
   actions.appendChild(gateAi(lesson, { capability: 'lesson', cachedKey: 'topic:' + topic.id }));
+  if (!store.aiAvailable('lesson')) offerTeachingGuide(topic, btn => actions.prepend(btn), { navigate });
 
   const deep = el(`<button type="button" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper border border-paper-line text-ink font-medium text-sm hover:border-brand/40"><i data-lucide="panel-right" class="w-4 h-4"></i>Open topic page</button>`);
   deep.onclick = () => {
