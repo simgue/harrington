@@ -106,3 +106,19 @@ test('placed siblings do not count: an observed pass masters the topic but not i
   await expect(section(page, 'Section check')).not.toContainText('Section passed by observation');
   expect(errors).toEqual([]);
 });
+
+test('the teaching guide adds a second suggested question, with no name sent anywhere', async ({ page, gotoApp }) => {
+  const errors = pageErrors(page);
+  const requests = [];
+  page.on('request', (req) => requests.push(req.url()));
+  await gotoApp({ seed: {}, hash: `topic/${ONE.id}` });
+  await expect(page.locator('#teaching-guide')).toBeVisible({ timeout: 30_000 });
+  await section(page, 'Topic mastery test').getByRole('button', { name: 'Check mastery by observation' }).click();
+  const m = modal(page);
+  await expect(m.getByText('Suggested question', { exact: true })).toBeVisible();
+  await expect(m.getByText('Another question to try · from the teaching guide')).toBeVisible();
+  await expect(m.getByText(/Watch Teddy count these 6 buttons/)).toBeVisible();
+  // The learner's name is filled in locally; it is in no request.
+  expect(requests.filter((url) => /Rowan/i.test(decodeURIComponent(url)))).toEqual([]);
+  expect(errors).toEqual([]);
+});

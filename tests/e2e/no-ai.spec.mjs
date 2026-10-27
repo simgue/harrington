@@ -221,3 +221,47 @@ test('the Records page shelves saved lessons and printables, and they open with 
   await closeModal(page);
   expect(aiCalls).toBe(0);
 });
+
+// Teaching guides need no AI: where a lesson would, "Open the teaching guide"
+// comes first for topics with Marble's research, and the chip stays.
+test('without AI, the teaching guide is the first choice where a topic has one', async ({ page, gotoApp, shot }) => {
+  await gotoApp({ seed: {}, hash: `topic/${ONE.id}` });
+  const cta = page.locator('div.rounded-2xl', { hasText: 'Ready-to-teach lesson' });
+  const open = cta.getByRole('button', { name: 'Open the teaching guide' });
+  await expect(open).toBeVisible({ timeout: 30_000 });
+  await expect(chips(cta)).toHaveCount(1);
+  // The guide button comes before the chip.
+  const order = await cta.locator('.cta-actions > *').evaluateAll((nodes) => nodes.map((n) => n.textContent.trim()));
+  expect(order[0]).toBe('Open the teaching guide');
+  expect(order).toContain('Needs a local AI provider');
+
+  await open.click();
+  const guide = page.locator('#teaching-guide');
+  await expect(guide).toHaveAttribute('open', '');
+  await expect(guide.getByRole('heading', { name: 'Check understanding' })).toBeInViewport();
+  await expectNoFailureCopy(page);
+  await shot('topic-guide-first');
+
+  // The quest log opens the same guide in a window.
+  await page.goto(`/#graph/Mathematics/${encodeURIComponent('Counting & Cardinality')}`);
+  await page.locator('button.skill-node', { hasText: ONE.name }).first().click();
+  const log = page.getByRole('complementary', { name: 'Quest log' });
+  await expect(log.getByRole('button', { name: 'Open the teaching guide' })).toBeVisible();
+  await expect(chips(log)).toHaveCount(1);
+  await log.getByRole('button', { name: 'Open the teaching guide' }).click();
+  await expect(modal(page).getByText('Teaching guide · no AI needed')).toBeVisible();
+  await expect(modal(page).getByText('Feed the squirrel: tap-count a scattered pile')).toBeVisible();
+  await expect(modal(page)).toContainText('CC BY-SA 4.0');
+  await closeModal(page);
+});
+
+test('without AI, a topic with no teaching guide keeps only the chip', async ({ page, gotoApp }) => {
+  const listed = page.waitForResponse((res) => res.url().endsWith('/api/taxonomy/research'), { timeout: 30_000 });
+  await gotoApp({ seed: {}, hash: 'topic/mt_IR8kIjZn_V' });
+  await listed;
+  await page.waitForTimeout(300);
+  const cta = page.locator('div.rounded-2xl', { hasText: 'Ready-to-teach lesson' });
+  await expect(chips(cta)).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Open the teaching guide' })).toHaveCount(0);
+  await expect(page.locator('#teaching-guide')).toHaveCount(0);
+});

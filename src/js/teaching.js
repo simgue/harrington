@@ -6,7 +6,7 @@
 // the edit must be marked as such where it is shown.
 
 export const GUIDE_ATTRIBUTION = 'From the Marble Skill Taxonomy teaching research · © Generative Spark, Inc. (Marble) · CC BY-SA 4.0';
-export const GUIDE_CAVEAT = 'Written by AI agents from teaching research; these are proposed activities, not tested in studies.';
+export const GUIDE_CAVEAT = 'Written by AI agents as teaching research and proposed activities; they have not been tested in studies.';
 export const MARBLE_HREF = 'https://github.com/withmarbleapp/os-taxonomy';
 export const LICENSE_HREF = 'https://creativecommons.org/licenses/by-sa/4.0/';
 

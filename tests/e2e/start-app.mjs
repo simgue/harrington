@@ -13,11 +13,11 @@
 //   node tests/e2e/start-app.mjs --port 4316 --token
 //                                     # no AI provider, access token required
 import { spawn } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, rename, rm, rmdir, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CACHE_DIR, GITHUB_RAW_UPSTREAM, TAXONOMY_FILES, cacheIsComplete, ensureTaxonomyCache } from './support/taxonomy.mjs';
+import { CACHE_DIR, GITHUB_RAW_UPSTREAM, TAXONOMY_FILES, cacheIsComplete, detectUpstream, ensureTaxonomyCache } from './support/taxonomy.mjs';
 import { ACCESS_TOKEN, URLS } from './support/env.mjs';
 
 const args = process.argv.slice(2);
@@ -35,11 +35,48 @@ if (!args.includes('--port') || !portArg) {
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const log = (msg) => console.log(`[e2e app ${portArg}] ${msg}`);
 
+// Marble's teaching research (about 23.5 MB) is cached next to the taxonomy
+// so the servers split it without the network. Seven launchers start at once,
+// so one downloads (holding a lock directory) and the others wait for it. A
+// revision without the file leaves a marker, and the guides are then absent.
+const RESEARCH = 'teaching-research.json';
+const fileExists = (path) => stat(path).then((s) => s.size >= 0, () => false);
+async function ensureResearchCache() {
+  const target = join(CACHE_DIR, RESEARCH);
+  const absent = `${target}.absent`;
+  const lock = `${target}.lock`;
+  for (let waited = 0; waited < 180_000; waited += 250) {
+    if (await fileExists(target)) return true;
+    if (await fileExists(absent)) return false;
+    try {
+      await mkdir(lock);
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      continue;
+    }
+    try {
+      const upstream = await detectUpstream();
+      log(`Downloading ${RESEARCH} from ${upstream}`);
+      const res = await fetch(`${upstream}/${RESEARCH}`, { signal: AbortSignal.timeout(120_000) });
+      if (res.status === 404) { await writeFile(absent, ''); return false; }
+      if (!res.ok) throw new Error(`Could not download ${RESEARCH} from ${upstream} (${res.status})`);
+      const tmp = `${target}.${process.pid}.tmp`;
+      await writeFile(tmp, Buffer.from(await res.arrayBuffer()));
+      await rename(tmp, target);
+      return true;
+    } finally {
+      await rmdir(lock).catch(() => {});
+    }
+  }
+  throw new Error(`Timed out waiting for another launcher to download ${RESEARCH} (remove ${lock} if it is stale)`);
+}
+
 const hadCache = await cacheIsComplete();
 const { upstream } = await ensureTaxonomyCache({ log });
 const dataDir = await mkdtemp(join(tmpdir(), `harrington-e2e-${unreachable ? 'ai-unreachable' : capabilities ? 'ai-some' : withAi ? 'ai' : withToken ? 'token' : 'noai'}-`));
 await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
 for (const name of TAXONOMY_FILES) await copyFile(join(CACHE_DIR, name), join(dataDir, 'taxonomy', name));
+if (await ensureResearchCache()) await copyFile(join(CACHE_DIR, RESEARCH), join(dataDir, 'taxonomy', RESEARCH));
 log(`data dir ${dataDir} (taxonomy ${hadCache ? 'from cache' : `downloaded from ${upstream}`})`);
 // Where a spec finds this server's data directory (Api.restoreState replaces
 // family-state.json there, as a restore from a backup does). One file per
