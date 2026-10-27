@@ -9,6 +9,7 @@ import {
   MAX_TIMEOUT_MS, chatCompletion, knownCapabilities, readStoredAiSettings, resolveAiSettings, validTimeout,
 } from './lib/ai-provider.mjs';
 import { isLoopbackAddress } from './lib/loopback.mjs';
+import { TAXONOMY_PIN } from './lib/taxonomy-pin.mjs';
 import { AI_CAPABILITIES, capabilityOffMessage, parseCapabilities } from './src/js/ai-capabilities.js';
 import { redactNames } from './src/js/redact.js';
 import { SCHEMA_VERSION, formatCopyName, schemaVersionOf } from './src/js/schema.js';
@@ -41,9 +42,13 @@ const configuredPort = Number.parseInt(process.env.HARRINGTON_PORT || process.en
 const port = Number.isInteger(configuredPort) && configuredPort >= 0 ? configuredPort : 4173;
 const JSON_LIMIT = 5 * 1024 * 1024;
 const AUDIO_LIMIT = 100 * 1024 * 1024;
-const TAXONOMY_FILES = new Set(['topics.json', 'dependencies.json', 'clusters.json', 'manifest.json']);
-const TAXONOMY_UPSTREAM = process.env.HARRINGTON_TAXONOMY_UPSTREAM
-  || 'https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@main/data';
+// The curriculum files the server fetches, each with its expected SHA-256
+// (lib/taxonomy-pin.mjs; docs/CURRICULUM.md says how to move the pin).
+const TAXONOMY_FILES = new Set(Object.keys(TAXONOMY_PIN.files));
+const TAXONOMY_UPSTREAM = (process.env.HARRINGTON_TAXONOMY_UPSTREAM || '').trim().replace(/\/+$/, '')
+  || TAXONOMY_PIN.upstream;
+// Any other upstream is an experiment: its files are cached without a hash check.
+const TAXONOMY_PINNED = TAXONOMY_UPSTREAM === TAXONOMY_PIN.upstream;
 const AI_UNCONFIGURED = 'AI is not configured for this self-hosted Harrington server';
 // Read once, to warn about unknown names at startup.
 const aiCapabilityConfig = parseCapabilities(process.env.HARRINGTON_AI_CAPABILITIES);
@@ -658,6 +663,45 @@ async function taxonomyCached() {
   }
 }
 
+// What /api/health says about the curriculum files:
+//   verified          every cached file matches the pin
+//   outdated          a cached file is from another revision (an install
+//                     older than the pin); it is still served, see docs/CURRICULUM.md
+//   integrity-failed  a download did not match the pin and was refused
+//   unchecked         HARRINGTON_TAXONOMY_UPSTREAM points somewhere else
+//   not-downloaded    nothing cached yet
+// Hashes of cached files are worked out once per process (the cache is only
+// written here) and remembered with the result of each refused download.
+const taxonomyHashes = new Map();
+const taxonomyRefused = new Set();
+let taxonomyOutdatedWarned = false;
+
+function noteTaxonomyFile(name, body) {
+  const actual = createHash('sha256').update(body).digest('hex');
+  taxonomyHashes.set(name, actual);
+  if (TAXONOMY_PINNED && actual !== TAXONOMY_PIN.files[name] && !taxonomyOutdatedWarned) {
+    taxonomyOutdatedWarned = true;
+    console.warn(`The cached curriculum (${taxonomyDir}) is not the pinned revision ${TAXONOMY_PIN.revision.slice(0, 7)}; `
+      + 'it is still served. To move to the pinned revision, run `npm run taxonomy:check -- --install` (docs/CURRICULUM.md).');
+  }
+}
+
+async function taxonomyStatus() {
+  if (taxonomyRefused.size) return 'integrity-failed';
+  if (!TAXONOMY_PINNED) return 'unchecked';
+  let cachedAny = false;
+  for (const name of TAXONOMY_FILES) {
+    if (!taxonomyHashes.has(name)) {
+      const body = await readFile(join(taxonomyDir, name)).catch(() => null);
+      if (!body) continue;
+      noteTaxonomyFile(name, body);
+    }
+    cachedAny = true;
+    if (taxonomyHashes.get(name) !== TAXONOMY_PIN.files[name]) return 'outdated';
+  }
+  return cachedAny ? 'verified' : 'not-downloaded';
+}
+
 async function loadTaxonomyFile(name) {
   if (!TAXONOMY_FILES.has(name)) {
     throw Object.assign(new Error('Unknown taxonomy file'), { statusCode: 404 });
@@ -667,9 +711,12 @@ async function loadTaxonomyFile(name) {
     if (error.code === 'ENOENT') return null;
     throw error;
   });
-  if (cached) return cached;
+  if (cached) {
+    if (!taxonomyHashes.has(name)) noteTaxonomyFile(name, cached);
+    return cached;
+  }
 
-  const response = await fetch(`${TAXONOMY_UPSTREAM.replace(/\/$/, '')}/${name}`);
+  const response = await fetch(`${TAXONOMY_UPSTREAM}/${name}`);
   if (!response.ok) {
     throw Object.assign(
       new Error(`Could not download curriculum file ${name} (${response.status})`),
@@ -677,8 +724,21 @@ async function loadTaxonomyFile(name) {
     );
   }
   const body = Buffer.from(await response.arrayBuffer());
+  if (TAXONOMY_PINNED) {
+    const actual = createHash('sha256').update(body).digest('hex');
+    if (actual !== TAXONOMY_PIN.files[name]) {
+      taxonomyRefused.add(name);
+      throw Object.assign(
+        new Error(`Curriculum file ${name} failed its integrity check, so it was not saved: `
+          + `expected SHA-256 ${TAXONOMY_PIN.files[name]}, got ${actual}. See docs/CURRICULUM.md.`),
+        { statusCode: 502 },
+      );
+    }
+    taxonomyRefused.delete(name);
+  }
   await mkdir(taxonomyDir, { recursive: true });
   await atomicWrite(cachePath, body);
+  taxonomyHashes.set(name, createHash('sha256').update(body).digest('hex'));
   return body;
 }
 
@@ -928,6 +988,8 @@ async function handleApi(req, res, url) {
       aiCapabilities: ai.capabilities,
       redaction: 'server+client',
       taxonomyCached: await taxonomyCached(),
+      taxonomy: await taxonomyStatus(),
+      taxonomyRevision: TAXONOMY_PINNED ? TAXONOMY_PIN.revision : null,
       ...(await stateHealth()),
       backupAgeDays: await backupAgeDays(),
     });
@@ -1141,6 +1203,10 @@ server.listen(port, host, () => {
   console.log(authEnabled
     ? 'Access token is on: each device signs in once at /login.'
     : `Access token is off${shared ? ': anyone who can reach this server can read and change family data' : ''}.`);
+  if (!TAXONOMY_PINNED) {
+    console.warn(`HARRINGTON_TAXONOMY_UPSTREAM is a custom upstream (${TAXONOMY_UPSTREAM}): curriculum files from it are `
+      + `cached without an integrity check. Unset it to use the pinned revision ${TAXONOMY_PIN.revision.slice(0, 7)}.`);
+  }
   if (aiCapabilityConfig.unknown.length) {
     console.warn(`Ignoring unknown HARRINGTON_AI_CAPABILITIES entries: ${aiCapabilityConfig.unknown.join(', ')}`);
   }

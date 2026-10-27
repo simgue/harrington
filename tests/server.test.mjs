@@ -8,6 +8,7 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { isLoopbackAddress } from '../lib/loopback.mjs';
+import { TAXONOMY_PIN } from '../lib/taxonomy-pin.mjs';
 import { AI_CAPABILITIES, parseCapabilities } from '../src/js/ai-capabilities.js';
 import { SCHEMA_VERSION, formatCopyName } from '../src/js/schema.js';
 
@@ -80,6 +81,8 @@ test('serves Harrington and reports self-hosted health', async () => {
     aiCapabilities: [],
     redaction: 'server+client',
     taxonomyCached: false,
+    taxonomy: 'not-downloaded',
+    taxonomyRevision: TAXONOMY_PIN.revision,
     stateVersion: 0,
     stateBytes: 0,
     backupAgeDays: null,
@@ -639,8 +642,10 @@ test('serves a cached Marble taxonomy file and rejects unknown names', async () 
   assert.equal(cached.status, 200);
   assert.deepEqual(await cached.json(), payload);
 
-  const health = await fetch(`${baseUrl}/api/health`);
-  assert.equal((await health.json()).taxonomyCached, true);
+  const health = await (await fetch(`${baseUrl}/api/health`)).json();
+  assert.equal(health.taxonomyCached, true);
+  // A stand-in file is not the pinned revision; it is served all the same.
+  assert.equal(health.taxonomy, 'outdated');
 });
 });
 
@@ -708,6 +713,8 @@ test('fetches an allowlisted taxonomy file from upstream and caches it on disk',
 
     const missing = await fetch(`${isolatedUrl}/api/taxonomy/manifest.json`);
     assert.equal(missing.status, 502);
+    // A custom upstream is not checked against the pin.
+    assert.equal((await (await fetch(`${isolatedUrl}/api/health`)).json()).taxonomy, 'unchecked');
   } finally {
     isolated.kill('SIGTERM');
     await new Promise((resolve) => isolated.once('exit', resolve));
