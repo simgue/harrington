@@ -20,6 +20,7 @@ const DEFAULT_MODE = {
   'History': 'digital',
   'Computing': 'digital',
   'Learning to Learn': 'digital',
+  'Geography': 'digital',
   'English': 'physical',
   'Personal & Social Development': 'physical',
   'Life Skills': 'physical',

@@ -18,8 +18,8 @@ test('hero greeting and every dashboard section for a 6-year-old; no day-one ref
   });
   await expect(page.getByText('Good morning')).toBeVisible();
   await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
-  // F15: the same grouped count as the map's "1,590".
-  await expect(page.getByText('October 7 · age 6 · 0 of 1,590 topics mastered')).toBeVisible();
+  // F15: the same grouped count as the map's "1,845".
+  await expect(page.getByText('October 7 · age 6 · 0 of 1,845 topics mastered')).toBeVisible();
   for (const label of ['Record what happened', 'Note', 'Open map', "Rowan Example's view"]) {
     await expect(page.locator('header.meadow-hero').getByRole('button', { name: label })).toBeVisible();
   }
