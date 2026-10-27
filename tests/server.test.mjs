@@ -642,6 +642,30 @@ test('serves a cached Marble taxonomy file and rejects unknown names', async () 
   const health = await fetch(`${baseUrl}/api/health`);
   assert.equal((await health.json()).taxonomyCached, true);
 });
+
+test('derives the trimmed Australian Curriculum list and never serves the whole standards file', async () => {
+  const full = {
+    note: 'test',
+    curricula: [
+      { slug: 'ccss-math', topics: [{ key: 'ccss-math:K.CC.1', code: 'K.CC.1', data: { title: 'Count to 100' } }] },
+      { slug: 'acara-v9', name: 'Australian Curriculum', version: 'v9', sourceUrl: 'https://v9.australiancurriculum.edu.au/', topics: [
+        { key: 'acara-v9:AC9M2N01', code: 'AC9M2N01', data: { title: 'order numbers', description: 'order numbers', strand: 'Number', subject: 'Mathematics', learningArea: 'Mathematics', yearLevels: ['2'], taxonomy: { grade: 'Year 2' } } },
+      ] },
+    ],
+  };
+  await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
+  await writeFile(join(dataDir, 'taxonomy', 'curriculum-standards.json'), JSON.stringify(full));
+
+  const whole = await fetch(`${baseUrl}/api/taxonomy/curriculum-standards.json`);
+  assert.equal(whole.status, 404);
+  const trimmed = await fetch(`${baseUrl}/api/taxonomy/standards/acara-v9.json`);
+  assert.equal(trimmed.status, 200);
+  assert.deepEqual(await trimmed.json(), {
+    curriculum: { id: 'acara-v9', name: 'Australian Curriculum', version: 'v9', sourceUrl: 'https://v9.australiancurriculum.edu.au/' },
+    standards: [{ code: 'AC9M2N01', title: 'order numbers', strand: 'Number', learningArea: 'Mathematics', subject: 'Mathematics', yearLevels: ['2'] }],
+  });
+  assert.equal((await fetch(`${baseUrl}/api/taxonomy/standards/ccss-math.json`)).status, 404);
+});
 });
 
 test('fetches an allowlisted taxonomy file from upstream and caches it on disk', async () => {

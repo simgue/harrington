@@ -246,9 +246,11 @@ export function ageFactor(topic, age) {
 }
 
 // Ranked matches for a request. Returns { terms, results: [{ topic, score,
-// relevance, inBand }] }; an empty or all-stopword request has no terms and no
-// results. `limit` caps the list after ranking.
-export function searchTopics(topics, text, { age = null, limit = 8 } = {}) {
+// relevance, inBand, boost }] }; an empty or all-stopword request has no terms and no
+// results. `limit` caps the list after ranking. `boost(topic)` is the
+// learner's Australian Curriculum boost (0 to 2, curriculum.js): like the age,
+// a nudge of a sixth per point, never a filter.
+export function searchTopics(topics, text, { age = null, limit = 8, boost = () => 0 } = {}) {
   const terms = queryTerms(text);
   if (!terms.length) return { terms, results: [] };
   const index = buildSearchIndex(topics);
@@ -260,7 +262,8 @@ export function searchTopics(topics, text, { age = null, limit = 8 } = {}) {
     const rel = relevance(entry, terms, weights);
     if (rel < MIN_SCORE) continue;
     const factor = ageFactor(entry.topic, age);
-    results.push({ topic: entry.topic, relevance: rel, score: rel * factor, inBand: factor > 1 });
+    const lift = boost(entry.topic);
+    results.push({ topic: entry.topic, relevance: rel, score: rel * factor * (1 + lift / 6), inBand: factor > 1, boost: lift });
   }
   results.sort((a, b) => b.score - a.score
     || (b.topic.centrality || 0) - (a.topic.centrality || 0)

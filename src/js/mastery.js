@@ -2,7 +2,8 @@
 import { getData, hardPrereqs, orderTopics, topicAge, SUBJECTS } from './data.js';
 import * as store from './store.js';
 import { MASTERY } from './store.js';
-import { ageCeiling, buildDailyChoices, LANES } from './daily.js';
+import { ageCeiling, buildDailyChoices, LANES, BOOST_WEIGHT } from './daily.js';
+import { boosterFor, learnerYear } from './curriculum.js';
 
 // A topic is "unlocked" when all its HARD prerequisites are mastered.
 export function isUnlocked(studentId, topicId) {
@@ -57,21 +58,32 @@ function learnerAge(studentId) {
   return store.studentAge(s) || 5;
 }
 
+// The learner's Australian Curriculum boost (curriculum.js curriculumBoost):
+// a function of a topic, always 0 for a learner with no curriculum year or
+// when the standards list did not load.
+export function curriculumBooster(studentId) {
+  const s = store.get().students.find(x => x.id === studentId);
+  const index = getData().standards?.index || null;
+  return boosterFor(learnerYear(s), index, id => store.statusOf(studentId, id) === 'mastered');
+}
+
 export function recommendedNext(studentId, limit = 6) {
   const d = getData();
   const age = learnerAge(studentId);
   const ceiling = ageCeiling(age, d.topics, topicAge);
+  const boostOf = curriculumBooster(studentId);
   const candidates = [];
   for (const t of d.topics) {
     const st = store.statusOf(studentId, t.id);
     if (st === 'mastered') continue;
     if (!isUnlocked(studentId, t.id)) continue;
     const ta = topicAge(t);
-    if (ta > ceiling) continue; // don't jump too far ahead
+    const boost = boostOf(t);
+    if (ta > ceiling && !boost) continue; // don't jump too far ahead
     const ageGap = Math.abs(ta - age);
-    // prioritise things already started, then age fit, then centrality
+    // prioritise things already started, then the curriculum year, then age fit, then centrality
     const startedBonus = st === 'practicing' ? 3 : st === 'learning' ? 2 : 0;
-    const score = startedBonus * 2 - ageGap + (t.centrality || 0) * 2;
+    const score = startedBonus * 2 + boost * BOOST_WEIGHT - ageGap + (t.centrality || 0) * 2;
     candidates.push({ topic: t, score, status: st });
   }
   candidates.sort((a, b) => b.score - a.score);
@@ -119,6 +131,7 @@ function buildChoices(studentId, dateKey) {
     lastTouched: (domain) => lastByDomain.get(domain) || 0,
     topicAge,
     blockingPrereqs: (id) => blockingPrereqs(studentId, id).map(p => d.byId.get(p.id)).filter(Boolean),
+    boost: curriculumBooster(studentId),
   }, 2, 4);
 }
 

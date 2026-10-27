@@ -4,6 +4,7 @@ import { SUBJECTS, AGES, getData, hardPrereqs, topicAge } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, openModal, refreshIcons, toast } from '../ui.js';
 import { selectPlacement, defaultMaxAge, subjectDomains, placementTitle } from '../placement.js';
+import { ageForYear, learnerYear, yearLabel } from '../curriculum.js';
 
 const SELECT = 'w-full px-3.5 py-2.5 rounded-xl border border-paper-line bg-paper text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand';
 
@@ -13,7 +14,10 @@ export function openPlacement(student, { subject = null } = {}) {
   const subjects = Object.keys(SUBJECTS);
   let sub = subjects.includes(subject) ? subject : subjects[0];
   let domain = '';
-  let maxAge = defaultMaxAge(store.studentAge(student));
+  // A learner with an Australian Curriculum year starts from the usual age of
+  // that year, so the default marks topics up to the year below.
+  const year = learnerYear(student);
+  let maxAge = defaultMaxAge(ageForYear(year) ?? store.studentAge(student));
   let withPrereqs = true;
 
   const body = el(`<div class="p-5">
@@ -36,6 +40,7 @@ export function openPlacement(student, { subject = null } = {}) {
       <div>
         <label class="text-sm font-medium block mb-1.5" for="pl-age">Up to age</label>
         <select id="pl-age" class="${SELECT}">${AGES.map(a => `<option value="${a}">Topics starting at age ${a} or younger</option>`).join('')}</select>
+        ${year ? `<p class="text-xs text-ink-faint mt-1.5">Suggested from ${esc(student.name)}'s Australian Curriculum year (${esc(yearLabel(year))}): topics before the usual age for it.</p>` : ''}
       </div>
     </div>
     <div id="pl-preview" class="mt-4"></div>

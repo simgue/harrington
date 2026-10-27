@@ -9,6 +9,7 @@ import { getData } from './data.js';
 import { pruneDismissed } from './alert-dismissals.js';
 import { normalizeSession } from './levelset.js';
 import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
+import { CURRICULUM_ID, learnerYear, normalizeYear } from './curriculum.js';
 
 export { MIN_BIRTH_YEAR, NAME_MAX };
 
@@ -22,7 +23,7 @@ export const MASTERY = {
 const listeners = new Set();
 let state = {
   user: { username: 'Family' },
-  students: [],       // {id, name, birthYear, birthMonth?, avatar, color}
+  students: [],       // {id, name, birthYear, birthMonth?, avatar, color, curriculum?: { id, year }}
   activeStudentId: null,
   progress: {},       // studentId -> { topicId -> { status, updatedAt } }
   records: {},        // studentId -> [ {id, topicId, type, title, note, rating, questions, createdAt,
@@ -820,13 +821,21 @@ function paletteColor(color) {
   return PALETTE.reduce((best, p) => (distance(p) < distance(best) ? p : best));
 }
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-export function addStudent(name, birthYear, birthMonth = null) {
+// A learner's curriculum setting as saved: { id: 'acara-v9', year } for a
+// valid Australian Curriculum year, else null (no setting).
+function curriculumSetting(value) {
+  const year = value && value.id === CURRICULUM_ID ? normalizeYear(value.year) : null;
+  return year ? { id: CURRICULUM_ID, year } : null;
+}
+export function addStudent(name, birthYear, birthMonth = null, { curriculum = null } = {}) {
   const id = 's_' + Math.random().toString(36).slice(2, 9);
   const color = PALETTE[state.students.length % PALETTE.length];
   const now = new Date();
   const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const student = { id, name, birthYear, color, createdAt: Date.now(), startDate };
   if (validMonth(birthMonth)) student.birthMonth = birthMonth;
+  const setting = curriculumSetting(curriculum);
+  if (setting) student.curriculum = setting;
   state.students.push(student);
   state.progress[id] = state.progress[id] || {};
   state.records[id] = state.records[id] || [];
@@ -837,20 +846,24 @@ export function addStudent(name, birthYear, birthMonth = null) {
 // Only these fields can change, and each is checked so a bad value never
 // reaches the saved document: an empty name, a year outside MIN_BIRTH_YEAR to
 // this year, a month outside 1-12, a color outside the palette or a malformed
-// start date is ignored. birthMonth null clears the month.
+// start date is ignored. birthMonth null clears the month; curriculum null
+// clears the Australian Curriculum year (back to the age-based order).
 export function updateStudent(id, patch) {
   const s = state.students.find(s => s.id === id);
   if (!s) return false;
-  const { name, birthYear, birthMonth, color, startDate } = patch;
+  const { name, birthYear, birthMonth, color, startDate, curriculum } = patch;
   const ageBefore = studentAge(s);
+  const yearBefore = learnerYear(s);
   if (typeof name === 'string' && name.trim()) s.name = name.trim();
   if (validYear(birthYear)) s.birthYear = birthYear;
   if (birthMonth === null) delete s.birthMonth;
   else if (validMonth(birthMonth)) s.birthMonth = birthMonth;
   if (PALETTE.includes(color)) s.color = color;
   if (validDateKey(startDate)) s.startDate = startDate;
-  // Today's choices were filtered by the old age; rebuild them on next render.
-  if (studentAge(s) !== ageBefore) forgetTodaysChoices(id);
+  if (curriculum === null) delete s.curriculum;
+  else if (curriculumSetting(curriculum)) s.curriculum = curriculumSetting(curriculum);
+  // Today's choices were filtered by the old age or year; rebuild them on next render.
+  if (studentAge(s) !== ageBefore || learnerYear(s) !== yearBefore) forgetTodaysChoices(id);
   persist(); emit();
   return true;
 }
@@ -1815,6 +1828,18 @@ export async function savedLessons(prefixes, limit = 8) {
     if (await hasCachedLesson(entry.key)) valid.push({ key: entry.key, savedAt: entry.savedAt });
   }
   return valid;
+}
+
+// Topic ids with a lesson saved on this server (the newest 200 the server
+// lists), for the coverage report. Keys only; an empty set when the server
+// cannot list them.
+export async function savedLessonTopicIds() {
+  try {
+    const listed = await backend.listLessons('topic:', 200);
+    return new Set(listed.filter(e => typeof e?.key === 'string' && e.key.startsWith('topic:')).map(e => e.key.slice('topic:'.length)));
+  } catch {
+    return new Set();
+  }
 }
 
 // Test-only: drops this tab's copies, as a fresh session would start.

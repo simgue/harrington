@@ -1,4 +1,5 @@
 import { SUBJECTS, getData, topicAge } from '../data.js';
+import { ageForYear, curriculumBoost, learnerYear, rankByCurriculum, yearLabel } from '../curriculum.js';
 import {
   blockingHardPrereqIds,
   buildSkillTree,
@@ -239,7 +240,7 @@ function viewToggleBar() {
 }
 
 function openRealm(navigate, subjectNode, active, domainName = null) {
-  const preferred = active ? store.studentAge(active) : null;
+  const preferred = preferredAge(active);
   const domain = domainName
     ? subjectNode.domains.find((node) => node.domain === domainName)
     : defaultDomain(subjectNode, preferred);
@@ -248,6 +249,13 @@ function openRealm(navigate, subjectNode, active, domainName = null) {
     return;
   }
   navigate('graph', { subject: subjectNode.subject, domain: domain.domain });
+}
+
+// The age whose domain opens first: the learner's Australian Curriculum year
+// (as the usual age for it) when set, else their age.
+function preferredAge(active) {
+  if (!active) return null;
+  return ageForYear(learnerYear(active)) ?? store.studentAge(active);
 }
 
 function skillStateFor(active, topicId, prereqsOf) {
@@ -399,7 +407,7 @@ function renderSkillTree(params, active, navigate) {
   const subjectNode = findSubject(params.subject);
   if (!subjectNode) return missing(wrap, navigate, 'Realm not found.');
 
-  const preferred = active ? store.studentAge(active) : null;
+  const preferred = preferredAge(active);
   const domainNode = params.domain
     ? findDomain(params.subject, params.domain)
     : defaultDomain(subjectNode, preferred);
@@ -885,8 +893,13 @@ function renderSection(params, active, navigate) {
   }
 
   const list = el(`<div class="space-y-2.5"></div>`);
-  for (const topic of node.topics) {
+  // Topics linked to the learner's curriculum year (and unmastered ones at
+  // the year below) first; the rest keep their order.
+  const year = learnerYear(active);
+  const ctx = { year, index: d.standards?.index || null, mastered: (id) => !!active && store.statusOf(active.id, id) === 'mastered' };
+  for (const topic of rankByCurriculum(node.topics, ctx)) {
     const status = active ? store.statusOf(active.id, topic.id) : 'none';
+    const linked = year && curriculumBoost(topic, ctx) === 2 ? ` · linked to ${esc(yearLabel(year))}` : '';
     const listStage = stageForStatus(status, active ? isUnlocked(active.id, topic.id) : false);
     const prereqs = (d.prereqsOf.get(topic.id) || []).map((edge) => {
       const other = d.byId.get(edge.id);
@@ -899,7 +912,7 @@ function renderSection(params, active, navigate) {
         <span class="min-w-0 flex-1">
           <span class="block font-600">${esc(topic.name)}</span>
           <span class="block text-sm text-ink-soft mt-1 leading-relaxed">${esc(topic.description || '')}</span>
-          <span class="block text-xs text-ink-faint mt-2"><span class="font-600" style="color:${GROWTH[listStage].color}">${GROWTH[listStage].label}</span> · ${MASTERY[status].label} · ages ${esc(topic.ageRangeStart)}–${esc(topic.ageRangeEnd)}${unlockCount ? ` · unlocks ${unlockCount}` : ''}</span>
+          <span class="block text-xs text-ink-faint mt-2"><span class="font-600" style="color:${GROWTH[listStage].color}">${GROWTH[listStage].label}</span> · ${MASTERY[status].label} · ages ${esc(topic.ageRangeStart)}–${esc(topic.ageRangeEnd)}${linked}${unlockCount ? ` · unlocks ${unlockCount}` : ''}</span>
           ${prereqLine(prereqs)}
         </span>
         <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0 mt-1"></i>

@@ -142,3 +142,22 @@ input[type=range] { accent-color: #3f6b3b; }
 .ai-prose li { margin-bottom: .25rem; }
 .ai-prose strong { color: #2e2a24; font-weight: 600; }
 .ai-prose h3, .ai-prose h4 { font-weight: 600; margin: .5rem 0 .35rem; }
+
+/* Australian Curriculum coverage report (views/coverage.js): printed without
+   the app's navigation, every learning area expanded, on white paper. */
+@media print {
+  body:has(.coverage-report) { background: #fff; }
+  body:has(.coverage-report) #app aside,
+  body:has(.coverage-report) #app header,
+  body:has(.coverage-report) #app nav,
+  body:has(.coverage-report) .self-hosted-line,
+  body:has(.coverage-report) .read-only-banner,
+  .coverage-report .no-print { display: none !important; }
+  body:has(.coverage-report) #app .pb-24 { padding-bottom: 0 !important; }
+  .coverage-report { max-width: none; padding: 0; animation: none; }
+  .coverage-report .cov-list { display: block !important; }
+  .coverage-report .cov-area,
+  .coverage-report .cov-summary { border-color: #d9ccb0; background: #fff; }
+  .coverage-report .cov-item { break-inside: avoid; }
+  .coverage-report a { color: inherit; text-decoration: none; }
+}

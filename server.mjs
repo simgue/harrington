@@ -13,6 +13,7 @@ import { AI_CAPABILITIES, capabilityOffMessage, parseCapabilities } from './src/
 import { redactNames } from './src/js/redact.js';
 import { SCHEMA_VERSION, formatCopyName, schemaVersionOf } from './src/js/schema.js';
 import { validateDocument } from './src/js/document.js';
+import { CURRICULUM_ID, trimStandards } from './src/js/curriculum.js';
 import { MAX_FIGURE_BYTES, contentPolicyFor, figureIdOf, figureMeta, figureProblems } from './src/js/figures/contract.js';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
@@ -41,7 +42,12 @@ const configuredPort = Number.parseInt(process.env.HARRINGTON_PORT || process.en
 const port = Number.isInteger(configuredPort) && configuredPort >= 0 ? configuredPort : 4173;
 const JSON_LIMIT = 5 * 1024 * 1024;
 const AUDIO_LIMIT = 100 * 1024 * 1024;
-const TAXONOMY_FILES = new Set(['topics.json', 'dependencies.json', 'clusters.json', 'manifest.json']);
+// Files the server downloads and caches. The browser may read the first four
+// as they are; curriculum-standards.json (2.7 MB, every curriculum) is only
+// read here, to derive the trimmed list under /api/taxonomy/standards/.
+const TAXONOMY_FILES = new Set(['topics.json', 'dependencies.json', 'clusters.json', 'manifest.json', 'curriculum-standards.json']);
+const BROWSER_TAXONOMY_FILES = new Set(['topics.json', 'dependencies.json', 'clusters.json', 'manifest.json']);
+const STANDARDS_ROUTES = new Map([[`standards/${CURRICULUM_ID}.json`, CURRICULUM_ID]]);
 const TAXONOMY_UPSTREAM = process.env.HARRINGTON_TAXONOMY_UPSTREAM
   || 'https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@main/data';
 const AI_UNCONFIGURED = 'AI is not configured for this self-hosted Harrington server';
@@ -682,6 +688,24 @@ async function loadTaxonomyFile(name) {
   return body;
 }
 
+// The trimmed list for one curriculum (curriculum.js trimStandards): the 620
+// Australian content descriptions are about 150 KB, against 2.7 MB for the
+// whole file. Derived on the first request and kept in memory; a failed
+// derivation is not kept, so the next request tries again.
+const trimmedStandards = new Map();
+function standardsFor(slug) {
+  if (!trimmedStandards.has(slug)) {
+    const pending = loadTaxonomyFile('curriculum-standards.json')
+      .then(body => Buffer.from(JSON.stringify(trimStandards(JSON.parse(body.toString('utf8')), slug))))
+      .catch((error) => {
+        trimmedStandards.delete(slug);
+        throw error.statusCode ? error : Object.assign(new Error(`Could not read the ${slug} curriculum standards: ${error.message}`), { statusCode: 502 });
+      });
+    trimmedStandards.set(slug, pending);
+  }
+  return trimmedStandards.get(slug);
+}
+
 // ---- Saved lessons listing ----
 // Keys and saved times for one cache prefix, never content. Read-only.
 const LESSON_LIST_PREFIXES = new Set(['topic:', 'print:', 'recall:']);
@@ -950,7 +974,12 @@ async function handleApi(req, res, url) {
 
   const taxonomyName = routeKey(url.pathname, '/api/taxonomy/');
   if (taxonomyName !== null && req.method === 'GET') {
-    const body = await loadTaxonomyFile(taxonomyName);
+    const standards = STANDARDS_ROUTES.get(taxonomyName);
+    if (!standards && !BROWSER_TAXONOMY_FILES.has(taxonomyName)) {
+      sendJson(res, 404, { error: 'Unknown taxonomy file' });
+      return true;
+    }
+    const body = standards ? await standardsFor(standards) : await loadTaxonomyFile(taxonomyName);
     send(res, 200, body, {
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'private, max-age=3600',

@@ -17,6 +17,45 @@ import { recallSectionCard } from './recall.js';
 import { aiErrorBlock, aiUnavailableChip, gateAi } from '../ai-status.js';
 import { howItWorksFrame } from './howitworks.js';
 import { openObservation, canObserve } from './observation.js';
+import { ACARA_NOTICE, CURRICULUM_NAME, learnerYear, topicStandards, yearLabel, yearsLabel } from '../curriculum.js';
+
+// The Australian Curriculum content descriptions Marble links this topic to,
+// as chips ("AC9M2N01 · Year 2 · Number"). A chip opens its text, with the
+// ACARA notice once beneath it. Null when the topic links to none.
+function curriculumLinks(t, standards, active) {
+  const linked = topicStandards(t, standards?.index);
+  if (!linked.length) return null;
+  const year = learnerYear(active);
+  const box = el(`<section class="topic-curriculum mb-5" aria-label="${esc(CURRICULUM_NAME)}">
+    <p class="text-xs font-600 text-ink-soft mb-1.5">Linked to the ${esc(CURRICULUM_NAME)} (version 9)</p>
+    <div class="flex flex-wrap gap-1.5"></div>
+    <div class="ac-detail hidden mt-2.5 rounded-xl bg-paper-card border border-paper-line p-3.5" aria-live="polite"></div>
+  </section>`);
+  const chips = box.querySelector('div');
+  const detail = box.querySelector('.ac-detail');
+  let open = null;
+  for (const s of linked) {
+    const atYear = year && s.yearLevels.includes(year);
+    const chip = el(`<button type="button" class="ac-chip min-h-11 px-3 rounded-full border text-xs font-medium text-left ${atYear ? 'border-brand/50 bg-brand-light text-brand-dark' : 'border-paper-line bg-paper-card text-ink-soft hover:border-brand/40'}" aria-expanded="false"></button>`);
+    chip.textContent = `${s.code} · ${yearsLabel(s.yearLevels)} · ${s.strand}`;
+    if (atYear) chip.title = `${active.name}'s year: ${yearLabel(year)}`;
+    chip.onclick = () => {
+      const closing = open === s.code;
+      open = closing ? null : s.code;
+      for (const c of chips.children) c.setAttribute('aria-expanded', 'false');
+      detail.classList.toggle('hidden', closing);
+      if (closing) return;
+      chip.setAttribute('aria-expanded', 'true');
+      detail.innerHTML = `
+        <p class="text-xs font-600 text-ink-soft">${esc(s.code)} · ${esc(yearsLabel(s.yearLevels))} · ${esc(s.learningArea)}${s.subject && s.subject !== s.learningArea ? ` · ${esc(s.subject)}` : ''} · ${esc(s.strand)}</p>
+        <p class="ac-text text-sm text-ink mt-1 leading-relaxed">${esc(s.description || s.title)}</p>
+        <p class="text-xs text-ink-faint mt-2 leading-relaxed">Marble's map links this topic to the content description; it is not a check that the description is met.</p>
+        <p class="ac-notice text-[11px] text-ink-faint mt-2 leading-relaxed">${esc(ACARA_NOTICE)}</p>`;
+    };
+    chips.appendChild(chip);
+  }
+  return box;
+}
 
 export function renderTopic(params, { navigate }) {
   const d = getData();
@@ -51,6 +90,9 @@ export function renderTopic(params, { navigate }) {
     </div>`));
 
   root.querySelector('.status-control')?.replaceWith(statusControl(t, active, unlocked));
+
+  const curriculum = curriculumLinks(t, d.standards, active);
+  if (curriculum) root.appendChild(curriculum);
 
   // Locked banner
   if (!unlocked) {

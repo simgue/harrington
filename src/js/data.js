@@ -1,6 +1,8 @@
 // Loads the Marble Skill Taxonomy and builds the learning graph.
 // Data source: https://github.com/withmarbleapp/os-taxonomy (ODbL 1.0 / CC BY-SA 4.0)
 
+import { CURRICULUM_ID, indexStandards } from './curriculum.js';
+
 const TAXONOMY_API = '/api/taxonomy';
 
 export const SUBJECTS = {
@@ -26,6 +28,9 @@ export async function loadTaxonomy() {
     fetch(`${TAXONOMY_API}/clusters.json`),
     fetch(`${TAXONOMY_API}/manifest.json`).catch(() => null),
   ]);
+  // Optional: without the Australian Curriculum list (an older taxonomy, the
+  // upstream unreachable) the app works as before, with no codes shown.
+  const standardsPromise = loadStandards();
   if (!topicsRes.ok || !depsRes.ok) throw new Error('Could not load the curriculum data.');
   const topicsJson = await topicsRes.json();
   const depsJson = await depsRes.json();
@@ -64,6 +69,7 @@ export async function loadTaxonomy() {
     topics, dependencies, clusters,
     byId, prereqsOf, unlocksOf, clusterMap, bySubject,
     manifest,
+    standards: await standardsPromise,
     meta: {
       topics: topics.length,
       dependencies: dependencies.length,
@@ -72,6 +78,19 @@ export async function loadTaxonomy() {
     },
   };
   return _cache;
+}
+
+// { curriculum, list, index } for the Australian Curriculum, or null.
+async function loadStandards() {
+  try {
+    const res = await fetch(`${TAXONOMY_API}/standards/${CURRICULUM_ID}.json`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const list = Array.isArray(json?.standards) ? json.standards.filter(s => s && typeof s.code === 'string' && Array.isArray(s.yearLevels)) : [];
+    return list.length ? { curriculum: json.curriculum || null, list, index: indexStandards(list) } : null;
+  } catch {
+    return null;
+  }
 }
 
 export function getData() {
