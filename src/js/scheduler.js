@@ -2,7 +2,7 @@
 // picks deterministic daily "extras" (refreshers + activities/quizzes).
 // The planning core (planTrack, pickExtras, the calendar helpers) is pure so
 // it can be tested without the store; buildPlan and dailyExtras wire it up.
-import { getData, SUBJECTS, orderTopics, topicAge, hardPrereqs } from './data.js';
+import { getData, orderTopics, topicAge, hardPrereqs, orderedSubjects } from './data.js';
 import { LANES } from './daily.js';
 import { isUnlocked } from './mastery.js';
 import { countLabel } from './format.js';
@@ -181,7 +181,8 @@ function mixRamp(ramp, rest, prereqs) {
  *   (before parent moves).
  */
 export function planTrack(topics, opts) {
-  const { startKey, moves = {}, mastered = () => false, prereqs = () => [], subjects = Object.keys(SUBJECTS) } = opts;
+  const { startKey, moves = {}, mastered = () => false, prereqs = () => [] } = opts;
+  const subjects = opts.subjects || orderedSubjects(topics.reduce((by, t) => ((by[t.subject] ||= []).push(t), by), {}));
   const cal = normalizeCalendar(opts.calendar);
   const startAge = Math.min(13, Math.max(5, Math.floor(opts.age || 5)));
   const byId = new Map(topics.map(t => [t.id, t]));

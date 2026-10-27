@@ -1,4 +1,4 @@
-import { SUBJECTS } from '../data.js';
+import { subjectMeta } from '../data.js';
 import * as store from '../store.js';
 import { el, refreshIcons, toast, openModal } from '../ui.js';
 import { award, XP } from '../game.js';
@@ -63,7 +63,7 @@ function runSession(stage, m, student, items, restart) {
   const render = () => {
     if (i >= items.length) return renderDone();
     const item = items[i];
-    const meta = SUBJECTS[item.subject] || SUBJECTS.Mathematics;
+    const meta = subjectMeta(item.subject);
     const isTask = item.type === 'task';
     let given = item.type === 'multiple_choice' ? null : '';
 

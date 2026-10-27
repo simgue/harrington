@@ -1,4 +1,4 @@
-import { SUBJECTS } from '../data.js';
+import { subjectMeta } from '../data.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiPrintables } from '../ai.js';
 import { generateAnotherButton, regenerateInto, showGenerated } from '../ai-status.js';
@@ -14,7 +14,7 @@ const TYPE_META = {
 export async function openPrintables(topic) {
   const body = el(`<div class="p-0">
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
-      <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${SUBJECTS[topic.subject].color}18"><i data-lucide="printer" class="w-5 h-5" style="color:${SUBJECTS[topic.subject].color}"></i></span>
+      <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${subjectMeta(topic.subject).color}18"><i data-lucide="printer" class="w-5 h-5" style="color:${subjectMeta(topic.subject).color}"></i></span>
       <div class="flex-1 min-w-0">
         <p class="text-xs text-ink-faint">Print &amp; go · ${esc(topic.subject)}</p>
         <h3 class="font-display text-lg font-600 leading-tight">${esc(topic.name)}</h3>

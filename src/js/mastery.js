@@ -1,5 +1,5 @@
 // Shared logic for mastery gating, ordering and stats.
-import { getData, hardPrereqs, orderTopics, topicAge, SUBJECTS } from './data.js';
+import { getData, hardPrereqs, orderTopics, topicAge, subjectNames } from './data.js';
 import * as store from './store.js';
 import { MASTERY } from './store.js';
 import { ageCeiling, buildDailyChoices, LANES } from './daily.js';
@@ -33,7 +33,7 @@ export function studentStats(studentId) {
   const d = getData();
   const per = {};
   let totalMastered = 0, total = 0;
-  for (const subject of Object.keys(SUBJECTS)) {
+  for (const subject of subjectNames()) {
     const list = d.bySubject[subject] || [];
     let mastered = 0, learning = 0, practicing = 0;
     for (const t of list) {

@@ -1,4 +1,4 @@
-import { SUBJECTS, getData, topicAge } from '../data.js';
+import { getData, topicAge, subjectMeta } from '../data.js';
 import {
   blockingHardPrereqIds,
   buildSkillTree,
@@ -318,7 +318,7 @@ function renderWorldMap(params, active, navigate) {
   }
 
   for (const realm of scene.realms) {
-    const meta = SUBJECTS[realm.subject] || { color: '#3f6b3b', icon: 'map' };
+    const meta = subjectMeta(realm.subject);
     const stats = active ? topicsMasteryStats(active.id, tree.find((node) => node.subject === realm.subject)?.topics || []) : { pct: 0 };
     const fill = quietMasteryFill(meta.color, stats.pct, '#fffdf8');
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -406,7 +406,7 @@ function renderSkillTree(params, active, navigate) {
   if (!domainNode) return missing(wrap, navigate, 'Domain not found.');
 
   const d = getData();
-  const meta = SUBJECTS[domainNode.subject];
+  const meta = subjectMeta(domainNode.subject);
   const siblingDomains = subjectNode.domains.map((node) => node.domain);
   const graph = buildSkillTree(domainNode, d, { siblingDomains });
   const homeIds = new Set(graph.homeTopics.map((topic) => topic.id));
@@ -749,7 +749,7 @@ function renderSubjects(active, navigate) {
 
   const grid = el(`<div class="grid sm:grid-cols-2 gap-3"></div>`);
   for (const node of curriculumTree()) {
-    const meta = SUBJECTS[node.subject];
+    const meta = subjectMeta(node.subject);
     const stats = active ? topicsMasteryStats(active.id, node.topics) : { mastered: 0, total: node.topics.length, pct: 0 };
     const card = el(`<button class="text-left bg-paper-card border border-paper-line rounded-2xl p-4 card-hover">
       <span class="flex items-center gap-3 mb-3">
@@ -773,7 +773,7 @@ function renderSubject(params, active, navigate) {
   const wrap = el(`<div></div>`);
   if (!node) return missing(wrap, navigate, 'Subject not found.');
 
-  const meta = SUBJECTS[node.subject];
+  const meta = subjectMeta(node.subject);
   const stats = active ? topicsMasteryStats(active.id, node.topics) : { mastered: 0, total: node.topics.length, pct: 0 };
   wrap.appendChild(crumbs([
     { label: 'Curriculum', go: () => navigate('graph') },
@@ -814,7 +814,7 @@ function renderDomain(params, active, navigate) {
   const wrap = el(`<div></div>`);
   if (!node) return missing(wrap, navigate, 'Domain not found.');
 
-  const meta = SUBJECTS[node.subject];
+  const meta = subjectMeta(node.subject);
   const stats = active ? topicsMasteryStats(active.id, node.topics) : { mastered: 0, total: node.topics.length, pct: 0 };
   wrap.appendChild(crumbs([
     { label: 'Curriculum', go: () => navigate('graph') },
@@ -855,7 +855,7 @@ function renderSection(params, active, navigate) {
   if (!node) return missing(wrap, navigate, 'Section not found.');
 
   const d = getData();
-  const meta = SUBJECTS[node.subject];
+  const meta = subjectMeta(node.subject);
   const stats = active ? topicsMasteryStats(active.id, node.topics) : { mastered: 0, total: node.topics.length, pct: 0 };
   const edges = localEdges(node.topics, d.prereqsOf);
 

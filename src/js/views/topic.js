@@ -1,4 +1,4 @@
-import { SUBJECTS, getData } from '../data.js';
+import { getData, subjectMeta } from '../data.js';
 import { graphParamsForTopic } from './graph.js';
 import * as store from '../store.js';
 import { growthChip, growthIcon, stageForStatus } from '../meadow.js';
@@ -26,7 +26,7 @@ export function renderTopic(params, { navigate }) {
   const root = el(`<div class="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-up"></div>`);
   if (!t) { root.appendChild(el(`<p class="text-ink-soft">Topic not found.</p>`)); return root; }
 
-  const meta = SUBJECTS[t.subject];
+  const meta = subjectMeta(t.subject);
   const status = active ? store.statusOf(active.id, t.id) : 'none';
   const unlocked = active ? isUnlocked(active.id, t.id) : true;
   const blocking = active ? blockingPrereqs(active.id, t.id) : [];
@@ -161,7 +161,7 @@ function section(icon, title, contentEl, extra = '') {
 }
 
 function masterySection(t, student) {
-  const meta = SUBJECTS[t.subject];
+  const meta = subjectMeta(t.subject);
   const body = el(`<div></div>`);
   if (!student) {
     body.appendChild(el(`<p class="text-sm text-ink-faint">Add a student to track mastery.</p>`));
@@ -231,7 +231,7 @@ function statusControl(t, student, unlocked) {
 }
 
 function sectionCheckSection(t, student) {
-  const meta = SUBJECTS[t.subject];
+  const meta = subjectMeta(t.subject);
   const sec = sectionForTopic(t);
   const body = el(`<div></div>`);
   if (!sec) {
@@ -303,7 +303,7 @@ function recordingItem(r) {
 
 function connectionsSection(t, student, navigate) {
   const d = getData();
-  const meta = SUBJECTS[t.subject];
+  const meta = subjectMeta(t.subject);
   const prereqs = d.prereqsOf.get(t.id) || [];
   const unlocks = d.unlocksOf.get(t.id) || [];
   const body = el(`<div></div>`);

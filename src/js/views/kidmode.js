@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { getData, SUBJECTS } from '../data.js';
+import { getData, subjectMeta, subjectNames } from '../data.js';
 import { el, refreshIcons, toast } from '../ui.js';
 import { studentStats, recommendedNext, recentActivity, todaysChoices, plantNext } from '../mastery.js';
 import { keyOf, parseKey, pauseInfo, familyCalendar } from '../scheduler.js';
@@ -222,8 +222,8 @@ function render(student) {
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
   </section>`);
   const bed = garden.querySelector('div.grid');
-  Object.keys(SUBJECTS).forEach(sub => {
-    const meta = SUBJECTS[sub]; const s = stats.per[sub];
+  subjectNames().forEach(sub => {
+    const meta = subjectMeta(sub); const s = stats.per[sub];
     const stage = stageForArea(s.pct, s.mastered + s.inProgress > 0);
     const g = GROWTH[stage];
     bed.appendChild(el(`<div class="rounded-3xl p-3 pt-4 flex flex-col items-center text-center" style="background:${g.tint}">

@@ -1,7 +1,7 @@
 // Topic finder (#find): a free-text request becomes matching taxonomy topics,
 // the unmet prerequisites on the way to the chosen one, and the next ready
 // step. No AI: the search runs over the taxonomy already in the browser.
-import { SUBJECTS, getData } from '../data.js';
+import { getData, subjectMeta } from '../data.js';
 import * as store from '../store.js';
 import { SKILL_STATE_CHROME } from '../graph.js';
 import { buildTopicPath, searchTopics } from '../finder.js';
@@ -81,7 +81,7 @@ function requestForm(q, active, navigate) {
 }
 
 function topicChips(topic) {
-  const meta = SUBJECTS[topic.subject] || { color: '#6f665a' };
+  const meta = subjectMeta(topic.subject);
   return `<span class="flex flex-wrap gap-1.5 text-xs font-medium">
     <span class="px-2 py-0.5 rounded-full text-white" style="background:${meta.color}">${esc(topic.subject)}</span>
     <span class="px-2 py-0.5 rounded-full bg-paper border border-paper-line text-ink-soft">${esc(topic.domain)}</span>

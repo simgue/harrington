@@ -1,4 +1,4 @@
-import { SUBJECTS, getData } from '../data.js';
+import { getData, subjectMeta } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal, fmtDate } from '../ui.js';
 import { aiMasteryTest } from '../ai.js';
@@ -33,7 +33,7 @@ function pointsOf(q) { return q.points || 1; }
 export async function openMasteryTest(subject, section = null, topic = null) {
   const student = store.activeStudent();
   if (!student) { toast('Add a student first', 'error'); return; }
-  const meta = SUBJECTS[subject];
+  const meta = subjectMeta(subject);
   const label = topic ? `Topic check · ${subject}` : section ? `Section check · ${subject}` : `Final mastery test · ${subject}`;
   const title = topic ? topic.name : section ? section.domain + ' · Age ' + section.age : student.name;
   const icon = topic ? 'target' : section ? 'clipboard-check' : 'award';
@@ -69,7 +69,7 @@ function topicScope(subject) {
 }
 
 function renderIntro(stage, subject, student, m, section = null, topic = null) {
-  const meta = SUBJECTS[subject];
+  const meta = subjectMeta(subject);
   const isTopic = !!topic;
   const isSection = !isTopic && !!section;
   const stats = studentStats(student.id).per[subject];
@@ -188,7 +188,7 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
 
 // ---------- DIGITAL (auto-graded) ----------
 function renderDigital(stage, subject, student, test, m) {
-  const meta = SUBJECTS[subject];
+  const meta = subjectMeta(subject);
   const questions = test.questions || [];
   const answers = new Array(questions.length).fill(null);
 
@@ -261,7 +261,7 @@ function gradeDigital(questions, answers) {
 
 // ---------- PHYSICAL (print + manual grade) ----------
 function renderPhysical(stage, subject, student, test, m) {
-  const meta = SUBJECTS[subject];
+  const meta = subjectMeta(subject);
   const questions = test.questions || [];
   const marks = new Array(questions.length).fill(false);
   // Child view: no answer key (on screen or printed) and no live score.

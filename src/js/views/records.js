@@ -1,4 +1,4 @@
-import { getData, SUBJECTS } from '../data.js';
+import { getData, subjectMeta } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, analysisHtml, ratingStars, refreshIcons, toast, openModal, fmtDate, fmtDateTime } from '../ui.js';
 import { openRecorder, audioPlayer, coverageCandidates, coverageClaimField } from '../recorder.js';
@@ -137,7 +137,7 @@ function recordCard(r, student, d, navigate) {
     ${coverageNames(r).length ? `<p class="text-xs font-600 text-brand-dark mb-1 flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>Coverage: ${coverageNames(r).map(esc).join(' · ')}</p>` : ''}
     ${r.note ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
     ${r.transcript ? `<details class="mt-2 group"><summary class="text-xs text-ink-faint cursor-pointer select-none flex items-center gap-1 list-none"><i data-lucide="chevron-right" class="w-3.5 h-3.5 transition-transform group-open:rotate-90"></i>Transcript</summary><p class="text-sm text-ink-soft mt-1.5 leading-relaxed whitespace-pre-wrap bg-paper border border-paper-line rounded-lg p-2.5">${esc(r.transcript)}</p></details>` : ''}
-    ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${esc(SUBJECTS[topic.subject]?.icon)}" class="w-3.5 h-3.5"></i>${esc(topic.name)}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
+    ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${esc(subjectMeta(topic.subject)?.icon)}" class="w-3.5 h-3.5"></i>${esc(topic.name)}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
   </div>`);
   if (r.audioPath) card.appendChild(audioPlayer(r.audioPath, r.duration));
 
@@ -346,7 +346,7 @@ export function openRecordForm(studentId, topic = null, options = {}) {
       if (q.length < 2) return;
       const matches = d.topics.filter(t => t.name.toLowerCase().includes(q)).slice(0, 6);
       matches.forEach(t => {
-        const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${esc(SUBJECTS[t.subject]?.color)}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
+        const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${esc(subjectMeta(t.subject)?.color)}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
         r.onclick = () => { hidden.value = t.id; search.value = t.name; results.innerHTML = ''; };
         results.appendChild(r);
       });
