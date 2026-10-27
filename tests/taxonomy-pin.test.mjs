@@ -67,7 +67,7 @@ async function startServer({ env = {}, upstreamDir = null } = {}) {
 test('the pin module lists each fetched file once, with a 64-digit SHA-256, at a raw GitHub commit URL', () => {
   assert.match(TAXONOMY_PIN.revision, /^[0-9a-f]{40}$/);
   assert.equal(TAXONOMY_PIN.upstream, `https://raw.githubusercontent.com/withmarbleapp/os-taxonomy/${TAXONOMY_PIN.revision}/data`);
-  assert.deepEqual(Object.keys(TAXONOMY_PIN.files).sort(), ['clusters.json', 'dependencies.json', 'manifest.json', 'topics.json']);
+  assert.deepEqual(Object.keys(TAXONOMY_PIN.files).sort(), ['clusters.json', 'dependencies.json', 'manifest.json', 'teaching-research.json', 'topics.json']);
   for (const hash of Object.values(TAXONOMY_PIN.files)) assert.match(hash, /^[0-9a-f]{64}$/);
 });
 
@@ -102,6 +102,22 @@ test('a download that does not match the pin is refused, not cached, and reporte
   }
 });
 
+test('a teaching research file that does not match the pin is refused and nothing is split', async () => {
+  const upstreamDir = await mkdtemp(join(tmpdir(), 'harrington-upstream-'));
+  await writeFile(join(upstreamDir, 'teaching-research.json'), JSON.stringify({ records: [{ topicId: 'mt_tampered00', learn: { summary: 'Tampered' } }] }));
+  const app = await startServer({ upstreamDir });
+  try {
+    const res = await fetch(`${app.url}/api/taxonomy/research/mt_tampered00`);
+    assert.equal(res.status, 502);
+    assert.match((await res.json()).error, /^Curriculum file teaching-research\.json failed its integrity check/);
+    await assert.rejects(stat(join(app.dataDir, 'taxonomy', 'teaching-research.json')), { code: 'ENOENT' });
+    await assert.rejects(stat(join(app.dataDir, 'taxonomy', 'research')), { code: 'ENOENT' });
+  } finally {
+    await app.stop();
+    await rm(upstreamDir, { recursive: true, force: true });
+  }
+});
+
 test('a download that matches the pin is cached and the curriculum reads as verified', async (t) => {
   // Stand-in files whose hashes are the pin's: build a pin-shaped upstream
   // from the real e2e cache when it is there, else skip.
@@ -116,8 +132,17 @@ test('a download that matches the pin is cached and the curriculum reads as veri
   const app = await startServer({ upstreamDir: cache });
   try {
     for (const name of Object.keys(TAXONOMY_PIN.files)) {
+      // The teaching research is fetched and checked the same way, but only
+      // ever served one topic at a time.
+      if (name === 'teaching-research.json') continue;
       assert.equal((await fetch(`${app.url}/api/taxonomy/${name}`)).status, 200, name);
     }
+    assert.equal((await fetch(`${app.url}/api/taxonomy/teaching-research.json`)).status, 404);
+    const guide = await fetch(`${app.url}/api/taxonomy/research/mt_WcfaSfVT33`);
+    assert.equal(guide.status, 200);
+    assert.equal((await guide.json()).topicId, 'mt_WcfaSfVT33');
+    const index = JSON.parse(await readFile(join(app.dataDir, 'taxonomy', 'research', 'index.json'), 'utf8'));
+    assert.equal(index.sourceSha256, TAXONOMY_PIN.files['teaching-research.json']);
     const saved = await readFile(join(app.dataDir, 'taxonomy', 'topics.json'));
     assert.equal(createHash('sha256').update(saved).digest('hex'), TAXONOMY_PIN.files['topics.json']);
     assert.equal((await app.health()).taxonomy, 'verified');
