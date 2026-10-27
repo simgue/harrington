@@ -68,8 +68,10 @@ test('a topic shows its Australian codes; a chip opens the text with one ACARA n
   await expect(links).toContainText('Linked to the Australian Curriculum (version 9)');
   const chip = links.getByRole('button', { name: 'AC9M2N01 · Year 2 · Number' });
   await expect(chip).toBeVisible();
+  // In whole CSS pixels, as mobile.spec measures targets: at a fractional
+  // scroll offset a 44 px box can read 43.99.
   const box = await chip.boundingBox();
-  expect(box.height).toBeGreaterThanOrEqual(44);
+  expect(Math.round(box.height)).toBeGreaterThanOrEqual(44);
   await expect(page.getByText(NOTICE_START)).toHaveCount(0);
 
   await chip.click();
