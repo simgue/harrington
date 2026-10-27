@@ -254,6 +254,36 @@ A day-by-day plan from your start date, on the home days you choose.
 - Opening a lesson, test, challenge or recall review from a day needs a local
   AI provider; see the README.
 
+## Australian Curriculum
+
+Harrington can follow the Australian Curriculum, version 9, from Foundation to
+Year 6. It is optional; without it, topics are ordered by age as before.
+
+- **Year level.** In a learner's details (or when you add your first
+  learner), tick **Follow the Australian Curriculum** and choose an
+  **Australian Curriculum year level**. It starts from the age (Foundation is
+  5, Year 1 is 6, and so on to Year 6 at 11) and you can change it.
+- **What changes.** Topics linked to that year, and unmastered topics linked
+  to the year below, come first in the daily choices, the map list, the topic
+  finder and the suggested placement. Nothing is hidden or locked.
+- **Codes on topics.** A topic page lists the content descriptions the Marble
+  Skill Taxonomy links it to, for example "AC9M2N01 · Year 2 · Number". Tap a
+  code to read its text. A link is Marble's map, not a check that the content
+  description is met.
+- **Coverage report.** Records > **Australian Curriculum coverage** lists each
+  content description for the year by learning area, with the linked topics
+  and a status from your own records: **Mastered** (every linked topic
+  mastered), **Evidence** (a record, a passed check, practice or a lesson
+  saved for a linked topic) or **Not yet**. Counts per learning area are at
+  the top. **Print report** prints it with every area expanded, the date and
+  the ACARA notice, for example as evidence for home education registration.
+  A saved lesson belongs to the server, not to one learner, so with several
+  learners check what "lesson saved" refers to.
+
+Australian Curriculum content: © Australian Curriculum, Assessment and
+Reporting Authority (ACARA) 2009 to present, unless otherwise indicated. The
+full notice, which Harrington shows with the text, is in the README.
+
 ## Records and recordings
 
 - **Records.** Log an observation, question, discussion or assessment,
@@ -348,3 +378,7 @@ the README), and each feature's capability is switched on:
 
 *Curriculum: Marble Skill Taxonomy (v1) · © Generative Spark, Inc. · licensed
 under ODbL 1.0 (database) and CC BY-SA 4.0 (content).*
+
+*Australian Curriculum: © Australian Curriculum, Assessment and Reporting
+Authority (ACARA) 2009 to present, unless otherwise indicated, licensed under
+CC BY 4.0; see the README for the full notice.*

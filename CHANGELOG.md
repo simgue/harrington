@@ -6,7 +6,25 @@ tagged a release yet; everything below is on `main`.
 
 ## [Unreleased]
 
+### Added
+- Australian Curriculum (version 9, Foundation to Year 6). A learner can
+  follow it with an optional "Australian Curriculum year level" (onboarding
+  and the learner form; it defaults from age and stays editable; saved as
+  `curriculum: { id: 'acara-v9', year }`). Topic pages show the content
+  descriptions Marble links them to as chips ("AC9M2N01 · Year 2 · Number")
+  that open the text with the ACARA notice. Topics linked to the learner's
+  year (and unmastered ones at the year below) come first in daily choices,
+  recommendations, the map list, the finder and the placement default,
+  without hiding anything. Records > Australian Curriculum coverage lists
+  each content description of the year with its linked topics and a status
+  from the family's records (Mastered, Evidence, Not yet), and prints as
+  registration evidence. The server derives a 165 KB
+  `/api/taxonomy/standards/acara-v9.json` from the taxonomy's 2.7 MB
+  `curriculum-standards.json`, which is never sent to the browser.
+
 ### Fixed
+- The topic page no longer scrolls sideways on a phone when a topic has a
+  long domain name: the header chips wrap and the columns can shrink.
 - A change made just before the page was reloaded or closed is no longer
   lost while its save is still on the wire: the change stays pending until the
   server answers, a save under 64 KB keeps itself alive past unload

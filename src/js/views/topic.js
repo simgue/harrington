@@ -29,7 +29,7 @@ function curriculumLinks(t, standards, active) {
   const box = el(`<section class="topic-curriculum mb-5" aria-label="${esc(CURRICULUM_NAME)}">
     <p class="text-xs font-600 text-ink-soft mb-1.5">Linked to the ${esc(CURRICULUM_NAME)} (version 9)</p>
     <div class="flex flex-wrap gap-1.5"></div>
-    <div class="ac-detail hidden mt-2.5 rounded-xl bg-paper-card border border-paper-line p-3.5" aria-live="polite"></div>
+    <div class="ac-detail hidden mt-2.5 [overflow-wrap:anywhere] rounded-xl bg-paper-card border border-paper-line p-3.5" aria-live="polite"></div>
   </section>`);
   const chips = box.querySelector('div');
   const detail = box.querySelector('.ac-detail');
@@ -44,7 +44,7 @@ function curriculumLinks(t, standards, active) {
       open = closing ? null : s.code;
       for (const c of chips.children) c.setAttribute('aria-expanded', 'false');
       detail.classList.toggle('hidden', closing);
-      if (closing) return;
+      if (closing) { detail.innerHTML = ''; return; }
       chip.setAttribute('aria-expanded', 'true');
       detail.innerHTML = `
         <p class="text-xs font-600 text-ink-soft">${esc(s.code)} · ${esc(yearsLabel(s.yearLevels))} · ${esc(s.learningArea)}${s.subject && s.subject !== s.learningArea ? ` · ${esc(s.subject)}` : ''} · ${esc(s.strand)}</p>
@@ -78,7 +78,7 @@ export function renderTopic(params, { navigate }) {
   // Header
   root.appendChild(el(`
     <div class="mb-5">
-      <div class="flex items-center gap-2 mb-2.5 text-xs font-medium">
+      <div class="flex flex-wrap items-center gap-2 mb-2.5 text-xs font-medium">
         <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white" style="background:${esc(meta.color)}"><i data-lucide="${esc(meta.icon)}" class="w-3.5 h-3.5"></i>${esc(t.subject)}</span>
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">${esc(t.domain)}</span>
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">Ages ${esc(t.ageRangeStart)}–${esc(t.ageRangeEnd)}</span>
@@ -131,7 +131,7 @@ export function renderTopic(params, { navigate }) {
   root.appendChild(lessonCta);
 
   // Two column layout
-  const grid = el(`<div class="grid lg:grid-cols-3 gap-5"></div>`);
+  const grid = el(`<div class="grid grid-cols-1 lg:grid-cols-3 gap-5"></div>`);
   const mainCol = el(`<div class="lg:col-span-2 space-y-5"></div>`);
   const sideCol = el(`<div class="space-y-5"></div>`);
 

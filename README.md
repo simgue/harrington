@@ -422,6 +422,18 @@ redistribute a *modified copy of the dataset itself*).
 > https://withmarble.com · licensed under ODbL 1.0 (database) and
 > CC BY-SA 4.0 (content).
 
+### Australian Curriculum
+
+The topic pages and the coverage report show Australian Curriculum
+(version 9) content descriptions from the taxonomy's
+`curriculum-standards.json`, with this notice:
+
+> © Australian Curriculum, Assessment and Reporting Authority (ACARA) 2009 to present, unless otherwise indicated. This material was downloaded from the ACARA website (https://www.australiancurriculum.edu.au/) (accessed 20 October 2026) and was modified only to normalize whitespace and render equation fractions as text. The material is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). ACARA does not endorse any product that uses ACARA material or make any representations as to the quality of such products. Any product that uses material published on this website should not be taken to be affiliated with ACARA or have the sponsorship or approval of ACARA. It is up to each person to make their own assessment of the product.
+
+The links between topics and content descriptions are the Marble Skill
+Taxonomy's alignment, a map rather than a certificate, so Harrington says a
+topic is "linked to" a code and never that it meets one.
+
 ## Contributing
 
 Work is tracked in Linear, not GitHub Issues. See [`docs/LINEAR.md`](docs/LINEAR.md).
