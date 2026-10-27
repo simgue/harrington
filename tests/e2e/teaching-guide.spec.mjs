@@ -61,7 +61,9 @@ test('@mobile a Mathematics topic has a collapsed teaching guide with activities
   // With AI on, the lesson stays the first choice: no guide button in the CTA.
   await expect(page.getByRole('button', { name: 'Open the teaching guide' })).toHaveCount(0);
   await noHorizontalOverflow(page);
-  await shot('math-guide-open', { locator: guide });
+  // The viewport only: the open guide is several screens long (size budget).
+  await guide.getByRole('heading', { name: 'Check understanding' }).scrollIntoViewIfNeeded();
+  await shot('math-guide-open', { full: false });
   expect(errors).toEqual([]);
 });
 

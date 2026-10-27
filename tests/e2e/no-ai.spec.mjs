@@ -240,7 +240,7 @@ test('without AI, the teaching guide is the first choice where a topic has one',
   await expect(guide).toHaveAttribute('open', '');
   await expect(guide.getByRole('heading', { name: 'Check understanding' })).toBeInViewport();
   await expectNoFailureCopy(page);
-  await shot('topic-guide-first');
+  await shot('topic-guide-first', { full: false }); // the guide, scrolled into view
 
   // The quest log opens the same guide in a window.
   await page.goto(`/#graph/Mathematics/${encodeURIComponent('Counting & Cardinality')}`);
