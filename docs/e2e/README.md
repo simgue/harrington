@@ -62,18 +62,19 @@ before `globalSetup`, so the taxonomy download happens in the launcher;
 `tests/e2e/global-setup.mjs` then checks that each server is the one the
 projects expect and clears the mock's request log.
 
-**Taxonomy revision.** The specs assume one exact curriculum (1,590 topics,
-fixed topic ids), so the suite downloads the taxonomy at a pinned commit,
-`TAXONOMY_REVISION` in `tests/e2e/support/taxonomy.mjs`, never mutable `main`.
-The local cache directory and the CI cache key both follow the pin. To move to
-a newer taxonomy, change the pin, run `npm run e2e:ui-docs` and fix what the
-specs assumed.
+**Taxonomy revision.** The specs assume one exact curriculum (1,845 topics,
+fixed topic ids), so the suite downloads the taxonomy at the commit pinned in
+`lib/taxonomy-pin.mjs`, the same pin the server uses, and checks each file's
+SHA-256 (a cached file that does not match is fetched again). The local cache
+directory (`tests/e2e/.cache/taxonomy-<commit>/`) and the CI cache key both
+follow the pin. To move to a newer taxonomy, follow
+[docs/CURRICULUM.md](../CURRICULUM.md#bumping-the-pin).
 
-**Taxonomy upstream.** The server's default upstream, jsDelivr, is blocked on
-some networks. The launcher probes it (at the pinned revision) and falls back
-to `raw.githubusercontent.com`, which serves the same files, and passes the
-choice to the server as `HARRINGTON_TAXONOMY_UPSTREAM`. Set that variable
-yourself to force one.
+**Taxonomy upstream.** The suite downloads from `raw.githubusercontent.com` at
+the pinned commit (jsDelivr is blocked on some networks) and passes that URL to
+each server as `HARRINGTON_TAXONOMY_UPSTREAM`, which the server treats as the
+pin itself. Set the variable yourself to force another upstream; the server
+then skips the hash check and says so.
 
 ## Projects
 

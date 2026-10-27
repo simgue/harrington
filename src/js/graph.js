@@ -1,15 +1,17 @@
 // Curriculum hierarchy helpers. The browser view and tests share this module
 // so subject → domain → section → topic drill-down stays consistent.
 
-import { SUBJECTS, getData, orderTopics, topicAge } from './data.js';
+import { getData, orderTopics, topicAge, orderedSubjects } from './data.js';
 
-export function buildCurriculumTree(data, subjects = SUBJECTS) {
+// `subjects` (an object keyed by subject) limits and orders the tree; by
+// default it holds every subject with topics, so none is dropped.
+export function buildCurriculumTree(data, subjects = null) {
   const clusterMap = data.clusterMap instanceof Map
     ? data.clusterMap
     : new Map(Object.entries(data.clusterMap || {}));
   const bySubject = data.bySubject || {};
 
-  return Object.keys(subjects).map((subject) => {
+  return (subjects ? Object.keys(subjects) : orderedSubjects(bySubject)).map((subject) => {
     const topics = orderTopics(bySubject[subject] || []);
     const domains = new Map();
     for (const topic of topics) {

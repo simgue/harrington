@@ -2,7 +2,7 @@
 // phrased as "Can you…?" prompts, a few things to try, and a way to tell a
 // grown-up about it. No tests, scores or percentages.
 import * as store from '../store.js';
-import { SUBJECTS } from '../data.js';
+import { subjectMeta } from '../data.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { activityIdeas } from '../resources.js';
 import { openRecorder } from '../recorder.js';
@@ -19,7 +19,7 @@ export function openChildTopic(topic) {
   const student = store.activeStudent();
   if (!student) { toast('Add a student first', 'error'); return; }
   if (!topic) { toast('Ask a grown-up to pick something new'); return; }
-  const meta = SUBJECTS[topic.subject] || { color: '#3f6b3b', icon: 'sprout' };
+  const meta = subjectMeta(topic.subject);
   const stage = stageForStatus(store.statusOf(student.id, topic.id), true);
   const prompts = (topic.evidence || []).map(canYouPrompt).filter(Boolean).slice(0, 5);
   const ideas = childIdeas(topic);

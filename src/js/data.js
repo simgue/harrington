@@ -15,6 +15,33 @@ export const SUBJECTS = {
   'Geography':                    { color: '#9a5221', icon: 'earth' },
 };
 
+// A subject a future taxonomy revision adds before Harrington knows it: shown
+// in a neutral colour and icon, never dropped. One warning per subject.
+const UNKNOWN_SUBJECT = Object.freeze({ color: '#6f665a', icon: 'shapes' });
+const warnedSubjects = new Set();
+
+export function subjectMeta(subject) {
+  if (Object.hasOwn(SUBJECTS, subject)) return SUBJECTS[subject];
+  if (!warnedSubjects.has(subject)) {
+    warnedSubjects.add(subject);
+    console.warn(`Harrington has no colour or icon for the subject "${subject}"; showing it in neutral grey.`);
+  }
+  return UNKNOWN_SUBJECT;
+}
+
+// Every subject that has topics: the known ones in SUBJECTS order, then any
+// new ones alphabetically. `bySubject` maps a subject to its topics.
+export function orderedSubjects(bySubject) {
+  const present = Object.keys(bySubject || {}).filter((s) => bySubject[s]?.length);
+  const known = Object.keys(SUBJECTS).filter((s) => present.includes(s));
+  return [...known, ...present.filter((s) => !Object.hasOwn(SUBJECTS, s)).sort()];
+}
+
+// The subjects of the loaded taxonomy, in display order.
+export function subjectNames() {
+  return orderedSubjects(getData().bySubject);
+}
+
 export const AGES = [5, 6, 7, 8, 9, 10, 11, 12, 13];
 
 let _cache = null;
@@ -27,7 +54,13 @@ export async function loadTaxonomy() {
     fetch(`${TAXONOMY_API}/clusters.json`),
     fetch(`${TAXONOMY_API}/manifest.json`).catch(() => null),
   ]);
-  if (!topicsRes.ok || !depsRes.ok) throw new Error('Could not load the curriculum data.');
+  if (!topicsRes.ok || !depsRes.ok) {
+    // The server says why (an upstream that is down, a file that failed its
+    // integrity check); pass that on.
+    const failed = topicsRes.ok ? depsRes : topicsRes;
+    const why = await failed.json().then((b) => b?.error).catch(() => null);
+    throw new Error(why ? `Could not load the curriculum data. ${why}` : 'Could not load the curriculum data.');
+  }
   const topicsJson = await topicsRes.json();
   const depsJson = await depsRes.json();
   const clustersJson = clustersRes.ok ? await clustersRes.json() : { clusters: [] };
@@ -73,6 +106,13 @@ export async function loadTaxonomy() {
     },
   };
   return _cache;
+}
+
+// False for an id the loaded taxonomy no longer has: a retired topic, whose
+// family data is kept but left out of counts and choices (docs/CURRICULUM.md).
+// Before the taxonomy loads every id counts as current.
+export function isCurrentTopic(id) {
+  return !_cache || _cache.byId.has(id);
 }
 
 export function getData() {

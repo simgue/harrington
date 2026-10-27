@@ -1,4 +1,5 @@
-import { getData, SUBJECTS } from '../data.js';
+import { getData, isCurrentTopic, subjectMeta } from '../data.js';
+import { heldLabel, retiredName, retiredTopics, withRetiredLessons } from '../retired.js';
 import * as store from '../store.js';
 import { el, esc, analysisHtml, ratingStars, refreshIcons, toast, openModal, fmtDate, fmtDateTime } from '../ui.js';
 import { openRecorder, audioPlayer, coverageCandidates, coverageClaimField } from '../recorder.js';
@@ -43,6 +44,8 @@ export function renderRecords(params, { navigate }) {
   root.appendChild(savedLessonsShelf(d));
 
   if (!active) { root.appendChild(el(`<p class="text-ink-soft">Add a student to start recording.</p>`)); return root; }
+
+  root.appendChild(archivedTopics(active));
 
   if (recFilterFor !== active.id) { recFilter = 'all'; recFilterFor = active.id; }
   const all = store.recordsFor(active.id);
@@ -115,6 +118,33 @@ function savedLessonsShelf(d) {
   return shelf;
 }
 
+// Topics the curriculum no longer has (a taxonomy update retired them) that
+// this learner's data still mentions: kept, never counted, listed here so
+// nothing disappears silently. Saved lessons for them are added once listed.
+function archivedTopics(student) {
+  const section = el(`<section aria-label="Archived topics" class="archived-topics hidden bg-paper-card border border-paper-line rounded-2xl p-4 mb-5">
+    <h2 class="font-600 flex items-center gap-2"><i data-lucide="archive" class="w-4.5 h-4.5 text-ink-faint"></i>Archived topics</h2>
+    <p class="text-xs text-ink-soft mt-0.5 mb-3">No longer in the curriculum after an update. What you recorded for them is kept here; they no longer count toward progress or daily choices.</p>
+    <ul class="divide-y divide-paper-line"></ul>
+  </section>`);
+  const paint = (topics) => {
+    const ul = section.querySelector('ul');
+    ul.replaceChildren(...topics.map(t => el(`<li class="archived-topic flex items-start gap-3 py-2">
+      <i data-lucide="archive" class="w-4 h-4 mt-0.5 text-ink-faint shrink-0"></i>
+      <div class="flex-1 min-w-0"><p class="text-sm font-medium break-words">${esc(retiredName(t))} <span class="text-xs font-normal text-ink-faint">· archived topic</span></p><p class="text-xs text-ink-faint break-words">${esc(heldLabel(t.held))}</p></div>
+    </li>`)));
+    section.classList.toggle('hidden', !topics.length);
+    refreshIcons();
+  };
+  const own = retiredTopics(store.get(), student.id, isCurrentTopic);
+  paint(own);
+  store.lessonKeys().then(keys => {
+    const all = withRetiredLessons(own, keys, isCurrentTopic);
+    if (all.some(t => t.held.lesson)) paint(all);
+  });
+  return section;
+}
+
 // Names of the topics a record claims as coverage, skipping malformed entries.
 function coverageNames(r) {
   return (Array.isArray(r.coverage) ? r.coverage : [])
@@ -137,7 +167,8 @@ function recordCard(r, student, d, navigate) {
     ${coverageNames(r).length ? `<p class="text-xs font-600 text-brand-dark mb-1 flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>Coverage: ${coverageNames(r).map(esc).join(' · ')}</p>` : ''}
     ${r.note ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
     ${r.transcript ? `<details class="mt-2 group"><summary class="text-xs text-ink-faint cursor-pointer select-none flex items-center gap-1 list-none"><i data-lucide="chevron-right" class="w-3.5 h-3.5 transition-transform group-open:rotate-90"></i>Transcript</summary><p class="text-sm text-ink-soft mt-1.5 leading-relaxed whitespace-pre-wrap bg-paper border border-paper-line rounded-lg p-2.5">${esc(r.transcript)}</p></details>` : ''}
-    ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${esc(SUBJECTS[topic.subject]?.icon)}" class="w-3.5 h-3.5"></i>${esc(topic.name)}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
+    ${!topic && r.topicId && !isCurrentTopic(r.topicId) ? `<p class="mt-2.5 inline-flex items-center gap-1.5 text-xs text-ink-faint"><i data-lucide="archive" class="w-3.5 h-3.5"></i>${esc(r.topicName || r.topicId)} · archived topic</p>` : ''}
+    ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${esc(subjectMeta(topic.subject)?.icon)}" class="w-3.5 h-3.5"></i>${esc(topic.name)}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
   </div>`);
   if (r.audioPath) card.appendChild(audioPlayer(r.audioPath, r.duration));
 
@@ -346,7 +377,7 @@ export function openRecordForm(studentId, topic = null, options = {}) {
       if (q.length < 2) return;
       const matches = d.topics.filter(t => t.name.toLowerCase().includes(q)).slice(0, 6);
       matches.forEach(t => {
-        const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${esc(SUBJECTS[t.subject]?.color)}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
+        const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${esc(subjectMeta(t.subject)?.color)}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
         r.onclick = () => { hidden.value = t.id; search.value = t.name; results.innerHTML = ''; };
         results.appendChild(r);
       });

@@ -45,12 +45,16 @@ const configuredPort = Number.parseInt(process.env.HARRINGTON_PORT || process.en
 const port = Number.isInteger(configuredPort) && configuredPort >= 0 ? configuredPort : 4173;
 const JSON_LIMIT = 5 * 1024 * 1024;
 const AUDIO_LIMIT = 100 * 1024 * 1024;
+// The curriculum files the server fetches, each with its expected SHA-256
+// (lib/taxonomy-pin.mjs; docs/CURRICULUM.md says how to move the pin).
+const TAXONOMY_DOWNLOADS = new Set(Object.keys(TAXONOMY_PIN.files));
 // Served to the browser as they are. The teaching research is downloaded
-// through the same cache but only ever served one topic at a time.
-const TAXONOMY_FILES = new Set(['topics.json', 'dependencies.json', 'clusters.json', 'manifest.json']);
-const TAXONOMY_DOWNLOADS = new Set([...TAXONOMY_FILES, RESEARCH_FILE]);
-const TAXONOMY_UPSTREAM = process.env.HARRINGTON_TAXONOMY_UPSTREAM
-  || 'https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@main/data';
+// through the same cache and check but only ever served one topic at a time.
+const TAXONOMY_FILES = new Set([...TAXONOMY_DOWNLOADS].filter((name) => name !== RESEARCH_FILE));
+const TAXONOMY_UPSTREAM = (process.env.HARRINGTON_TAXONOMY_UPSTREAM || '').trim().replace(/\/+$/, '')
+  || TAXONOMY_PIN.upstream;
+// Any other upstream is an experiment: its files are cached without a hash check.
+const TAXONOMY_PINNED = TAXONOMY_UPSTREAM === TAXONOMY_PIN.upstream;
 const AI_UNCONFIGURED = 'AI is not configured for this self-hosted Harrington server';
 // Read once, to warn about unknown names at startup.
 const aiCapabilityConfig = parseCapabilities(process.env.HARRINGTON_AI_CAPABILITIES);
@@ -665,6 +669,45 @@ async function taxonomyCached() {
   }
 }
 
+// What /api/health says about the curriculum files:
+//   verified          every cached file matches the pin
+//   outdated          a cached file is from another revision (an install
+//                     older than the pin); it is still served, see docs/CURRICULUM.md
+//   integrity-failed  a download did not match the pin and was refused
+//   unchecked         HARRINGTON_TAXONOMY_UPSTREAM points somewhere else
+//   not-downloaded    nothing cached yet
+// Hashes of cached files are worked out once per process (the cache is only
+// written here) and remembered with the result of each refused download.
+const taxonomyHashes = new Map();
+const taxonomyRefused = new Set();
+let taxonomyOutdatedWarned = false;
+
+function noteTaxonomyFile(name, body) {
+  const actual = createHash('sha256').update(body).digest('hex');
+  taxonomyHashes.set(name, actual);
+  if (TAXONOMY_PINNED && actual !== TAXONOMY_PIN.files[name] && !taxonomyOutdatedWarned) {
+    taxonomyOutdatedWarned = true;
+    console.warn(`The cached curriculum (${taxonomyDir}) is not the pinned revision ${TAXONOMY_PIN.revision.slice(0, 7)}; `
+      + 'it is still served. To move to the pinned revision, run `npm run taxonomy:check -- --install` (docs/CURRICULUM.md).');
+  }
+}
+
+async function taxonomyStatus() {
+  if (taxonomyRefused.size) return 'integrity-failed';
+  if (!TAXONOMY_PINNED) return 'unchecked';
+  let cachedAny = false;
+  for (const name of TAXONOMY_FILES) {
+    if (!taxonomyHashes.has(name)) {
+      const body = await readFile(join(taxonomyDir, name)).catch(() => null);
+      if (!body) continue;
+      noteTaxonomyFile(name, body);
+    }
+    cachedAny = true;
+    if (taxonomyHashes.get(name) !== TAXONOMY_PIN.files[name]) return 'outdated';
+  }
+  return cachedAny ? 'verified' : 'not-downloaded';
+}
+
 async function loadTaxonomyFile(name) {
   if (!TAXONOMY_DOWNLOADS.has(name)) {
     throw Object.assign(new Error('Unknown taxonomy file'), { statusCode: 404 });
@@ -674,9 +717,12 @@ async function loadTaxonomyFile(name) {
     if (error.code === 'ENOENT') return null;
     throw error;
   });
-  if (cached) return cached;
+  if (cached) {
+    if (!taxonomyHashes.has(name)) noteTaxonomyFile(name, cached);
+    return cached;
+  }
 
-  const response = await fetch(`${TAXONOMY_UPSTREAM.replace(/\/$/, '')}/${name}`);
+  const response = await fetch(`${TAXONOMY_UPSTREAM}/${name}`);
   if (!response.ok) {
     throw Object.assign(
       new Error(`Could not download curriculum file ${name} (${response.status})`),
@@ -684,8 +730,21 @@ async function loadTaxonomyFile(name) {
     );
   }
   const body = Buffer.from(await response.arrayBuffer());
+  if (TAXONOMY_PINNED) {
+    const actual = createHash('sha256').update(body).digest('hex');
+    if (actual !== TAXONOMY_PIN.files[name]) {
+      taxonomyRefused.add(name);
+      throw Object.assign(
+        new Error(`Curriculum file ${name} failed its integrity check, so it was not saved: `
+          + `expected SHA-256 ${TAXONOMY_PIN.files[name]}, got ${actual}. See docs/CURRICULUM.md.`),
+        { statusCode: 502 },
+      );
+    }
+    taxonomyRefused.delete(name);
+  }
   await mkdir(taxonomyDir, { recursive: true });
   await atomicWrite(cachePath, body);
+  taxonomyHashes.set(name, createHash('sha256').update(body).digest('hex'));
   return body;
 }
 
@@ -695,22 +754,18 @@ async function loadTaxonomyFile(name) {
 let researchIndex = null;
 function teachingResearchIndex() {
   researchIndex ??= (async () => {
-    // From the pinned upstream the file must match the pin's SHA-256; another
-    // upstream (a test server, a newer revision chosen on purpose) is trusted.
-    const expected = TAXONOMY_UPSTREAM.replace(/\/$/, '') === TAXONOMY_PIN.upstream ? TAXONOMY_PIN.files[RESEARCH_FILE] : null;
+    // From the pinned upstream the split must come from the pinned file.
+    const expected = TAXONOMY_PINNED ? TAXONOMY_PIN.files[RESEARCH_FILE] : null;
     const existing = await readResearchIndex(taxonomyDir);
     if (existing && (!expected || existing.sourceSha256 === expected)) return existing;
     const started = Date.now();
-    const cachedPath = join(taxonomyDir, RESEARCH_FILE);
     let source = await loadTaxonomyFile(RESEARCH_FILE);
     if (expected && sha256(source) !== expected) {
-      // A stale or cut-off copy in the cache: drop it and download once more.
-      await unlink(cachedPath).catch(() => {});
+      // A copy cached from another revision: replace it. The download is
+      // checked against the pin in loadTaxonomyFile.
+      await unlink(join(taxonomyDir, RESEARCH_FILE)).catch(() => {});
+      taxonomyHashes.delete(RESEARCH_FILE);
       source = await loadTaxonomyFile(RESEARCH_FILE);
-      if (sha256(source) !== expected) {
-        await unlink(cachedPath).catch(() => {});
-        throw Object.assign(new Error('The downloaded teaching research does not match the pinned revision'), { statusCode: 502 });
-      }
     }
     const index = await splitTeachingResearch(source, taxonomyDir);
     console.log(`Split the teaching research into ${index.recordCount} topic files in ${Date.now() - started} ms`);
@@ -968,6 +1023,8 @@ async function handleApi(req, res, url) {
       aiCapabilities: ai.capabilities,
       redaction: 'server+client',
       taxonomyCached: await taxonomyCached(),
+      taxonomy: await taxonomyStatus(),
+      taxonomyRevision: TAXONOMY_PINNED ? TAXONOMY_PIN.revision : null,
       ...(await stateHealth()),
       backupAgeDays: await backupAgeDays(),
     });
@@ -1210,6 +1267,10 @@ server.listen(port, host, () => {
   console.log(authEnabled
     ? 'Access token is on: each device signs in once at /login.'
     : `Access token is off${shared ? ': anyone who can reach this server can read and change family data' : ''}.`);
+  if (!TAXONOMY_PINNED) {
+    console.warn(`HARRINGTON_TAXONOMY_UPSTREAM is a custom upstream (${TAXONOMY_UPSTREAM}): curriculum files from it are `
+      + `cached without an integrity check. Unset it to use the pinned revision ${TAXONOMY_PIN.revision.slice(0, 7)}.`);
+  }
   if (aiCapabilityConfig.unknown.length) {
     console.warn(`Ignoring unknown HARRINGTON_AI_CAPABILITIES entries: ${aiCapabilityConfig.unknown.join(', ')}`);
   }
