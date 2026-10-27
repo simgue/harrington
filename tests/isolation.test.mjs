@@ -94,7 +94,7 @@ test('views escape learner, record and taxonomy strings with the shared esc()', 
   const views = [
     'topic', 'calendar', 'graph',
     'records', 'insights', 'recordings', 'masterytest', 'challenge', 'recall',
-    'notifications', 'shell',
+    'notifications', 'shell', 'teachingguide',
   ];
   for (const name of views) {
     const code = await source(`src/js/views/${name}.js`);
@@ -138,6 +138,12 @@ const ESCAPED_MARKUP = {
   },
   'src/js/views/insights.js': { helpers: [...MEADOW, 'statBox'] },
   'src/js/views/challenge.js': {},
+  'src/js/views/teachingguide.js': {
+    // label() and list() escape their text; the icons and class strings are constants.
+    helpers: ['label', 'list', 'steps', 'activityBlock', 'checkBlock', 'reteach'],
+    // `activities` and `check` are built from those helpers just above.
+    allowed: ['icon', 'summaryRow', 'MARBLE_HREF', 'LICENSE_HREF', 'activities', 'check'],
+  },
 };
 
 test('learner, record and result markup interpolates only escaped values', async () => {

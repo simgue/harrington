@@ -9,13 +9,14 @@ import {
 
 const list = (items) => `<ul class="space-y-1.5">${items.map(x => `<li class="flex gap-2 text-sm text-ink-soft leading-relaxed"><span class="w-1.5 h-1.5 rounded-full bg-brand/60 shrink-0 mt-2"></span><span class="min-w-0">${esc(x)}</span></li>`).join('')}</ul>`;
 const label = (icon, text) => `<p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-1.5 flex items-center gap-1.5"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i>${esc(text)}</p>`;
+const steps = (items) => items.map((s, n) => `<li class="flex gap-2.5 text-sm text-ink-soft leading-relaxed"><span class="w-5 h-5 rounded-full bg-brand-light text-brand-dark text-[11px] font-700 flex items-center justify-center shrink-0 mt-0.5">${esc(n + 1)}</span><span class="min-w-0">${esc(s)}</span></li>`).join('');
 const summaryRow = 'min-h-[44px] flex items-center gap-2 cursor-pointer select-none list-none';
 
 function activityBlock(a, i) {
   return `<details class="group rounded-xl border border-paper-line bg-paper px-3.5">
-    <summary class="${summaryRow} py-2 text-sm font-600 text-ink"><i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0 transition-transform group-open:rotate-90"></i><span class="text-ink-faint font-500 shrink-0">${i + 1}.</span><span class="min-w-0">${esc(a.title)}</span></summary>
+    <summary class="${summaryRow} py-2 text-sm font-600 text-ink"><i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0 transition-transform group-open:rotate-90"></i><span class="text-ink-faint font-500 shrink-0">${esc(i + 1)}.</span><span class="min-w-0">${esc(a.title)}</span></summary>
     <div class="pb-3.5 space-y-3">
-      ${a.steps.length ? `<div>${label('list-ordered', 'Steps')}<ol class="space-y-1.5">${a.steps.map((s, n) => `<li class="flex gap-2.5 text-sm text-ink-soft leading-relaxed"><span class="w-5 h-5 rounded-full bg-brand-light text-brand-dark text-[11px] font-700 flex items-center justify-center shrink-0 mt-0.5">${n + 1}</span><span class="min-w-0">${esc(s)}</span></li>`).join('')}</ol></div>` : ''}
+      ${a.steps.length ? `<div>${label('list-ordered', 'Steps')}<ol class="space-y-1.5">${steps(a.steps)}</ol></div>` : ''}
       ${a.insight ? `<div>${label('lightbulb', 'What they should notice')}<p class="text-sm text-ink-soft leading-relaxed">${esc(a.insight)}</p></div>` : ''}
       ${a.feedback.length ? `<div>${label('message-circle', 'If they take a wrong turn')}${list(a.feedback)}</div>` : ''}
     </div>
@@ -50,12 +51,14 @@ function checkBlock(c, byId) {
 // `onTopic(id)` opens a topic named as something to go back to.
 export function renderGuide(guide, { onTopic = null } = {}) {
   const byId = onTopic ? getData()?.byId : null;
+  const activities = guide.activities.map(activityBlock).join('');
+  const check = guide.check ? checkBlock(guide.check, byId) : '';
   const body = el(`<div class="space-y-4 min-w-0">
     ${guide.summary ? `<p class="text-sm text-ink-soft leading-relaxed">${esc(guide.summary)}</p>` : ''}
-    ${guide.activities.length ? `<div>${label('shapes', 'Activities')}<div class="space-y-2">${guide.activities.map(activityBlock).join('')}</div></div>` : ''}
-    ${guide.check ? checkBlock(guide.check, byId) : ''}
+    ${guide.activities.length ? `<div>${label('shapes', 'Activities')}<div class="space-y-2">${activities}</div></div>` : ''}
+    ${check}
     ${guide.sources.length ? `<details class="group">
-      <summary class="${summaryRow} text-sm font-medium text-ink-soft"><i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint transition-transform group-open:rotate-90"></i>Sources (${guide.sources.length})</summary>
+      <summary class="${summaryRow} text-sm font-medium text-ink-soft"><i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint transition-transform group-open:rotate-90"></i>Sources (${esc(guide.sources.length)})</summary>
       <ul class="space-y-1 pb-1">${guide.sources.map(s => `<li class="text-sm leading-snug"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" class="text-brand-dark underline underline-offset-2 break-words">${esc(s.name)}</a></li>`).join('')}</ul>
     </details>` : ''}
     <div class="pt-3 border-t border-paper-line space-y-1">

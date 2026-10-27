@@ -15,6 +15,7 @@ import { openKidMode } from './kidmode.js';
 import { openPlacement } from './placement.js';
 import { pickKey, invitationEvidenceSummary } from '../daily.js';
 import { countLabel, formatCount } from '../format.js';
+import { GUIDE_ATTRIBUTION, LICENSE_HREF } from '../teaching.js';
 
 // Pastel stop colours for the day's path, cycled per topic.
 const STOPS = [
@@ -244,7 +245,7 @@ export function renderDashboard(params, { navigate }) {
   root.appendChild(twoCol);
 
   // attribution footer
-  root.appendChild(el(`<p class="text-[11px] text-ink-faint mt-8 text-center leading-relaxed">Curriculum from the Marble Skill Taxonomy (v1) · © Generative Spark, Inc. · licensed under ODbL 1.0 &amp; CC BY-SA 4.0</p>`));
+  root.appendChild(el(`<p class="text-[11px] text-ink-faint mt-8 text-center leading-relaxed">Curriculum from the Marble Skill Taxonomy (v1) · © Generative Spark, Inc. · licensed under ODbL 1.0 &amp; CC BY-SA 4.0<br>Teaching guides: ${esc(GUIDE_ATTRIBUTION.replace(/^From the /, ''))} · <a href="${esc(LICENSE_HREF)}" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2">License</a></p>`));
 
   refreshIcons();
   return root;

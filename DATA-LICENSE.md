@@ -51,6 +51,16 @@ such AI outputs is an evolving area. If you want to be conservative, treat
 app-displayed material derived from Marble's text as CC BY-SA 4.0 and attribute
 accordingly; for certainty about a specific use, ask Marble.
 
+### Teaching research
+
+The teaching guides on topic pages are Marble's teaching research
+(`data/teaching-research.json`), CC BY-SA 4.0. Harrington downloads it at
+runtime, never commits it, and shows the text verbatim with the line "From the
+Marble Skill Taxonomy teaching research · © Generative Spark, Inc. (Marble) ·
+CC BY-SA 4.0". If Harrington ever edits that text, the edit must be marked
+where it is shown, and the edited text stays CC BY-SA 4.0. Details in
+[`docs/CURRICULUM.md`](docs/CURRICULUM.md#teaching-research).
+
 ## Required attribution
 
 Any use must credit:

@@ -88,6 +88,13 @@ computer only and these work:
   on this computer. The live transcript uses your browser's speech service,
   which may send audio to the browser vendor.
 - **Insights** — subject summaries and recommended next topics.
+- **Teaching guides** — on about 500 of 576 Mathematics topics and 550 of 576
+  Science topics, a collapsible guide from Marble's teaching research: a
+  summary, activities with steps and what to say after a wrong turn, and a way
+  to check understanding. Where a lesson needs AI, "Open the teaching guide"
+  comes first. Other subjects have no guides yet. Marble describes the guides
+  as written by AI agents: proposed activities, not tested in studies. The
+  server downloads them once (about 24 MB) the first time one is opened.
 
 Lessons, print & go sheets, mastery tests, challenges, recall cards, activity
 instructions, discussion analysis, progress reviews and adaptive suggestions
@@ -421,6 +428,14 @@ redistribute a *modified copy of the dataset itself*).
 > Marble Skill Taxonomy (v1) · © Generative Spark, Inc. (Marble) ·
 > https://withmarble.com · licensed under ODbL 1.0 (database) and
 > CC BY-SA 4.0 (content).
+
+The teaching guides carry their own line, shown at the end of every guide:
+
+> From the Marble Skill Taxonomy teaching research · © Generative Spark, Inc.
+> (Marble) · CC BY-SA 4.0
+
+See [docs/CURRICULUM.md](docs/CURRICULUM.md#teaching-research) for what that
+license asks of Harrington.
 
 ## Contributing
 
