@@ -21,7 +21,7 @@ test('taxonomy files are served from the cache; unknown names are 404', async ({
   const topics = await request.get(`${URLS.appAi}/api/taxonomy/topics.json`);
   expect(topics.status()).toBe(200);
   expect(topics.headers()['cache-control']).toBe('private, max-age=3600');
-  expect((await topics.json()).topics).toHaveLength(1590);
+  expect((await topics.json()).topics).toHaveLength(1845);
   for (const name of ['dependencies.json', 'clusters.json', 'manifest.json']) {
     expect((await request.get(`${URLS.appAi}/api/taxonomy/${name}`)).status()).toBe(200);
   }

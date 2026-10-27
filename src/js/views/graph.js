@@ -283,7 +283,7 @@ function renderWorldMap(params, active, navigate) {
     <div class="mb-5">
       <p class="text-[11px] uppercase tracking-[0.18em] text-ink-faint font-medium mb-1">World Map</p>
       <h1 class="font-display text-2xl sm:text-3xl font-600">Curriculum realms</h1>
-      <p class="text-ink-soft text-sm mt-1 max-w-2xl">Eight subjects as lands on a map, not a syllabus calendar. Open a realm to walk its skill tree. Quiet tints are for you; this is not a report card.</p>
+      <p class="text-ink-soft text-sm mt-1 max-w-2xl">${tree.length === 1 ? 'One subject' : `${formatCount(tree.length)} subjects`} as lands on a map, not a syllabus calendar. Open a realm to walk its skill tree. Quiet tints are for you; this is not a report card.</p>
       <p class="text-xs text-ink-faint mt-2">${countLabel(d.meta.topics, 'topic')} · ${countLabel(d.meta.dependencies, 'prerequisite link')} · ${d.meta.version}</p>
     </div>`));
 
@@ -292,7 +292,7 @@ function renderWorldMap(params, active, navigate) {
   svg.setAttribute('viewBox', `0 0 ${WORLD_MAP_VIEWBOX.width} ${WORLD_MAP_VIEWBOX.height}`);
   svg.setAttribute('class', 'w-full h-auto world-map-svg');
   svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', 'Curriculum world map of eight subject realms');
+  svg.setAttribute('aria-label', `Curriculum world map of ${countLabel(scene.realms.length, 'subject realm')}`);
 
   const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
   defs.innerHTML = `

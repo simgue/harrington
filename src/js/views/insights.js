@@ -169,7 +169,9 @@ export function renderInsights(params, { navigate }) {
   root.appendChild(fbCard);
 
   // recommended next steps
-  const nexts = recommendedNext(active.id, 6).filter(n => n.topic.subject === selSubject);
+  // Rank every subject, then keep this one: a top six across all subjects can
+  // leave a smaller subject with nothing to suggest though it has open topics.
+  const nexts = recommendedNext(active.id, Infinity).filter(n => n.topic.subject === selSubject).slice(0, 6);
   const recCard = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5">
     <h2 class="font-600 flex items-center gap-2 mb-3.5"><i data-lucide="footprints" class="w-4.5 h-4.5 text-brand-dark"></i>Recommended next in ${esc(selSubject)}</h2>
     <div id="rec" class="space-y-2"></div>

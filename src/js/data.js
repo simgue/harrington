@@ -14,6 +14,7 @@ export const SUBJECTS = {
   'Life Skills':                  { color: '#6b6a2a', icon: 'sprout' },
   'Computing':                    { color: '#3e7470', icon: 'cpu' },
   'Learning to Learn':            { color: '#9a4a6e', icon: 'brain' },
+  'Geography':                    { color: '#9a5221', icon: 'earth' },
 };
 
 export const AGES = [5, 6, 7, 8, 9, 10, 11, 12, 13];
