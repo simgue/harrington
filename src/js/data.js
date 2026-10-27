@@ -108,6 +108,13 @@ export async function loadTaxonomy() {
   return _cache;
 }
 
+// False for an id the loaded taxonomy no longer has: a retired topic, whose
+// family data is kept but left out of counts and choices (docs/CURRICULUM.md).
+// Before the taxonomy loads every id counts as current.
+export function isCurrentTopic(id) {
+  return !_cache || _cache.byId.has(id);
+}
+
 export function getData() {
   if (!_cache) throw new Error('Taxonomy not loaded');
   return _cache;

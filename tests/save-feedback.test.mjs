@@ -87,9 +87,9 @@ document.getElementById('app').appendChild(shell);
 
 test('read-only: a write the app makes while rendering raises no "Not saved" toast; the parent\'s does', async () => {
   reset();
-  store.pruneExtras(STUDENT.id, '2026-10-07', ['x_gone']);
+  store.saveDailyOffers(STUDENT.id, '2026-10-07', { literacy: [], numeracy: [] });
   await settle();
-  assert.deepEqual(toasts().filter((t) => t.startsWith('Not saved')), [], 'pruning a gone extra is automatic');
+  assert.deepEqual(toasts().filter((t) => t.startsWith('Not saved')), [], 'remembering the day\'s offers is automatic');
   assert.ok(document.querySelector('.read-only-banner'), 'the banner still says why');
   store.setStatus(STUDENT.id, 't_count', 'learning');
   await settle();

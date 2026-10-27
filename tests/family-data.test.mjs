@@ -38,6 +38,8 @@ before(async () => {
   await writeFile(join(dataDir, 'taxonomy', 'topics.json'), JSON.stringify({ topics: [
     { id: 'count-to-5', name: 'Count to 5', subject: 'Mathematics', domain: 'Counting' },
     { id: 'rhymes', name: 'Rhymes', subject: 'English', domain: 'Phonics', ageRangeStart: 7 },
+    // The recall orphan tests' topics: a card of a retired topic is never due.
+    ...['prune-once', 'prune-race', 'prune-readonly'].map((id) => ({ id, name: id, subject: 'Mathematics', domain: 'Counting' })),
   ] }));
   await writeFile(join(dataDir, 'taxonomy', 'dependencies.json'), JSON.stringify({ dependencies: [] }));
   await writeFile(join(dataDir, 'taxonomy', 'clusters.json'), JSON.stringify({ clusters: [] }));

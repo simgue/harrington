@@ -257,7 +257,7 @@ test('switching pace never loses done days, moves, extras or the calendar', asyn
 test('topicPracticeItems: only that topic\'s retries, soonest first, each marked due or not', () => {
   const sid = store.addStudent('Sample Fifteen', 2018);
   const a = store.enqueuePracticeItem(sid, { topicId: 'm7-base', subject: 'Mathematics', q: 'One?', type: 'short', answer: '1' });
-  store.enqueuePracticeItem(sid, { topicId: 'other', subject: 'Mathematics', q: 'Two?', type: 'short', answer: '2' });
+  store.enqueuePracticeItem(sid, { topicId: 'm8-stretch', subject: 'Mathematics', q: 'Two?', type: 'short', answer: '2' });
   store.enqueuePracticeItem(sid, { topicId: 'm7-base', subject: 'Mathematics', q: 'Three?', type: 'short', answer: '3' });
   // Answer one correctly: it moves to a later day and is no longer due.
   const idA = store.duePracticeItems(sid).find((x) => x.q === a.q).id;

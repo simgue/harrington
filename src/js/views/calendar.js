@@ -171,15 +171,10 @@ function dayPanel(active, navigate) {
   const inTrack = plan.firstKey && selectedKey >= plan.firstKey && selectedKey <= plan.lastKey;
   const dateLabel = date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   const done = store.isDayDone(active.id, selectedKey);
-  // Extras whose topic is gone (e.g. after a taxonomy update) are dropped.
+  // Extras whose topic was retired by a taxonomy update are kept in the
+  // family's data (Records lists them) but not shown on the day.
   const byId = getData().byId;
-  const allExtras = store.extrasOn(active.id, selectedKey);
-  const extras = allExtras.filter(x => x.topicId && byId.has(x.topicId));
-  if (extras.length < allExtras.length) {
-    const gone = allExtras.filter(x => !extras.includes(x)).map(x => x.id);
-    const [sid, key] = [active.id, selectedKey];
-    queueMicrotask(() => store.pruneExtras(sid, key, gone));
-  }
+  const extras = store.extrasOn(active.id, selectedKey).filter(x => x.topicId && byId.has(x.topicId));
 
   const card = el(`<div data-day-panel class="bg-paper-card border border-paper-line rounded-2xl p-5 space-y-5"></div>`);
   const control = doneControl(rest, done);
