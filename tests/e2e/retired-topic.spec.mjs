@@ -34,14 +34,16 @@ test('a retired topic is kept, left out of counts, archived in Records and expla
   await nav(page, 'Records').click();
   const archived = page.getByRole('region', { name: 'Archived topics' });
   await expect(archived).toBeVisible();
-  const row = archived.locator('li.archived-topic');
+  // Other specs on this server can leave saved lessons for made-up ids, which
+  // are archived too; this test looks at its own topic's row.
+  const row = archived.locator('li.archived-topic', { hasText: NAME });
   await expect(row).toHaveCount(1);
   await expect(row).toContainText(`${NAME} · archived topic`);
   await expect(row).toContainText('mastered · 1 record · 1 test result · 1 recall card · 1 practice question · 2 calendar entries · 1 topic request · 1 workbook answer');
   // The record itself still shows, with its topic marked archived.
   const card = page.locator('div.rounded-2xl', { has: page.getByText('Guessed the jar of beans', { exact: true }) });
   await expect(card).toContainText(`${NAME} · archived topic`);
-  await shot('records-archived-topic', { locator: archived });
+  await shot('records-archived-topic', { locator: row });
 
   await page.goto(`/#topic/${RETIRED}`);
   await expect(page.getByRole('heading', { level: 1, name: NAME })).toBeVisible();
