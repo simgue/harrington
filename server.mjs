@@ -9,8 +9,9 @@ import {
   MAX_TIMEOUT_MS, chatCompletion, knownCapabilities, readStoredAiSettings, resolveAiSettings, validTimeout,
 } from './lib/ai-provider.mjs';
 import { isLoopbackAddress } from './lib/loopback.mjs';
+import { TAXONOMY_PIN } from './lib/taxonomy-pin.mjs';
 import {
-  RESEARCH_FILE, readResearchIndex, readResearchRecord, splitTeachingResearch, validTopicId,
+  RESEARCH_FILE, readResearchIndex, readResearchRecord, sha256, splitTeachingResearch, validTopicId,
 } from './lib/teaching-research.mjs';
 import { AI_CAPABILITIES, capabilityOffMessage, parseCapabilities } from './src/js/ai-capabilities.js';
 import { redactNames } from './src/js/redact.js';
@@ -694,10 +695,24 @@ async function loadTaxonomyFile(name) {
 let researchIndex = null;
 function teachingResearchIndex() {
   researchIndex ??= (async () => {
+    // From the pinned upstream the file must match the pin's SHA-256; another
+    // upstream (a test server, a newer revision chosen on purpose) is trusted.
+    const expected = TAXONOMY_UPSTREAM.replace(/\/$/, '') === TAXONOMY_PIN.upstream ? TAXONOMY_PIN.files[RESEARCH_FILE] : null;
     const existing = await readResearchIndex(taxonomyDir);
-    if (existing) return existing;
+    if (existing && (!expected || existing.sourceSha256 === expected)) return existing;
     const started = Date.now();
-    const index = await splitTeachingResearch(await loadTaxonomyFile(RESEARCH_FILE), taxonomyDir);
+    const cachedPath = join(taxonomyDir, RESEARCH_FILE);
+    let source = await loadTaxonomyFile(RESEARCH_FILE);
+    if (expected && sha256(source) !== expected) {
+      // A stale or cut-off copy in the cache: drop it and download once more.
+      await unlink(cachedPath).catch(() => {});
+      source = await loadTaxonomyFile(RESEARCH_FILE);
+      if (sha256(source) !== expected) {
+        await unlink(cachedPath).catch(() => {});
+        throw Object.assign(new Error('The downloaded teaching research does not match the pinned revision'), { statusCode: 502 });
+      }
+    }
+    const index = await splitTeachingResearch(source, taxonomyDir);
     console.log(`Split the teaching research into ${index.recordCount} topic files in ${Date.now() - started} ms`);
     return index;
   })().catch((error) => {
