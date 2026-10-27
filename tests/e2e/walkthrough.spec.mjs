@@ -197,7 +197,7 @@ test.describe('parent', () => {
 
     // 10. Back on the dashboard, the day's work shows.
     await nav(page, 'Dashboard').click();
-    await expect(page.getByText(/1 of 1,?590 topics mastered/)).toBeVisible();
+    await expect(page.getByText(/1 of 1,?845 topics mastered/)).toBeVisible();
     await scrollThrough(page, 6);
     await shot('dashboard-after-a-day', { full: true });
   });
