@@ -1,4 +1,5 @@
-import { SUBJECTS, getData } from '../data.js';
+import { getData, isCurrentTopic, subjectMeta } from '../data.js';
+import { retiredName, retiredTopics } from '../retired.js';
 import { graphParamsForTopic } from './graph.js';
 import * as store from '../store.js';
 import { growthChip, growthIcon, stageForStatus } from '../meadow.js';
@@ -17,6 +18,46 @@ import { recallSectionCard } from './recall.js';
 import { aiErrorBlock, aiUnavailableChip, gateAi } from '../ai-status.js';
 import { howItWorksFrame } from './howitworks.js';
 import { openObservation, canObserve } from './observation.js';
+import { ACARA_NOTICE, CURRICULUM_NAME, learnerYear, topicStandards, yearLabel, yearsLabel } from '../curriculum.js';
+
+// The Australian Curriculum content descriptions Marble links this topic to,
+// as chips ("AC9M2N01 · Year 2 · Number"). A chip opens its text. The ACARA
+// notice shows once, below the chips, whenever the section does. Null when
+// the topic links to none.
+function curriculumLinks(t, standards, active) {
+  const linked = topicStandards(t, standards?.index);
+  if (!linked.length) return null;
+  const year = learnerYear(active);
+  const box = el(`<section class="topic-curriculum mb-5" aria-label="${esc(CURRICULUM_NAME)}">
+    <p class="text-xs font-600 text-ink-soft mb-1.5">Linked to the ${esc(CURRICULUM_NAME)} (version 9)</p>
+    <div class="flex flex-wrap gap-1.5"></div>
+    <div class="ac-detail hidden mt-2.5 [overflow-wrap:anywhere] rounded-xl bg-paper-card border border-paper-line p-3.5" aria-live="polite"></div>
+    <p class="ac-notice text-[11px] text-ink-faint mt-2 leading-relaxed [overflow-wrap:anywhere]">${esc(ACARA_NOTICE)}</p>
+  </section>`);
+  const chips = box.querySelector('div');
+  const detail = box.querySelector('.ac-detail');
+  let open = null;
+  for (const s of linked) {
+    const atYear = year && s.yearLevels.includes(year);
+    const chip = el(`<button type="button" class="ac-chip min-h-11 px-3 rounded-full border text-xs font-medium text-left ${atYear ? 'border-brand/50 bg-brand-light text-brand-dark' : 'border-paper-line bg-paper-card text-ink-soft hover:border-brand/40'}" aria-expanded="false"></button>`);
+    chip.textContent = `${s.code} · ${yearsLabel(s.yearLevels)} · ${s.strand}`;
+    if (atYear) chip.title = `${active.name}'s year: ${yearLabel(year)}`;
+    chip.onclick = () => {
+      const closing = open === s.code;
+      open = closing ? null : s.code;
+      for (const c of chips.children) c.setAttribute('aria-expanded', 'false');
+      detail.classList.toggle('hidden', closing);
+      if (closing) { detail.innerHTML = ''; return; }
+      chip.setAttribute('aria-expanded', 'true');
+      detail.innerHTML = `
+        <p class="text-xs font-600 text-ink-soft">${esc(s.code)} · ${esc(yearsLabel(s.yearLevels))} · ${esc(s.learningArea)}${s.subject && s.subject !== s.learningArea ? ` · ${esc(s.subject)}` : ''} · ${esc(s.strand)}</p>
+        <p class="ac-text text-sm text-ink mt-1 leading-relaxed">${esc(s.description || s.title)}</p>
+        <p class="text-xs text-ink-faint mt-2 leading-relaxed">Marble's map links this topic to the content description; it is not a check that the description is met.</p>`;
+    };
+    chips.appendChild(chip);
+  }
+  return box;
+}
 
 export function renderTopic(params, { navigate }) {
   const d = getData();
@@ -24,9 +65,9 @@ export function renderTopic(params, { navigate }) {
   const active = store.activeStudent();
 
   const root = el(`<div class="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-up"></div>`);
-  if (!t) { root.appendChild(el(`<p class="text-ink-soft">Topic not found.</p>`)); return root; }
+  if (!t) { root.appendChild(missingTopic(params.id, navigate)); return root; }
 
-  const meta = SUBJECTS[t.subject];
+  const meta = subjectMeta(t.subject);
   const status = active ? store.statusOf(active.id, t.id) : 'none';
   const unlocked = active ? isUnlocked(active.id, t.id) : true;
   const blocking = active ? blockingPrereqs(active.id, t.id) : [];
@@ -39,7 +80,7 @@ export function renderTopic(params, { navigate }) {
   // Header
   root.appendChild(el(`
     <div class="mb-5">
-      <div class="flex items-center gap-2 mb-2.5 text-xs font-medium">
+      <div class="flex flex-wrap items-center gap-2 mb-2.5 text-xs font-medium">
         <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white" style="background:${esc(meta.color)}"><i data-lucide="${esc(meta.icon)}" class="w-3.5 h-3.5"></i>${esc(t.subject)}</span>
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">${esc(t.domain)}</span>
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">Ages ${esc(t.ageRangeStart)}–${esc(t.ageRangeEnd)}</span>
@@ -51,6 +92,9 @@ export function renderTopic(params, { navigate }) {
     </div>`));
 
   root.querySelector('.status-control')?.replaceWith(statusControl(t, active, unlocked));
+
+  const curriculum = curriculumLinks(t, d.standards, active);
+  if (curriculum) root.appendChild(curriculum);
 
   // Locked banner
   if (!unlocked) {
@@ -90,8 +134,8 @@ export function renderTopic(params, { navigate }) {
 
   // Two column layout
   const grid = el(`<div class="grid lg:grid-cols-3 gap-5"></div>`);
-  const mainCol = el(`<div class="lg:col-span-2 space-y-5"></div>`);
-  const sideCol = el(`<div class="space-y-5"></div>`);
+  const mainCol = el(`<div class="lg:col-span-2 space-y-5 min-w-0"></div>`);
+  const sideCol = el(`<div class="space-y-5 min-w-0"></div>`);
 
   // --- See how it works (HAR-34): an interactive figure, for the topics that have one ---
   const figure = howItWorksFrame(t);
@@ -161,7 +205,7 @@ function section(icon, title, contentEl, extra = '') {
 }
 
 function masterySection(t, student) {
-  const meta = SUBJECTS[t.subject];
+  const meta = subjectMeta(t.subject);
   const body = el(`<div></div>`);
   if (!student) {
     body.appendChild(el(`<p class="text-sm text-ink-faint">Add a student to track mastery.</p>`));
@@ -231,7 +275,7 @@ function statusControl(t, student, unlocked) {
 }
 
 function sectionCheckSection(t, student) {
-  const meta = SUBJECTS[t.subject];
+  const meta = subjectMeta(t.subject);
   const sec = sectionForTopic(t);
   const body = el(`<div></div>`);
   if (!sec) {
@@ -303,7 +347,7 @@ function recordingItem(r) {
 
 function connectionsSection(t, student, navigate) {
   const d = getData();
-  const meta = SUBJECTS[t.subject];
+  const meta = subjectMeta(t.subject);
   const prereqs = d.prereqsOf.get(t.id) || [];
   const unlocks = d.unlocksOf.get(t.id) || [];
   const body = el(`<div></div>`);
@@ -501,3 +545,22 @@ function recordItem(r) {
   return item;
 }
 
+
+// A topic id the curriculum does not have. If a learner's data mentions it, a
+// taxonomy update retired it: say so, with the name the data kept, and point
+// to Records, where what was recorded for it is still listed.
+function missingTopic(id, navigate) {
+  const retired = store.get().students
+    .map(s => retiredTopics(store.get(), s.id, isCurrentTopic).find(r => r.id === id))
+    .find(Boolean);
+  if (!retired) return el(`<p class="text-ink-soft">Topic not found. It may have been removed from the curriculum in an update.</p>`);
+  const box = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 max-w-xl">
+    <p class="text-xs text-ink-faint flex items-center gap-1.5 mb-1"><i data-lucide="archive" class="w-3.5 h-3.5"></i>Archived topic</p>
+    <h1 class="font-display text-2xl font-600 break-words">${esc(retiredName(retired))}</h1>
+    <p class="text-sm text-ink-soft mt-2 leading-relaxed">This topic is no longer in the curriculum. A curriculum update retired it. What you recorded for it is kept and listed in Records; it no longer counts toward progress or daily choices.</p>
+    <button class="mt-4 px-3.5 py-2.5 rounded-xl border border-brand/30 text-sm font-medium text-brand-dark hover:border-brand">Open Records</button>
+  </div>`);
+  box.querySelector('button').onclick = () => navigate('records');
+  refreshIcons();
+  return box;
+}

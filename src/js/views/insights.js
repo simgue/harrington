@@ -1,4 +1,4 @@
-import { SUBJECTS, getData } from '../data.js';
+import { getData, subjectMeta, subjectNames } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, analysisHtml, refreshIcons, toast } from '../ui.js';
 import { studentStats, recentActivity, recommendedNext, subjectTestReady } from '../mastery.js';
@@ -56,7 +56,7 @@ export function renderInsights(params, { navigate }) {
       const chips = el(`<div class="flex flex-wrap gap-2"></div>`);
       adaptEntries.forEach(([key]) => {
         const [subject, domain] = key.split('|');
-        const meta = SUBJECTS[subject] || { color: '#6f665a' };
+        const meta = subjectMeta(subject);
         const chip = el(`<span class="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border" style="border-color:${esc(meta.color)}55;color:${esc(meta.color)}"><i data-lucide="trending-up" class="w-3 h-3"></i>${esc(domain)}<button class="undo ml-0.5"><i data-lucide="x" class="w-3 h-3"></i></button></span>`);
         chip.querySelector('.undo').onclick = () => { store.setAdaptation(active.id, subject, domain, 'standard'); toast(`${domain} back to standard`); navigate('insights'); };
         chips.appendChild(chip);
@@ -70,9 +70,9 @@ export function renderInsights(params, { navigate }) {
 
   // subject picker
   const picker = el(`<div class="flex gap-2 overflow-x-auto pb-2 mb-5"></div>`);
-  Object.keys(SUBJECTS).forEach(sub => {
+  subjectNames().forEach(sub => {
     const on = sub === selSubject;
-    const meta = SUBJECTS[sub];
+    const meta = subjectMeta(sub);
     const b = el(`<button class="shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-medium border transition-colors ${on ? 'text-white border-transparent' : 'bg-paper-card text-ink-soft border-paper-line'}" ${on ? `style="background:${esc(meta.color)}"` : ''}>
       <i data-lucide="${esc(meta.icon)}" class="w-4 h-4"></i>${esc(sub)}</button>`);
     b.onclick = () => { selSubject = sub; navigate('insights'); };
@@ -81,7 +81,7 @@ export function renderInsights(params, { navigate }) {
   root.appendChild(picker);
 
   const st = stats.per[selSubject];
-  const meta = SUBJECTS[selSubject];
+  const meta = subjectMeta(selSubject);
 
   // progress summary card
   root.appendChild(el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 mb-5">
@@ -169,7 +169,9 @@ export function renderInsights(params, { navigate }) {
   root.appendChild(fbCard);
 
   // recommended next steps
-  const nexts = recommendedNext(active.id, 6).filter(n => n.topic.subject === selSubject);
+  // Rank every subject, then keep this one: a top six across all subjects can
+  // leave a smaller subject with nothing to suggest though it has open topics.
+  const nexts = recommendedNext(active.id, Infinity).filter(n => n.topic.subject === selSubject).slice(0, 6);
   const recCard = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5">
     <h2 class="font-600 flex items-center gap-2 mb-3.5"><i data-lucide="footprints" class="w-4.5 h-4.5 text-brand-dark"></i>Recommended next in ${esc(selSubject)}</h2>
     <div id="rec" class="space-y-2"></div>

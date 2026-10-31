@@ -8,6 +8,7 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { isLoopbackAddress } from '../lib/loopback.mjs';
+import { TAXONOMY_PIN } from '../lib/taxonomy-pin.mjs';
 import { AI_CAPABILITIES, parseCapabilities } from '../src/js/ai-capabilities.js';
 import { SCHEMA_VERSION, formatCopyName } from '../src/js/schema.js';
 
@@ -80,6 +81,8 @@ test('serves Harrington and reports self-hosted health', async () => {
     aiCapabilities: [],
     redaction: 'server+client',
     taxonomyCached: false,
+    taxonomy: 'not-downloaded',
+    taxonomyRevision: TAXONOMY_PIN.revision,
     stateVersion: 0,
     stateBytes: 0,
     backupAgeDays: null,
@@ -639,15 +642,43 @@ test('serves a cached Marble taxonomy file and rejects unknown names', async () 
   assert.equal(cached.status, 200);
   assert.deepEqual(await cached.json(), payload);
 
-  const health = await fetch(`${baseUrl}/api/health`);
-  assert.equal((await health.json()).taxonomyCached, true);
+  const health = await (await fetch(`${baseUrl}/api/health`)).json();
+  assert.equal(health.taxonomyCached, true);
+  // A stand-in file is not the pinned revision; it is served all the same.
+  assert.equal(health.taxonomy, 'outdated');
+});
+
+test('derives the trimmed Australian Curriculum list and never serves the whole standards file', async () => {
+  const full = {
+    note: 'test',
+    curricula: [
+      { slug: 'ccss-math', topics: [{ key: 'ccss-math:K.CC.1', code: 'K.CC.1', data: { title: 'Count to 100' } }] },
+      { slug: 'acara-v9', name: 'Australian Curriculum', version: 'v9', sourceUrl: 'https://v9.australiancurriculum.edu.au/', topics: [
+        { key: 'acara-v9:AC9M2N01', code: 'AC9M2N01', data: { title: 'order numbers', description: 'order numbers', strand: 'Number', subject: 'Mathematics', learningArea: 'Mathematics', yearLevels: ['2'], taxonomy: { grade: 'Year 2' } } },
+      ] },
+    ],
+  };
+  await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
+  await writeFile(join(dataDir, 'taxonomy', 'curriculum-standards.json'), JSON.stringify(full));
+
+  const whole = await fetch(`${baseUrl}/api/taxonomy/curriculum-standards.json`);
+  assert.equal(whole.status, 404);
+  const trimmed = await fetch(`${baseUrl}/api/taxonomy/standards/acara-v9.json`);
+  assert.equal(trimmed.status, 200);
+  assert.deepEqual(await trimmed.json(), {
+    curriculum: { id: 'acara-v9', name: 'Australian Curriculum', version: 'v9', sourceUrl: 'https://v9.australiancurriculum.edu.au/' },
+    standards: [{ code: 'AC9M2N01', title: 'order numbers', strand: 'Number', learningArea: 'Mathematics', subject: 'Mathematics', yearLevels: ['2'] }],
+  });
+  assert.equal((await fetch(`${baseUrl}/api/taxonomy/standards/ccss-math.json`)).status, 404);
 });
 });
 
 test('fetches an allowlisted taxonomy file from upstream and caches it on disk', async () => {
   const fixture = { topics: [{ id: 'count-to-5', name: 'Count to 5' }] };
   let upstreamHits = 0;
+  let standardsHits = 0;
   const upstream = createServer((req, res) => {
+    if (req.url === '/curriculum-standards.json') standardsHits += 1;
     if (req.url === '/topics.json') {
       upstreamHits += 1;
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -708,6 +739,15 @@ test('fetches an allowlisted taxonomy file from upstream and caches it on disk',
 
     const missing = await fetch(`${isolatedUrl}/api/taxonomy/manifest.json`);
     assert.equal(missing.status, 502);
+
+    // The optional standards file: a failed download is remembered, so the
+    // next page load is answered at once without asking the upstream again.
+    for (let i = 0; i < 2; i += 1) {
+      assert.equal((await fetch(`${isolatedUrl}/api/taxonomy/standards/acara-v9.json`)).status, 502);
+    }
+    assert.equal(standardsHits, 1);
+    // A custom upstream is not checked against the pin.
+    assert.equal((await (await fetch(`${isolatedUrl}/api/health`)).json()).taxonomy, 'unchecked');
   } finally {
     isolated.kill('SIGTERM');
     await new Promise((resolve) => isolated.once('exit', resolve));

@@ -1,5 +1,6 @@
 import { el, refreshIcons, openModal, toast } from '../ui.js';
 import { authEnabled, isShared, storedOn, whereItRuns } from '../hosting.js';
+import { ACARA_NOTICE } from '../curriculum.js';
 
 // ---- Content shared by the welcome tour and the full guide ----
 // One line for every feature that calls the AI adapter, so the copy never
@@ -34,7 +35,7 @@ export const features = () => [
     icon: 'map', color: '#3f6b3b',
     title: 'Map',
     tagline: 'The connected curriculum',
-    body: `The <b>world map</b> shows the eight subject realms. Enter a domain to see its <b>skill tree</b>: required and helpful foundations, what each topic unlocks, and a quest log for the selected topic. Prefer text? Switch to the <b>list</b> and drill from subject to domain to age band to topic.`,
+    body: `The <b>world map</b> shows the nine subject realms. Enter a domain to see its <b>skill tree</b>: required and helpful foundations, what each topic unlocks, and a quest log for the selected topic. Prefer text? Switch to the <b>list</b> and drill from subject to domain to age band to topic.`,
   },
   {
     icon: 'flower-2', color: '#a4473a',
@@ -172,11 +173,17 @@ export const guideSections = () => [
   ]},
   { h: 'The curriculum (from the Marble Skill Taxonomy)', items: [
     ['Source', 'The curriculum comes from the open-source Marble Skill Taxonomy (github.com/withmarbleapp/os-taxonomy).'],
-    ['Scale', 'About 1,590 topics joined by about 3,221 prerequisite links, across 8 subjects: Mathematics, English, Science, History, Personal & Social Development, Life Skills, Computing, and Learning to Learn.'],
+    ['Scale', 'About 1,845 topics joined by about 3,941 prerequisite links, across 9 subjects: Mathematics, English, Science, History, Geography, Personal & Social Development, Life Skills, Computing, and Learning to Learn.'],
     ['Each topic includes', 'A plain-language description, an approximate age range, “evidence of mastery” criteria, a quick-check prompt, and links to the curriculum standards it aligns to.'],
     ['Prerequisites', 'Topics are linked by “depends on” connections, each tagged required or helpful. Harrington shows these exactly as the source data has them.'],
     ['Downloaded once', `The Harrington server downloads the curriculum the first time it starts (this needs the internet) and keeps it ${storedOn()}. It does not update on its own.`],
     ['Licensing', 'Marble Skill Taxonomy (v1) © Generative Spark, Inc., licensed under ODbL 1.0 (database) and CC BY-SA 4.0 (content).'],
+  ]},
+  { h: 'Australian Curriculum', items: [
+    ['Year level', 'In a learner’s details (and when adding the first learner), tick “Follow the Australian Curriculum” and choose a year level, Foundation to Year 6. It starts from the age (Foundation is 5, Year 1 is 6 … Year 6 is 11) and you can change it. Topics linked to that year, and unmastered topics linked to the year below, come first in daily choices, the map list, the finder and placement; nothing is hidden.'],
+    ['Codes on topics', 'A topic page lists the version 9 content descriptions the Marble Skill Taxonomy links it to, such as “AC9M2N01 · Year 2 · Number”, with ACARA’s notice below them. Tap one to read its text. A link is Marble’s map, not a check that the description is met.'],
+    ['Coverage report', 'Records > Australian Curriculum coverage lists each content description for the year, by learning area, with its linked topics and a status from your own records: Linked topics mastered (every linked topic mastered), Evidence (a record such as an observation, a passed check or challenge, or practice for a linked topic) or Not yet. A saved lesson is a plan, not evidence, so it does not count. Print it with “Print report”.'],
+    ['Licensing', ACARA_NOTICE],
   ]},
   { h: 'Getting started', items: [
     ['Start Harrington', authEnabled()
@@ -200,7 +207,7 @@ export const guideSections = () => [
     ['Activity buttons', `Plant something new, Memory walk and Beat the clock open a test, recall cards or a challenge. ${NEEDS_AI}`],
   ]},
   { h: 'Map', items: [
-    ['World map', 'The eight subjects as realms, with their domains as dots sized by topic count. Mastery is shown as a quiet tint, not a percentage.'],
+    ['World map', 'The nine subjects as realms, with their domains as dots sized by topic count. Mastery is shown as a quiet tint, not a percentage.'],
     ['Skill tree', 'Enter a domain to see its topics as a tree with required and helpful links, and links to gateway domains.'],
     ['Quest log', 'Select a topic to see the foundations it needs, what it unlocks, and buttons to open the topic page, record evidence, or mark it as learning. “Open full lesson” needs AI.'],
     ['List', 'Prefer text? Switch to the list and drill from subject to domain to age band to topic.'],
@@ -228,6 +235,7 @@ export const guideSections = () => [
   ]},
   { h: 'Records and recordings', items: [
     ['Records', 'Log observations, questions, discussions or assessments, optionally linked to a topic, with notes and a confidence rating. Filter by type.'],
+    ['Archived topics', 'When a curriculum update retires a topic you had worked on, nothing you recorded is lost: Records lists it as an archived topic with what is kept, and it no longer counts toward progress or daily choices.'],
     ['Voice recording', `Record a conversation from the dashboard, a topic page, or the child view. Audio is saved ${storedOn()} and plays back inline.`],
     ['Live transcript', SPEECH_NOTE],
     ['Recordings folder', 'Every recording, grouped by section or topic, with playback and transcript. Recordings without either sit under "Not linked to a section".'],
@@ -282,7 +290,7 @@ function downloadGuide() {
     <div class="brand"><span class="logo">H</span><span style="font-size:20px;font-weight:700">Harrington</span></div>
     <h1>Complete Feature Guide</h1>
     <div class="sub">A self-hosted family learning platform &middot; Generated ${date}</div>
-    <div class="intro">Harrington shows the open Marble Skill Taxonomy (about 1,590 connected topics across 8 subjects) as a map for parents, offers small daily choices, and keeps a record of what your child actually did. Features marked “Needs a local AI provider” stay off until you configure one; see the README.</div>
+    <div class="intro">Harrington shows the open Marble Skill Taxonomy (about 1,845 connected topics across 9 subjects) as a map for parents, offers small daily choices, and keeps a record of what your child actually did. Features marked “Needs a local AI provider” stay off until you configure one; see the README.</div>
     ${sections}
     <footer>Curriculum: Marble Skill Taxonomy (v1) &middot; © Generative Spark, Inc. &middot; licensed under ODbL 1.0 (database) and CC BY-SA 4.0 (content). Tip: in the print dialog, choose “Save as PDF” as the destination to download this guide.</footer>
     <script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script>

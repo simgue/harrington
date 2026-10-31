@@ -98,7 +98,10 @@ switched on, the link reads "Not switched on yet" (see
 [docs/AI-SETUP.md](docs/AI-SETUP.md)). Lessons and print & go sheets saved
 on the server earlier still open: the topic page shows "Open saved lesson", and
 Records lists them under "Saved lessons". The curriculum is downloaded once on
-first start and does not update on its own.
+first start, at the revision pinned in `lib/taxonomy-pin.mjs` and checked
+against its SHA-256, and does not update on its own; see
+[docs/CURRICULUM.md](docs/CURRICULUM.md) for how the pin moves and what
+happens to topics a new revision retires.
 
 ## Highlights
 
@@ -269,7 +272,7 @@ The adapter is URL-swappable. Point `HARRINGTON_AI_BASE_URL` at any
 OpenAI-compatible `/v1` (Ollama, llama.cpp, vLLM, or a vendor/LiteLLM endpoint
 on the family server) without code changes.
 
-Do **not** pre-generate all ~1,590 Marble topics. The lesson cache is
+Do **not** pre-generate all ~1,845 Marble topics. The lesson cache is
 generate-once per topic the family actually opens. If a local model's JSON is
 weak, you may temporarily point at a stronger endpoint to fill **only the
 topics you open** (or a small focus band later), then switch back to Ollama.
@@ -321,7 +324,8 @@ of the learner selector) downloads
 and `taxonomyVersion`. **Import** checks a file, previews its learners and
 record counts, and after you confirm replaces the family data on this server.
 The check (`src/js/document.js`) covers learner fields (id, name, birth year
-and month, start date, a hex color), progress statuses, records (type,
+and month, start date, a hex color, and an Australian Curriculum setting,
+which must be `{ id: 'acara-v9', year }` with a year of F or 1 to 6), progress statuses, records (type,
 rating, bounded text, numeric dates, a placement's topic list), test and
 challenge results (scores and counts as numbers), XP and badges, the shape of
 each learner's suggestions, plan (moves, done days, extras lists of
@@ -421,6 +425,18 @@ redistribute a *modified copy of the dataset itself*).
 > Marble Skill Taxonomy (v1) · © Generative Spark, Inc. (Marble) ·
 > https://withmarble.com · licensed under ODbL 1.0 (database) and
 > CC BY-SA 4.0 (content).
+
+### Australian Curriculum
+
+The topic pages and the coverage report show Australian Curriculum
+(version 9) content descriptions from the taxonomy's
+`curriculum-standards.json`, with this notice:
+
+> © Australian Curriculum, Assessment and Reporting Authority (ACARA) 2009 to present, unless otherwise indicated. This material was downloaded from the ACARA website (https://www.australiancurriculum.edu.au/) (accessed 20 October 2026) and was modified only to normalize whitespace and render equation fractions as text. The material is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). ACARA does not endorse any product that uses ACARA material or make any representations as to the quality of such products. Any product that uses material published on this website should not be taken to be affiliated with ACARA or have the sponsorship or approval of ACARA. It is up to each person to make their own assessment of the product.
+
+The links between topics and content descriptions are the Marble Skill
+Taxonomy's alignment, a map rather than a certificate, so Harrington says a
+topic is "linked to" a code and never that it meets one.
 
 ## Contributing
 

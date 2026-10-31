@@ -138,6 +138,7 @@ const ESCAPED_MARKUP = {
   },
   'src/js/views/insights.js': { helpers: [...MEADOW, 'statBox'] },
   'src/js/views/challenge.js': {},
+  'src/js/views/coverage.js': {},
 };
 
 test('learner, record and result markup interpolates only escaped values', async () => {

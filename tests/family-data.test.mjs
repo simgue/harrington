@@ -37,11 +37,18 @@ before(async () => {
   await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
   await writeFile(join(dataDir, 'taxonomy', 'topics.json'), JSON.stringify({ topics: [
     { id: 'count-to-5', name: 'Count to 5', subject: 'Mathematics', domain: 'Counting' },
-    { id: 'rhymes', name: 'Rhymes', subject: 'English', domain: 'Phonics', ageRangeStart: 7 },
+    { id: 'rhymes', name: 'Rhymes', subject: 'English', domain: 'Phonics', ageRangeStart: 7, standards: ['acara-v9:AC9E2LY01'] },
+    // The recall orphan tests' topics: a card of a retired topic is never due.
+    ...['prune-once', 'prune-race', 'prune-readonly'].map((id) => ({ id, name: id, subject: 'Mathematics', domain: 'Counting' })),
   ] }));
   await writeFile(join(dataDir, 'taxonomy', 'dependencies.json'), JSON.stringify({ dependencies: [] }));
   await writeFile(join(dataDir, 'taxonomy', 'clusters.json'), JSON.stringify({ clusters: [] }));
   await writeFile(join(dataDir, 'taxonomy', 'manifest.json'), JSON.stringify({ taxonomyVersion: 'v1-test', generatedAt: '2026-09-01' }));
+  // The Australian Curriculum list's source, tiny, so no test downloads the
+  // 2.7 MB file: one Year 2 content description, which Rhymes links to.
+  await writeFile(join(dataDir, 'taxonomy', 'curriculum-standards.json'), JSON.stringify({ curricula: [{ slug: 'acara-v9', topics: [
+    { key: 'acara-v9:AC9E2LY01', code: 'AC9E2LY01', data: { title: 'read texts', strand: 'Literacy', learningArea: 'English', subject: 'English', yearLevels: ['2'] } },
+  ] }] }));
 
   child = spawn(process.execPath, ['server.mjs'], {
     cwd: repoRoot,
@@ -85,8 +92,9 @@ before(async () => {
     },
   });
   store = await import('../src/js/store.js');
-  const { loadTaxonomy } = await import('../src/js/data.js');
+  const { loadTaxonomy, loadStandards } = await import('../src/js/data.js');
   await loadTaxonomy();
+  assert.equal(await loadStandards(), true);
   store.onSaveStatus((event) => statusEvents.push(event.type));
 });
 
@@ -470,6 +478,37 @@ describe('family data safety in the store', { concurrency: false }, () => {
     assert.equal(restored.name, 'Sample Ten');
     assert.equal(restored.birthMonth, 2);
     assert.equal((await serverState()).students.find((s) => s.id === id).birthMonth, 2);
+  });
+
+  test('a curriculum year moves its topics into the recommendations and survives export and import', async () => {
+    const { recommendedNext } = await import('../src/js/mastery.js');
+    const year = new Date().getFullYear();
+    const id = store.addStudent('Sample Five', year - 5);
+    const ids = () => recommendedNext(id).map((n) => n.topic.id);
+    // Age order: Rhymes (age 7) is above a 5-year-old's ceiling.
+    assert.equal(ids().includes('rhymes'), false);
+
+    store.updateStudent(id, { curriculum: { id: 'acara-v9', year: '2' } });
+    assert.deepEqual(store.get().students.find((s) => s.id === id).curriculum, { id: 'acara-v9', year: '2' });
+    // Year 2: the topic linked to a Year 2 content description comes first.
+    assert.equal(ids()[0], 'rhymes');
+
+    await store.flushSaves();
+    assert.deepEqual((await serverState()).students.find((s) => s.id === id).curriculum, { id: 'acara-v9', year: '2' });
+    const exported = JSON.parse(JSON.stringify(await store.exportDocument()));
+    store.updateStudent(id, { curriculum: null });
+    assert.equal(store.get().students.find((s) => s.id === id).curriculum, undefined);
+    await store.flushSaves();
+    assert.equal(await store.importDocument(exported), true);
+    assert.deepEqual(store.get().students.find((s) => s.id === id).curriculum, { id: 'acara-v9', year: '2' });
+    assert.deepEqual((await serverState()).students.find((s) => s.id === id).curriculum, { id: 'acara-v9', year: '2' });
+
+    // Another curriculum id is refused on import, with the learner named.
+    const other = JSON.parse(JSON.stringify(exported));
+    other.students.find((s) => s.id === id).curriculum = { id: 'nz-2026', year: '3' };
+    await assert.rejects(store.importDocument(other), /Sample Five.*curriculum other than the Australian Curriculum/);
+    store.removeStudent(id);
+    await store.flushSaves();
   });
 
   test('the calendar plan follows an edited age', async () => {

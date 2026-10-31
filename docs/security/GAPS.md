@@ -206,6 +206,12 @@ model and not repeated here.
 
 ### G10: the taxonomy is downloaded from a moving branch with no integrity check
 
+- **Status:** fixed (HAR-55). `lib/taxonomy-pin.mjs` pins a commit and the
+  SHA-256 of each file; the server refuses a mismatch and reports it in
+  `/api/health`; a custom upstream is allowed with a warning and no check.
+  How to move the pin: [docs/CURRICULUM.md](../CURRICULUM.md). The lines below
+  describe `fc59f0b`.
+
 - **Code:** `server.mjs:37` defaults the upstream to `@main`. `:503`
   downloads the files and caches the first answer for good.
 - **Reproduce:** point `HARRINGTON_TAXONOMY_UPSTREAM` at any server. Its

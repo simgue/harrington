@@ -1,15 +1,17 @@
 // Curriculum hierarchy helpers. The browser view and tests share this module
 // so subject → domain → section → topic drill-down stays consistent.
 
-import { SUBJECTS, getData, orderTopics, topicAge } from './data.js';
+import { getData, orderTopics, topicAge, orderedSubjects } from './data.js';
 
-export function buildCurriculumTree(data, subjects = SUBJECTS) {
+// `subjects` (an object keyed by subject) limits and orders the tree; by
+// default it holds every subject with topics, so none is dropped.
+export function buildCurriculumTree(data, subjects = null) {
   const clusterMap = data.clusterMap instanceof Map
     ? data.clusterMap
     : new Map(Object.entries(data.clusterMap || {}));
   const bySubject = data.bySubject || {};
 
-  return Object.keys(subjects).map((subject) => {
+  return (subjects ? Object.keys(subjects) : orderedSubjects(bySubject)).map((subject) => {
     const topics = orderTopics(bySubject[subject] || []);
     const domains = new Map();
     for (const topic of topics) {
@@ -322,6 +324,7 @@ const REALM_PLACES = {
   'Life Skills': { cx: 280, cy: 520, rx: 138, ry: 92, rotate: 7 },
   Computing: { cx: 620, cy: 520, rx: 146, ry: 94, rotate: -8 },
   'Learning to Learn': { cx: 200, cy: 120, rx: 128, ry: 86, rotate: 4 },
+  Geography: { cx: 930, cy: 532, rx: 126, ry: 82, rotate: 6 },
 };
 
 function realmPlace(subject) {

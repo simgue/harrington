@@ -36,7 +36,7 @@ test.describe('without AI', () => {
     await expect(connects).toContainText('You are here');
     await expect(connects.getByRole('button')).toHaveCount(3);
     await expect(section(page, 'Section check').getByRole('button', { name: 'Locked until topics mastered' })).toBeDisabled();
-    await expect(section(page, 'Section check')).toContainText('0/9 topics');
+    await expect(section(page, 'Section check')).toContainText('0/11 topics');
 
     // Reference links open in a new tab without handing over window.opener.
     const links = section(page, 'Reference materials').getByRole('link');
@@ -88,14 +88,14 @@ test.describe('without AI', () => {
     await expect(section(page, 'Topic mastery test')).toContainText('Mastered. This topic is marked mastered.');
     await expect(section(page, 'Topic mastery test').getByRole('button', { name: 'Try the challenge quiz' })).toBeVisible();
     await expect(section(page, 'Topic mastery test').getByRole('button', { name: 'Retake topic test' })).toBeVisible();
-    await expect(section(page, 'Section check')).toContainText('1/9 topics');
+    await expect(section(page, 'Section check')).toContainText('1/11 topics');
     await shot('topic-mastered-manually');
     await api.waitForState((s) => s.progress?.[ROWAN]?.[ONE.id]?.status === 'mastered');
 
     // Dashboard: hero count, Mathematics card and recent growth reflect it.
     await nav(page, 'Dashboard').click();
-    await expect(page.getByText(/1 of 1,?590 topics mastered/)).toBeVisible();
-    await expect(page.getByRole('button', { name: /Mathematics.*1\/503 mastered.*0% complete/ })).toBeVisible();
+    await expect(page.getByText(/1 of 1,?845 topics mastered/)).toBeVisible();
+    await expect(page.getByRole('button', { name: /Mathematics.*1\/576 mastered.*0% complete/ })).toBeVisible();
     const growth = page.locator('section', { has: page.getByRole('heading', { name: 'Recent growth' }) });
     await expect(growth.getByRole('button', { name: /One-to-one counting.*Bloom.*Mastered/ })).toBeVisible();
 
@@ -105,7 +105,7 @@ test.describe('without AI', () => {
     await expectToast(page, 'Marked as not started');
     await expectChip(/Sprout\s*· Not started/);
     await nav(page, 'Dashboard').click();
-    await expect(page.getByText(/0 of 1,?590 topics mastered/)).toBeVisible();
+    await expect(page.getByText(/0 of 1,?845 topics mastered/)).toBeVisible();
     // A topic set back to "not started" leaves recent growth.
     await expect(page.locator('section', { has: page.getByRole('heading', { name: 'Recent growth' }) }).getByRole('button', { name: /One-to-one counting/ })).toHaveCount(0);
   });
@@ -395,13 +395,13 @@ test.describe('with the mock AI provider', () => {
   test('section check unlocks once every topic in the section is mastered', async ({ page, api, gotoApp, mockAi, shot }) => {
     const progress = Object.fromEntries(COUNTING_SECTION_OTHERS.map((id) => [id, 'mastered']));
     await gotoApp({ seed: { progress }, hash: topicHash(ONE.id) });
-    await expect(section(page, 'Section check')).toContainText('8/9 topics');
+    await expect(section(page, 'Section check')).toContainText('10/11 topics');
     await expect(section(page, 'Section check').getByRole('button', { name: 'Locked until topics mastered' })).toBeDisabled();
 
     // Master the last topic by hand.
     await setTopicStatus(page, 'Mastered');
     const check = section(page, 'Section check');
-    await expect(check).toContainText('9/9 topics');
+    await expect(check).toContainText('11/11 topics');
     await expect(check).toContainText('All topics mastered — take the section check');
     await shot('section-check-ready', { locator: check });
 
@@ -409,7 +409,7 @@ test.describe('with the mock AI provider', () => {
     await check.getByRole('button', { name: 'Take section check' }).click();
     const m = modal(page);
     await expect(m.getByText('Section check · Mathematics')).toBeVisible();
-    await expect(m).toContainText('9 of 9 topics in this section marked mastered.');
+    await expect(m).toContainText('11 of 11 topics in this section marked mastered.');
     await m.getByRole('button', { name: 'Create the test' }).click();
     await answerAll(m, MASTERY_QUESTIONS);
     await m.getByRole('button', { name: 'Submit & grade' }).click();

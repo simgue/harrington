@@ -5,10 +5,11 @@ import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, sch
 import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, dropBrokenEntries, LEARNER_KEYS, REQUEST_TEXT_MAX, RETIRED_FIELDS, MIN_BIRTH_YEAR, NAME_MAX, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
 import { formatCount } from './format.js';
 import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
-import { getData } from './data.js';
+import { getData, isCurrentTopic } from './data.js';
 import { pruneDismissed } from './alert-dismissals.js';
 import { normalizeSession } from './levelset.js';
 import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
+import { CURRICULUM_ID, learnerYear, normalizeYear } from './curriculum.js';
 
 export { MIN_BIRTH_YEAR, NAME_MAX };
 
@@ -22,7 +23,7 @@ export const MASTERY = {
 const listeners = new Set();
 let state = {
   user: { username: 'Family' },
-  students: [],       // {id, name, birthYear, birthMonth?, avatar, color}
+  students: [],       // {id, name, birthYear, birthMonth?, avatar, color, curriculum?: { id, year }}
   activeStudentId: null,
   progress: {},       // studentId -> { topicId -> { status, updatedAt } }
   records: {},        // studentId -> [ {id, topicId, type, title, note, rating, questions, createdAt,
@@ -820,13 +821,21 @@ function paletteColor(color) {
   return PALETTE.reduce((best, p) => (distance(p) < distance(best) ? p : best));
 }
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-export function addStudent(name, birthYear, birthMonth = null) {
+// A learner's curriculum setting as saved: { id: 'acara-v9', year } for a
+// valid Australian Curriculum year, else null (no setting).
+function curriculumSetting(value) {
+  const year = value && value.id === CURRICULUM_ID ? normalizeYear(value.year) : null;
+  return year ? { id: CURRICULUM_ID, year } : null;
+}
+export function addStudent(name, birthYear, birthMonth = null, { curriculum = null } = {}) {
   const id = 's_' + Math.random().toString(36).slice(2, 9);
   const color = PALETTE[state.students.length % PALETTE.length];
   const now = new Date();
   const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const student = { id, name, birthYear, color, createdAt: Date.now(), startDate };
   if (validMonth(birthMonth)) student.birthMonth = birthMonth;
+  const setting = curriculumSetting(curriculum);
+  if (setting) student.curriculum = setting;
   state.students.push(student);
   state.progress[id] = state.progress[id] || {};
   state.records[id] = state.records[id] || [];
@@ -837,20 +846,24 @@ export function addStudent(name, birthYear, birthMonth = null) {
 // Only these fields can change, and each is checked so a bad value never
 // reaches the saved document: an empty name, a year outside MIN_BIRTH_YEAR to
 // this year, a month outside 1-12, a color outside the palette or a malformed
-// start date is ignored. birthMonth null clears the month.
+// start date is ignored. birthMonth null clears the month; curriculum null
+// clears the Australian Curriculum year (back to the age-based order).
 export function updateStudent(id, patch) {
   const s = state.students.find(s => s.id === id);
   if (!s) return false;
-  const { name, birthYear, birthMonth, color, startDate } = patch;
+  const { name, birthYear, birthMonth, color, startDate, curriculum } = patch;
   const ageBefore = studentAge(s);
+  const yearBefore = learnerYear(s);
   if (typeof name === 'string' && name.trim()) s.name = name.trim();
   if (validYear(birthYear)) s.birthYear = birthYear;
   if (birthMonth === null) delete s.birthMonth;
   else if (validMonth(birthMonth)) s.birthMonth = birthMonth;
   if (PALETTE.includes(color)) s.color = color;
   if (validDateKey(startDate)) s.startDate = startDate;
-  // Today's choices were filtered by the old age; rebuild them on next render.
-  if (studentAge(s) !== ageBefore) forgetTodaysChoices(id);
+  if (curriculum === null) delete s.curriculum;
+  else if (curriculumSetting(curriculum)) s.curriculum = curriculumSetting(curriculum);
+  // Today's choices were filtered by the old age or year; rebuild them on next render.
+  if (studentAge(s) !== ageBefore || learnerYear(s) !== yearBefore) forgetTodaysChoices(id);
   persist(); emit();
   return true;
 }
@@ -1154,17 +1167,6 @@ export function removeExtra(studentId, dateKey, itemId) {
   persist(); emit();
 }
 export function extrasOn(studentId, dateKey) { return planOf(studentId).extras[dateKey] || []; }
-// Drop extras on a day whose topic is gone (e.g. after a taxonomy update).
-export function pruneExtras(studentId, dateKey, itemIds) {
-  const p = planOf(studentId);
-  const before = (p.extras[dateKey] || []).length;
-  p.extras[dateKey] = (p.extras[dateKey] || []).filter(x => !itemIds.includes(x.id));
-  if (p.extras[dateKey].length === before) return;
-  if (!p.extras[dateKey].length) delete p.extras[dateKey];
-  // The calendar prunes extras whose topic is gone while rendering: an
-  // automatic write, refused without a toast while read-only.
-  persist({ automatic: true }); emit();
-}
 // Change where a learner's track starts; `clearMoves` also drops topics the
 // parent moved by hand, so they follow the new track. One persist + emit.
 export function setStartDate(studentId, dateKey, { clearMoves = false } = {}) {
@@ -1227,6 +1229,8 @@ export function resolveSuggestion(studentId, id, status) {
 // ---- Active recall / spaced repetition ----
 // Leitner-style boxes with increasing intervals (days). Box 0 = new/relearning.
 const RECALL_INTERVALS = [0, 1, 2, 4, 8, 16, 32];
+// Card ids are `${topicId}::${n}`; older records may lack a topicId.
+const recallTopicOf = (id, c) => c?.topicId || String(id).split('::')[0];
 function recallOf(studentId) {
   if (!state.recall[studentId]) state.recall[studentId] = {};
   return state.recall[studentId];
@@ -1263,18 +1267,17 @@ export function gradeRecall(studentId, cardId, topicId, grade) {
   return c;
 }
 
-// Cards due today (optionally filtered to a set of card ids / topic).
+// Cards due today (optionally filtered to a set of card ids / topic). A card
+// of a retired topic keeps its schedule but is never due.
 export function dueRecallCards(studentId, { cardIds = null, topicId = null } = {}) {
   const r = recallOf(studentId);
   const today = dayStart(Date.now());
   return Object.entries(r)
-    .filter(([id, c]) => isObject(c) && c.due <= today
+    .filter(([id, c]) => isObject(c) && c.due <= today && isCurrentTopic(recallTopicOf(id, c))
       && (!cardIds || cardIds.includes(id))
       && (!topicId || c.topicId === topicId))
     .map(([id, c]) => ({ id, ...c }));
 }
-// Card ids are `${topicId}::${n}`; older records may lack a topicId.
-const recallTopicOf = (id, c) => c?.topicId || String(id).split('::')[0];
 
 // Cards due today, minus entries whose card is gone from a card set this
 // session has already read. Topics not read yet are checked in the background
@@ -1369,7 +1372,7 @@ export function duePracticeItems(studentId) {
   const p = practiceOf(studentId);
   const today = dayStart(Date.now());
   return Object.entries(p)
-    .filter(([, c]) => isObject(c) && c.due <= today)
+    .filter(([, c]) => isObject(c) && c.due <= today && (!c.topicId || isCurrentTopic(c.topicId)))
     .map(([id, c]) => ({ id, ...c }));
 }
 // One topic's queued retries, soonest first, each with `isDue`: the set behind
@@ -1802,6 +1805,12 @@ export function retrySaveCached(id) {
 // Saved entries under the given prefixes, newest first, that pass their
 // kind's validator (each is read once and kept for this session, so opening
 // it makes no further request). At most `limit`; [] when the listing fails.
+// Every saved lesson, Print & go and recall cache key on the server, unchecked
+// (Records' archived topics look for keys of retired topics). Never throws.
+export async function lessonKeys() {
+  try { return (await Promise.all(['topic:', 'print:', 'recall:'].map(p => backend.listLessons(p, 200)))).flat().map(e => e?.key).filter(k => typeof k === 'string'); }
+  catch { return []; }
+}
 export async function savedLessons(prefixes, limit = 8) {
   let listed;
   // A few more than `limit`, since entries that fail their validator are skipped.

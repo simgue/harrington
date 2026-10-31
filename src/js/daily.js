@@ -32,6 +32,11 @@ export const LANES = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+// Score per point of curriculum boost: a topic at the learner's year (boost
+// 2) gains 6, as much as six years of age fit or work in progress, so it
+// usually comes first among topics not yet started; an age-only topic in a
+// long-quiet domain with a close age and high centrality can still edge it.
+export const BOOST_WEIGHT = 3;
 
 // The oldest band a learner is offered: one year above their age, but never
 // below the taxonomy's youngest band, so a learner younger than every topic
@@ -64,16 +69,20 @@ function hash(text) {
  *   lastTouched(domain),  // ms timestamp of the latest progress in that domain, or 0
  *   topicAge(topic),      // start age clamped to the app's range
  *   blockingPrereqs(id),  // optional: unmet hard prerequisites, as topics
+ *   boost(topic),         // optional: the Australian Curriculum year-level boost
+ *                         // (curriculum.js curriculumBoost), 0 to 2
  * }
  *
  * Returns { options, blocked }.
  *
- * options: preference goes to work already started, then domains that have
- * gone quiet, then age fit and centrality. The second option comes from a
+ * options: scored by work already started, the curriculum boost (a boosted
+ * topic is considered even above the age ceiling), how long its domain has
+ * gone quiet, age fit and centrality. The second option comes from a
  * different domain when one is available, so the choice is a real choice.
  *
- * blocked: up to two age-appropriate topics in the lane that are still locked,
- * each as { topic, needs } where `needs` is its first unmet hard prerequisite.
+ * blocked: up to two locked topics in the lane, age-appropriate or boosted
+ * (a locked topic linked to the learner's year can appear here), each as
+ * { topic, needs } where `needs` is its first unmet hard prerequisite.
  * This feeds the parent-only "Not yet" line.
  */
 export function laneOptions(topics, lane, ctx, count = 2, blockedCount = 2) {
@@ -89,16 +98,17 @@ export function laneOptions(topics, lane, ctx, count = 2, blockedCount = 2) {
     const status = ctx.statusOf(t.id);
     if (status === 'mastered') continue;
     const age = ctx.topicAge(t);
-    if (age > ceiling) continue;
+    const boost = ctx.boost ? ctx.boost(t) : 0;
+    if (age > ceiling && !boost) continue;
     const tie = hash(`${ctx.dateKey}|${t.id}`);
     if (!ctx.isUnlocked(t.id)) {
-      locked.push({ topic: t, score: (t.centrality || 0) * 2 - Math.abs(age - ctx.age), tie });
+      locked.push({ topic: t, score: (t.centrality || 0) * 2 - Math.abs(age - ctx.age) + boost * BOOST_WEIGHT, tie });
       continue;
     }
     const started = status === 'practicing' ? 4 : status === 'learning' ? 3 : 0;
     const touched = ctx.lastTouched(t.domain);
     const quietDays = touched ? Math.min(14, (ctx.now - touched) / DAY_MS) : 7;
-    const score = started * 2 + quietDays / 3.5 - Math.abs(age - ctx.age) + (t.centrality || 0) * 2;
+    const score = started * 2 + boost * BOOST_WEIGHT + quietDays / 3.5 - Math.abs(age - ctx.age) + (t.centrality || 0) * 2;
     scored.push({ topic: t, score, tie });
   }
   const byScore = (a, b) => (b.score - a.score) || (a.tie - b.tie);

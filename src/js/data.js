@@ -1,6 +1,8 @@
 // Loads the Marble Skill Taxonomy and builds the learning graph.
 // Data source: https://github.com/withmarbleapp/os-taxonomy (ODbL 1.0 / CC BY-SA 4.0)
 
+import { CURRICULUM_ID, indexStandards } from './curriculum.js';
+
 const TAXONOMY_API = '/api/taxonomy';
 
 export const SUBJECTS = {
@@ -12,7 +14,35 @@ export const SUBJECTS = {
   'Life Skills':                  { color: '#6b6a2a', icon: 'sprout' },
   'Computing':                    { color: '#3e7470', icon: 'cpu' },
   'Learning to Learn':            { color: '#9a4a6e', icon: 'brain' },
+  'Geography':                    { color: '#9a5221', icon: 'earth' },
 };
+
+// A subject a future taxonomy revision adds before Harrington knows it: shown
+// in a neutral colour and icon, never dropped. One warning per subject.
+const UNKNOWN_SUBJECT = Object.freeze({ color: '#6f665a', icon: 'shapes' });
+const warnedSubjects = new Set();
+
+export function subjectMeta(subject) {
+  if (Object.hasOwn(SUBJECTS, subject)) return SUBJECTS[subject];
+  if (!warnedSubjects.has(subject)) {
+    warnedSubjects.add(subject);
+    console.warn(`Harrington has no colour or icon for the subject "${subject}"; showing it in neutral grey.`);
+  }
+  return UNKNOWN_SUBJECT;
+}
+
+// Every subject that has topics: the known ones in SUBJECTS order, then any
+// new ones alphabetically. `bySubject` maps a subject to its topics.
+export function orderedSubjects(bySubject) {
+  const present = Object.keys(bySubject || {}).filter((s) => bySubject[s]?.length);
+  const known = Object.keys(SUBJECTS).filter((s) => present.includes(s));
+  return [...known, ...present.filter((s) => !Object.hasOwn(SUBJECTS, s)).sort()];
+}
+
+// The subjects of the loaded taxonomy, in display order.
+export function subjectNames() {
+  return orderedSubjects(getData().bySubject);
+}
 
 export const AGES = [5, 6, 7, 8, 9, 10, 11, 12, 13];
 
@@ -26,7 +56,13 @@ export async function loadTaxonomy() {
     fetch(`${TAXONOMY_API}/clusters.json`),
     fetch(`${TAXONOMY_API}/manifest.json`).catch(() => null),
   ]);
-  if (!topicsRes.ok || !depsRes.ok) throw new Error('Could not load the curriculum data.');
+  if (!topicsRes.ok || !depsRes.ok) {
+    // The server says why (an upstream that is down, a file that failed its
+    // integrity check); pass that on.
+    const failed = topicsRes.ok ? depsRes : topicsRes;
+    const why = await failed.json().then((b) => b?.error).catch(() => null);
+    throw new Error(why ? `Could not load the curriculum data. ${why}` : 'Could not load the curriculum data.');
+  }
   const topicsJson = await topicsRes.json();
   const depsJson = await depsRes.json();
   const clustersJson = clustersRes.ok ? await clustersRes.json() : { clusters: [] };
@@ -64,6 +100,8 @@ export async function loadTaxonomy() {
     topics, dependencies, clusters,
     byId, prereqsOf, unlocksOf, clusterMap, bySubject,
     manifest,
+    // Filled in by loadStandards(), which loadTaxonomy does not wait for.
+    standards: null,
     meta: {
       topics: topics.length,
       dependencies: dependencies.length,
@@ -72,6 +110,45 @@ export async function loadTaxonomy() {
     },
   };
   return _cache;
+}
+
+// The Australian Curriculum list is optional: the app starts without it and
+// works as before (no codes, age order). loadStandards() fetches it after the
+// taxonomy loads and sets getData().standards to { curriculum, list, index }
+// when it arrives; it resolves to true when the list arrived, false when the
+// server could not give it (an older taxonomy, an unreachable upstream).
+let _standardsLoad = null;
+let _standardsSettled = false;
+export function loadStandards() {
+  if (!_standardsLoad) {
+    _standardsLoad = (async () => {
+      try {
+        const res = await fetch(`${TAXONOMY_API}/standards/${CURRICULUM_ID}.json`);
+        if (!res.ok) return false;
+        const json = await res.json();
+        const list = Array.isArray(json?.standards) ? json.standards.filter(s => s && typeof s.code === 'string' && Array.isArray(s.yearLevels)) : [];
+        if (!list.length || !_cache) return false;
+        _cache.standards = { curriculum: json.curriculum || null, list, index: indexStandards(list) };
+        return true;
+      } catch {
+        return false;
+      }
+    })().finally(() => { _standardsSettled = true; });
+  }
+  return _standardsLoad;
+}
+// True while the list is on its way (asked for, not yet answered): views say
+// "loading" rather than "could not be loaded", and today's choices for a
+// learner with a curriculum year are not saved yet.
+export function standardsPending() {
+  return !!_standardsLoad && !_standardsSettled;
+}
+
+// False for an id the loaded taxonomy no longer has: a retired topic, whose
+// family data is kept but left out of counts and choices (docs/CURRICULUM.md).
+// Before the taxonomy loads every id counts as current.
+export function isCurrentTopic(id) {
+  return !_cache || _cache.byId.has(id);
 }
 
 export function getData() {

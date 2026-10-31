@@ -1,7 +1,7 @@
 // Topic finder (#find): a free-text request becomes matching taxonomy topics,
 // the unmet prerequisites on the way to the chosen one, and the next ready
 // step. No AI: the search runs over the taxonomy already in the browser.
-import { SUBJECTS, getData } from '../data.js';
+import { getData, subjectMeta } from '../data.js';
 import * as store from '../store.js';
 import { SKILL_STATE_CHROME } from '../graph.js';
 import { buildTopicPath, searchTopics } from '../finder.js';
@@ -11,6 +11,8 @@ import { countLabel, formatCount } from '../format.js';
 import { keyOf, planTopicOn } from '../scheduler.js';
 import { graphParamsForTopic } from './graph.js';
 import { openMoveTopic } from './calendar.js';
+import { curriculumBooster } from '../mastery.js';
+import { learnerYear, yearLabel } from '../curriculum.js';
 
 const RESULT_LIMIT = 8;
 const STEPS_SHOWN = 12;
@@ -40,7 +42,7 @@ export function renderFind(params, { navigate }) {
   root.appendChild(requestForm(q, active, navigate));
 
   if (q) {
-    const { terms, results } = searchTopics(d.topics, q, { age: store.studentAge(active), limit: RESULT_LIMIT });
+    const { terms, results } = searchTopics(d.topics, q, { age: store.studentAge(active), limit: RESULT_LIMIT, boost: curriculumBooster(active.id) });
     const choose = (topic) => {
       let r = request;
       if (r) store.setRequestTopic(active.id, r.id, topic.id);
@@ -81,7 +83,7 @@ function requestForm(q, active, navigate) {
 }
 
 function topicChips(topic) {
-  const meta = SUBJECTS[topic.subject] || { color: '#6f665a' };
+  const meta = subjectMeta(topic.subject);
   return `<span class="flex flex-wrap gap-1.5 text-xs font-medium">
     <span class="px-2 py-0.5 rounded-full text-white" style="background:${meta.color}">${esc(topic.subject)}</span>
     <span class="px-2 py-0.5 rounded-full bg-paper border border-paper-line text-ink-soft">${esc(topic.domain)}</span>
@@ -110,7 +112,8 @@ function resultsSection(q, terms, results, chosenId, active, choose) {
   }
   const list = el(`<ol class="space-y-2"></ol>`);
   const age = store.studentAge(active);
-  for (const { topic, inBand } of results) {
+  const year = learnerYear(active);
+  for (const { topic, inBand, boost } of results) {
     const chosen = topic.id === chosenId;
     const item = el(`<li></li>`);
     const btn = el(`<button type="button" class="find-result w-full text-left rounded-2xl border ${chosen ? 'border-brand bg-brand-light/60' : 'border-paper-line bg-paper-card hover:border-brand/40'} p-3.5 sm:p-4 transition-colors">
@@ -123,6 +126,7 @@ function resultsSection(q, terms, results, chosenId, active, choose) {
       </span>
       <span class="block mt-2">${topicChips(topic)}</span>
       ${inBand && age != null ? `<span class="block text-xs text-brand-dark mt-1.5">Fits age ${esc(age)}</span>` : ''}
+      ${boost === 2 && year ? `<span class="block text-xs text-brand-dark mt-1.5">Linked to Australian Curriculum ${esc(yearLabel(year))}</span>` : ''}
     </button>`);
     btn.setAttribute('aria-pressed', chosen ? 'true' : 'false');
     btn.onclick = () => choose(topic);

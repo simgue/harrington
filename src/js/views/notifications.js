@@ -3,6 +3,7 @@ import { el, esc, refreshIcons, openModal } from '../ui.js';
 import { buildAlerts, forLearner, bellLabel, PICKS_DUE_HOUR } from '../alerts.js';
 import { familyCalendar, keyOf, restInfo } from '../scheduler.js';
 import { todaysOffers } from '../mastery.js';
+import { isCurrentTopic } from '../data.js';
 
 const TYPE_META = {
   picks: { icon: 'list-checks', color: '#2f6285' },
@@ -26,6 +27,7 @@ function currentAlerts() {
     dismissed: store.dismissedAlerts(),
     welcomed: store.welcomed(),
     notices: store.repairNotices(),
+    isCurrent: isCurrentTopic,
   });
 }
 

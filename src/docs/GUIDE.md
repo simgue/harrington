@@ -2,7 +2,7 @@
 
 Harrington is a self-hosted family learning platform. It shows the open
 [Marble Skill Taxonomy](https://github.com/withmarbleapp/os-taxonomy) (about
-1,590 connected topics across 8 subjects) as a map for parents, offers small
+1,845 connected topics across 9 subjects) as a map for parents, offers small
 daily literacy and numeracy choices, and keeps a record of what your child
 actually did.
 
@@ -131,7 +131,7 @@ The child view itself shows no levels, XP or percentages.
 
 The connected curriculum, in two modes.
 
-- **World map.** The eight subjects as realms, with their domains as dots sized
+- **World map.** The nine subjects as realms, with their domains as dots sized
   by topic count. Mastery shows as a quiet tint rather than a percentage.
 - **Skill tree.** Enter a domain to see its topics as a tree. Solid links are
   **required** foundations; dashed links are **helpful** ones. Gateway domains
@@ -254,11 +254,43 @@ A day-by-day plan from your start date, on the home days you choose.
 - Opening a lesson, test, challenge or recall review from a day needs a local
   AI provider; see the README.
 
+## Australian Curriculum
+
+Harrington can follow the Australian Curriculum, version 9, from Foundation to
+Year 6. It is optional; without it, topics are ordered by age as before.
+
+- **Year level.** In a learner's details (or when you add your first
+  learner), tick **Follow the Australian Curriculum** and choose an
+  **Australian Curriculum year level**. It starts from the age (Foundation is
+  5, Year 1 is 6, and so on to Year 6 at 11) and you can change it.
+- **What changes.** Topics linked to that year, and unmastered topics linked
+  to the year below, come first in the daily choices, the map list, the topic
+  finder and the suggested placement. Nothing is hidden or locked.
+- **Codes on topics.** A topic page lists the content descriptions the Marble
+  Skill Taxonomy links it to, for example "AC9M2N01 · Year 2 · Number", with
+  ACARA's notice below them. Tap a code to read its text. A link is Marble's
+  map, not a check that the content description is met.
+- **Coverage report.** Records > **Australian Curriculum coverage** lists each
+  content description for the year by learning area, with the linked topics
+  and a status from your own records: **Linked topics mastered** (every
+  linked topic mastered), **Evidence** (a record such as an observation, a
+  passed check or challenge, or practice for a linked topic) or **Not yet**.
+  A saved lesson is a plan, not evidence, so it does not count. Counts per
+  learning area are at the top. **Print report** prints it with every area
+  expanded, the date and the ACARA notice, for example as evidence for home
+  education registration.
+
+ACARA's notice for the Australian Curriculum content is in the README.
+
 ## Records and recordings
 
 - **Records.** Log an observation, question, discussion or assessment,
   optionally linked to a topic, with a title, notes and a confidence rating.
   Filter by type and open the linked topic from any record.
+- **Archived topics.** When a curriculum update retires a topic you had
+  worked on, nothing you recorded is lost: Records lists it as an archived
+  topic with what is kept, and it no longer counts toward progress or daily
+  choices.
 - **Voice recording.** Record a conversation from the dashboard, a topic page
   or the child view. Audio is saved on the computer that runs Harrington and
   plays back inline.
@@ -348,3 +380,5 @@ the README), and each feature's capability is switched on:
 
 *Curriculum: Marble Skill Taxonomy (v1) · © Generative Spark, Inc. · licensed
 under ODbL 1.0 (database) and CC BY-SA 4.0 (content).*
+
+*Australian Curriculum content: see ACARA's notice in the README.*

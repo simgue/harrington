@@ -4,7 +4,7 @@
 // Saving a sheet keeps its answers only. At the end the parent sees exactly
 // what Yes would mark mastered and confirms it as one placement record,
 // which Records can undo. Parent view only.
-import { getData, topicAge, hardPrereqs, orderTopics } from '../data.js';
+import { getData, topicAge, hardPrereqs, isCurrentTopic, orderTopics } from '../data.js';
 import * as store from '../store.js';
 import { LANES } from '../daily.js';
 import { el, esc, refreshIcons, toast } from '../ui.js';
@@ -152,7 +152,7 @@ function sheetCard(student, lane, session, sitting, d) {
   const left = card.querySelector('.ls-left');
   const save = card.querySelector('#ls-save');
   const refresh = () => {
-    const n = sheet.ids.filter(id => !session.answers[id]).length;
+    const n = sheet.ids.filter(id => isCurrentTopic(id) && !session.answers[id]).length;
     save.disabled = n > 0;
     left.textContent = n ? `${n} still to answer.` : 'All answered.';
   };
@@ -192,7 +192,7 @@ function sheetCard(student, lane, session, sitting, d) {
   card.querySelector('#ls-print').onclick = () => printSheet(student, lane, sheet, rows);
   let saving = false;
   save.onclick = () => {
-    if (saving || !ls.sheetComplete(session)) return;
+    if (saving || !ls.sheetComplete(session, isCurrentTopic)) return;
     saving = true;
     // Answers only: nothing is marked until the list at the end is confirmed.
     const next = ls.completeSheet(makeCtx(student.id, lane), session);

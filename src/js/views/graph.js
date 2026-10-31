@@ -1,4 +1,5 @@
-import { SUBJECTS, getData, topicAge } from '../data.js';
+import { getData, topicAge, subjectMeta } from '../data.js';
+import { curriculumAge, curriculumBoost, learnerYear, rankByCurriculum, yearLabel } from '../curriculum.js';
 import {
   blockingHardPrereqIds,
   buildSkillTree,
@@ -239,7 +240,7 @@ function viewToggleBar() {
 }
 
 function openRealm(navigate, subjectNode, active, domainName = null) {
-  const preferred = active ? store.studentAge(active) : null;
+  const preferred = preferredAge(active);
   const domain = domainName
     ? subjectNode.domains.find((node) => node.domain === domainName)
     : defaultDomain(subjectNode, preferred);
@@ -248,6 +249,12 @@ function openRealm(navigate, subjectNode, active, domainName = null) {
     return;
   }
   navigate('graph', { subject: subjectNode.subject, domain: domain.domain });
+}
+
+// The age whose domain opens first: the learner's Australian Curriculum year
+// (as the usual age for it) when set, else their age.
+function preferredAge(active) {
+  return active ? curriculumAge(active, store.studentAge(active)) : null;
 }
 
 function skillStateFor(active, topicId, prereqsOf) {
@@ -275,7 +282,7 @@ function renderWorldMap(params, active, navigate) {
     <div class="mb-5">
       <p class="text-[11px] uppercase tracking-[0.18em] text-ink-faint font-medium mb-1">World Map</p>
       <h1 class="font-display text-2xl sm:text-3xl font-600">Curriculum realms</h1>
-      <p class="text-ink-soft text-sm mt-1 max-w-2xl">Eight subjects as lands on a map, not a syllabus calendar. Open a realm to walk its skill tree. Quiet tints are for you; this is not a report card.</p>
+      <p class="text-ink-soft text-sm mt-1 max-w-2xl">${tree.length === 1 ? 'One subject' : `${formatCount(tree.length)} subjects`} as lands on a map, not a syllabus calendar. Open a realm to walk its skill tree. Quiet tints are for you; this is not a report card.</p>
       <p class="text-xs text-ink-faint mt-2">${countLabel(d.meta.topics, 'topic')} · ${countLabel(d.meta.dependencies, 'prerequisite link')} · ${d.meta.version}</p>
     </div>`));
 
@@ -284,7 +291,7 @@ function renderWorldMap(params, active, navigate) {
   svg.setAttribute('viewBox', `0 0 ${WORLD_MAP_VIEWBOX.width} ${WORLD_MAP_VIEWBOX.height}`);
   svg.setAttribute('class', 'w-full h-auto world-map-svg');
   svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', 'Curriculum world map of eight subject realms');
+  svg.setAttribute('aria-label', `Curriculum world map of ${countLabel(scene.realms.length, 'subject realm')}`);
 
   const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
   defs.innerHTML = `
@@ -318,7 +325,7 @@ function renderWorldMap(params, active, navigate) {
   }
 
   for (const realm of scene.realms) {
-    const meta = SUBJECTS[realm.subject] || { color: '#3f6b3b', icon: 'map' };
+    const meta = subjectMeta(realm.subject);
     const stats = active ? topicsMasteryStats(active.id, tree.find((node) => node.subject === realm.subject)?.topics || []) : { pct: 0 };
     const fill = quietMasteryFill(meta.color, stats.pct, '#fffdf8');
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -399,14 +406,14 @@ function renderSkillTree(params, active, navigate) {
   const subjectNode = findSubject(params.subject);
   if (!subjectNode) return missing(wrap, navigate, 'Realm not found.');
 
-  const preferred = active ? store.studentAge(active) : null;
+  const preferred = preferredAge(active);
   const domainNode = params.domain
     ? findDomain(params.subject, params.domain)
     : defaultDomain(subjectNode, preferred);
   if (!domainNode) return missing(wrap, navigate, 'Domain not found.');
 
   const d = getData();
-  const meta = SUBJECTS[domainNode.subject];
+  const meta = subjectMeta(domainNode.subject);
   const siblingDomains = subjectNode.domains.map((node) => node.domain);
   const graph = buildSkillTree(domainNode, d, { siblingDomains });
   const homeIds = new Set(graph.homeTopics.map((topic) => topic.id));
@@ -749,7 +756,7 @@ function renderSubjects(active, navigate) {
 
   const grid = el(`<div class="grid sm:grid-cols-2 gap-3"></div>`);
   for (const node of curriculumTree()) {
-    const meta = SUBJECTS[node.subject];
+    const meta = subjectMeta(node.subject);
     const stats = active ? topicsMasteryStats(active.id, node.topics) : { mastered: 0, total: node.topics.length, pct: 0 };
     const card = el(`<button class="text-left bg-paper-card border border-paper-line rounded-2xl p-4 card-hover">
       <span class="flex items-center gap-3 mb-3">
@@ -773,7 +780,7 @@ function renderSubject(params, active, navigate) {
   const wrap = el(`<div></div>`);
   if (!node) return missing(wrap, navigate, 'Subject not found.');
 
-  const meta = SUBJECTS[node.subject];
+  const meta = subjectMeta(node.subject);
   const stats = active ? topicsMasteryStats(active.id, node.topics) : { mastered: 0, total: node.topics.length, pct: 0 };
   wrap.appendChild(crumbs([
     { label: 'Curriculum', go: () => navigate('graph') },
@@ -814,7 +821,7 @@ function renderDomain(params, active, navigate) {
   const wrap = el(`<div></div>`);
   if (!node) return missing(wrap, navigate, 'Domain not found.');
 
-  const meta = SUBJECTS[node.subject];
+  const meta = subjectMeta(node.subject);
   const stats = active ? topicsMasteryStats(active.id, node.topics) : { mastered: 0, total: node.topics.length, pct: 0 };
   wrap.appendChild(crumbs([
     { label: 'Curriculum', go: () => navigate('graph') },
@@ -855,7 +862,7 @@ function renderSection(params, active, navigate) {
   if (!node) return missing(wrap, navigate, 'Section not found.');
 
   const d = getData();
-  const meta = SUBJECTS[node.subject];
+  const meta = subjectMeta(node.subject);
   const stats = active ? topicsMasteryStats(active.id, node.topics) : { mastered: 0, total: node.topics.length, pct: 0 };
   const edges = localEdges(node.topics, d.prereqsOf);
 
@@ -885,8 +892,13 @@ function renderSection(params, active, navigate) {
   }
 
   const list = el(`<div class="space-y-2.5"></div>`);
-  for (const topic of node.topics) {
+  // Topics linked to the learner's curriculum year (and unmastered ones at
+  // the year below) first; the rest keep their order.
+  const year = learnerYear(active);
+  const ctx = { year, index: d.standards?.index || null, mastered: (id) => !!active && store.statusOf(active.id, id) === 'mastered' };
+  for (const topic of rankByCurriculum(node.topics, ctx)) {
     const status = active ? store.statusOf(active.id, topic.id) : 'none';
+    const linked = year && curriculumBoost(topic, ctx) === 2 ? ` · linked to ${esc(yearLabel(year))}` : '';
     const listStage = stageForStatus(status, active ? isUnlocked(active.id, topic.id) : false);
     const prereqs = (d.prereqsOf.get(topic.id) || []).map((edge) => {
       const other = d.byId.get(edge.id);
@@ -899,7 +911,7 @@ function renderSection(params, active, navigate) {
         <span class="min-w-0 flex-1">
           <span class="block font-600">${esc(topic.name)}</span>
           <span class="block text-sm text-ink-soft mt-1 leading-relaxed">${esc(topic.description || '')}</span>
-          <span class="block text-xs text-ink-faint mt-2"><span class="font-600" style="color:${GROWTH[listStage].color}">${GROWTH[listStage].label}</span> · ${MASTERY[status].label} · ages ${esc(topic.ageRangeStart)}–${esc(topic.ageRangeEnd)}${unlockCount ? ` · unlocks ${unlockCount}` : ''}</span>
+          <span class="block text-xs text-ink-faint mt-2"><span class="font-600" style="color:${GROWTH[listStage].color}">${GROWTH[listStage].label}</span> · ${MASTERY[status].label} · ages ${esc(topic.ageRangeStart)}–${esc(topic.ageRangeEnd)}${linked}${unlockCount ? ` · unlocks ${unlockCount}` : ''}</span>
           ${prereqLine(prereqs)}
         </span>
         <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0 mt-1"></i>
