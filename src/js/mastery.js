@@ -159,7 +159,7 @@ export function todaysChoices(studentId, dateKey) {
     offers = Object.fromEntries(Object.entries(built).map(([k, lane]) => [k, lane.options.map(t => t.id)]));
     // A learner with a curriculum year keeps today's offers only once the
     // standards list has arrived (or failed), so the day is not fixed without
-    // the year-level order; the app re-renders when it does.
+    // the year-level order; a later render saves them.
     const s = store.get().students.find(x => x.id === studentId);
     const waiting = learnerYear(s) && standardsPending();
     if (!waiting && Object.values(offers).some(list => list.length)) store.saveDailyOffers(studentId, dateKey, offers);

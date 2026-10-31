@@ -180,9 +180,10 @@ descriptions: code, title, strand, learning area, subject, year levels; about
 165 KB) with `trimStandards` in `src/js/curriculum.js` and keeps it in memory
 until the server restarts, so restart Harrington after replacing the cached
 file. The file is optional: its download gives up after 15 seconds, a failure
-is answered from memory for five minutes before the server tries again, and
-the app starts without waiting for the list (codes and the year-level order
-appear when it arrives).
+is answered from memory for five minutes before the server tries again. The
+app waits for the list at most 3 seconds, and only when a learner follows the
+Australian Curriculum; a list that arrives later shows from the next page
+the parent opens (the coverage page shows it as soon as it arrives).
 Year levels are normalised to `F` and `1` to `6`; 111 codes span two years
 (Health and Physical Education and Technologies bands).
 
