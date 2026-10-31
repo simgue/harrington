@@ -29,8 +29,8 @@ npm run e2e
 
 The first run downloads the Marble taxonomy (about 5.8 MB, including the
 2.7 MB `curriculum-standards.json` the server trims for the Australian
-Curriculum) into `tests/e2e/.cache/taxonomy-<revision>/`. Later runs are
-offline.
+Curriculum, checked against the SHA-256s in `lib/taxonomy-pin.mjs`) into
+`tests/e2e/.cache/taxonomy-<revision>/`. Later runs are offline.
 
 A full run takes about seven minutes: the tests share one server
 per project and reset the family state before each test, so they run one at a
@@ -108,7 +108,7 @@ recording's length, recall cards coming due tomorrow) moves the fixed time on.
 | `E2E_PORT_BASE` | `4310` | Ports are base+1 (mock AI), base+2 (app with AI), base+3 (app without AI), base+4 (app with an unreachable AI), base+6 (app with an access token) and base+9 (kept free as that unreachable AI). |
 | `E2E_SCREENSHOTS` | on | Set to `0` to skip writing screenshots. |
 | `E2E_VIDEO` | unset | `all` records every test, not just the walkthroughs (`e2e:ui-docs` sets it). |
-| `HARRINGTON_TAXONOMY_UPSTREAM` | probed | Where the launcher downloads the taxonomy from on the first run. |
+| `HARRINGTON_TAXONOMY_UPSTREAM` | the pinned commit on raw.githubusercontent.com | Where the launcher downloads the taxonomy from on the first run, and what each server is given. Another value makes the servers treat it as a custom upstream (unchecked, cached separately), and the specs that assert `taxonomy: 'verified'` fail. |
 | `CI` | unset | On CI, `test.only` fails the run. |
 
 The suite never reuses a server that is already listening on its ports: every

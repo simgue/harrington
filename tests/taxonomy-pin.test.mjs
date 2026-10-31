@@ -1,10 +1,15 @@
-// The curriculum pin (HAR-55, GAPS.md G10): the server downloads the pinned
-// revision, refuses a file whose SHA-256 differs, says so in /api/health, and
-// warns when an operator points it at a custom upstream.
+// The curriculum pin (HAR-55, GAPS.md G10): the server serves only files that
+// match lib/taxonomy-pin.mjs. A cached file that does not match is downloaded
+// again at the pin; a download that does not match is refused; a custom
+// upstream is cached in its own folder, unchecked, with a warning.
+//
+// The success paths need the real pinned files. They come from the e2e cache
+// (tests/e2e/.cache/taxonomy-<commit>/), which CI's isolation job fills before
+// `npm test`; under CI a missing cache fails these tests instead of skipping.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -13,11 +18,30 @@ import { TAXONOMY_PIN, sha256Hex } from '../lib/taxonomy-pin.mjs';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const stub = new URL('./support/taxonomy-fetch-stub.mjs', import.meta.url).href;
+const PINNED_CACHE = fileURLToPath(new URL(`./e2e/.cache/taxonomy-${TAXONOMY_PIN.revision.slice(0, 12)}/`, import.meta.url));
+const NAMES = Object.keys(TAXONOMY_PIN.files);
+// The optional curriculum-standards.json is read only by the server
+// (GET /api/taxonomy/standards/acara-v9.json); the others the browser reads.
+const STANDARDS = 'curriculum-standards.json';
+const BROWSER_NAMES = NAMES.filter((name) => name !== STANDARDS);
 
-async function startServer({ env = {}, upstreamDir = null } = {}) {
-  const dataDir = await mkdtemp(join(tmpdir(), 'harrington-pin-'));
+// The real pinned files, or null (the test then skips, or fails under CI).
+async function pinnedFiles(t) {
+  for (const name of NAMES) {
+    const body = await readFile(join(PINNED_CACHE, name)).catch(() => null);
+    if (!body || (await sha256Hex(body)) !== TAXONOMY_PIN.files[name]) {
+      if (process.env.CI) assert.fail(`the pinned taxonomy is not in ${PINNED_CACHE}; CI must download it before npm test`);
+      t.skip('no pinned taxonomy cache; run npm run e2e once');
+      return null;
+    }
+  }
+  return PINNED_CACHE;
+}
+
+async function startServer({ env = {}, upstreamDir = null, dataDir = null } = {}) {
+  dataDir = dataDir || await mkdtemp(join(tmpdir(), 'harrington-pin-'));
   let output = '';
-  const child = spawn(process.execPath, [...(upstreamDir ? ['--import', stub] : []), 'server.mjs'], {
+  const child = spawn(process.execPath, ['--import', stub, 'server.mjs'], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -56,18 +80,22 @@ async function startServer({ env = {}, upstreamDir = null } = {}) {
       return output;
     },
     health: async () => (await fetch(`${url}/api/health`)).json(),
-    async stop() {
+    get: (name) => fetch(`${url}/api/taxonomy/${name}`),
+    async stop({ keep = false } = {}) {
       child.kill('SIGTERM');
       await new Promise((resolve) => child.once('exit', resolve));
-      await rm(dataDir, { recursive: true, force: true });
+      if (!keep) await rm(dataDir, { recursive: true, force: true });
     },
   };
 }
 
+const sha = async (res) => sha256Hex(Buffer.from(await res.arrayBuffer()));
+const tampered = JSON.stringify({ topics: [{ id: 'mt_tampered00', name: 'Tampered' }] });
+
 test('the pin module lists each fetched file once, with a 64-digit SHA-256, at a raw GitHub commit URL', () => {
   assert.match(TAXONOMY_PIN.revision, /^[0-9a-f]{40}$/);
   assert.equal(TAXONOMY_PIN.upstream, `https://raw.githubusercontent.com/withmarbleapp/os-taxonomy/${TAXONOMY_PIN.revision}/data`);
-  assert.deepEqual(Object.keys(TAXONOMY_PIN.files).sort(), ['clusters.json', 'curriculum-standards.json', 'dependencies.json', 'manifest.json', 'topics.json']);
+  assert.deepEqual([...NAMES].sort(), ['clusters.json', 'curriculum-standards.json', 'dependencies.json', 'manifest.json', 'topics.json']);
   for (const hash of Object.values(TAXONOMY_PIN.files)) assert.match(hash, /^[0-9a-f]{64}$/);
 });
 
@@ -83,79 +111,117 @@ test('the server and the e2e suite read the same pin', async () => {
 
 test('a download that does not match the pin is refused, not cached, and reported by /api/health', async () => {
   const upstreamDir = await mkdtemp(join(tmpdir(), 'harrington-upstream-'));
-  await writeFile(join(upstreamDir, 'topics.json'), JSON.stringify({ topics: [{ id: 'mt_tampered00', name: 'Tampered' }] }));
+  await writeFile(join(upstreamDir, 'topics.json'), tampered);
   const app = await startServer({ upstreamDir });
   try {
-    assert.equal((await app.health()).taxonomy, 'not-downloaded');
-    assert.equal((await app.health()).taxonomyRevision, TAXONOMY_PIN.revision);
-    const res = await fetch(`${app.url}/api/taxonomy/topics.json`);
+    assert.deepEqual(await app.health().then((h) => [h.taxonomy, h.taxonomyRevision]), ['not-downloaded', null]);
+    const res = await app.get('topics.json');
     assert.equal(res.status, 502);
-    const { error } = await res.json();
-    assert.match(error, /^Curriculum file topics\.json failed its integrity check, so it was not saved: expected SHA-256 [0-9a-f]{64}, got [0-9a-f]{64}\./);
+    // A short line for the browser; the hashes go to the log.
+    assert.equal((await res.json()).error, 'Curriculum file topics.json failed its integrity check, so it was not saved. The server log and /api/health have the details.');
+    assert.match(app.output(), new RegExp(`expected SHA-256 ${TAXONOMY_PIN.files['topics.json']}, got [0-9a-f]{64}`));
     await assert.rejects(stat(join(app.dataDir, 'taxonomy', 'topics.json')), { code: 'ENOENT' });
     const health = await app.health();
-    assert.equal(health.taxonomy, 'integrity-failed');
-    assert.equal(health.taxonomyCached, false);
+    assert.deepEqual([health.taxonomy, health.taxonomyRevision, health.taxonomyCached], ['integrity-failed', null, false]);
   } finally {
     await app.stop();
     await rm(upstreamDir, { recursive: true, force: true });
   }
 });
 
-test('a download that matches the pin is cached and the curriculum reads as verified', async (t) => {
-  // Stand-in files whose hashes are the pin's: build a pin-shaped upstream
-  // from the real e2e cache when it is there, else skip.
-  const cache = fileURLToPath(new URL(`./e2e/.cache/taxonomy-${TAXONOMY_PIN.revision.slice(0, 12)}/`, import.meta.url));
-  for (const name of Object.keys(TAXONOMY_PIN.files)) {
-    const body = await readFile(join(cache, name)).catch(() => null);
-    if (!body || (await sha256Hex(body)) !== TAXONOMY_PIN.files[name]) {
-      t.skip('no pinned e2e cache; run npm run e2e once');
-      return;
-    }
-  }
-  const app = await startServer({ upstreamDir: cache });
+test('a download that matches the pin is cached, and health says verified with the revision', async (t) => {
+  const upstreamDir = await pinnedFiles(t);
+  if (!upstreamDir) return;
+  const app = await startServer({ upstreamDir });
   try {
-    for (const name of Object.keys(TAXONOMY_PIN.files)) {
-      // The whole standards file stays on the server; the browser reads the
-      // list derived from it (curriculum.js trimStandards).
-      const path = name === 'curriculum-standards.json' ? 'standards/acara-v9.json' : name;
-      assert.equal((await fetch(`${app.url}/api/taxonomy/${path}`)).status, 200, name);
-    }
+    for (const name of BROWSER_NAMES) assert.equal(await sha(await app.get(name)), TAXONOMY_PIN.files[name], name);
+    // The whole standards file stays on the server (404 to the browser); the
+    // browser reads the list derived from it, and the cached file is the pin.
+    assert.equal((await app.get(STANDARDS)).status, 404);
+    assert.equal((await app.get('standards/acara-v9.json')).status, 200);
+    assert.equal(await sha256Hex(await readFile(join(app.dataDir, 'taxonomy', STANDARDS))), TAXONOMY_PIN.files[STANDARDS]);
     const saved = await readFile(join(app.dataDir, 'taxonomy', 'topics.json'));
-    assert.equal(createHash('sha256').update(saved).digest('hex'), TAXONOMY_PIN.files['topics.json']);
+    assert.equal(await sha256Hex(saved), TAXONOMY_PIN.files['topics.json']);
+    assert.deepEqual(await app.health().then((h) => [h.taxonomy, h.taxonomyRevision]), ['verified', TAXONOMY_PIN.revision]);
+    // Served from the cache from now on: no second download.
+    await app.get('topics.json');
+    assert.equal(app.output().match(/stub fetch topics\.json/g).length, 1);
+  } finally {
+    await app.stop();
+  }
+});
+
+test('a cached file from another revision is never served: it is downloaded again at the pin and replaced', async (t) => {
+  const upstreamDir = await pinnedFiles(t);
+  if (!upstreamDir) return;
+  const dataDir = await mkdtemp(join(tmpdir(), 'harrington-pin-'));
+  await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
+  // What an older Harrington left behind (jsDelivr @main, or a hand edit).
+  await writeFile(join(dataDir, 'taxonomy', 'topics.json'), tampered);
+  const app = await startServer({ upstreamDir, dataDir });
+  try {
+    assert.deepEqual(await app.health().then((h) => [h.taxonomy, h.taxonomyRevision]), ['outdated', null]);
+    assert.equal(await sha(await app.get('topics.json')), TAXONOMY_PIN.files['topics.json']);
+    assert.match(app.output(), /Cached curriculum file topics\.json is not the pinned revision 7bd8b67; downloading it again\./);
+    assert.equal(await sha256Hex(await readFile(join(dataDir, 'taxonomy', 'topics.json'))), TAXONOMY_PIN.files['topics.json']);
+    for (const name of BROWSER_NAMES) await app.get(name);
     assert.equal((await app.health()).taxonomy, 'verified');
-  } finally {
-    await app.stop();
-  }
-});
-
-test('a cached file from another revision is still served, and health says outdated', async () => {
-  const app = await startServer({ upstreamDir: await mkdtemp(join(tmpdir(), 'harrington-upstream-empty-')) });
-  try {
-    await mkdir(join(app.dataDir, 'taxonomy'), { recursive: true });
-    const old = { topics: [{ id: 'mt_3XJkeIn6J6', name: 'Estimating answers (age 7+)', extra: { kept: true } }] };
-    await writeFile(join(app.dataDir, 'taxonomy', 'topics.json'), JSON.stringify(old));
-    const res = await fetch(`${app.url}/api/taxonomy/topics.json`);
-    assert.equal(res.status, 200);
-    // Served byte for byte: unknown fields survive.
-    assert.deepEqual(await res.json(), old);
+    // A file changed on disk is checked again, not trusted from memory.
+    await new Promise((r) => setTimeout(r, 20));
+    await writeFile(join(dataDir, 'taxonomy', 'clusters.json'), '{"clusters":[]}');
     assert.equal((await app.health()).taxonomy, 'outdated');
-    assert.match(app.output(), /is not the pinned revision 7bd8b67; it is still served/);
-    assert.doesNotMatch(app.output(), /stub fetch/, 'nothing was downloaded');
   } finally {
     await app.stop();
   }
 });
 
-test('a custom upstream is allowed with a startup warning, and health says unchecked', async () => {
-  const app = await startServer({ env: { HARRINGTON_TAXONOMY_UPSTREAM: 'http://127.0.0.1:9/experiment/' } });
+test('a cached file from another revision is not served when the new download fails its check', async () => {
+  const upstreamDir = await mkdtemp(join(tmpdir(), 'harrington-upstream-'));
+  await writeFile(join(upstreamDir, 'topics.json'), `${tampered} `);
+  const dataDir = await mkdtemp(join(tmpdir(), 'harrington-pin-'));
+  await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
+  await writeFile(join(dataDir, 'taxonomy', 'topics.json'), tampered);
+  const app = await startServer({ upstreamDir, dataDir });
   try {
-    assert.match(await app.waitForOutput(/custom upstream/), /HARRINGTON_TAXONOMY_UPSTREAM is a custom upstream \(http:\/\/127\.0\.0\.1:9\/experiment\): curriculum files from it are cached without an integrity check/);
-    const health = await app.health();
-    assert.equal(health.taxonomy, 'unchecked');
-    assert.equal(health.taxonomyRevision, null);
+    assert.equal((await app.get('topics.json')).status, 502);
+    assert.equal(await readFile(join(dataDir, 'taxonomy', 'topics.json'), 'utf8'), tampered, 'the old file is left alone, not replaced');
+    assert.deepEqual(await app.health().then((h) => [h.taxonomy, h.taxonomyRevision]), ['integrity-failed', null]);
   } finally {
     await app.stop();
+    await rm(upstreamDir, { recursive: true, force: true });
+  }
+});
+
+test('a custom upstream caches in its own folder; unset again, only the verified pin is served', async (t) => {
+  const pinned = await pinnedFiles(t);
+  if (!pinned) return;
+  const custom = createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(tampered);
+  });
+  await new Promise((resolve) => custom.listen(0, '127.0.0.1', resolve));
+  const customUrl = `http://127.0.0.1:${custom.address().port}/experiment`;
+  let app = await startServer({ upstreamDir: pinned, env: { HARRINGTON_TAXONOMY_UPSTREAM: `${customUrl}/` } });
+  const { dataDir } = app;
+  try {
+    assert.match(await app.waitForOutput(/custom upstream/), /HARRINGTON_TAXONOMY_UPSTREAM is a custom upstream \(http:\/\/127\.0\.0\.1:\d+\/experiment\): curriculum files from it are cached in .*custom-[0-9a-f]{12} without an integrity check/);
+    assert.equal(await (await app.get('topics.json')).text(), tampered);
+    assert.deepEqual(await app.health().then((h) => [h.taxonomy, h.taxonomyRevision]), ['unchecked', null]);
+    const [folder] = (await readdir(join(dataDir, 'taxonomy'))).filter((n) => n.startsWith('custom-'));
+    assert.match(folder, /^custom-[0-9a-f]{12}$/);
+    await assert.rejects(stat(join(dataDir, 'taxonomy', 'topics.json')), { code: 'ENOENT' });
+    await app.stop({ keep: true });
+
+    // The variable is unset: the pin is downloaded, checked and served.
+    app = await startServer({ upstreamDir: pinned, dataDir });
+    assert.doesNotMatch(await app.waitForOutput(/Access token/), /custom upstream/);
+    assert.equal(await sha(await app.get('topics.json')), TAXONOMY_PIN.files['topics.json']);
+    assert.match(app.output(), /stub fetch topics\.json/);
+    for (const name of BROWSER_NAMES) await app.get(name);
+    assert.deepEqual(await app.health().then((h) => [h.taxonomy, h.taxonomyRevision]), ['verified', TAXONOMY_PIN.revision]);
+  } finally {
+    await app.stop();
+    custom.close();
   }
 });
 

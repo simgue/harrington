@@ -8,7 +8,7 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { isLoopbackAddress } from '../lib/loopback.mjs';
-import { TAXONOMY_PIN } from '../lib/taxonomy-pin.mjs';
+import { seedFixtureTaxonomy } from './support/fixture-taxonomy.mjs';
 import { AI_CAPABILITIES, parseCapabilities } from '../src/js/ai-capabilities.js';
 import { SCHEMA_VERSION, formatCopyName } from '../src/js/schema.js';
 
@@ -82,7 +82,7 @@ test('serves Harrington and reports self-hosted health', async () => {
     redaction: 'server+client',
     taxonomyCached: false,
     taxonomy: 'not-downloaded',
-    taxonomyRevision: TAXONOMY_PIN.revision,
+    taxonomyRevision: null,
     stateVersion: 0,
     stateBytes: 0,
     backupAgeDays: null,
@@ -638,38 +638,13 @@ test('serves a cached Marble taxonomy file and rejects unknown names', async () 
   await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
   await writeFile(join(dataDir, 'taxonomy', 'topics.json'), JSON.stringify(payload));
 
-  const cached = await fetch(`${baseUrl}/api/taxonomy/topics.json`);
-  assert.equal(cached.status, 200);
-  assert.deepEqual(await cached.json(), payload);
-
+  // A stand-in file is not the pinned revision: health says so, with no
+  // revision. (Fetching it would download the pin; tests/taxonomy-pin.test.mjs
+  // covers that without the network.)
   const health = await (await fetch(`${baseUrl}/api/health`)).json();
   assert.equal(health.taxonomyCached, true);
-  // A stand-in file is not the pinned revision; it is served all the same.
   assert.equal(health.taxonomy, 'outdated');
-});
-
-test('derives the trimmed Australian Curriculum list and never serves the whole standards file', async () => {
-  const full = {
-    note: 'test',
-    curricula: [
-      { slug: 'ccss-math', topics: [{ key: 'ccss-math:K.CC.1', code: 'K.CC.1', data: { title: 'Count to 100' } }] },
-      { slug: 'acara-v9', name: 'Australian Curriculum', version: 'v9', sourceUrl: 'https://v9.australiancurriculum.edu.au/', topics: [
-        { key: 'acara-v9:AC9M2N01', code: 'AC9M2N01', data: { title: 'order numbers', description: 'order numbers', strand: 'Number', subject: 'Mathematics', learningArea: 'Mathematics', yearLevels: ['2'], taxonomy: { grade: 'Year 2' } } },
-      ] },
-    ],
-  };
-  await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
-  await writeFile(join(dataDir, 'taxonomy', 'curriculum-standards.json'), JSON.stringify(full));
-
-  const whole = await fetch(`${baseUrl}/api/taxonomy/curriculum-standards.json`);
-  assert.equal(whole.status, 404);
-  const trimmed = await fetch(`${baseUrl}/api/taxonomy/standards/acara-v9.json`);
-  assert.equal(trimmed.status, 200);
-  assert.deepEqual(await trimmed.json(), {
-    curriculum: { id: 'acara-v9', name: 'Australian Curriculum', version: 'v9', sourceUrl: 'https://v9.australiancurriculum.edu.au/' },
-    standards: [{ code: 'AC9M2N01', title: 'order numbers', strand: 'Number', learningArea: 'Mathematics', subject: 'Mathematics', yearLevels: ['2'] }],
-  });
-  assert.equal((await fetch(`${baseUrl}/api/taxonomy/standards/ccss-math.json`)).status, 404);
+  assert.equal(health.taxonomyRevision, null);
 });
 });
 
@@ -730,7 +705,11 @@ test('fetches an allowlisted taxonomy file from upstream and caches it on disk',
     assert.equal(first.status, 200);
     assert.deepEqual(await first.json(), fixture);
     assert.equal(upstreamHits, 1);
-    assert.deepEqual(JSON.parse(await readFile(join(isolatedDir, 'taxonomy', 'topics.json'), 'utf8')), fixture);
+    // A custom upstream caches in its own folder, never next to the pinned files.
+    const [customDir] = (await readdir(join(isolatedDir, 'taxonomy'))).filter((name) => name.startsWith('custom-'));
+    assert.match(customDir, /^custom-[0-9a-f]{12}$/);
+    assert.deepEqual(JSON.parse(await readFile(join(isolatedDir, 'taxonomy', customDir, 'topics.json'), 'utf8')), fixture);
+    await assert.rejects(stat(join(isolatedDir, 'taxonomy', 'topics.json')), { code: 'ENOENT' });
 
     const second = await fetch(`${isolatedUrl}/api/taxonomy/topics.json`);
     assert.equal(second.status, 200);
@@ -753,6 +732,39 @@ test('fetches an allowlisted taxonomy file from upstream and caches it on disk',
     await new Promise((resolve) => isolated.once('exit', resolve));
     upstream.close();
     await rm(isolatedDir, { recursive: true, force: true });
+  }
+});
+
+test('derives the trimmed Australian Curriculum list, never serves the whole standards file, and follows a replaced source', async () => {
+  const curriculum = (title) => ({
+    note: 'test',
+    curricula: [
+      { slug: 'ccss-math', topics: [{ key: 'ccss-math:K.CC.1', code: 'K.CC.1', data: { title: 'Count to 100' } }] },
+      { slug: 'acara-v9', name: 'Australian Curriculum', version: 'v9', sourceUrl: 'https://v9.australiancurriculum.edu.au/', topics: [
+        { key: 'acara-v9:AC9M2N01', code: 'AC9M2N01', data: { title, description: title, strand: 'Number', subject: 'Mathematics', learningArea: 'Mathematics', yearLevels: ['2'], taxonomy: { grade: 'Year 2' } } },
+      ] },
+    ],
+  });
+  const dir = await mkdtemp(join(tmpdir(), 'harrington-standards-'));
+  const env = await seedFixtureTaxonomy(dir, { 'curriculum-standards.json': curriculum('order numbers') });
+  const server = await spawnHarrington(env, { dir });
+  try {
+    assert.equal((await fetch(`${server.url}/api/taxonomy/curriculum-standards.json`)).status, 404);
+    const trimmed = await fetch(`${server.url}/api/taxonomy/standards/acara-v9.json`);
+    assert.equal(trimmed.status, 200);
+    assert.deepEqual(await trimmed.json(), {
+      curriculum: { id: 'acara-v9', name: 'Australian Curriculum', version: 'v9', sourceUrl: 'https://v9.australiancurriculum.edu.au/' },
+      standards: [{ code: 'AC9M2N01', title: 'order numbers', strand: 'Number', learningArea: 'Mathematics', subject: 'Mathematics', yearLevels: ['2'] }],
+    });
+    assert.equal((await fetch(`${server.url}/api/taxonomy/standards/ccss-math.json`)).status, 404);
+
+    // The derived list is kept per source hash: a replaced file is trimmed again.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await seedFixtureTaxonomy(dir, { 'curriculum-standards.json': curriculum('order numbers to 1000') });
+    const again = await (await fetch(`${server.url}/api/taxonomy/standards/acara-v9.json`)).json();
+    assert.equal(again.standards[0].title, 'order numbers to 1000');
+  } finally {
+    await server.stop();
   }
 });
 

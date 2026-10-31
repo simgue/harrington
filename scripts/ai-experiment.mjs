@@ -29,14 +29,13 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chatCompletion, readStoredAiSettings, resolveAiSettings } from '../lib/ai-provider.mjs';
+import { taxonomyCacheFolder, taxonomyUpstream } from '../lib/taxonomy-pin.mjs';
 import { aiLesson, redactNames } from '../src/js/ai.js';
 import { LANES, laneOptions } from '../src/js/daily.js';
 import { getData, hardPrereqs, loadTaxonomy, topicAge } from '../src/js/data.js';
 import { isValidCached, normalizeCached, studentAge } from '../src/js/store.js';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
-// Mirrors server.mjs.
-const DEFAULT_TAXONOMY_UPSTREAM = 'https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@main/data';
 
 export class ExperimentError extends Error {}
 
@@ -55,7 +54,9 @@ function installFetch({ settings, dataDir, names, upstream, attempt }) {
     const url = String(input);
     if (url.startsWith('/api/taxonomy/')) {
       const name = url.slice('/api/taxonomy/'.length);
-      const cached = await readFile(join(dataDir, 'taxonomy', name)).catch(() => null);
+      // The folder server.mjs caches this upstream in (unchecked here: the
+      // server is what verifies the pinned files when it downloads them).
+      const cached = await readFile(join(dataDir, 'taxonomy', taxonomyCacheFolder(upstream), name)).catch(() => null);
       if (cached) return new Response(cached, { status: 200, headers: { 'Content-Type': 'application/json' } });
       return realFetch(`${upstream.replace(/\/$/, '')}/${name}`);
     }
@@ -248,7 +249,7 @@ export async function runExperiment(options) {
   const names = [...new Set([...students.map((s) => s.name), learner.name].filter(Boolean))];
 
   const attempt = { usage: null, redactions: 0 };
-  const upstream = env.HARRINGTON_TAXONOMY_UPSTREAM || DEFAULT_TAXONOMY_UPSTREAM;
+  const upstream = taxonomyUpstream(env);
   const restoreFetch = installFetch({ settings, dataDir, names, upstream, attempt });
   try {
     const d = await loadTaxonomy();

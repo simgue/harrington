@@ -25,10 +25,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
+      # Downloads the pinned curriculum (about 3.1 MB) and checks every SHA-256
+      # in lib/taxonomy-pin.mjs, so a bad pin bump fails here, not on a family's
+      # server. The first step also fills tests/e2e/.cache, which the server's
+      # integrity tests (tests/taxonomy-pin.test.mjs) need; with CI set they
+      # fail rather than skip without it.
+      - name: Download the pinned taxonomy for the tests
+        run: |
+          node --input-type=module -e "const m = await import('./tests/e2e/support/taxonomy.mjs'); await m.ensureTaxonomyCache({ log: console.log });"
 
-      # Downloads the pinned curriculum (about 3 MB) and checks every SHA-256
-      # in lib/taxonomy-pin.mjs, so a bad pin bump fails here, not on a family's server.
       - name: Check the pinned taxonomy
         run: npm run taxonomy:check
+
+      - name: Run tests
+        run: npm test

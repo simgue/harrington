@@ -3,10 +3,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
+import { seedFixtureTaxonomy } from './support/fixture-taxonomy.mjs';
 
 const repoRoot = new URL('..', import.meta.url);
 let child;
@@ -34,21 +35,22 @@ const serverState = async () => (await realFetch(`${baseUrl}/api/state`)).json()
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'harrington-store-'));
-  await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
-  await writeFile(join(dataDir, 'taxonomy', 'topics.json'), JSON.stringify({ topics: [
+  const taxonomyEnv = await seedFixtureTaxonomy(dataDir, {
+    'topics.json': { topics: [
     { id: 'count-to-5', name: 'Count to 5', subject: 'Mathematics', domain: 'Counting' },
     { id: 'rhymes', name: 'Rhymes', subject: 'English', domain: 'Phonics', ageRangeStart: 7, standards: ['acara-v9:AC9E2LY01'] },
     // The recall orphan tests' topics: a card of a retired topic is never due.
     ...['prune-once', 'prune-race', 'prune-readonly'].map((id) => ({ id, name: id, subject: 'Mathematics', domain: 'Counting' })),
-  ] }));
-  await writeFile(join(dataDir, 'taxonomy', 'dependencies.json'), JSON.stringify({ dependencies: [] }));
-  await writeFile(join(dataDir, 'taxonomy', 'clusters.json'), JSON.stringify({ clusters: [] }));
-  await writeFile(join(dataDir, 'taxonomy', 'manifest.json'), JSON.stringify({ taxonomyVersion: 'v1-test', generatedAt: '2026-09-01' }));
-  // The Australian Curriculum list's source, tiny, so no test downloads the
-  // 2.7 MB file: one Year 2 content description, which Rhymes links to.
-  await writeFile(join(dataDir, 'taxonomy', 'curriculum-standards.json'), JSON.stringify({ curricula: [{ slug: 'acara-v9', topics: [
-    { key: 'acara-v9:AC9E2LY01', code: 'AC9E2LY01', data: { title: 'read texts', strand: 'Literacy', learningArea: 'English', subject: 'English', yearLevels: ['2'] } },
-  ] }] }));
+    ] },
+    'dependencies.json': { dependencies: [] },
+    'clusters.json': { clusters: [] },
+    'manifest.json': { taxonomyVersion: 'v1-test', generatedAt: '2026-09-01' },
+    // The Australian Curriculum list's source, tiny, so no test downloads the
+    // 2.7 MB file: one Year 2 content description, which Rhymes links to.
+    'curriculum-standards.json': { curricula: [{ slug: 'acara-v9', topics: [
+      { key: 'acara-v9:AC9E2LY01', code: 'AC9E2LY01', data: { title: 'read texts', strand: 'Literacy', learningArea: 'English', subject: 'English', yearLevels: ['2'] } },
+    ] }] },
+  });
 
   child = spawn(process.execPath, ['server.mjs'], {
     cwd: repoRoot,
@@ -61,6 +63,7 @@ before(async () => {
       HARRINGTON_ACCESS_TOKEN: '',
       HARRINGTON_PUBLISHED_HOST: '',
       HARRINGTON_ALLOWED_HOSTS: '',
+      ...taxonomyEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

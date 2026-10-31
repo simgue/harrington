@@ -152,7 +152,7 @@ function renderError(msg) {
   const node = el(`
     <div class="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
       <i data-lucide="cloud-off" class="w-10 h-10 text-ink-faint"></i>
-      <p class="text-ink-soft max-w-sm">${esc(msg)}</p>
+      <p class="text-ink-soft max-w-sm break-words">${esc(msg)}</p>
       <button id="retry" class="px-4 py-2 rounded-lg bg-brand text-white text-sm font-medium">Try again</button>
     </div>`);
   node.querySelector('#retry').onclick = () => boot();

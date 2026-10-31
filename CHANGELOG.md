@@ -6,27 +6,6 @@ tagged a release yet; everything below is on `main`.
 
 ## [Unreleased]
 
-### Added
-- Australian Curriculum (version 9, Foundation to Year 6). A learner can
-  follow it with an optional "Australian Curriculum year level" (onboarding
-  and the learner form; it defaults from age and stays editable; saved as
-  `curriculum: { id: 'acara-v9', year }`). Topic pages show the content
-  descriptions Marble links them to as chips ("AC9M2N01 · Year 2 · Number"),
-  with the ACARA notice below them, that open the text. Topics linked to the
-  learner's year (and unmastered ones at the year below) are boosted in daily
-  choices, recommendations, the map list, the finder and the placement
-  default, without hiding anything. Records > Australian Curriculum coverage
-  lists each content description of the year with its linked topics and a
-  status from the learner's records (Linked topics mastered; Evidence, from
-  a record, a passed check or challenge, or practice; Not yet; a saved lesson
-  is a plan and does not count), and prints as registration evidence. The
-  server derives a 165 KB `/api/taxonomy/standards/acara-v9.json` from the
-  taxonomy's 2.7 MB `curriculum-standards.json`, which is never sent to the
-  browser. The app never waits for it at start-up (it loads in the
-  background and the page renders again when it arrives), the server gives
-  up on the download after 15 seconds and answers a failure from memory for
-  five minutes, and a daily pick made before the list arrives is kept.
-
 ### Fixed
 - The topic page no longer scrolls sideways on a phone when a topic has a
   long domain name: the header chips wrap and the columns can shrink.
@@ -64,10 +43,12 @@ tagged a release yet; everything below is on `main`.
   Computing +31, Personal & Social Development +29, Science +29, History +19,
   Life Skills +7. 113 topics moved their starting age, 44 were renamed and 34
   reworded. **Today's choices may differ after the refresh**: daily choices,
-  the calendar track, sections and recommendations follow the new ages. An
-  existing install keeps its cached curriculum until the parent runs
-  `npm run taxonomy:check -- --install` (docs/CURRICULUM.md); `/api/health`
-  says `taxonomy: 'outdated'` until then (HAR-55).
+  the calendar track, sections and recommendations follow the new ages. A
+  section pass already recorded stays keyed to `Subject|Domain|age` as it was
+  then, so a topic that moved age band now sits in a section that pass does
+  not cover. An existing install moves to the new revision by itself: on first
+  use the server finds its cached files do not match the pin and downloads the
+  pinned ones (HAR-55).
 - One topic was retired, `mt_3XJkeIn6J6` ("Estimating answers (age 7+)").
   Family data for a retired topic is kept and never refused on load or
   import; it no longer counts toward progress, daily choices or due recall and
@@ -75,12 +56,16 @@ tagged a release yet; everything below is on `main`.
   says "This topic is no longer in the curriculum" (HAR-55).
 - The taxonomy is pinned and checked (G10, HAR-55): `lib/taxonomy-pin.mjs`
   holds the commit and the SHA-256 of each file, the server downloads from
-  that commit on raw.githubusercontent.com instead of jsDelivr `@main` and
-  refuses a file that does not match, and `/api/health` reports `taxonomy`
-  and `taxonomyRevision`. `HARRINGTON_TAXONOMY_UPSTREAM` still overrides it
-  for experiments, with a startup warning that the files are not checked.
-  New `npm run taxonomy:check` (run in CI) downloads and verifies the pinned
-  files; `docs/CURRICULUM.md` documents the bump path.
+  that commit on raw.githubusercontent.com instead of jsDelivr `@main`, serves
+  a cached file only if it matches (one that does not is downloaded again and
+  replaced), refuses a download that does not match, and `/api/health` reports
+  `taxonomy` and `taxonomyRevision` (the pin only when every file is
+  verified). `HARRINGTON_TAXONOMY_UPSTREAM` still overrides it for
+  experiments, with a startup warning that the files are not checked; they are
+  cached in their own folder, so unsetting it serves only the verified pin
+  again. New `npm run taxonomy:check` (run in CI) is a diagnostic that
+  downloads and verifies the pinned files; `docs/CURRICULUM.md` documents the
+  bump path.
 - AI can be switched on one capability at a time with
   `HARRINGTON_AI_CAPABILITIES` (for example `lesson`; unset means all). Every
   request names its capability, the server refuses the rest with 403,
@@ -175,6 +160,25 @@ tagged a release yet; everything below is on `main`.
   plain, accurate wording (HAR-12).
 
 ### Added
+- Australian Curriculum (version 9, Foundation to Year 6). A learner can
+  follow it with an optional "Australian Curriculum year level" (onboarding
+  and the learner form; it defaults from age and stays editable; saved as
+  `curriculum: { id: 'acara-v9', year }`). Topic pages show the content
+  descriptions Marble links them to as chips ("AC9M2N01 · Year 2 · Number"),
+  with the ACARA notice below them, that open the text. Topics linked to the
+  learner's year (and unmastered ones at the year below) are boosted in daily
+  choices, recommendations, the map list, the finder and the placement
+  default, without hiding anything. Records > Australian Curriculum coverage
+  lists each content description of the year with its linked topics and a
+  status from the learner's records (Linked topics mastered; Evidence, from
+  a record, a passed check or challenge, or practice; Not yet; a saved lesson
+  is a plan and does not count), and prints as registration evidence. The
+  server derives a 165 KB `/api/taxonomy/standards/acara-v9.json` from the
+  taxonomy's 2.7 MB `curriculum-standards.json`, which is never sent to the
+  browser. The app never waits for it at start-up (it loads in the
+  background and the page renders again when it arrives), the server gives
+  up on the download after 15 seconds and answers a failure from memory for
+  five minutes, and a daily pick made before the list arrives is kept.
 - "See how it works": interactive, hand-inked figures for Science topics for
   ages 5 to 8, on the topic page and the child view's topic card. The first
   three: a toy cart (Pushes & Pulls), ice in the sun (Sunlight warms things

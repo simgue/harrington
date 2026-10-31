@@ -28,15 +28,19 @@ test('a retired topic is kept, left out of counts, archived in Records and expla
   await gotoApp({ seed });
   // Counted: only the current topic.
   await expect(page.getByText('October 7 · age 6 · 1 of 1,845 topics mastered')).toBeVisible();
-  // Nothing due from the retired topic's recall card or practice question.
-  await expect(page.getByText(/card.* due/i)).toHaveCount(0);
+  // Nothing due from the retired topic's recall card or practice question: the
+  // dashboard writes "Active recall · 1 due" / "Spaced practice · 1 due" when
+  // something is, so the bare titles only show with nothing due.
+  await expect(page.getByText('Active recall', { exact: true })).toBeVisible();
+  await expect(page.getByText('Spaced practice', { exact: true })).toBeVisible();
+  await expect(page.getByText(/^(Active recall|Spaced practice) · \d+ due$/)).toHaveCount(0);
 
   await nav(page, 'Records').click();
   const archived = page.getByRole('region', { name: 'Archived topics' });
   await expect(archived).toBeVisible();
-  // Other specs on this server can leave saved lessons for made-up ids, which
-  // are archived too; this test looks at its own topic's row.
-  const row = archived.locator('li.archived-topic', { hasText: NAME });
+  // Only learner data makes an archived row: the saved lessons other specs
+  // leave on this server for made-up ids are not listed.
+  const row = archived.locator('li.archived-topic');
   await expect(row).toHaveCount(1);
   await expect(row).toContainText(`${NAME} · archived topic`);
   await expect(row).toContainText('mastered · 1 record · 1 test result · 1 recall card · 1 practice question · 2 calendar entries · 1 topic request · 1 workbook answer');
@@ -72,4 +76,16 @@ test('a retired topic is kept, left out of counts, archived in Records and expla
 test('an id nobody recorded is still "Topic not found"', async ({ page, gotoApp }) => {
   await gotoApp({ seed: {}, hash: `topic/${RETIRED}` });
   await expect(page.getByText('Topic not found. It may have been removed from the curriculum in an update.')).toBeVisible();
+});
+
+test('"Open Records" on a retired topic opens the learner whose data holds it', async ({ page, gotoApp }) => {
+  // Sage is active; only Rowan worked on the retired topic.
+  await gotoApp({
+    seed: { active: 'sage', extra: { progress: { [ROWAN]: { [RETIRED]: { status: 'mastered', updatedAt: now - 60_000 } } } } },
+    hash: `topic/${RETIRED}`,
+  });
+  await expect(page.getByText('This topic is no longer in the curriculum.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Open Records' }).click();
+  await expect(page.getByText('Observations, questions and discussions for Rowan Example.')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Archived topics' }).locator('li.archived-topic')).toContainText(`${RETIRED} · archived topic`);
 });

@@ -1168,12 +1168,16 @@ export function removeExtra(studentId, dateKey, itemId) {
 }
 export function extrasOn(studentId, dateKey) { return planOf(studentId).extras[dateKey] || []; }
 // Change where a learner's track starts; `clearMoves` also drops topics the
-// parent moved by hand, so they follow the new track. One persist + emit.
+// parent moved by hand, so they follow the new track (a retired topic's move
+// is kept: it is archived data, not part of the track). One persist + emit.
 export function setStartDate(studentId, dateKey, { clearMoves = false } = {}) {
   const s = state.students.find(s => s.id === studentId);
   if (!s || !validDateKey(dateKey)) return;
   s.startDate = dateKey;
-  if (clearMoves) planOf(studentId).moves = {};
+  if (clearMoves) {
+    const p = planOf(studentId);
+    p.moves = Object.fromEntries(Object.entries(p.moves).filter(([id]) => !isCurrentTopic(id)));
+  }
   persist(); emit();
 }
 
@@ -1805,12 +1809,6 @@ export function retrySaveCached(id) {
 // Saved entries under the given prefixes, newest first, that pass their
 // kind's validator (each is read once and kept for this session, so opening
 // it makes no further request). At most `limit`; [] when the listing fails.
-// Every saved lesson, Print & go and recall cache key on the server, unchecked
-// (Records' archived topics look for keys of retired topics). Never throws.
-export async function lessonKeys() {
-  try { return (await Promise.all(['topic:', 'print:', 'recall:'].map(p => backend.listLessons(p, 200)))).flat().map(e => e?.key).filter(k => typeof k === 'string'); }
-  catch { return []; }
-}
 export async function savedLessons(prefixes, limit = 8) {
   let listed;
   // A few more than `limit`, since entries that fail their validator are skipped.

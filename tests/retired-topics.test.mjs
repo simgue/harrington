@@ -72,7 +72,7 @@ const mastery = await import('../src/js/mastery.js');
 const ls = await import('../src/js/levelset.js');
 const { planTrack, masteredBeforeTrack } = await import('../src/js/scheduler.js');
 const { picksStillOpen } = await import('../src/js/alerts.js');
-const { retiredTopics, withRetiredLessons, heldLabel, retiredName } = await import('../src/js/retired.js');
+const { retiredTopics, heldLabel, retiredName } = await import('../src/js/retired.js');
 
 await loadTaxonomy();
 await store.connect();
@@ -90,8 +90,6 @@ test('retired.js walks every kind of learner data and keeps the stored name', ()
   assert.equal(found.name, RETIRED_NAME);
   assert.deepEqual(found.held, { mastered: 1, record: 1, test: 1, recall: 1, practice: 1, calendar: 2, daily: 1, request: 1, levelset: 1 });
   assert.equal(heldLabel(found.held), 'mastered · 1 record · 1 test result · 1 recall card · 1 practice question · 2 calendar entries · 1 daily offer · 1 topic request · 1 workbook answer');
-  const withLessons = withRetiredLessons([found], [`recall:${RETIRED}`, 'topic:n-count', 'topic:mt_goneLesson'], isCurrentTopic);
-  assert.deepEqual(withLessons.map((t) => [retiredName(t), t.held.lesson]), [[RETIRED_NAME, 1], ['mt_goneLesson', 1]]);
 });
 
 test('retired.js: no stored name falls back to the id; malformed sections are skipped', () => {
@@ -192,4 +190,31 @@ test('calendar: a moved or mastered retired topic is never placed on the track',
   assert.ok([...plan.byDate.values()].flat().every((t) => isCurrentTopic(t.id)));
   // masteredBeforeTrack reports what the data says; the track ignores ids it does not have.
   assert.ok(masteredBeforeTrack(store.progressFor(SID), TODAY + '-later').includes(RETIRED));
+});
+
+test('levelset: a Yes given before the topic was retired is kept but never marked mastered', () => {
+  const ctx = {
+    topics: taxonomy.topics.filter((t) => t.subject === 'Mathematics'),
+    domains: ['Counting & Cardinality'],
+    topicAge: (t) => Math.min(13, Math.max(5, t.ageRangeStart || 5)),
+    hardPrereqs: (id) => taxonomy.dependencies.filter((d) => d.topicId === id).map((d) => ({ id: d.prerequisiteId })),
+    mastered: () => false,
+    isCurrent: isCurrentTopic,
+  };
+  const session = { ...ls.newSession('numeracy', { age: 6, now: 0 }), answers: { 'n-count': 'yes', [RETIRED]: 'yes' } };
+  const p = ls.proposal(ctx, session);
+  assert.deepEqual(p.master, ['n-count']);
+  assert.equal(p.own, 1);
+  // Without the check (as before the fix) the retired Yes would be written as mastery.
+  assert.deepEqual(ls.proposal({ ...ctx, isCurrent: undefined }, session).master.sort(), ['n-count', RETIRED].sort());
+  assert.equal(session.answers[RETIRED], 'yes', 'the answer itself stays in the session');
+});
+
+test('calendar: "Clear moves" on a new start date keeps a retired topic\'s move', () => {
+  store.moveTopic(SID, 'n-add', TODAY);
+  assert.equal(store.planOverrides(SID).moves['n-add'], TODAY);
+  const before = store.planOverrides(SID).moves;
+  assert.equal(before[RETIRED], TODAY);
+  store.setStartDate(SID, TODAY, { clearMoves: true });
+  assert.deepEqual(store.planOverrides(SID).moves, { [RETIRED]: TODAY });
 });

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { rememberLoads } from '../lib/remembered.mjs';
+import { rememberFailures } from '../lib/remembered.mjs';
 
-test('a loaded value is kept; a failure is remembered for retryMs, then loaded afresh', async () => {
+test('a failure is answered from memory for retryMs, then loaded afresh; a success is not kept', async () => {
   let clock = 0;
   let calls = 0;
   let fail = true;
-  const get = rememberLoads(async (key) => {
+  const get = rememberFailures(async (key) => {
     calls += 1;
     if (fail) throw new Error(`no ${key}`);
     return `${key} list`;
@@ -15,7 +15,7 @@ test('a loaded value is kept; a failure is remembered for retryMs, then loaded a
   await assert.rejects(get('acara-v9'), /no acara-v9/);
   assert.equal(calls, 1);
   // Within five minutes: the same failure, at once, without loading again.
-  clock = 4 * 60_000 + 59_999;
+  clock = 5 * 60_000 - 1;
   await assert.rejects(get('acara-v9'), /no acara-v9/);
   assert.equal(calls, 1);
 
@@ -24,16 +24,15 @@ test('a loaded value is kept; a failure is remembered for retryMs, then loaded a
   clock = 5 * 60_000;
   assert.equal(await get('acara-v9'), 'acara-v9 list');
   assert.equal(calls, 2);
-  // A success is kept for good.
-  clock = 60 * 60_000;
+  // A success is not kept: the next call loads again (the caller caches).
   assert.equal(await get('acara-v9'), 'acara-v9 list');
-  assert.equal(calls, 2);
+  assert.equal(calls, 3);
 });
 
-test('callers waiting on one load share it; keys are separate', async () => {
+test('callers arriving during a load share it; keys are separate', async () => {
   let calls = 0;
   let release;
-  const get = rememberLoads((key) => { calls += 1; return new Promise((resolve) => { release = () => resolve(key); }); }, { retryMs: 1000 });
+  const get = rememberFailures((key) => { calls += 1; return new Promise((resolve) => { release = () => resolve(key); }); }, { retryMs: 1000 });
   const a = get('x');
   const b = get('x');
   assert.equal(a, b);

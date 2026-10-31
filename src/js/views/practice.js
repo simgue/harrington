@@ -1,4 +1,4 @@
-import { subjectMeta } from '../data.js';
+import { SUBJECTS, subjectMeta } from '../data.js';
 import * as store from '../store.js';
 import { el, refreshIcons, toast, openModal } from '../ui.js';
 import { award, XP } from '../game.js';
@@ -63,7 +63,8 @@ function runSession(stage, m, student, items, restart) {
   const render = () => {
     if (i >= items.length) return renderDone();
     const item = items[i];
-    const meta = subjectMeta(item.subject);
+    // An item saved without a subject looks like Mathematics, as before.
+    const meta = item.subject ? subjectMeta(item.subject) : SUBJECTS.Mathematics;
     const isTask = item.type === 'task';
     let given = item.type === 'multiple_choice' ? null : '';
 
