@@ -1,4 +1,4 @@
-import { SUBJECTS } from '../data.js';
+import { subjectMeta } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiChallenge } from '../ai.js';
@@ -12,7 +12,7 @@ const DURATION = 120; // seconds
 export async function openChallenge(topic) {
   const student = store.activeStudent();
   if (!student) { toast('Add a student first', 'error'); return; }
-  const meta = SUBJECTS[topic.subject];
+  const meta = subjectMeta(topic.subject);
   // In the child view: no best score, no running tally, no result numbers.
   const childSafe = store.isChildViewOpen();
 

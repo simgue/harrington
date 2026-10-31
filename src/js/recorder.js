@@ -2,7 +2,7 @@
 import { el, esc, refreshIcons, toast, openModal } from './ui.js';
 import * as store from './store.js';
 import * as backend from './backend.js';
-import { getData, SUBJECTS, topicAge } from './data.js';
+import { getData, topicAge, subjectMeta } from './data.js';
 import { coverageFields } from './daily.js';
 
 // Section id for a topic, matching mastery.js sectionId(): "subject|domain|age".
@@ -283,7 +283,7 @@ export function openRecorder(studentId, topic = null, section = null, options = 
         results.innerHTML = '';
         if (q.length < 2) return;
         d.topics.filter(t => t.name.toLowerCase().includes(q)).slice(0, 6).forEach(t => {
-          const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${esc(SUBJECTS[t.subject]?.color)}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
+          const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${esc(subjectMeta(t.subject)?.color)}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
           r.onclick = () => { hidden.value = t.id; search.value = t.name; results.innerHTML = ''; };
           results.appendChild(r);
         });

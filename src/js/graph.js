@@ -1,15 +1,17 @@
 // Curriculum hierarchy helpers. The browser view and tests share this module
 // so subject → domain → section → topic drill-down stays consistent.
 
-import { SUBJECTS, getData, orderTopics, topicAge } from './data.js';
+import { getData, orderTopics, topicAge, orderedSubjects } from './data.js';
 
-export function buildCurriculumTree(data, subjects = SUBJECTS) {
+// `subjects` (an object keyed by subject) limits and orders the tree; by
+// default it holds every subject with topics, so none is dropped.
+export function buildCurriculumTree(data, subjects = null) {
   const clusterMap = data.clusterMap instanceof Map
     ? data.clusterMap
     : new Map(Object.entries(data.clusterMap || {}));
   const bySubject = data.bySubject || {};
 
-  return Object.keys(subjects).map((subject) => {
+  return (subjects ? Object.keys(subjects) : orderedSubjects(bySubject)).map((subject) => {
     const topics = orderTopics(bySubject[subject] || []);
     const domains = new Map();
     for (const topic of topics) {
@@ -322,10 +324,25 @@ const REALM_PLACES = {
   'Life Skills': { cx: 280, cy: 520, rx: 138, ry: 92, rotate: 7 },
   Computing: { cx: 620, cy: 520, rx: 146, ry: 94, rotate: -8 },
   'Learning to Learn': { cx: 200, cy: 120, rx: 128, ry: 86, rotate: 4 },
+  Geography: { cx: 930, cy: 532, rx: 126, ry: 82, rotate: 6 },
 };
 
-function realmPlace(subject) {
-  return REALM_PLACES[subject] || { cx: 550, cy: 320, rx: 110, ry: 80, rotate: 0 };
+// Small spots in the gaps between the realms above, for subjects a newer
+// taxonomy adds before they get a place of their own: the n-th unknown subject
+// takes the n-th spot (after the last, they start again lower down).
+const SPARE_PLACES = [
+  { cx: 395, cy: 215, rx: 72, ry: 48, rotate: 0 },
+  { cx: 715, cy: 225, rx: 72, ry: 48, rotate: 0 },
+  { cx: 410, cy: 425, rx: 72, ry: 48, rotate: 0 },
+  { cx: 745, cy: 425, rx: 72, ry: 48, rotate: 0 },
+  { cx: 1010, cy: 70, rx: 72, ry: 48, rotate: 0 },
+  { cx: 80, cy: 590, rx: 64, ry: 40, rotate: 0 },
+];
+
+function realmPlace(subject, spare = 0) {
+  if (REALM_PLACES[subject]) return REALM_PLACES[subject];
+  const place = SPARE_PLACES[spare % SPARE_PLACES.length];
+  return { ...place, cy: place.cy + 18 * Math.floor(spare / SPARE_PLACES.length) };
 }
 
 function realmBlobPath(cx, cy, rx, ry, rotate = 0) {
@@ -366,8 +383,9 @@ function domainClusterPoints(cx, cy, rx, ry, count) {
 }
 
 export function buildWorldMap(tree) {
+  let spare = 0;
   const realms = (tree || []).map((node) => {
-    const place = realmPlace(node.subject);
+    const place = realmPlace(node.subject, REALM_PLACES[node.subject] ? 0 : spare++);
     const clusters = domainClusterPoints(place.cx, place.cy, place.rx, place.ry, node.domains.length)
       .map((point, index) => ({
         kind: 'domain-cluster',

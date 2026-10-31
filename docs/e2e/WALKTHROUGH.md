@@ -106,7 +106,7 @@ learners; switch; the active learner survives a reload; remove asks first
 (`data-safety.spec.mjs`). Placement from a subject card and from the learner
 menu, area and age filters, prerequisites on and off (fewer topics, with a
 warning), the toast count matches the saved progress, every entry is tagged
-`source: 'placement'`, and **Undo placement** returns Mathematics to 0/503.
+`source: 'placement'`, and **Undo placement** returns Mathematics to 0/576.
 Editing: the form opens filled in, a December birth month makes a 6-year-old
 5 on 7 October, the new name and month reach the server and show in the hero
 and the menu ("born December 2020").
@@ -231,7 +231,7 @@ Only a salted hash of the PIN is saved (`settings.parentPinHash` and
 **Purpose.** The connected curriculum as a map (Visual) or as lists (List).
 **How to reach it.** Map in the navigation, or "Open map" on the dashboard.
 
-The **world map** shows eight subject realms sized by topic count, with dots
+The **world map** shows nine subject realms sized by topic count, with dots
 for their domains and a quiet tint for mastery. Clicking (or pressing Enter
 on) a realm or a dot opens that domain's **skill tree**.
 
@@ -260,7 +260,7 @@ prerequisites. The Visual/List choice is saved with the family.
 | --- | --- | --- |
 | ![List subjects](screenshots/map/05-list-subjects.jpg) | ![Age bands](screenshots/map/06-list-domain-age-bands.jpg) | ![Section topics](screenshots/map/07-list-section-topics.jpg) |
 
-**What the tests assert** (`map.spec.mjs`): eight realms with domain counts,
+**What the tests assert** (`map.spec.mjs`): nine realms with domain counts,
 mouse and keyboard; legend; node states; a locked node explains its
 foundations, highlights the blocker and cannot be marked; Record evidence
 saves a linked record; Mark as learning turns the node into a bud and shows on
@@ -501,7 +501,7 @@ pitch a domain harder appear at the top, with a banner on the dashboard.
 | --- | --- | --- |
 | ![Review](screenshots/insights/02-insights-progress-review.jpg) | ![Final](screenshots/insights/03-final-test-passed.jpg) | ![Suggestion](screenshots/insights/04-adaptive-suggestion.jpg) |
 
-**What the tests assert** (`insights.spec.mjs`): the eight chips; counts that
+**What the tests assert** (`insights.spec.mjs`): the nine chips; counts that
 match seeded progress; a recommendation opens its topic; the final test is
 locked, then unlocks when every Mathematics section is passed, passes, and
 offers "Mark all Mathematics topics as mastered" (100% afterwards) and a

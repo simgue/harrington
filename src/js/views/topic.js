@@ -1,4 +1,5 @@
-import { SUBJECTS, getData } from '../data.js';
+import { getData, isCurrentTopic, subjectMeta } from '../data.js';
+import { retiredName, retiredTopics } from '../retired.js';
 import { graphParamsForTopic } from './graph.js';
 import * as store from '../store.js';
 import { growthChip, growthIcon, stageForStatus } from '../meadow.js';
@@ -24,9 +25,9 @@ export function renderTopic(params, { navigate }) {
   const active = store.activeStudent();
 
   const root = el(`<div class="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-up"></div>`);
-  if (!t) { root.appendChild(el(`<p class="text-ink-soft">Topic not found.</p>`)); return root; }
+  if (!t) { root.appendChild(missingTopic(params.id, navigate)); return root; }
 
-  const meta = SUBJECTS[t.subject];
+  const meta = subjectMeta(t.subject);
   const status = active ? store.statusOf(active.id, t.id) : 'none';
   const unlocked = active ? isUnlocked(active.id, t.id) : true;
   const blocking = active ? blockingPrereqs(active.id, t.id) : [];
@@ -90,8 +91,8 @@ export function renderTopic(params, { navigate }) {
 
   // Two column layout
   const grid = el(`<div class="grid lg:grid-cols-3 gap-5"></div>`);
-  const mainCol = el(`<div class="lg:col-span-2 space-y-5"></div>`);
-  const sideCol = el(`<div class="space-y-5"></div>`);
+  const mainCol = el(`<div class="lg:col-span-2 space-y-5 min-w-0"></div>`);
+  const sideCol = el(`<div class="space-y-5 min-w-0"></div>`);
 
   // --- See how it works (HAR-34): an interactive figure, for the topics that have one ---
   const figure = howItWorksFrame(t);
@@ -161,7 +162,7 @@ function section(icon, title, contentEl, extra = '') {
 }
 
 function masterySection(t, student) {
-  const meta = SUBJECTS[t.subject];
+  const meta = subjectMeta(t.subject);
   const body = el(`<div></div>`);
   if (!student) {
     body.appendChild(el(`<p class="text-sm text-ink-faint">Add a student to track mastery.</p>`));
@@ -231,7 +232,7 @@ function statusControl(t, student, unlocked) {
 }
 
 function sectionCheckSection(t, student) {
-  const meta = SUBJECTS[t.subject];
+  const meta = subjectMeta(t.subject);
   const sec = sectionForTopic(t);
   const body = el(`<div></div>`);
   if (!sec) {
@@ -303,7 +304,7 @@ function recordingItem(r) {
 
 function connectionsSection(t, student, navigate) {
   const d = getData();
-  const meta = SUBJECTS[t.subject];
+  const meta = subjectMeta(t.subject);
   const prereqs = d.prereqsOf.get(t.id) || [];
   const unlocks = d.unlocksOf.get(t.id) || [];
   const body = el(`<div></div>`);
@@ -501,3 +502,28 @@ function recordItem(r) {
   return item;
 }
 
+
+// A topic id the curriculum does not have. If a learner's data mentions it, a
+// taxonomy update retired it: say so, with the name the data kept, and point
+// to Records, where what was recorded for it is still listed.
+function missingTopic(id, navigate) {
+  // The active learner's data first, then the others in roster order.
+  const active = store.activeStudent();
+  const learners = [active, ...store.get().students.filter(s => s !== active)].filter(Boolean);
+  const holder = learners.find(s => retiredTopics(store.get(), s.id, isCurrentTopic).some(r => r.id === id));
+  const retired = holder && retiredTopics(store.get(), holder.id, isCurrentTopic).find(r => r.id === id);
+  if (!retired) return el(`<p class="text-ink-soft">Topic not found. It may have been removed from the curriculum in an update.</p>`);
+  const box = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 max-w-xl">
+    <p class="text-xs text-ink-faint flex items-center gap-1.5 mb-1"><i data-lucide="archive" class="w-3.5 h-3.5"></i>Archived topic</p>
+    <h1 class="font-display text-2xl font-600 break-words">${esc(retiredName(retired))}</h1>
+    <p class="text-sm text-ink-soft mt-2 leading-relaxed">This topic is no longer in the curriculum. A curriculum update retired it. What you recorded for it is kept and listed in Records; it no longer counts toward progress or daily choices.</p>
+    <button class="mt-4 px-3.5 py-2.5 rounded-xl border border-brand/30 text-sm font-medium text-brand-dark hover:border-brand">Open Records</button>
+  </div>`);
+  // Records shows one learner: open the one whose data holds this topic.
+  box.querySelector('button').onclick = () => {
+    if (holder.id !== active?.id) store.setActiveStudent(holder.id);
+    navigate('records');
+  };
+  refreshIcons();
+  return box;
+}

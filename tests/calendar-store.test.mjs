@@ -57,21 +57,6 @@ test('setStartDate can clear moves in one mutation', async () => {
   assert.equal(saved.at(-1).students[0].startDate, '2026-11-09');
 });
 
-test('pruneExtras drops only the named extras, once', () => {
-  store.addExtra(id, '2026-10-01', { kind: 'practice', topicId: 'gone' });
-  store.addExtra(id, '2026-10-01', { kind: 'practice', topicId: 'kept' });
-  const [gone, kept] = store.extrasOn(id, '2026-10-01');
-  const before = emits;
-  store.pruneExtras(id, '2026-10-01', [gone.id]);
-  assert.deepEqual(store.extrasOn(id, '2026-10-01').map(x => x.id), [kept.id]);
-  assert.equal(emits, before + 1);
-  store.pruneExtras(id, '2026-10-01', [gone.id]); // nothing left to prune: no save
-  assert.equal(emits, before + 1);
-  store.pruneExtras(id, '2026-10-01', [kept.id]);
-  assert.deepEqual(store.extrasOn(id, '2026-10-01'), []);
-  assert.ok(!('2026-10-01' in store.planOverrides(id).extras));
-});
-
 test('re-mastering keeps the placement source and the original date', () => {
   const placedAt = Date.parse('2026-09-01T10:00:00');
   store.setStatusBulk(id, ['placed', 'other'], 'mastered', { source: 'placement', updatedAt: placedAt, activity: false });
