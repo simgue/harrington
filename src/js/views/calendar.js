@@ -277,7 +277,8 @@ function paceBar(active, startKey, navigate) {
 
 function extraRow(x, active, navigate) {
   const d = getData();
-  const meta = subjectMeta(x.subject);
+  // An extra saved without a subject keeps its neutral look.
+  const meta = x.subject ? subjectMeta(x.subject) : { color: '#6f665a', icon: 'plus' };
   const kindMeta = {
     lesson: { icon: 'notebook-text', label: 'Extra lesson' },
     retest: { icon: 'file-check-2', label: 'Re-test' },

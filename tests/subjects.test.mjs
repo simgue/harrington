@@ -43,3 +43,17 @@ test('the calendar track schedules topics in an unknown subject', () => {
   const plan = planTrack(topics, { startKey: '2026-10-07', age: 6 });
   assert.deepEqual([...plan.topicDate.keys()].sort(), ['a1', 'g1', 'm1']);
 });
+
+test('no subject is not an unknown one: no warning', (t) => {
+  const warn = t.mock.method(console, 'warn', () => {});
+  for (const empty of [null, undefined, '']) assert.equal(subjectMeta(empty).color, '#6f665a');
+  assert.equal(warn.mock.callCount(), 0);
+});
+
+test('views keep their own look for an item with no subject', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const src = (f) => readFile(new URL(`../src/js/views/${f}`, import.meta.url), 'utf8');
+  assert.match(await src('recordings.js'), /g\.subject \? subjectMeta\(g\.subject\) : \{ color: '#6f665a', icon: 'folder' \}/);
+  assert.match(await src('practice.js'), /item\.subject \? subjectMeta\(item\.subject\) : SUBJECTS\.Mathematics/);
+  assert.match(await src('calendar.js'), /x\.subject \? subjectMeta\(x\.subject\) : \{ color: '#6f665a', icon: 'plus' \}/);
+});
