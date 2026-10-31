@@ -1796,12 +1796,6 @@ export function retrySaveCached(id) {
 // Saved entries under the given prefixes, newest first, that pass their
 // kind's validator (each is read once and kept for this session, so opening
 // it makes no further request). At most `limit`; [] when the listing fails.
-// Every saved lesson, Print & go and recall cache key on the server, unchecked
-// (Records' archived topics look for keys of retired topics). Never throws.
-export async function lessonKeys() {
-  try { return (await Promise.all(['topic:', 'print:', 'recall:'].map(p => backend.listLessons(p, 200)))).flat().map(e => e?.key).filter(k => typeof k === 'string'); }
-  catch { return []; }
-}
 export async function savedLessons(prefixes, limit = 8) {
   let listed;
   // A few more than `limit`, since entries that fail their validator are skipped.

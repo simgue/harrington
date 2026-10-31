@@ -57,3 +57,12 @@ test('views keep their own look for an item with no subject', async () => {
   assert.match(await src('practice.js'), /item\.subject \? subjectMeta\(item\.subject\) : SUBJECTS\.Mathematics/);
   assert.match(await src('calendar.js'), /x\.subject \? subjectMeta\(x\.subject\) : \{ color: '#6f665a', icon: 'plus' \}/);
 });
+
+test('the world map gives each unknown subject its own spot', async () => {
+  const { buildWorldMap } = await import('../src/js/graph.js');
+  const node = (subject) => ({ subject, topics: [], domains: [{ domain: 'D', topics: [] }] });
+  const scene = buildWorldMap(['Mathematics', 'Astronomy', 'Zoology', 'Geography'].map(node));
+  const at = Object.fromEntries(scene.realms.map((r) => [r.subject, `${r.cx},${r.cy}`]));
+  assert.notEqual(at.Astronomy, at.Zoology);
+  assert.equal(new Set(Object.values(at)).size, 4);
+});

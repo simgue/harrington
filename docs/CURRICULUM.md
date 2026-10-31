@@ -143,9 +143,9 @@ A revision can drop a topic id. The 2026-10-24 revision retired one:
 `mt_3XJkeIn6J6` (Mathematics / Measurement, "Estimating answers (age 7+)"),
 with no recorded replacement.
 
-A family document may still hold mastery, practice, recall, lesson-cache,
-calendar, daily-offer, workbook or request entries for such an id. Harrington's
-rule:
+A family document may still hold mastery, test, practice, recall, calendar,
+daily-offer, workbook or request entries for such an id, and the server's
+lesson cache may hold a saved lesson for it. Harrington's rule:
 
 - **Keep the data.** Nothing is deleted, and load, import and save never refuse
   a document for it. An export still carries it.
@@ -153,11 +153,15 @@ rule:
   recommendations, daily choices, the calendar track, recall and practice due
   counts and the bell skip it. Its recall cards and practice questions keep
   their schedule but are never due.
-- **Show it.** Records lists it under **Archived topics**, with the name the
-  family's data stored for it (from a record or calendar entry), else its id,
-  and what is kept. Its old topic page says "This topic is no longer in the
-  curriculum" and links to Records. An id no learner's data mentions is still
-  "Topic not found".
+- **Show it.** Records lists it under **Archived topics** for each learner
+  whose data mentions it, with the name that data stored for it (from a
+  record or calendar entry), else its id, and what is kept. A saved lesson
+  alone does not make a row: the lesson cache is family-wide and stays on the
+  server untouched. A workbook Yes on it is never written as mastery; a
+  calendar move of it is kept when "Clear moves" clears the others. Its old
+  topic page says "This topic is no longer in the curriculum" and opens the
+  Records of the learner whose data holds it. An id no learner's data
+  mentions is still "Topic not found".
 
 If a later revision brings the id back, everything reappears as it was.
 

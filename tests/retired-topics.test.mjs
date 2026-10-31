@@ -72,7 +72,7 @@ const mastery = await import('../src/js/mastery.js');
 const ls = await import('../src/js/levelset.js');
 const { planTrack, masteredBeforeTrack } = await import('../src/js/scheduler.js');
 const { picksStillOpen } = await import('../src/js/alerts.js');
-const { retiredTopics, withRetiredLessons, heldLabel, retiredName } = await import('../src/js/retired.js');
+const { retiredTopics, heldLabel, retiredName } = await import('../src/js/retired.js');
 
 await loadTaxonomy();
 await store.connect();
@@ -90,8 +90,6 @@ test('retired.js walks every kind of learner data and keeps the stored name', ()
   assert.equal(found.name, RETIRED_NAME);
   assert.deepEqual(found.held, { mastered: 1, record: 1, test: 1, recall: 1, practice: 1, calendar: 2, daily: 1, request: 1, levelset: 1 });
   assert.equal(heldLabel(found.held), 'mastered · 1 record · 1 test result · 1 recall card · 1 practice question · 2 calendar entries · 1 daily offer · 1 topic request · 1 workbook answer');
-  const withLessons = withRetiredLessons([found], [`recall:${RETIRED}`, 'topic:n-count', 'topic:mt_goneLesson'], isCurrentTopic);
-  assert.deepEqual(withLessons.map((t) => [retiredName(t), t.held.lesson]), [[RETIRED_NAME, 1], ['mt_goneLesson', 1]]);
 });
 
 test('retired.js: no stored name falls back to the id; malformed sections are skipped', () => {
