@@ -22,7 +22,8 @@ const LANE_LABELS = { literacy: 'literacy', numeracy: 'numeracy' };
 // (a) Today is a home day, it is 15:00 or later, and a daily lane is still
 // unpicked. A lane whose offers were built empty (nothing to choose) is not open.
 // `day` is the learner's daily entry for today: { offers, picks } or null.
-export function picksStillOpen({ now, student, day, calendar }) {
+// An offer of a retired topic (isCurrent false) is not shown, so not counted.
+export function picksStillOpen({ now, student, day, calendar, isCurrent = () => true }) {
   const date = new Date(now);
   if (date.getHours() < PICKS_DUE_HOUR) return null;
   const today = keyOf(date);
@@ -31,7 +32,7 @@ export function picksStillOpen({ now, student, day, calendar }) {
   const open = Object.keys(LANE_LABELS).filter(lane => {
     if (day?.picks?.[lane]) return false;
     const offers = day?.offers?.[lane];
-    return !Array.isArray(offers) || offers.length > 0;
+    return !Array.isArray(offers) || offers.some(isCurrent);
   });
   if (!open.length) return null;
   const lanes = open.map(l => LANE_LABELS[l]).join(' or ');
@@ -130,11 +131,11 @@ function isDismissed(item, dismissed, now) {
 }
 
 // Every live item, family-wide ones first, then each learner's in roster order.
-export function buildAlerts({ now, students = [], daily = {}, records = {}, calendar = null, backupAgeDays, dismissed = {}, welcomed = false, notices = [] }) {
+export function buildAlerts({ now, students = [], daily = {}, records = {}, calendar = null, backupAgeDays, dismissed = {}, welcomed = false, notices = [], isCurrent }) {
   const items = [...repairNotices({ notices }), welcome({ welcomed }), backupOverdue({ backupAgeDays })];
   const today = keyOf(new Date(now));
   for (const student of students) {
-    items.push(picksStillOpen({ now, student, day: daily[student.id]?.[today] || null, calendar }));
+    items.push(picksStillOpen({ now, student, day: daily[student.id]?.[today] || null, calendar, isCurrent }));
     items.push(noRecentEvidence({ now, student, records: records[student.id] }));
   }
   return items.filter(item => item && !isDismissed(item, dismissed, now));

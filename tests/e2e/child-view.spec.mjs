@@ -40,7 +40,7 @@ test('opens score-free with picks, four big buttons, garden; the parent shell is
 
   const garden = view.locator('section[aria-labelledby="garden-h"]');
   await expect(garden.getByRole('heading', { name: 'My garden' })).toBeVisible();
-  await expect(garden.locator(':scope > div > div')).toHaveCount(8);
+  await expect(garden.locator(':scope > div > div')).toHaveCount(9); // one bed per subject
   await expect(garden).toContainText('Sprouting');
   await expect(garden).toContainText('Planted');
   await shot('child-view', { full: false });

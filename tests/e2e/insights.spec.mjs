@@ -31,7 +31,7 @@ test('subject chips, stats, recommended next and a locked final test', async ({ 
   });
   await nav(page, 'Insights').click();
   await expect(page.getByRole('heading', { name: 'Teacher Insights' })).toBeVisible();
-  for (const subject of ['Mathematics', 'English', 'Science', 'History', 'Personal & Social Development', 'Life Skills', 'Computing', 'Learning to Learn']) {
+  for (const subject of ['Mathematics', 'English', 'Science', 'History', 'Personal & Social Development', 'Life Skills', 'Computing', 'Learning to Learn', 'Geography']) {
     await expect(page.getByRole('button', { name: subject, exact: true })).toBeVisible();
   }
   const summary = page.locator('div.rounded-2xl', { has: page.getByRole('heading', { name: 'Mathematics', exact: true }) });
@@ -40,7 +40,7 @@ test('subject chips, stats, recommended next and a locked final test', async ({ 
   await expect(box('Mastered')).toContainText('1');
   await expect(box('Practicing')).toContainText('1');
   await expect(box('Learning')).toContainText('1');
-  await expect(box('Not started')).toContainText('500');
+  await expect(box('Not started')).toContainText('573');
 
   const finalTest = page.locator('div.rounded-2xl', { has: page.getByRole('heading', { name: 'Final Mathematics mastery test' }) });
   await expect(finalTest.getByRole('button', { name: 'Locked' })).toBeDisabled();

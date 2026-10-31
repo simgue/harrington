@@ -27,8 +27,12 @@ npm run e2e
 | `npx playwright show-report` | Opens the last HTML report, with traces for failed tests. |
 | `npm run e2e:mock-ai` | Starts only the mock AI provider on port 4311, handy for poking the app by hand. |
 
-The first run downloads the Marble taxonomy (about 2.4 MB) into
-`tests/e2e/.cache/taxonomy-<revision>/`. Later runs are offline.
+The first run downloads the Marble taxonomy into
+`tests/e2e/.cache/taxonomy-<revision>/`: the curriculum files (about 3.1 MB)
+and the 23.5 MB `teaching-research.json` behind the teaching guides, each
+checked against the SHA-256s in `lib/taxonomy-pin.mjs`. Later runs are
+offline. Each app server splits the research into per-topic files on the
+first topic-list request (a second or two).
 
 A full run takes about seven minutes: the tests share one server
 per project and reset the family state before each test, so they run one at a
@@ -59,18 +63,19 @@ before `globalSetup`, so the taxonomy download happens in the launcher;
 `tests/e2e/global-setup.mjs` then checks that each server is the one the
 projects expect and clears the mock's request log.
 
-**Taxonomy revision.** The specs assume one exact curriculum (1,590 topics,
-fixed topic ids), so the suite downloads the taxonomy at a pinned commit,
-`TAXONOMY_REVISION` in `tests/e2e/support/taxonomy.mjs`, never mutable `main`.
-The local cache directory and the CI cache key both follow the pin. To move to
-a newer taxonomy, change the pin, run `npm run e2e:ui-docs` and fix what the
-specs assumed.
+**Taxonomy revision.** The specs assume one exact curriculum (1,845 topics,
+fixed topic ids), so the suite downloads the taxonomy at the commit pinned in
+`lib/taxonomy-pin.mjs`, the same pin the server uses, and checks each file's
+SHA-256 (a cached file that does not match is fetched again). The local cache
+directory (`tests/e2e/.cache/taxonomy-<commit>/`) and the CI cache key both
+follow the pin. To move to a newer taxonomy, follow
+[docs/CURRICULUM.md](../CURRICULUM.md#bumping-the-pin).
 
-**Taxonomy upstream.** The server's default upstream, jsDelivr, is blocked on
-some networks. The launcher probes it (at the pinned revision) and falls back
-to `raw.githubusercontent.com`, which serves the same files, and passes the
-choice to the server as `HARRINGTON_TAXONOMY_UPSTREAM`. Set that variable
-yourself to force one.
+**Taxonomy upstream.** The suite downloads from `raw.githubusercontent.com` at
+the pinned commit (jsDelivr is blocked on some networks) and passes that URL to
+each server as `HARRINGTON_TAXONOMY_UPSTREAM`, which the server treats as the
+pin itself. Set the variable yourself to force another upstream; the server
+then skips the hash check and says so.
 
 ## Projects
 
@@ -82,7 +87,7 @@ yourself to force one.
 | `ai-unreachable` | 1280×900 | `ai-unreachable.spec.mjs` | a provider that is down: the "couldn't reach" copy and Try again |
 | `settings` | 1280×900 | `settings.spec.mjs` | Settings > AI provider: save, test and remove a provider, with the key never in a response |
 | `lessons-only` | 1280×900 | `lessons-only.spec.mjs` | only lessons switched on: the "Not switched on yet" chip, a live lesson, cached content still opening |
-| `mobile` | 390×844, touch | `mobile.spec.mjs`, and the `calendar.spec.mjs` tests tagged `@mobile` | asserts no horizontal overflow on every route; the tagged calendar tests run here and in `desktop` |
+| `mobile` | 390×844, touch | `mobile.spec.mjs`, and the `calendar.spec.mjs` and `teaching-guide.spec.mjs` tests tagged `@mobile` | asserts no horizontal overflow on every route; the tagged calendar tests run here and in `desktop` |
 | `walkthrough` | 1280×900 | `walkthrough.spec.mjs` | video on: parent and child walkthroughs |
 | `walkthrough-mobile` | 390×844 | `walkthrough-mobile.spec.mjs` | video on: phone walkthrough |
 
@@ -105,7 +110,7 @@ recording's length, recall cards coming due tomorrow) moves the fixed time on.
 | `E2E_PORT_BASE` | `4310` | Ports are base+1 (mock AI), base+2 (app with AI), base+3 (app without AI), base+4 (app with an unreachable AI), base+6 (app with an access token) and base+9 (kept free as that unreachable AI). |
 | `E2E_SCREENSHOTS` | on | Set to `0` to skip writing screenshots. |
 | `E2E_VIDEO` | unset | `all` records every test, not just the walkthroughs (`e2e:ui-docs` sets it). |
-| `HARRINGTON_TAXONOMY_UPSTREAM` | probed | Where the launcher downloads the taxonomy from on the first run. |
+| `HARRINGTON_TAXONOMY_UPSTREAM` | the pinned commit on raw.githubusercontent.com | Where the launcher downloads the taxonomy from on the first run, and what each server is given. Another value makes the servers treat it as a custom upstream (unchecked, cached separately), and the specs that assert `taxonomy: 'verified'` fail. |
 | `CI` | unset | On CI, `test.only` fails the run. |
 
 The suite never reuses a server that is already listening on its ports: every

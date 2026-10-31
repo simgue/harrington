@@ -34,7 +34,7 @@ export const features = () => [
     icon: 'map', color: '#3f6b3b',
     title: 'Map',
     tagline: 'The connected curriculum',
-    body: `The <b>world map</b> shows the eight subject realms. Enter a domain to see its <b>skill tree</b>: required and helpful foundations, what each topic unlocks, and a quest log for the selected topic. Prefer text? Switch to the <b>list</b> and drill from subject to domain to age band to topic.`,
+    body: `The <b>world map</b> shows the nine subject realms. Enter a domain to see its <b>skill tree</b>: required and helpful foundations, what each topic unlocks, and a quest log for the selected topic. Prefer text? Switch to the <b>list</b> and drill from subject to domain to age band to topic.`,
   },
   {
     icon: 'flower-2', color: '#a4473a',
@@ -172,11 +172,12 @@ export const guideSections = () => [
   ]},
   { h: 'The curriculum (from the Marble Skill Taxonomy)', items: [
     ['Source', 'The curriculum comes from the open-source Marble Skill Taxonomy (github.com/withmarbleapp/os-taxonomy).'],
-    ['Scale', 'About 1,590 topics joined by about 3,221 prerequisite links, across 8 subjects: Mathematics, English, Science, History, Personal & Social Development, Life Skills, Computing, and Learning to Learn.'],
+    ['Scale', 'About 1,845 topics joined by about 3,941 prerequisite links, across 9 subjects: Mathematics, English, Science, History, Geography, Personal & Social Development, Life Skills, Computing, and Learning to Learn.'],
     ['Each topic includes', 'A plain-language description, an approximate age range, “evidence of mastery” criteria, a quick-check prompt, and links to the curriculum standards it aligns to.'],
     ['Prerequisites', 'Topics are linked by “depends on” connections, each tagged required or helpful. Harrington shows these exactly as the source data has them.'],
     ['Downloaded once', `The Harrington server downloads the curriculum the first time it starts (this needs the internet) and keeps it ${storedOn()}. It does not update on its own.`],
     ['Licensing', 'Marble Skill Taxonomy (v1) © Generative Spark, Inc., licensed under ODbL 1.0 (database) and CC BY-SA 4.0 (content).'],
+    ['Teaching guides', 'From the Marble Skill Taxonomy teaching research · © Generative Spark, Inc. (Marble) · CC BY-SA 4.0 (github.com/withmarbleapp/os-taxonomy, creativecommons.org/licenses/by-sa/4.0). Shown as published; any edit Harrington makes to the text would be marked.'],
   ]},
   { h: 'Getting started', items: [
     ['Start Harrington', authEnabled()
@@ -200,7 +201,7 @@ export const guideSections = () => [
     ['Activity buttons', `Plant something new, Memory walk and Beat the clock open a test, recall cards or a challenge. ${NEEDS_AI}`],
   ]},
   { h: 'Map', items: [
-    ['World map', 'The eight subjects as realms, with their domains as dots sized by topic count. Mastery is shown as a quiet tint, not a percentage.'],
+    ['World map', 'The nine subjects as realms, with their domains as dots sized by topic count. Mastery is shown as a quiet tint, not a percentage.'],
     ['Skill tree', 'Enter a domain to see its topics as a tree with required and helpful links, and links to gateway domains.'],
     ['Quest log', 'Select a topic to see the foundations it needs, what it unlocks, and buttons to open the topic page, record evidence, or mark it as learning. “Open full lesson” needs AI.'],
     ['List', 'Prefer text? Switch to the list and drill from subject to domain to age band to topic.'],
@@ -213,6 +214,7 @@ export const guideSections = () => [
   ]},
   { h: 'Topic page', items: [
     ['Works today', 'Description, what mastery looks like, a quick-check prompt, how the topic connects, records for the topic, activity ideas, reference links and manual status.'],
+    ['Teaching guide', 'Works without AI. Many Mathematics and Science topics have a guide from Marble’s teaching research: a summary, activities with steps and what to say after a wrong turn, and a way to check understanding. Each guide ends with Marble’s own note: “Agent-authored teaching research and proposed learning activities; not empirically validated interventions.” Without an AI provider, “Open the teaching guide” comes first wherever a lesson would need one.'],
     ['See how it works', 'Some Science topics for ages 5 to 8 have a figure your child can press: parts move and their labels light up as they work. It works offline and saves nothing. It is in the child view too.'],
     ['Check by observation', 'Works without AI. Ask the suggested question or watch your child at work, then tick each piece of evidence you see; add a typed or voice note if you like. Every item ticked marks the topic mastered, just like passing a quiz. Fewer ticks are kept in Records and change nothing. A section passes once every topic in it has passed a quiz or an observation check (topics marked by placement or by hand do not count), and the last section passes the subject. Records and Insights label these “observed”; your child’s view never shows them.'],
     ['Reference links', 'Khan Academy, BBC Bitesize and Wikipedia searches, plus YouTube searches. YouTube results are not filtered for children, so supervise.'],
@@ -228,6 +230,7 @@ export const guideSections = () => [
   ]},
   { h: 'Records and recordings', items: [
     ['Records', 'Log observations, questions, discussions or assessments, optionally linked to a topic, with notes and a confidence rating. Filter by type.'],
+    ['Archived topics', 'When a curriculum update retires a topic you had worked on, nothing you recorded is lost: Records lists it as an archived topic with what is kept, and it no longer counts toward progress or daily choices.'],
     ['Voice recording', `Record a conversation from the dashboard, a topic page, or the child view. Audio is saved ${storedOn()} and plays back inline.`],
     ['Live transcript', SPEECH_NOTE],
     ['Recordings folder', 'Every recording, grouped by section or topic, with playback and transcript. Recordings without either sit under "Not linked to a section".'],
@@ -282,7 +285,7 @@ function downloadGuide() {
     <div class="brand"><span class="logo">H</span><span style="font-size:20px;font-weight:700">Harrington</span></div>
     <h1>Complete Feature Guide</h1>
     <div class="sub">A self-hosted family learning platform &middot; Generated ${date}</div>
-    <div class="intro">Harrington shows the open Marble Skill Taxonomy (about 1,590 connected topics across 8 subjects) as a map for parents, offers small daily choices, and keeps a record of what your child actually did. Features marked “Needs a local AI provider” stay off until you configure one; see the README.</div>
+    <div class="intro">Harrington shows the open Marble Skill Taxonomy (about 1,845 connected topics across 9 subjects) as a map for parents, offers small daily choices, and keeps a record of what your child actually did. Features marked “Needs a local AI provider” stay off until you configure one; see the README.</div>
     ${sections}
     <footer>Curriculum: Marble Skill Taxonomy (v1) &middot; © Generative Spark, Inc. &middot; licensed under ODbL 1.0 (database) and CC BY-SA 4.0 (content). Tip: in the print dialog, choose “Save as PDF” as the destination to download this guide.</footer>
     <script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script>

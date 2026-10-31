@@ -1,41 +1,27 @@
 // Fetches the Marble taxonomy once into tests/e2e/.cache/taxonomy (git-ignored)
 // so every e2e run after the first starts its servers without the network.
 //
-// The server's default upstream is jsDelivr. Some networks (including the
-// sandbox this suite was written in) block it, so we probe it first and fall
-// back to raw.githubusercontent.com, which serves the same files.
-import { mkdir, rename, stat, writeFile } from 'node:fs/promises';
+// The specs assume one exact curriculum (fixed counts and topic ids), so the
+// suite downloads the commit pinned in lib/taxonomy-pin.mjs, the same pin the
+// server uses, and checks every file against the SHA-256 recorded there. To
+// move to a newer taxonomy, follow docs/CURRICULUM.md. The cache directory and
+// the CI cache key both follow the revision.
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { TAXONOMY_PIN, sha256Hex } from '../../../lib/taxonomy-pin.mjs';
 
-export const TAXONOMY_FILES = ['topics.json', 'dependencies.json', 'clusters.json', 'manifest.json'];
-// The specs assume one exact curriculum (1,590 topics, fixed topic ids), so the
-// suite downloads a pinned commit of the taxonomy rather than mutable `main`.
-// To move to a newer taxonomy: update this, run `npm run e2e:ui-docs`, and fix
-// whatever the specs assumed. The cache directory and the CI cache key both
-// follow the revision.
-export const TAXONOMY_REVISION = '96a7933754af672e1bfdbf7ecb05c325860c6e0d';
-export const JSDELIVR_UPSTREAM = `https://cdn.jsdelivr.net/gh/withmarbleapp/os-taxonomy@${TAXONOMY_REVISION}/data`;
-export const GITHUB_RAW_UPSTREAM = `https://raw.githubusercontent.com/withmarbleapp/os-taxonomy/${TAXONOMY_REVISION}/data`;
+export const TAXONOMY_FILES = Object.keys(TAXONOMY_PIN.files);
+export const TAXONOMY_REVISION = TAXONOMY_PIN.revision;
+// raw.githubusercontent.com: jsDelivr is blocked on some networks, including
+// the sandbox this suite was written in.
+export const GITHUB_RAW_UPSTREAM = TAXONOMY_PIN.upstream;
 export const CACHE_DIR = fileURLToPath(new URL(`../.cache/taxonomy-${TAXONOMY_REVISION.slice(0, 12)}/`, import.meta.url));
 
-async function reachable(upstream) {
-  try {
-    const res = await fetch(`${upstream}/manifest.json`, { signal: AbortSignal.timeout(8000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 // The upstream the app server should use: an explicit HARRINGTON_TAXONOMY_UPSTREAM
-// wins, then jsDelivr if it answers, then GitHub raw.
-let detected = null;
+// wins, then the pinned one.
 export async function detectUpstream() {
-  if (process.env.HARRINGTON_TAXONOMY_UPSTREAM) return process.env.HARRINGTON_TAXONOMY_UPSTREAM;
-  if (detected) return detected;
-  detected = (await reachable(JSDELIVR_UPSTREAM)) ? JSDELIVR_UPSTREAM : GITHUB_RAW_UPSTREAM;
-  return detected;
+  return process.env.HARRINGTON_TAXONOMY_UPSTREAM || GITHUB_RAW_UPSTREAM;
 }
 
 async function exists(path) {
@@ -49,10 +35,19 @@ export async function cacheIsComplete() {
   return true;
 }
 
-// Download any missing file. Two launchers can call this at once, so each
-// writes to its own temp file and renames it into place.
+// Download any missing file and check its hash. A cached file that does not
+// match the pin (a half-written or tampered copy) is removed and fetched again.
+// Two launchers can call this at once, so each writes to its own temp file and
+// renames it into place.
 export async function ensureTaxonomyCache({ log = () => {} } = {}) {
   await mkdir(CACHE_DIR, { recursive: true });
+  for (const name of TAXONOMY_FILES) {
+    const target = join(CACHE_DIR, name);
+    if ((await exists(target)) && (await sha256Hex(await readFile(target))) !== TAXONOMY_PIN.files[name]) {
+      log(`Cached taxonomy ${name} does not match the pin; fetching it again`);
+      await rm(target, { force: true });
+    }
+  }
   if (await cacheIsComplete()) return { upstream: null, downloaded: [] };
   const upstream = await detectUpstream();
   const downloaded = [];
@@ -62,8 +57,13 @@ export async function ensureTaxonomyCache({ log = () => {} } = {}) {
     log(`Downloading taxonomy ${name} from ${upstream}`);
     const res = await fetch(`${upstream}/${name}`, { signal: AbortSignal.timeout(60_000) });
     if (!res.ok) throw new Error(`Could not download ${name} from ${upstream} (${res.status})`);
+    const body = Buffer.from(await res.arrayBuffer());
+    const actual = await sha256Hex(body);
+    if (actual !== TAXONOMY_PIN.files[name]) {
+      throw new Error(`Taxonomy ${name} from ${upstream} has SHA-256 ${actual}, expected ${TAXONOMY_PIN.files[name]} (lib/taxonomy-pin.mjs)`);
+    }
     const tmp = `${target}.${process.pid}.tmp`;
-    await writeFile(tmp, Buffer.from(await res.arrayBuffer()));
+    await writeFile(tmp, body);
     await rename(tmp, target);
     downloaded.push(name);
   }

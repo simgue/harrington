@@ -8,19 +8,19 @@ const questLog = (page) => page.getByRole('complementary', { name: 'Quest log' }
 // Clicks without Playwright's scroll-into-view, so the page stays where the test left it.
 const clickInPlace = (locator) => locator.evaluate((button) => button.click());
 
-test('world map shows eight realms; a realm opens its skill tree', async ({ page, gotoApp, shot, errors }) => {
+test('world map shows nine realms; a realm opens its skill tree', async ({ page, gotoApp, shot, errors }) => {
   await gotoApp({ seed: {} });
   await nav(page, 'Map').click();
   await expect(page.getByText('World Map', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Curriculum realms' })).toBeVisible();
-  await expect(page.getByText(/1,590 topics · [\d,]+ prerequisite links · v1/)).toBeVisible();
+  await expect(page.getByText(/1,845 topics · [\d,]+ prerequisite links · v1/)).toBeVisible();
   const realms = page.locator('g.world-realm');
-  await expect(realms).toHaveCount(8);
-  for (const subject of ['Mathematics', 'English', 'Science', 'History', 'Personal & Social Development', 'Life Skills', 'Computing', 'Learning to Learn']) {
+  await expect(realms).toHaveCount(9);
+  for (const subject of ['Mathematics', 'English', 'Science', 'History', 'Personal & Social Development', 'Life Skills', 'Computing', 'Learning to Learn', 'Geography']) {
     await expect(page.getByRole('button', { name: new RegExp(`^${subject} realm, \\d+ domains?$`) })).toHaveCount(1);
   }
   // One domain reads "1 domain", not "1 domains".
-  await expect(page.getByRole('button', { name: 'Computing realm, 1 domain', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Learning to Learn realm, 1 domain', exact: true })).toHaveCount(1);
   await shot('world-map');
 
   // Keyboard: Enter on a realm opens it.
@@ -87,7 +87,7 @@ test('quest log: select a skill, open its page, record evidence, mark as learnin
   await nav(page, 'Dashboard').click();
   const growth = page.locator('section', { has: page.getByRole('heading', { name: 'Recent growth' }) });
   await expect(growth.getByRole('button', { name: /One-to-one counting.*Bud.*Learning/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Mathematics.*0\/503 mastered.*Sprout/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Mathematics.*0\/576 mastered.*Sprout/ })).toBeVisible();
   await expect(page.locator('section', { has: page.getByRole('heading', { name: 'Recent evidence' }) })).toContainText('Counted spoons at dinner');
 });
 
@@ -127,7 +127,7 @@ test('List view drills subject → domain → age band → topic and the choice 
   await group.getByRole('button', { name: 'List' }).click();
   await expect(group.getByRole('button', { name: 'List' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('heading', { name: 'Curriculum list' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /domains? · \d+ topics?/ })).toHaveCount(8);
+  await expect(page.getByRole('button', { name: /domains? · \d+ topics?/ })).toHaveCount(9);
   await shot('list-subjects');
 
   await page.getByRole('button', { name: /^Mathematics \d+ domains/ }).click();

@@ -1,8 +1,9 @@
-import { SUBJECTS, getData } from '../data.js';
+import { getData, isCurrentTopic, subjectMeta, subjectNames } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { keyOf, parseKey, buildPlan, dailyExtras, planStartKey, invalidatePlan, familyCalendar, normalizeCalendar, restInfo, nextHomeDayKey, pauseInfo, newTopicsHeading, doneControl, normalizePace, paceSummary, planTopicOn } from '../scheduler.js';
 import { openLesson } from './lesson.js';
+import { offerTeachingGuide } from './teachingguide.js';
 import { openActivityDetail } from './lesson.js';
 import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';
@@ -55,7 +56,8 @@ export function renderCalendar(params, { navigate }) {
       toast(clearMoves ? 'Start date updated — track rescheduled and moves cleared' : 'Start date updated — track rescheduled', 'success');
       navigate('calendar');
     };
-    const moved = Object.keys(store.planOverrides(active.id).moves || {}).length;
+    // Moves of a retired topic are kept (Records lists them) and not counted.
+    const moved = Object.keys(store.planOverrides(active.id).moves || {}).filter(isCurrentTopic).length;
     if (moved) openStartMoves(moved, commit, () => { picker.value = startKey; });
     else commit(false);
   };
@@ -132,8 +134,8 @@ function monthPanel(active, today, navigate) {
 
     // subject dots + a small topic list (desktop)
     const subs = [...new Set(topics.map(t => t.subject))].slice(0, 4);
-    const dots = subs.map(s => `<span class="w-1.5 h-1.5 rounded-full" style="background:${SUBJECTS[s].color}"></span>`).join('');
-    const topicList = topics.slice(0, 3).map(t => `<span class="hidden sm:flex items-center gap-1 text-[10px] leading-tight text-ink-soft truncate"><span class="w-1 h-1 rounded-full shrink-0" style="background:${SUBJECTS[t.subject].color}"></span><span class="truncate">${esc(t.name)}</span></span>`).join('');
+    const dots = subs.map(s => `<span class="w-1.5 h-1.5 rounded-full" style="background:${subjectMeta(s).color}"></span>`).join('');
+    const topicList = topics.slice(0, 3).map(t => `<span class="hidden sm:flex items-center gap-1 text-[10px] leading-tight text-ink-soft truncate"><span class="w-1 h-1 rounded-full shrink-0" style="background:${subjectMeta(t.subject).color}"></span><span class="truncate">${esc(t.name)}</span></span>`).join('');
     const moreCount = topics.length - 3;
 
     const cell = el(`<button class="relative min-h-[64px] sm:min-h-[104px] rounded-xl border p-1.5 sm:p-2 flex flex-col text-left transition-colors ${isSel ? 'border-brand bg-brand-light/50' : 'border-paper-line hover:border-ink-faint/40'} ${dayDone ? 'bg-brand-light/40' : rest ? 'bg-paper/60' : 'bg-paper-card'}" ${rest ? `data-rest="${rest.kind}"` : ''}>
@@ -155,7 +157,7 @@ function monthPanel(active, today, navigate) {
 
   // legend
   wrap.appendChild(el(`<div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-4 text-[11px] text-ink-soft">
-    ${Object.entries(SUBJECTS).map(([s, m]) => `<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:${m.color}"></span>${s}</span>`).join('')}
+    ${subjectNames().map((s) => [s, subjectMeta(s)]).map(([s, m]) => `<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:${m.color}"></span>${s}</span>`).join('')}
   </div>`));
 
   return wrap;
@@ -171,15 +173,10 @@ function dayPanel(active, navigate) {
   const inTrack = plan.firstKey && selectedKey >= plan.firstKey && selectedKey <= plan.lastKey;
   const dateLabel = date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   const done = store.isDayDone(active.id, selectedKey);
-  // Extras whose topic is gone (e.g. after a taxonomy update) are dropped.
+  // Extras whose topic was retired by a taxonomy update are kept in the
+  // family's data (Records lists them) but not shown on the day.
   const byId = getData().byId;
-  const allExtras = store.extrasOn(active.id, selectedKey);
-  const extras = allExtras.filter(x => x.topicId && byId.has(x.topicId));
-  if (extras.length < allExtras.length) {
-    const gone = allExtras.filter(x => !extras.includes(x)).map(x => x.id);
-    const [sid, key] = [active.id, selectedKey];
-    queueMicrotask(() => store.pruneExtras(sid, key, gone));
-  }
+  const extras = store.extrasOn(active.id, selectedKey).filter(x => x.topicId && byId.has(x.topicId));
 
   const card = el(`<div data-day-panel class="bg-paper-card border border-paper-line rounded-2xl p-5 space-y-5"></div>`);
   const control = doneControl(rest, done);
@@ -281,7 +278,8 @@ function paceBar(active, startKey, navigate) {
 
 function extraRow(x, active, navigate) {
   const d = getData();
-  const meta = SUBJECTS[x.subject] || { color: '#6f665a', icon: 'plus' };
+  // An extra saved without a subject keeps its neutral look.
+  const meta = x.subject ? subjectMeta(x.subject) : { color: '#6f665a', icon: 'plus' };
   const kindMeta = {
     lesson: { icon: 'notebook-text', label: 'Extra lesson' },
     retest: { icon: 'file-check-2', label: 'Re-test' },
@@ -316,7 +314,13 @@ function extraRow(x, active, navigate) {
     go.replaceWith(slot);
     const chip = aiUnavailableChip(capability);
     chip.classList.add('mt-1.5');
-    row.querySelector('.flex-1.min-w-0').appendChild(chip);
+    const text = row.querySelector('.flex-1.min-w-0');
+    text.appendChild(chip);
+    const topic = x.kind === 'lesson' && x.topicId ? d.byId.get(x.topicId) : null;
+    if (topic) {
+      // A saved lesson can remove the chip before the research index answers.
+      offerTeachingGuide(topic, btn => (chip.isConnected ? chip.before(btn) : text.appendChild(btn)), { navigate, compact: true });
+    }
     // A lesson already in the cache still opens.
     if (x.topicId && (x.kind === 'lesson' || x.kind === 'practice')) {
       store.hasCachedLesson('topic:' + x.topicId).then(found => {
@@ -373,7 +377,7 @@ function openAddExtra(active, dateKey, navigate) {
     results.innerHTML = '';
     if (q.length < 2) return;
     d.topics.filter(t => t.name.toLowerCase().includes(q)).slice(0, 6).forEach(t => {
-      const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${SUBJECTS[t.subject].color}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
+      const r = el(`<button type="button" class="w-full text-left px-3 py-2 rounded-lg hover:bg-paper text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${subjectMeta(t.subject).color}"></span><span class="flex-1 truncate">${esc(t.name)}</span><span class="text-xs text-ink-faint">${esc(t.subject)}</span></button>`);
       r.onclick = () => { selTopic = t; hidden.value = t.id; search.value = t.name; results.innerHTML = ''; };
       results.appendChild(r);
     });
@@ -397,7 +401,7 @@ function openAddExtra(active, dateKey, navigate) {
 }
 
 function dayTopicRow(t, active, navigate) {
-  const meta = SUBJECTS[t.subject];
+  const meta = subjectMeta(t.subject);
   const status = store.statusOf(active.id, t.id);
   const row = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
     <button class="open text-left w-full flex items-start gap-2.5">
@@ -421,6 +425,10 @@ function dayTopicRow(t, active, navigate) {
   if (!store.aiAvailable('test')) row.querySelector('.test').remove();
   const lesson = row.querySelector('.lesson');
   lesson.replaceWith(gateAi(lesson, { capability: 'lesson', cachedKey: 'topic:' + t.id }));
+  if (!store.aiAvailable('lesson')) {
+    const actions = row.querySelector('.border-t');
+    offerTeachingGuide(t, btn => actions.prepend(btn), { navigate, compact: true });
+  }
   return row;
 }
 
@@ -497,7 +505,7 @@ function extrasBlock(active, navigate) {
   // Featured refresher quiz
   if (extras.refresher) {
     const t = extras.refresher;
-    const meta = SUBJECTS[t.subject];
+    const meta = subjectMeta(t.subject);
     const el1 = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
       <div class="flex items-center gap-2 mb-1">
         <span class="text-[10px] font-600 px-1.5 py-0.5 rounded-full" style="background:${meta.color}18;color:${meta.color}">REFRESHER QUIZ</span>
@@ -519,7 +527,7 @@ function extrasBlock(active, navigate) {
   // Featured activity/game
   const at = extras.refresher2 || extras.refresher;
   if (at) {
-    const meta = SUBJECTS[at.subject];
+    const meta = subjectMeta(at.subject);
     const isGame = extras.featured === 'game';
     const pool = isGame ? gameIdeas(at) : activityIdeas(at);
     const idea = pool[extras.rngSeed % pool.length] || pool[0];
@@ -542,7 +550,7 @@ function extrasBlock(active, navigate) {
   // Stretch challenge
   if (extras.challenge) {
     const t = extras.challenge;
-    const meta = SUBJECTS[t.subject];
+    const meta = subjectMeta(t.subject);
     const el3 = el(`<div class="rounded-xl border border-dashed border-paper-line bg-paper p-3">
       <div class="flex items-center gap-2 mb-1">
         <span class="text-[10px] font-600 px-1.5 py-0.5 rounded-full bg-[#8a6412]/15 text-[#8a6420]">STRETCH</span>
@@ -554,6 +562,9 @@ function extrasBlock(active, navigate) {
     </div>`);
     el3.querySelector('.go').onclick = () => openLesson(t);
     gateCardButton(el3, 'lesson');
+    if (!store.aiAvailable('lesson')) {
+      offerTeachingGuide(t, btn => { const chip = el3.querySelector('.ai-unavailable'); if (chip) chip.before(btn); else el3.appendChild(btn); }, { navigate, compact: true });
+    }
     list.appendChild(el3);
   }
 

@@ -6,7 +6,30 @@ tagged a release yet; everything below is on `main`.
 
 ## [Unreleased]
 
+### Added
+- Teaching guides that need no AI provider. About 500 Mathematics and 550
+  Science topic pages get a collapsible **Teaching guide** from Marble's
+  teaching research: a summary, activities with steps and feedback for wrong
+  turns, and **Check understanding** (task, question, strong answer, common
+  wrong turns, response levels), with source links, Marble's own note that
+  the research is "agent-authored … not empirically validated interventions"
+  (verbatim, from the pinned file), and the CC BY-SA 4.0 attribution. Without an AI provider, **Open the teaching guide** comes
+  before the "Needs a local AI provider" chip on the topic page, the calendar
+  and the map's quest log; the observation check offers the guide's question
+  as a second one. The server downloads `teaching-research.json` (23.5 MB)
+  once, splits it into one file per topic and serves
+  `GET /api/taxonomy/research/<topicId>`; the whole file is never sent to
+  the browser. See docs/CURRICULUM.md.
+
 ### Fixed
+- Topics in a subject Harrington has no colour for are no longer dropped
+  (several views threw on one): a new subject shows in neutral grey with one
+  console warning until it is added to `SUBJECTS` (HAR-55).
+- Insights' "Recommended next" ranks topics within the chosen subject; a top
+  six across every subject could leave a smaller subject with nothing to
+  suggest though it had open topics (HAR-55).
+- The calendar no longer deletes extras whose topic left the curriculum, and a
+  level-set sheet holding a retired topic can still be saved (HAR-55).
 - A change made just before the page was reloaded or closed is no longer
   lost while its save is still on the wire: the change stays pending until the
   server answers, a save under 64 KB keeps itself alive past unload
@@ -26,6 +49,36 @@ tagged a release yet; everything below is on `main`.
   say to close every Harrington tab first (HAR-44).
 
 ### Changed
+- **Curriculum refresh: the Marble Skill Taxonomy moves to its 24 October 2026
+  revision** (`7bd8b67`, from `96a7933` of 8 July). 1,590 → 1,845 topics,
+  3,221 → 3,941 prerequisite links, 183 → 176 domain summaries, and 8 → 9
+  subjects: **Geography** (22 topics) is new; Mathematics +73, English +45,
+  Computing +31, Personal & Social Development +29, Science +29, History +19,
+  Life Skills +7. 113 topics moved their starting age, 44 were renamed and 34
+  reworded. **Today's choices may differ after the refresh**: daily choices,
+  the calendar track, sections and recommendations follow the new ages. A
+  section pass already recorded stays keyed to `Subject|Domain|age` as it was
+  then, so a topic that moved age band now sits in a section that pass does
+  not cover. An existing install moves to the new revision by itself: on first
+  use the server finds its cached files do not match the pin and downloads the
+  pinned ones (HAR-55).
+- One topic was retired, `mt_3XJkeIn6J6` ("Estimating answers (age 7+)").
+  Family data for a retired topic is kept and never refused on load or
+  import; it no longer counts toward progress, daily choices or due recall and
+  practice, Records lists it under **Archived topics**, and its old topic page
+  says "This topic is no longer in the curriculum" (HAR-55).
+- The taxonomy is pinned and checked (G10, HAR-55): `lib/taxonomy-pin.mjs`
+  holds the commit and the SHA-256 of each file, the server downloads from
+  that commit on raw.githubusercontent.com instead of jsDelivr `@main`, serves
+  a cached file only if it matches (one that does not is downloaded again and
+  replaced), refuses a download that does not match, and `/api/health` reports
+  `taxonomy` and `taxonomyRevision` (the pin only when every file is
+  verified). `HARRINGTON_TAXONOMY_UPSTREAM` still overrides it for
+  experiments, with a startup warning that the files are not checked; they are
+  cached in their own folder, so unsetting it serves only the verified pin
+  again. New `npm run taxonomy:check` (run in CI) is a diagnostic that
+  downloads and verifies the pinned files; `docs/CURRICULUM.md` documents the
+  bump path.
 - AI can be switched on one capability at a time with
   `HARRINGTON_AI_CAPABILITIES` (for example `lesson`; unset means all). Every
   request names its capability, the server refuses the rest with 403,
