@@ -750,28 +750,38 @@ async function loadTaxonomyFile(name) {
 
 // The teaching research, split into one file per topic on first use and
 // again only when the downloaded file changes. Concurrent first requests
-// share one download and one split.
+// share one download and one split. A failed attempt (offline on a first
+// run) is not retried for RESEARCH_RETRY_MS, so topic pages do not each start
+// a 23.5 MB download.
+const RESEARCH_RETRY_MS = 3 * 60 * 1000;
 let researchIndex = null;
+let researchFailure = null; // { at, error }
 function teachingResearchIndex() {
+  if (researchFailure && Date.now() - researchFailure.at < RESEARCH_RETRY_MS) {
+    return Promise.reject(researchFailure.error);
+  }
   researchIndex ??= (async () => {
-    // From the pinned upstream the split must come from the pinned file.
+    // From the pinned upstream the split must come from the pinned file. From
+    // a custom upstream, splitTeachingResearch compares the source's hash with
+    // the split's, so a changed source is split again.
     const expected = TAXONOMY_PINNED ? TAXONOMY_PIN.files[RESEARCH_FILE] : null;
     const existing = await readResearchIndex(taxonomyDir);
-    if (existing && (!expected || existing.sourceSha256 === expected)) return existing;
+    if (existing && expected && existing.sourceSha256 === expected) return existing;
     const started = Date.now();
-    let source = await loadTaxonomyFile(RESEARCH_FILE);
-    if (expected && sha256(source) !== expected) {
-      // A copy cached from another revision: replace it. The download is
-      // checked against the pin in loadTaxonomyFile.
-      await unlink(join(taxonomyDir, RESEARCH_FILE)).catch(() => {});
-      taxonomyHashes.delete(RESEARCH_FILE);
-      source = await loadTaxonomyFile(RESEARCH_FILE);
+    const cachedPath = join(taxonomyDir, RESEARCH_FILE);
+    if (expected) {
+      // A copy cached from another revision is dropped before it is read, so
+      // loadTaxonomyFile downloads (and checks) the pinned one instead.
+      const cached = await readFile(cachedPath).catch(() => null);
+      if (cached && sha256(cached) !== expected) await unlink(cachedPath).catch(() => {});
     }
-    const index = await splitTeachingResearch(source, taxonomyDir);
-    console.log(`Split the teaching research into ${index.recordCount} topic files in ${Date.now() - started} ms`);
+    const index = await splitTeachingResearch(await loadTaxonomyFile(RESEARCH_FILE), taxonomyDir);
+    if (index.sourceSha256 !== existing?.sourceSha256) console.log(`Split the teaching research into ${index.recordCount} topic files in ${Date.now() - started} ms`);
+    researchFailure = null;
     return index;
   })().catch((error) => {
-    researchIndex = null; // the next request tries again
+    researchIndex = null;
+    researchFailure = { at: Date.now(), error };
     throw error;
   });
   return researchIndex;
@@ -1047,7 +1057,7 @@ async function handleApi(req, res, url) {
 
   if (url.pathname === '/api/taxonomy/research' && req.method === 'GET') {
     const index = await teachingResearchIndex();
-    sendJson(res, 200, { topicIds: index.topicIds });
+    sendJson(res, 200, { topicIds: index.topicIds, caveat: index.caveat });
     return true;
   }
 

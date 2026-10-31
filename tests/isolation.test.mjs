@@ -140,7 +140,7 @@ const ESCAPED_MARKUP = {
   'src/js/views/challenge.js': {},
   'src/js/views/teachingguide.js': {
     // label() and list() escape their text; the icons and class strings are constants.
-    helpers: ['label', 'list', 'steps', 'activityBlock', 'checkBlock', 'reteach'],
+    helpers: ['label', 'list', 'steps', 'creditLink', 'activityBlock', 'checkBlock', 'reteach'],
     // `activities` and `check` are built from those helpers just above.
     allowed: ['icon', 'summaryRow', 'MARBLE_HREF', 'LICENSE_HREF', 'activities', 'check'],
   },

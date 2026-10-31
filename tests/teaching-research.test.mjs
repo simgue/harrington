@@ -62,8 +62,9 @@ function record(topicId, extra = {}) {
   };
 }
 
-function researchFile(records) {
-  return Buffer.from(JSON.stringify({ schemaVersion: 1, version: 'v1', recordCount: records.length, records }));
+const CAVEAT = 'Agent-authored teaching research and proposed learning activities; not empirically validated interventions.';
+function researchFile(records, notes = [CAVEAT, 'A second note.']) {
+  return Buffer.from(JSON.stringify({ schemaVersion: 1, version: 'v1', recordCount: records.length, notes, records }));
 }
 
 describe('splitTeachingResearch', () => {
@@ -82,6 +83,8 @@ describe('splitTeachingResearch', () => {
     assert.deepEqual(index.topicIds, ['mt_countAAAA1', 'mt_countBBBB2']);
     assert.equal(index.recordCount, 2);
     assert.equal(index.skipped, 4);
+    // Marble's first note is kept verbatim, so it follows the pinned file.
+    assert.equal(index.caveat, CAVEAT);
     assert.deepEqual((await readdir(join(dir, 'research'))).sort(), ['index.json', 'mt_countAAAA1.json', 'mt_countBBBB2.json']);
     // Nothing was written outside the research directory.
     assert.deepEqual((await readdir(dir)).sort(), ['research']);
@@ -106,6 +109,28 @@ describe('splitTeachingResearch', () => {
     assert.deepEqual(await readResearchIndex(dir), index);
     // No staging directory is left behind.
     assert.deepEqual((await readdir(dir)).sort(), ['research']);
+  });
+
+  test('clears what a crashed split left behind and never leaves research/ missing for long', async () => {
+    const dir = await tempDir();
+    await splitTeachingResearch(researchFile([record('mt_countAAAA1')]), dir);
+    // A crash mid-split leaves a staging or old directory; the next split removes them.
+    await mkdir(join(dir, 'research.123.456.tmp'));
+    await writeFile(join(dir, 'research.123.456.tmp', 'mt_countZZZZ9.json'), '{}');
+    await mkdir(join(dir, 'research.old.123.456'));
+    const index = await splitTeachingResearch(researchFile([record('mt_countBBBB2')]), dir);
+    assert.deepEqual(index.topicIds, ['mt_countBBBB2']);
+    assert.deepEqual((await readdir(dir)).sort(), ['research']);
+  });
+
+  test('an index in an older format, or without its format, is not trusted', async () => {
+    const dir = await tempDir();
+    await mkdir(join(dir, 'research'));
+    await writeFile(join(dir, 'research', 'index.json'), JSON.stringify({ sourceSha256: 'x', topicIds: [] }));
+    assert.equal(await readResearchIndex(dir), null);
+    const index = await splitTeachingResearch(researchFile([record('mt_countAAAA1')], []), dir);
+    assert.equal(index.caveat, null);
+    assert.deepEqual(await readResearchIndex(dir), index);
   });
 
   test('rejects a file without records and leaves no staging directory', async () => {
@@ -159,6 +184,13 @@ describe('curateResearch', () => {
     const text = JSON.stringify(guide);
     for (const internal of ['internal', 'confidence', 'provenance', 'agent', 'claim']) {
       assert.ok(!text.includes(internal), internal);
+    }
+  });
+
+  test('a method name that is not one of the five is left out, even an Object.prototype key', () => {
+    for (const method of ['__proto__', 'constructor', 'toString', 'made_up', 7]) {
+      const guide = curateResearch(record('mt_countAAAA1', { assess: { ...record('x').assess, method } }));
+      assert.equal(guide.check.method, '', String(method));
     }
   });
 
@@ -247,7 +279,7 @@ describe('research routes', { concurrency: false }, () => {
       assert.equal(a.status, 200);
       assert.deepEqual(await a.json(), record('mt_countAAAA1'));
       assert.equal(b.status, 200);
-      assert.deepEqual(await list.json(), { topicIds: ['mt_countAAAA1', 'mt_countBBBB2'] });
+      assert.deepEqual(await list.json(), { topicIds: ['mt_countAAAA1', 'mt_countBBBB2'], caveat: CAVEAT });
       assert.deepEqual(upstream.hits, ['/teaching-research.json']);
 
       assert.equal((await fetch(`${app.url}/api/taxonomy/research/mt_missingAAA`)).status, 404);
@@ -271,13 +303,34 @@ describe('research routes', { concurrency: false }, () => {
     }
   });
 
-  test('an upstream failure answers 502 and is retried on the next request', async () => {
+  test('an upstream failure answers 502 and is not retried on every page for a few minutes', async () => {
     const upstream = await fakeUpstream(null);
     const app = await startServer({ HARRINGTON_TAXONOMY_UPSTREAM: upstream.url });
     try {
       assert.equal((await fetch(`${app.url}/api/taxonomy/research/mt_countAAAA1`)).status, 502);
       assert.equal((await fetch(`${app.url}/api/taxonomy/research`)).status, 502);
-      assert.equal(upstream.hits.length, 2);
+      assert.equal((await fetch(`${app.url}/api/taxonomy/research/mt_countBBBB2`)).status, 502);
+      // One download attempt, not one per request (an offline first run).
+      assert.equal(upstream.hits.length, 1);
+    } finally {
+      await app.stop();
+      upstream.close();
+    }
+  });
+
+  test('from a custom upstream, a changed cached source is split again', async () => {
+    const upstream = await fakeUpstream(null);
+    const dataDir = await tempDir();
+    const taxonomy = join(dataDir, 'taxonomy');
+    await mkdir(taxonomy, { recursive: true });
+    await splitTeachingResearch(researchFile([record('mt_countAAAA1')]), taxonomy);
+    // The cached source is now a newer file than the split on disk.
+    await writeFile(join(taxonomy, 'teaching-research.json'), researchFile([record('mt_countCCCC3')]));
+    const app = await startServer({ HARRINGTON_DATA_DIR: dataDir, HARRINGTON_TAXONOMY_UPSTREAM: upstream.url });
+    try {
+      assert.deepEqual((await (await fetch(`${app.url}/api/taxonomy/research`)).json()).topicIds, ['mt_countCCCC3']);
+      assert.equal((await fetch(`${app.url}/api/taxonomy/research/mt_countAAAA1`)).status, 404);
+      assert.deepEqual(upstream.hits, []);
     } finally {
       await app.stop();
       upstream.close();

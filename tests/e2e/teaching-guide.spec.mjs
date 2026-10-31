@@ -27,8 +27,17 @@ test('@mobile a Mathematics topic has a collapsed teaching guide with activities
   for (const title of ['Feed the squirrel: tap-count a scattered pile', 'Did Teddy count right? Spot the miscount', 'Count everyday things in structured frames and in daily life']) {
     await expect(guide.getByText(title)).toBeVisible();
   }
+  // With the guide open, a closed activity's chevron still points right: each
+  // details element drives its own chevron (named Tailwind groups).
+  const chevronTurned = (details) => details.locator('summary svg, summary i').first()
+    .evaluate((icon) => getComputedStyle(icon).transform !== 'none');
+  const activities = guide.locator('details.guide-activity');
+  await expect(activities).toHaveCount(3);
+  expect(await chevronTurned(activities.nth(1))).toBe(false);
   // Each activity opens to its steps, what to notice and the feedback notes.
   await guide.getByText('Feed the squirrel: tap-count a scattered pile').click();
+  await expect.poll(() => chevronTurned(activities.nth(0))).toBe(true);
+  expect(await chevronTurned(activities.nth(1))).toBe(false);
   for (const label of ['Steps', 'What they should notice', 'If they take a wrong turn']) {
     await expect(guide.getByText(label, { exact: true }).first()).toBeVisible();
   }
@@ -49,10 +58,17 @@ test('@mobile a Mathematics topic has a collapsed teaching guide with activities
   await expect(sources).toHaveAttribute('target', '_blank');
   await expect(sources).toHaveAttribute('href', /^https:\/\//);
 
-  // The caveat and the credit close the section.
-  await expect(guide).toContainText('Written by AI agents as teaching research and proposed activities; they have not been tested in studies.');
-  await expect(guide).toContainText('From the Marble Skill Taxonomy teaching research · © Generative Spark, Inc. (Marble) · CC BY-SA 4.0');
-  await expect(guide.getByRole('link', { name: 'License' })).toHaveAttribute('href', 'https://creativecommons.org/licenses/by-sa/4.0/');
+  // Marble's own caveat (notes[0] of the pinned file) verbatim, Harrington's
+  // gloss apart from it, then the credit, close the section.
+  await expect(guide.locator('.guide-caveat')).toHaveText('Agent-authored teaching research and proposed learning activities; not empirically validated interventions.');
+  await expect(guide.locator('.guide-gloss')).toHaveText(/^Harrington’s note: /);
+  await expect(guide.locator('.guide-credit')).toHaveText('From the Marble Skill Taxonomy teaching research · © Generative Spark, Inc. (Marble) · CC BY-SA 4.0');
+  const license = guide.getByRole('link', { name: 'License' });
+  await expect(license).toHaveAttribute('href', 'https://creativecommons.org/licenses/by-sa/4.0/');
+  for (const link of [license, guide.getByRole('link', { name: 'Source', exact: true })]) {
+    const box = await link.boundingBox();
+    expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
+  }
   // Internal metadata stays out.
   for (const internal of ['confidence', 'provenance', 'reviewNotes', 'teaching-research plugin']) {
     await expect(guide).not.toContainText(internal);
@@ -72,10 +88,9 @@ test('@mobile a History topic has no teaching guide and no empty section', async
   await gotoApp({ seed: {}, hash: `topic/${HISTORY.id}` });
   await expect(page.getByRole('heading', { level: 1, name: HISTORY.name })).toBeVisible();
   expect((await listed).status()).toBe(200);
-  // The list answered: give the page a moment to act on it, then check.
-  await page.waitForTimeout(300);
-  await expect(page.locator('#teaching-guide')).toHaveCount(0);
+  // The placeholder goes once the list says this topic has no guide.
   await expect(page.locator('.teaching-guide-slot')).toHaveCount(0);
+  await expect(page.locator('#teaching-guide')).toHaveCount(0);
   await expect(page.getByText('Teaching guide', { exact: true })).toHaveCount(0);
   await noHorizontalOverflow(page);
   expect(errors).toEqual([]);

@@ -174,21 +174,31 @@ Marble also publishes `data/teaching-research.json`: for 1,049 topics
 subject yet), a summary of how the topic is learned, proposed activities with
 feedback for common wrong turns, and an assessment (a task or question, error
 patterns and response levels), with the curricula and papers it draws on.
-Marble's own notes describe the records as "agent-authored teaching research
-and proposed learning activities; not empirically validated interventions".
-Harrington says so in one line at the end of every guide.
+Marble's own notes describe the records; the first, "Agent-authored teaching
+research and proposed learning activities; not empirically validated
+interventions.", is kept in the split's `index.json` (so it follows the pin),
+served with the topic list and shown verbatim at the end of every guide and
+with the guide's question in the observation check. Harrington's plain-English
+gloss sits apart from it, labelled as Harrington's note.
 
 **How Harrington uses it.** The file is about 23.5 MB, so the browser never
-receives it whole. On the first request for a guide the server downloads it
-once through the same cache and SHA-256 check as the other taxonomy files (it
-is in `lib/taxonomy-pin.mjs`, and `npm run taxonomy:check` verifies it too;
-`/api/health`'s `taxonomy` status covers only the four files the browser
-loads), and splits it into
+receives it whole. Every topic page asks for the topic list (and, without
+an AI provider, so do the calendar and the map's quest log), so the first such
+view makes the server download the file once, through the same cache and
+SHA-256 check as the other taxonomy files (it is in `lib/taxonomy-pin.mjs`,
+and `npm run taxonomy:check` verifies it too). `/api/health`'s `taxonomy`
+status counts it only when its download is refused (`integrity-failed`);
+`verified` and `outdated` look at the four files the browser loads. A failed
+download is not retried for three minutes, so an offline first run does not
+start a 23.5 MB download on every page. The server then splits the file into
 `taxonomy/research/<topicId>.json` plus `taxonomy/research/index.json` (the
-topic ids and the source file's SHA-256). The split takes a few seconds once
+topic ids, the source file's SHA-256 and Marble's caveat). The split is built
+in a staging directory and swapped in with two renames; a staging or old
+directory left by a crash is removed by the next split. The split takes a few seconds once
 (about 3 s including the download on a fast connection) and about 23 MB on
 disk next to the 23.5 MB source; it runs again only when the source changes (for
-example after a pin bump, when the cached split no longer matches the pin).
+example after a pin bump, when the cached split no longer matches the pin, or
+when a file from a custom upstream changes).
 `GET /api/taxonomy/research` lists the topic ids, and
 `GET /api/taxonomy/research/<topicId>` returns one record (404 when the topic
 has none; the id is validated before any file is touched). Both routes follow

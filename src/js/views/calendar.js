@@ -316,7 +316,8 @@ function extraRow(x, active, navigate) {
     text.appendChild(chip);
     const topic = x.kind === 'lesson' && x.topicId ? d.byId.get(x.topicId) : null;
     if (topic) {
-      offerTeachingGuide(topic, btn => text.insertBefore(btn, chip), { navigate, compact: true });
+      // A saved lesson can remove the chip before the research index answers.
+      offerTeachingGuide(topic, btn => (chip.isConnected ? chip.before(btn) : text.appendChild(btn)), { navigate, compact: true });
     }
     // A lesson already in the cache still opens.
     if (x.topicId && (x.kind === 'lesson' || x.kind === 'practice')) {
@@ -560,7 +561,7 @@ function extrasBlock(active, navigate) {
     el3.querySelector('.go').onclick = () => openLesson(t);
     gateCardButton(el3, 'lesson');
     if (!store.aiAvailable('lesson')) {
-      offerTeachingGuide(t, btn => el3.querySelector('.ai-unavailable').before(btn), { navigate, compact: true });
+      offerTeachingGuide(t, btn => { const chip = el3.querySelector('.ai-unavailable'); if (chip) chip.before(btn); else el3.appendChild(btn); }, { navigate, compact: true });
     }
     list.appendChild(el3);
   }

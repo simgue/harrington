@@ -10,7 +10,7 @@ import { openRecorder } from '../recorder.js';
 import { checkableEvidence, assessmentQuestion } from '../phrasing.js';
 import { observedResult, observedRollup, observedTitle } from '../observe.js';
 import { sectionForTopic, subjectSections } from '../mastery.js';
-import { loadTeachingGuide } from '../teaching.js';
+import { GUIDE_ATTRIBUTION, loadTeachingGuide } from '../teaching.js';
 
 // True when the topic has something a parent can watch for.
 export function canObserve(topic) {
@@ -68,14 +68,16 @@ export function openObservation(topic, student = store.activeStudent()) {
   boxes.forEach(b => { b.onchange = update; });
   update();
 
-  // A second question from the teaching guide, when the topic has one. The
-  // name is filled in here, in the browser.
+  // A second question from the teaching guide, when the topic has one, shown
+  // as Marble wrote it (the prompts speak to the child directly), with
+  // Marble's caveat and credit.
   loadTeachingGuide(topic.id).then(guide => {
-    const extra = guide?.check?.prompt ? guide.check.prompt.replace(/\{\{name\}\}/g, student.name) : '';
+    const extra = guide?.check?.prompt || '';
     if (!extra || extra === question) return;
     body.querySelector('#ob-guide-q').replaceWith(el(`<div class="rounded-xl bg-paper border border-paper-line p-3.5 mb-4">
       <p class="text-[11px] font-600 uppercase tracking-wide text-ink-faint mb-1">${question ? 'Another question to try' : 'Suggested question'} · from the teaching guide</p>
       <p class="text-sm text-ink-soft italic leading-relaxed">“${esc(extra)}”</p>
+      <p class="ob-guide-credit text-[11px] text-ink-faint leading-relaxed mt-1.5">${guide.caveat ? `${esc(guide.caveat)} ` : ''}${esc(GUIDE_ATTRIBUTION)}</p>
     </div>`));
   }).catch(() => {});
 

@@ -92,9 +92,11 @@ computer only and these work:
   Science topics, a collapsible guide from Marble's teaching research: a
   summary, activities with steps and what to say after a wrong turn, and a way
   to check understanding. Where a lesson needs AI, "Open the teaching guide"
-  comes first. Other subjects have no guides yet. Marble describes the guides
-  as written by AI agents: proposed activities, not tested in studies. The
-  server downloads them once (about 24 MB) the first time one is opened.
+  comes first. Other subjects have no guides yet. Every guide ends with
+  Marble's own note on them: "Agent-authored teaching research and proposed
+  learning activities; not empirically validated interventions." The server
+  downloads the research once (about 24 MB) the first time a topic page is
+  opened (or, without AI, the calendar or the map's quest log) and keeps it.
 
 Lessons, print & go sheets, mastery tests, challenges, recall cards, activity
 instructions, discussion analysis, progress reviews and adaptive suggestions

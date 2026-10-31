@@ -259,9 +259,32 @@ test('without AI, a topic with no teaching guide keeps only the chip', async ({ 
   const listed = page.waitForResponse((res) => res.url().endsWith('/api/taxonomy/research'), { timeout: 30_000 });
   await gotoApp({ seed: {}, hash: 'topic/mt_IR8kIjZn_V' });
   await listed;
-  await page.waitForTimeout(300);
+  // The placeholder goes once the list says this topic has no guide.
+  await expect(page.locator('.teaching-guide-slot')).toHaveCount(0);
   const cta = page.locator('div.rounded-2xl', { hasText: 'Ready-to-teach lesson' });
   await expect(chips(cta)).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'Open the teaching guide' })).toHaveCount(0);
   await expect(page.locator('#teaching-guide')).toHaveCount(0);
+});
+
+// Review round 1, M3: a saved lesson can remove the extra's chip before the
+// research list answers; the guide button must still appear, with no error.
+test('calendar: an extra lesson with a saved lesson still offers the teaching guide when the list is slow', async ({ page, request, gotoApp, errors }) => {
+  await seedSaved(request);
+  await page.route('**/api/taxonomy/research', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.continue();
+  });
+  const extra = { id: 'x_e2e_saved', kind: 'lesson', topicId: SAVED.id, topicName: SAVED.name, subject: 'Mathematics', title: `Extra lesson · ${SAVED.name}` };
+  await gotoApp({ seed: { extra: { plan: { [ROWAN]: { moves: {}, done: {}, extras: { '2026-10-07': [extra] } } } } }, hash: 'calendar' });
+  const row = page.locator('div.rounded-xl', { has: page.getByText(extra.title, { exact: true }) }).last();
+  // The saved lesson opens, so the chip goes...
+  await expect(row.getByRole('button', { name: 'Open', exact: true })).toBeVisible();
+  await expect(chips(row)).toHaveCount(0);
+  // ...and the guide button still arrives once the slow list answers.
+  await expect(row.getByRole('button', { name: 'Open the teaching guide' })).toBeVisible({ timeout: 30_000 });
+  await row.getByRole('button', { name: 'Open the teaching guide' }).click();
+  await expect(modal(page).getByText('Teaching guide · no AI needed')).toBeVisible();
+  await closeModal(page);
+  expect(errors.filter((e) => !/status of 404/.test(e))).toEqual([]);
 });

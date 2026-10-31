@@ -107,10 +107,8 @@ test('placed siblings do not count: an observed pass masters the topic but not i
   expect(errors).toEqual([]);
 });
 
-test('the teaching guide adds a second suggested question, with no name sent anywhere', async ({ page, gotoApp }) => {
+test("the teaching guide adds a second suggested question, with Marble's caveat and credit", async ({ page, gotoApp }) => {
   const errors = pageErrors(page);
-  const requests = [];
-  page.on('request', (req) => requests.push(req.url()));
   await gotoApp({ seed: {}, hash: `topic/${ONE.id}` });
   await expect(page.locator('#teaching-guide')).toBeVisible({ timeout: 30_000 });
   await section(page, 'Topic mastery test').getByRole('button', { name: 'Check mastery by observation' }).click();
@@ -118,7 +116,6 @@ test('the teaching guide adds a second suggested question, with no name sent any
   await expect(m.getByText('Suggested question', { exact: true })).toBeVisible();
   await expect(m.getByText('Another question to try · from the teaching guide')).toBeVisible();
   await expect(m.getByText(/Watch Teddy count these 6 buttons/)).toBeVisible();
-  // The learner's name is filled in locally; it is in no request.
-  expect(requests.filter((url) => /Rowan/i.test(decodeURIComponent(url)))).toEqual([]);
+  await expect(m.locator('.ob-guide-credit')).toHaveText('Agent-authored teaching research and proposed learning activities; not empirically validated interventions. From the Marble Skill Taxonomy teaching research · © Generative Spark, Inc. (Marble) · CC BY-SA 4.0');
   expect(errors).toEqual([]);
 });

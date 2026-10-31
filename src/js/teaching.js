@@ -6,7 +6,10 @@
 // the edit must be marked as such where it is shown.
 
 export const GUIDE_ATTRIBUTION = 'From the Marble Skill Taxonomy teaching research · © Generative Spark, Inc. (Marble) · CC BY-SA 4.0';
-export const GUIDE_CAVEAT = 'Written by AI agents as teaching research and proposed activities; they have not been tested in studies.';
+// Marble's own caveat (notes[0] of the research file) comes from the server
+// with the index and is shown verbatim. This gloss is Harrington's own words,
+// shown apart from it and marked as such.
+export const GUIDE_GLOSS = 'Harrington’s note: AI agents wrote these from teaching research. They are ideas to try, not methods tested in studies.';
 export const MARBLE_HREF = 'https://github.com/withmarbleapp/os-taxonomy';
 export const LICENSE_HREF = 'https://creativecommons.org/licenses/by-sa/4.0/';
 
@@ -56,7 +59,7 @@ export function curateResearch(record) {
 
   const levelsIn = obj(assess.responseLevels);
   const check = {
-    method: METHODS[assess.method] || '',
+    method: typeof assess.method === 'string' && Object.hasOwn(METHODS, assess.method) ? METHODS[assess.method] : '',
     task: text(assess.poeTask),
     prompt: text(assess.diagnosticPrompt),
     answer: text(assess.correctAnswer),
@@ -83,15 +86,17 @@ export function curateResearch(record) {
 
 // ---- Fetching (browser only) ----
 // The server's list of topic ids with research is fetched once, so a topic
-// without a guide costs no request (and no 404). Each guide is fetched once
-// per page load. Failures are not cached, so a later visit tries again.
+// without a guide costs no request (and no 404). It carries Marble's caveat,
+// which each guide is given. Each guide is fetched once per page load.
+// Failures are not cached, so a later visit tries again.
 let index = null;
 const guides = new Map();
 
-function researchIds() {
+function researchIndex() {
   index ??= fetch('/api/taxonomy/research').then(async (res) => {
     if (!res.ok) throw new Error(`Teaching guides unavailable (${res.status})`);
-    return new Set((await res.json()).topicIds || []);
+    const body = await res.json();
+    return { ids: new Set(body.topicIds || []), caveat: typeof body.caveat === 'string' ? body.caveat : '' };
   }).catch((error) => {
     index = null;
     throw error;
@@ -103,21 +108,22 @@ function researchIds() {
 // example offline before the first download).
 export async function hasTeachingGuide(topicId) {
   try {
-    return (await researchIds()).has(topicId);
+    return (await researchIndex()).ids.has(topicId);
   } catch {
     return false;
   }
 }
 
-// The curated guide, or null when the topic has none.
+// The curated guide with Marble's caveat, or null when the topic has none.
 export function loadTeachingGuide(topicId) {
   if (!guides.has(topicId)) {
-    const pending = researchIds().then(async (ids) => {
+    const pending = researchIndex().then(async ({ ids, caveat }) => {
       if (!ids.has(topicId)) return null;
       const res = await fetch(`/api/taxonomy/research/${encodeURIComponent(topicId)}`);
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`Teaching guide unavailable (${res.status})`);
-      return curateResearch(await res.json());
+      const guide = curateResearch(await res.json());
+      return guide && { ...guide, caveat };
     });
     pending.catch(() => guides.delete(topicId));
     guides.set(topicId, pending);

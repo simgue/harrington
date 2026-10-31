@@ -244,13 +244,18 @@ lesson would otherwise need one: the topic page, the calendar day and the
 map's quest log. The **Check mastery by observation** window also offers the
 guide's question as a second one to ask.
 
-The guides come from Marble's teaching research. Marble describes them as
-written by AI agents: proposed activities, not tested in studies. Use your own
-judgment. Harrington shows the text as Marble published it, with credit:
-*From the Marble Skill Taxonomy teaching research · © Generative Spark, Inc.
-(Marble) · CC BY-SA 4.0.* The Harrington server downloads the research once
-(about 24 MB) the first time a guide is needed and keeps it with the
-curriculum.
+The guides come from Marble's teaching research. Every guide ends with
+Marble's own note on it, word for word: "Agent-authored teaching research and
+proposed learning activities; not empirically validated interventions." In
+plain words, and in Harrington's own words just below it: AI agents wrote
+these from teaching research, and they are ideas to try, not methods tested in
+studies. Use your own judgment. Harrington shows the text as Marble published
+it, with credit: *From the Marble Skill Taxonomy teaching research ·
+© Generative Spark, Inc. (Marble) · CC BY-SA 4.0.* The Harrington server
+downloads the research once (about 24 MB) the first time a topic page is
+opened (without an AI provider, also the calendar or the map's quest log) and
+keeps it with the curriculum. If that download fails, it tries again a few
+minutes later.
 
 ## Calendar
 
