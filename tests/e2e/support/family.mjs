@@ -18,11 +18,12 @@ export const TOPICS = {
   rote100: { id: 'mt_M5PPDJStGm', name: 'Rote counting to 100' },
 };
 
-// The other eight topics of the Counting & Cardinality age-5 section. Marking
+// The other ten topics of the Counting & Cardinality age-5 section. Marking
 // them mastered leaves One-to-one counting as the last one before the section check.
 export const COUNTING_SECTION_OTHERS = [
   'mt__h7hvT4tEb', 'mt_dmNvjroCPT', 'mt_sYpKWbq5ra', 'mt_pAcaehday5',
   'mt_nvdpxAJTBG', 'mt_yqAL6O5i_v', 'mt_M5PPDJStGm', 'mt__YRJ23GuIK',
+  'mt_BK5xwkrD5C', 'mt_t9BICauBSI',
 ];
 
 export function learner(key) {

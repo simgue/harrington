@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { ExperimentError, parseArgs, runExperiment } from '../scripts/ai-experiment.mjs';
+import { seedFixtureTaxonomy } from './support/fixture-taxonomy.mjs';
 
 // A tiny OpenAI-compatible endpoint. It reports usage, answers the lesson
 // prompt for "Letter sounds" with prose once (so the script retries), and
@@ -47,10 +48,11 @@ let env;
 before(async () => {
   await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
   dataDir = await mkdtemp(join(tmpdir(), 'harrington-experiment-'));
-  await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
-  await writeFile(join(dataDir, 'taxonomy', 'topics.json'), JSON.stringify({ topics: TOPICS }));
-  await writeFile(join(dataDir, 'taxonomy', 'dependencies.json'), JSON.stringify({ dependencies: [] }));
-  await writeFile(join(dataDir, 'taxonomy', 'clusters.json'), JSON.stringify({ clusters: [] }));
+  const taxonomyEnv = await seedFixtureTaxonomy(dataDir, {
+    'topics.json': { topics: TOPICS },
+    'dependencies.json': { dependencies: [] },
+    'clusters.json': { clusters: [] },
+  });
   await writeFile(join(dataDir, 'family-state.json'), JSON.stringify({
     version: 3,
     students: [
@@ -64,8 +66,8 @@ before(async () => {
     HARRINGTON_AI_MODEL: 'tiny-model',
     HARRINGTON_AI_API_KEY: 'stub-key',
     HARRINGTON_AI_CAPABILITIES: 'lessons',
-    // The taxonomy comes from the data dir; nothing listens here.
-    HARRINGTON_TAXONOMY_UPSTREAM: 'http://127.0.0.1:9/never',
+    // The taxonomy comes from the data dir; nothing listens at its upstream.
+    ...taxonomyEnv,
   };
 });
 after(async () => {

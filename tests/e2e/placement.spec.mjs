@@ -12,7 +12,7 @@ const mastered = (s) => Object.values(s.progress?.[SAGE] || {}).filter((p) => p.
 
 test('place a 9-year-old in Mathematics from the subject card, then undo it', async ({ page, api, gotoApp, shot }) => {
   await gotoApp({ seed: { active: 'sage' } });
-  await expect(page.getByRole('button', { name: /Mathematics.*0\/503 mastered/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Mathematics.*0\/576 mastered/ })).toBeVisible();
   await page.getByRole('button', { name: 'Placement for Mathematics' }).click();
 
   const m = modal(page);
@@ -48,7 +48,7 @@ test('place a 9-year-old in Mathematics from the subject card, then undo it', as
   // Prerequisites can sit in other subjects; count only Mathematics.
   const math = Object.entries(state.progress[SAGE]).filter(([id, p]) => MATH_IDS.has(id) && p.status === 'mastered').length;
   expect(math).toBeGreaterThan(100);
-  await expect(page.getByRole('button', { name: new RegExp(`Mathematics.*\\b${math}/503 mastered`) })).toBeVisible();
+  await expect(page.getByRole('button', { name: new RegExp(`Mathematics.*\\b${math}/576 mastered`) })).toBeVisible();
   await nav(page, 'Records').click();
   const card = page.locator('div.rounded-2xl', { hasText: 'Placement: marked' });
   page.once('dialog', (d) => { expect(d.message()).toMatch(/^Return these \d+ topics to their status before the placement\?$/); d.accept(); });
@@ -56,7 +56,7 @@ test('place a 9-year-old in Mathematics from the subject card, then undo it', as
   await expect(card).toContainText('Placement undone');
   await api.waitForState((s) => mastered(s) === 0);
   await nav(page, 'Dashboard').click();
-  await expect(page.getByRole('button', { name: /Mathematics.*0\/503 mastered/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Mathematics.*0\/576 mastered/ })).toBeVisible();
 });
 
 test('placement from the learner menu, narrowed to one area and age', async ({ page, api, gotoApp }) => {

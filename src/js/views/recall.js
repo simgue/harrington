@@ -1,4 +1,4 @@
-import { getData, SUBJECTS } from '../data.js';
+import { getData, SUBJECTS, subjectMeta } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { aiRecallCards } from '../ai.js';
@@ -36,7 +36,7 @@ function failureBlock(e, retry) {
 export async function openRecall(topic) {
   const student = store.activeStudent();
   if (!student) { toast('Add a student first', 'error'); return; }
-  const meta = SUBJECTS[topic.subject];
+  const meta = subjectMeta(topic.subject);
 
   const { body, stage, m } = shell('brain', topic.subject, topic.name, meta);
   stage.appendChild(loading('Preparing recall cards…', 'Made once, then saved for reuse.'));
@@ -142,7 +142,7 @@ function runSession(stage, m, student, meta, cards, restart, mixed = false, onRe
   const render = () => {
     if (i >= cards.length) return renderDone();
     const c = cards[i];
-    const cardMeta = mixed && c.subject ? SUBJECTS[c.subject] : meta;
+    const cardMeta = mixed && c.subject ? subjectMeta(c.subject) : meta;
     revealed = false;
     stage.innerHTML = '';
     const wrap = el(`<div class="fade-up">

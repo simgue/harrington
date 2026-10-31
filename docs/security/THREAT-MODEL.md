@@ -121,7 +121,7 @@ D = denial of service, E = elevation of privilege.
 
 | | Threat | Current control | Gap | Severity | Proposed fix |
 | --- | --- | --- | --- | --- | --- |
-| T | Changed or hostile curriculum content | Only four file names (`server.mjs:36`); views escape taxonomy strings (`tests/isolation.test.mjs` "views escape learner, record and taxonomy strings"; `hostile-import.spec.mjs` "a topic title with markup shows as text") | G10: the default upstream is a moving `@main`, with no integrity check, and the first answer is cached for good | Minor | Pin a commit and check a SHA-256 |
+| T | Changed or hostile curriculum content | Only four file names (`server.mjs:36`); views escape taxonomy strings (`tests/isolation.test.mjs` "views escape learner, record and taxonomy strings"; `hostile-import.spec.mjs` "a topic title with markup shows as text") | G10, fixed by HAR-55: the default upstream is the commit pinned in `lib/taxonomy-pin.mjs` and each download must match its SHA-256 (`tests/taxonomy-pin.test.mjs`); a custom `HARRINGTON_TAXONOMY_UPSTREAM` is unchecked, with a startup warning and health `unchecked` | Minor | Done; see docs/CURRICULUM.md |
 
 ### TB6: export, import, backup, restore
 
@@ -182,7 +182,7 @@ have prevented them, for HAR-36, are in [PRACTICES.md](PRACTICES.md).
 | G7 | Minor | Data folder, files and backups are readable by every local user | TB7 |
 | G8 | Minor | One static 400-day cookie for every device; a lost device can be signed out only by changing the token for everyone | TB1, P5 |
 | G9 | Minor | `includeNotes` is trusted as the request states it | TB4, P4 |
-| G10 | Minor | Taxonomy downloaded from a moving branch with no integrity check, cached for good | TB5 |
+| G10 | Minor | Taxonomy downloaded from a moving branch with no integrity check, cached for good (fixed by HAR-55) | TB5 |
 | G11 | Minor | Validator keeps unknown top-level fields and lists under non-learner keys | TB6, P3 |
 | G12 | Minor | The first person to press Grown-ups sets the family PIN; no attempt limit | TB3, P1 |
 | G13 | Minor | Docker image runs as root | TB7 |

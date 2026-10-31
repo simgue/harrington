@@ -5,7 +5,7 @@ import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, sch
 import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, dropBrokenEntries, LEARNER_KEYS, REQUEST_TEXT_MAX, RETIRED_FIELDS, MIN_BIRTH_YEAR, NAME_MAX, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
 import { formatCount } from './format.js';
 import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
-import { getData } from './data.js';
+import { getData, isCurrentTopic } from './data.js';
 import { pruneDismissed } from './alert-dismissals.js';
 import { normalizeSession } from './levelset.js';
 import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
@@ -1154,24 +1154,17 @@ export function removeExtra(studentId, dateKey, itemId) {
   persist(); emit();
 }
 export function extrasOn(studentId, dateKey) { return planOf(studentId).extras[dateKey] || []; }
-// Drop extras on a day whose topic is gone (e.g. after a taxonomy update).
-export function pruneExtras(studentId, dateKey, itemIds) {
-  const p = planOf(studentId);
-  const before = (p.extras[dateKey] || []).length;
-  p.extras[dateKey] = (p.extras[dateKey] || []).filter(x => !itemIds.includes(x.id));
-  if (p.extras[dateKey].length === before) return;
-  if (!p.extras[dateKey].length) delete p.extras[dateKey];
-  // The calendar prunes extras whose topic is gone while rendering: an
-  // automatic write, refused without a toast while read-only.
-  persist({ automatic: true }); emit();
-}
 // Change where a learner's track starts; `clearMoves` also drops topics the
-// parent moved by hand, so they follow the new track. One persist + emit.
+// parent moved by hand, so they follow the new track (a retired topic's move
+// is kept: it is archived data, not part of the track). One persist + emit.
 export function setStartDate(studentId, dateKey, { clearMoves = false } = {}) {
   const s = state.students.find(s => s.id === studentId);
   if (!s || !validDateKey(dateKey)) return;
   s.startDate = dateKey;
-  if (clearMoves) planOf(studentId).moves = {};
+  if (clearMoves) {
+    const p = planOf(studentId);
+    p.moves = Object.fromEntries(Object.entries(p.moves).filter(([id]) => !isCurrentTopic(id)));
+  }
   persist(); emit();
 }
 
@@ -1227,6 +1220,8 @@ export function resolveSuggestion(studentId, id, status) {
 // ---- Active recall / spaced repetition ----
 // Leitner-style boxes with increasing intervals (days). Box 0 = new/relearning.
 const RECALL_INTERVALS = [0, 1, 2, 4, 8, 16, 32];
+// Card ids are `${topicId}::${n}`; older records may lack a topicId.
+const recallTopicOf = (id, c) => c?.topicId || String(id).split('::')[0];
 function recallOf(studentId) {
   if (!state.recall[studentId]) state.recall[studentId] = {};
   return state.recall[studentId];
@@ -1263,18 +1258,17 @@ export function gradeRecall(studentId, cardId, topicId, grade) {
   return c;
 }
 
-// Cards due today (optionally filtered to a set of card ids / topic).
+// Cards due today (optionally filtered to a set of card ids / topic). A card
+// of a retired topic keeps its schedule but is never due.
 export function dueRecallCards(studentId, { cardIds = null, topicId = null } = {}) {
   const r = recallOf(studentId);
   const today = dayStart(Date.now());
   return Object.entries(r)
-    .filter(([id, c]) => isObject(c) && c.due <= today
+    .filter(([id, c]) => isObject(c) && c.due <= today && isCurrentTopic(recallTopicOf(id, c))
       && (!cardIds || cardIds.includes(id))
       && (!topicId || c.topicId === topicId))
     .map(([id, c]) => ({ id, ...c }));
 }
-// Card ids are `${topicId}::${n}`; older records may lack a topicId.
-const recallTopicOf = (id, c) => c?.topicId || String(id).split('::')[0];
 
 // Cards due today, minus entries whose card is gone from a card set this
 // session has already read. Topics not read yet are checked in the background
@@ -1369,7 +1363,7 @@ export function duePracticeItems(studentId) {
   const p = practiceOf(studentId);
   const today = dayStart(Date.now());
   return Object.entries(p)
-    .filter(([, c]) => isObject(c) && c.due <= today)
+    .filter(([, c]) => isObject(c) && c.due <= today && (!c.topicId || isCurrentTopic(c.topicId)))
     .map(([id, c]) => ({ id, ...c }));
 }
 // One topic's queued retries, soonest first, each with `isDue`: the set behind

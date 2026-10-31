@@ -10,8 +10,9 @@ distribute, or build on this project.
 
 ## Where the data comes from
 
-Harrington does **not** bundle or fork the dataset. It fetches the latest data at
-runtime directly from the open-source repository:
+Harrington does **not** bundle or fork the dataset. It fetches one pinned
+revision at runtime directly from the open-source repository (see
+[`docs/CURRICULUM.md`](docs/CURRICULUM.md)):
 
 - **Marble Skill Taxonomy** — https://github.com/withmarbleapp/os-taxonomy
 

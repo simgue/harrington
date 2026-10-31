@@ -98,6 +98,7 @@ export function normalizeSession(raw) {
  *   topicAge(topic),
  *   hardPrereqs(id),   // [{ id }] across the whole taxonomy
  *   mastered(id),      // current progress
+ *   isCurrent(id),     // optional: false for a topic the taxonomy retired
  * }
  */
 
@@ -130,6 +131,16 @@ function knownFn(ctx, answers) {
 
 const domainsOf = (ctx) => ctx.domains || [...new Set(ctx.topics.map(t => t.domain))];
 
+// A section sheet's age band, read from its topics now. The stored `level` is
+// the band when the sheet was built; a taxonomy revision can move a topic's
+// starting age, so it is only the fallback (every topic retired, or gone from
+// the lane).
+export function sheetLevel(ctx, sheet) {
+  const byId = new Map(ctx.topics.map(t => [t.id, t]));
+  const ages = sheet.ids.map(id => byId.get(id)).filter(Boolean).map(ctx.topicAge);
+  return ages.length ? Math.min(...ages) : sheet.level;
+}
+
 // The next sheet to ask, or null when the walk is finished. Call it once the
 // last sheet is saved (or with no sheets yet).
 export function nextSheet(ctx, session) {
@@ -141,7 +152,8 @@ export function nextSheet(ctx, session) {
   const unknownAt = (domain, level) => ctx.topics
     .filter(t => t.domain === domain && ctx.topicAge(t) === level && !known(t.id) && !asked.has(t.id)).map(t => t.id);
   const levelsOf = (domain) => laneLevels(ctx.topics.filter(t => t.domain === domain), ctx.topicAge);
-  const partOf = (domain, level) => sheets.filter(s => s.kind === 'section' && s.domain === domain && s.level === level).length + 1;
+  const levelOf = (s) => sheetLevel(ctx, s);
+  const partOf = (domain, level) => sheets.filter(s => s.kind === 'section' && s.domain === domain && levelOf(s) === level).length + 1;
   const section = (domain, level, dir, ids) => ({ kind: 'section', domain, level, dir, part: partOf(domain, level), ids: ids.slice(0, SHEET_MAX) });
   // The first band from `level` (inclusive) in `dir` with anything to ask.
   const walk = (domain, level, dir) => {
@@ -164,13 +176,17 @@ export function nextSheet(ctx, session) {
       continue;
     }
     const at = mine[mine.length - 1];
+    const atLevel = levelOf(at);
+    // A band the domain no longer has (its topics moved or were retired):
+    // this domain's walk is over.
+    const i = lv.indexOf(atLevel);
+    if (i < 0) continue;
     // The rest of a section bigger than one sheet.
-    const rest = unknownAt(domain, at.level);
-    if (rest.length) return section(domain, at.level, at.dir, rest);
-    const marks = mine.filter(s => s.level === at.level).flatMap(s => s.ids).map(id => answers[id]);
+    const rest = unknownAt(domain, atLevel);
+    if (rest.length) return section(domain, atLevel, at.dir, rest);
+    const marks = mine.filter(s => levelOf(s) === atLevel).flatMap(s => s.ids).map(id => answers[id]);
     const anyYes = marks.includes('yes');
     const anyNo = marks.includes('no');
-    const i = lv.indexOf(at.level);
     let next = null;
     if (at.dir === 'up' && anyYes && !anyNo && i + 1 < lv.length) next = walk(domain, lv[i + 1], 'up');
     else if (anyNo && !anyYes && i > 0) next = walk(domain, lv[i - 1], 'down');
@@ -233,9 +249,11 @@ export function frontier(ctx, session) {
 }
 
 // What confirming the workbook writes: every Yes with its closure, against
-// current progress, and the Unsure topics to queue.
+// current progress, and the Unsure topics to queue. A Yes given before a
+// taxonomy update retired its topic is kept in the session but never marked.
 export function proposal(ctx, session) {
-  const yes = Object.keys(session.answers).filter(id => session.answers[id] === 'yes');
+  const isCurrent = ctx.isCurrent || (() => true);
+  const yes = Object.keys(session.answers).filter(id => session.answers[id] === 'yes' && isCurrent(id));
   const master = yesClosure(ctx, session.answers, yes);
   const lane = new Set(ctx.topics.map(t => t.id));
   return {
@@ -252,9 +270,11 @@ export function setAnswer(session, topicId, answer) {
   return { ...session, answers: { ...session.answers, [topicId]: answer } };
 }
 
-export function sheetComplete(session) {
+// `isCurrent(id)` is false for a topic the taxonomy retired after the sheet
+// was built: it cannot be shown, so it is not waited for.
+export function sheetComplete(session, isCurrent = () => true) {
   const last = session.sheets[session.sheets.length - 1];
-  return !!last && !last.savedAt && last.ids.every(id => session.answers[id]);
+  return !!last && !last.savedAt && last.ids.filter(isCurrent).every(id => session.answers[id]);
 }
 
 // Saves the current sheet's answers (nothing else is written) and moves on:

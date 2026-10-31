@@ -1,4 +1,4 @@
-import { SUBJECTS } from '../data.js';
+import { subjectMeta, subjectNames } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, fmtDateTime, toast } from '../ui.js';
 import { studentStats, recommendedNext, recentActivity, todaysChoices, isUnlocked, allReachableMastered, MASTERY } from '../mastery.js';
@@ -107,7 +107,7 @@ export function renderDashboard(params, { navigate }) {
     nextWrap.appendChild(el(`<p class="text-sm text-ink-faint sm:col-span-2 lg:col-span-4">${empty}</p>`));
   } else {
     nexts.forEach(n => {
-      const meta = SUBJECTS[n.topic.subject];
+      const meta = subjectMeta(n.topic.subject);
       const row = el(`<button class="text-left flex items-start gap-3 p-3.5 rounded-2xl card-hover" style="background:${esc(meta.color)}12">
         <span class="w-10 h-10 rounded-full bg-paper-card flex items-center justify-center shrink-0">${growthIcon(stageForStatus(n.status, true), 30)}</span>
         <span class="flex-1 min-w-0">
@@ -165,8 +165,8 @@ export function renderDashboard(params, { navigate }) {
     <span class="text-xs text-ink-faint flex items-center gap-1"><i data-lucide="eye-off" class="w-3.5 h-3.5"></i>Only you can see this</span>
   </div>`));
   const grid = el(`<div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5"></div>`);
-  Object.keys(SUBJECTS).forEach(sub => {
-    const meta = SUBJECTS[sub];
+  subjectNames().forEach(sub => {
+    const meta = subjectMeta(sub);
     const s = stats.per[sub];
     const cell = el(`<div class="relative"></div>`);
     const card = el(`<button class="w-full h-full text-left bg-paper-card shadow-soft rounded-3xl p-4 pr-10 card-hover flex items-center gap-3.5">

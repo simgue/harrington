@@ -80,6 +80,8 @@ test('serves Harrington and reports self-hosted health', async () => {
     aiCapabilities: [],
     redaction: 'server+client',
     taxonomyCached: false,
+    taxonomy: 'not-downloaded',
+    taxonomyRevision: null,
     stateVersion: 0,
     stateBytes: 0,
     backupAgeDays: null,
@@ -635,12 +637,13 @@ test('serves a cached Marble taxonomy file and rejects unknown names', async () 
   await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
   await writeFile(join(dataDir, 'taxonomy', 'topics.json'), JSON.stringify(payload));
 
-  const cached = await fetch(`${baseUrl}/api/taxonomy/topics.json`);
-  assert.equal(cached.status, 200);
-  assert.deepEqual(await cached.json(), payload);
-
-  const health = await fetch(`${baseUrl}/api/health`);
-  assert.equal((await health.json()).taxonomyCached, true);
+  // A stand-in file is not the pinned revision: health says so, with no
+  // revision. (Fetching it would download the pin; tests/taxonomy-pin.test.mjs
+  // covers that without the network.)
+  const health = await (await fetch(`${baseUrl}/api/health`)).json();
+  assert.equal(health.taxonomyCached, true);
+  assert.equal(health.taxonomy, 'outdated');
+  assert.equal(health.taxonomyRevision, null);
 });
 });
 
@@ -699,7 +702,11 @@ test('fetches an allowlisted taxonomy file from upstream and caches it on disk',
     assert.equal(first.status, 200);
     assert.deepEqual(await first.json(), fixture);
     assert.equal(upstreamHits, 1);
-    assert.deepEqual(JSON.parse(await readFile(join(isolatedDir, 'taxonomy', 'topics.json'), 'utf8')), fixture);
+    // A custom upstream caches in its own folder, never next to the pinned files.
+    const [customDir] = (await readdir(join(isolatedDir, 'taxonomy'))).filter((name) => name.startsWith('custom-'));
+    assert.match(customDir, /^custom-[0-9a-f]{12}$/);
+    assert.deepEqual(JSON.parse(await readFile(join(isolatedDir, 'taxonomy', customDir, 'topics.json'), 'utf8')), fixture);
+    await assert.rejects(stat(join(isolatedDir, 'taxonomy', 'topics.json')), { code: 'ENOENT' });
 
     const second = await fetch(`${isolatedUrl}/api/taxonomy/topics.json`);
     assert.equal(second.status, 200);
@@ -708,6 +715,8 @@ test('fetches an allowlisted taxonomy file from upstream and caches it on disk',
 
     const missing = await fetch(`${isolatedUrl}/api/taxonomy/manifest.json`);
     assert.equal(missing.status, 502);
+    // A custom upstream is not checked against the pin.
+    assert.equal((await (await fetch(`${isolatedUrl}/api/health`)).json()).taxonomy, 'unchecked');
   } finally {
     isolated.kill('SIGTERM');
     await new Promise((resolve) => isolated.once('exit', resolve));
