@@ -1,5 +1,4 @@
 import { loadStandards, loadTaxonomy } from './data.js';
-import { learnerYear } from './curriculum.js';
 import { loadFigures } from './figures/index.js';
 import * as store from './store.js';
 import { maybeShowWelcome } from './views/guide.js';
@@ -73,20 +72,14 @@ async function boot() {
   }
   const r = parseHash();
   route.name = r.name; route.params = r.params;
-  // The Australian Curriculum list is optional and never holds the app up for
-  // long. A family where a learner follows it waits at most
-  // STANDARDS_WAIT_MS, so their first screens already have the year-level
-  // order; any other family does not wait. A list that arrives later shows on
-  // the next render (a re-render here would replace a page someone is
-  // already using), except on the coverage page, which waits for it.
+  // The Australian Curriculum list is optional and never holds up start-up.
+  // It is asked for before the first render (so that render knows it is on
+  // its way) and, like other data that arrives late, re-renders whatever is
+  // showing when it arrives or fails.
   const standards = loadStandards();
-  if (store.get().students.some(learnerYear)) {
-    await Promise.race([standards, new Promise((resolve) => setTimeout(resolve, STANDARDS_WAIT_MS))]);
-  }
   render();
-  standards.then(() => { if (route.name === 'coverage') render(); });
+  standards.then(() => render());
 }
-const STANDARDS_WAIT_MS = 3_000;
 
 function render() {
   if (!taxonomyReady) return;

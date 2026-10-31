@@ -22,9 +22,10 @@ tagged a release yet; everything below is on `main`.
   is a plan and does not count), and prints as registration evidence. The
   server derives a 165 KB `/api/taxonomy/standards/acara-v9.json` from the
   taxonomy's 2.7 MB `curriculum-standards.json`, which is never sent to the
-  browser. The app waits for it at most 3 seconds, and only when a learner
-  follows the Australian Curriculum; the server gives up on the download
-  after 15 seconds and answers a failure from memory for five minutes.
+  browser. The app never waits for it at start-up (it loads in the
+  background and the page renders again when it arrives), the server gives
+  up on the download after 15 seconds and answers a failure from memory for
+  five minutes, and a daily pick made before the list arrives is kept.
 
 ### Fixed
 - The topic page no longer scrolls sideways on a phone when a topic has a

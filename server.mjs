@@ -9,6 +9,7 @@ import {
   MAX_TIMEOUT_MS, chatCompletion, knownCapabilities, readStoredAiSettings, resolveAiSettings, validTimeout,
 } from './lib/ai-provider.mjs';
 import { isLoopbackAddress } from './lib/loopback.mjs';
+import { rememberLoads } from './lib/remembered.mjs';
 import { TAXONOMY_PIN } from './lib/taxonomy-pin.mjs';
 import { AI_CAPABILITIES, capabilityOffMessage, parseCapabilities } from './src/js/ai-capabilities.js';
 import { redactNames } from './src/js/redact.js';
@@ -763,22 +764,11 @@ async function loadTaxonomyFile(name, { timeoutMs = null } = {}) {
 // once instead of waiting on the upstream again.
 const STANDARDS_TIMEOUT_MS = 15_000;
 const STANDARDS_RETRY_MS = 5 * 60_000;
-const trimmedStandards = new Map(); // slug -> { pending, failedAt }
-function standardsFor(slug, now = Date.now()) {
-  const known = trimmedStandards.get(slug);
-  if (known && !(known.failedAt && now - known.failedAt >= STANDARDS_RETRY_MS)) return known.pending;
-  const entry = { pending: null, failedAt: 0 };
-  entry.pending = loadTaxonomyFile('curriculum-standards.json', { timeoutMs: STANDARDS_TIMEOUT_MS })
-    .then(body => Buffer.from(JSON.stringify(trimStandards(JSON.parse(body.toString('utf8')), slug))))
-    .catch((error) => {
-      entry.failedAt = Date.now();
-      throw error.statusCode ? error : Object.assign(new Error(`Could not read the ${slug} curriculum standards: ${error.message}`), { statusCode: 502 });
-    });
-  // A remembered failure is answered from here, so its rejection is handled.
-  entry.pending.catch(() => {});
-  trimmedStandards.set(slug, entry);
-  return entry.pending;
-}
+const standardsFor = rememberLoads((slug) => loadTaxonomyFile('curriculum-standards.json', { timeoutMs: STANDARDS_TIMEOUT_MS })
+  .then(body => Buffer.from(JSON.stringify(trimStandards(JSON.parse(body.toString('utf8')), slug))))
+  .catch((error) => {
+    throw error.statusCode ? error : Object.assign(new Error(`Could not read the ${slug} curriculum standards: ${error.message}`), { statusCode: 502 });
+  }), { retryMs: STANDARDS_RETRY_MS });
 
 // ---- Saved lessons listing ----
 // Keys and saved times for one cache prefix, never content. Read-only.

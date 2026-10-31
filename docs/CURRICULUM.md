@@ -181,9 +181,10 @@ descriptions: code, title, strand, learning area, subject, year levels; about
 until the server restarts, so restart Harrington after replacing the cached
 file. The file is optional: its download gives up after 15 seconds, a failure
 is answered from memory for five minutes before the server tries again. The
-app waits for the list at most 3 seconds, and only when a learner follows the
-Australian Curriculum; a list that arrives later shows from the next page
-the parent opens (the coverage page shows it as soon as it arrives).
+app never waits for the list at start-up: it loads in the background and the
+page showing renders again when it arrives or fails. Until then, today's
+choices for a learner with a curriculum year are not saved; a pick made
+before then saves the offers shown first, so it is never lost.
 Year levels are normalised to `F` and `1` to `6`; 111 codes span two years
 (Health and Physical Education and Technologies bands).
 

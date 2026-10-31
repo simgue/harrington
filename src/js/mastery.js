@@ -145,6 +145,23 @@ export function todaysOffers(studentId, dateKey) {
   return Object.fromEntries(Object.entries(built).map(([k, lane]) => [k, lane.options.map(t => t.id)]));
 }
 
+// Picks a topic from today's choices (topicId null clears the lane). A pick
+// is never lost: when today's offers are not saved yet (a learner with a
+// curriculum year whose standards list was still on its way), they are
+// decided and saved first, from what is known now, with the picked topic in
+// its lane, then the pick is saved.
+export function pickToday(studentId, dateKey, lane, topicId) {
+  if (!store.dailyFor(studentId, dateKey)?.offers) {
+    const offers = todaysOffers(studentId, dateKey);
+    if (topicId) {
+      const shown = offers[lane] || [];
+      offers[lane] = shown.includes(topicId) ? shown : [topicId, ...shown].slice(0, Math.max(shown.length, 1));
+    }
+    store.saveDailyOffers(studentId, dateKey, offers);
+  }
+  store.pickDaily(studentId, dateKey, lane, topicId);
+}
+
 // Today's literacy and numeracy pick-one options for a student, as topics.
 // Offers are chosen once per day and remembered; picks come from the store.
 // `blocked` (locked topics with their first unmet prerequisite) is worked out

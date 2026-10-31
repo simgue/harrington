@@ -1,7 +1,8 @@
 // The Australian Curriculum (version 9): the learner setting, topic chips,
 // the year-level order and the printable coverage report. Runs in `desktop`;
 // the tests tagged @mobile also run in `mobile` (390×844).
-import { test, expect, modal, expectToast, noHorizontalOverflow } from './fixtures.mjs';
+import { test, expect, modal, expectToast, noHorizontalOverflow, childView } from './fixtures.mjs';
+import { TODAY_KEY } from './support/env.mjs';
 import { FIXED_YEAR } from './support/env.mjs';
 import { learner } from './support/family.mjs';
 
@@ -186,4 +187,43 @@ test('a learner without a year sees the report for the year their age suggests',
   await expect(page.getByText('has no Australian Curriculum year set')).toBeVisible();
   await page.getByLabel('Year level').selectOption('F');
   await expect(page.getByText('Rowan Example · Foundation · version 9 content descriptions')).toBeVisible();
+});
+
+// The standards list answers 3 s late, as from a slow upstream: the app
+// starts without it, and a pick made before it arrives is kept.
+async function slowStandards(page) {
+  await page.route('**/api/taxonomy/standards/acara-v9.json', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    await route.continue();
+  });
+}
+const ROWAN = learner('rowan').id;
+
+test('with the standards list still on its way, the first dashboard pick is kept', async ({ page, api, gotoApp }) => {
+  await slowStandards(page);
+  await gotoApp({ seed: yearTwo() });
+  const literacy = page.getByRole('group', { name: 'Literacy: pick one' });
+  const first = literacy.locator('button[aria-pressed]').first();
+  await first.click();
+  await expect(literacy).toContainText('Rowan Example picked');
+  const saved = await api.waitForState((s) => s.daily?.[ROWAN]?.[TODAY_KEY]?.picks?.literacy);
+  const day = saved.daily[ROWAN][TODAY_KEY];
+  expect(day.offers.literacy).toContain(day.picks.literacy);
+  // The list arrives, the dashboard renders again, and the pick stays.
+  await page.waitForResponse('**/api/taxonomy/standards/acara-v9.json');
+  await expect(literacy).toContainText('Rowan Example picked');
+  expect((await api.getState()).state.daily[ROWAN][TODAY_KEY].picks.literacy).toBe(day.picks.literacy);
+});
+
+test('with the standards list still on its way, the first pick in the child view is kept', async ({ page, api, gotoApp }) => {
+  await slowStandards(page);
+  await gotoApp({ seed: yearTwo() });
+  await page.getByRole('button', { name: "Rowan Example's view" }).click();
+  const story = childView(page).getByRole('region', { name: 'Story time: pick one' });
+  const first = story.locator('button[aria-pressed]').first();
+  const pickName = (await first.locator('span.block').first().innerText()).trim();
+  await first.click();
+  await expect(modal(page).getByRole('heading', { name: pickName })).toBeVisible();
+  const saved = await api.waitForState((s) => s.daily?.[ROWAN]?.[TODAY_KEY]?.picks?.literacy);
+  expect(saved.daily[ROWAN][TODAY_KEY].offers.literacy).toContain(saved.daily[ROWAN][TODAY_KEY].picks.literacy);
 });

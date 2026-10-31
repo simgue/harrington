@@ -1,7 +1,7 @@
 import * as store from '../store.js';
 import { getData, subjectMeta, subjectNames } from '../data.js';
 import { el, refreshIcons, toast } from '../ui.js';
-import { studentStats, recommendedNext, recentActivity, todaysChoices, plantNext } from '../mastery.js';
+import { studentStats, recommendedNext, recentActivity, todaysChoices, pickToday, plantNext } from '../mastery.js';
 import { keyOf, parseKey, pauseInfo, familyCalendar } from '../scheduler.js';
 import { BADGES } from '../game.js';
 import { openChildTopic } from './childtopic.js';
@@ -169,7 +169,7 @@ function render(student) {
       </button>`);
       // Picking a choice opens it; tapping another choice changes the pick.
       b.onclick = () => {
-        if (!picked) { store.pickDaily(student.id, todayKey, key, t.id); render(student); }
+        if (!picked) { pickToday(student.id, todayKey, key, t.id); render(student); }
         openChildTopic(t);
       };
       grid.appendChild(b);
