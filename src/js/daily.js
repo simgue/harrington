@@ -33,8 +33,9 @@ export const LANES = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Score per point of curriculum boost: a topic at the learner's year (boost
-// 2) outranks an age-only topic of any age fit, quiet domain or centrality,
-// but not work already started.
+// 2) gains 6, as much as six years of age fit or work in progress, so it
+// usually comes first among topics not yet started; an age-only topic in a
+// long-quiet domain with a close age and high centrality can still edge it.
 export const BOOST_WEIGHT = 3;
 
 // The oldest band a learner is offered: one year above their age, but never
@@ -74,13 +75,14 @@ function hash(text) {
  *
  * Returns { options, blocked }.
  *
- * options: preference goes to work already started, then topics linked to the
- * learner's curriculum year (a boosted topic is offered even above the age
- * ceiling), then domains that have gone quiet, then age fit and centrality. The second option comes from a
+ * options: scored by work already started, the curriculum boost (a boosted
+ * topic is considered even above the age ceiling), how long its domain has
+ * gone quiet, age fit and centrality. The second option comes from a
  * different domain when one is available, so the choice is a real choice.
  *
- * blocked: up to two age-appropriate topics in the lane that are still locked,
- * each as { topic, needs } where `needs` is its first unmet hard prerequisite.
+ * blocked: up to two locked topics in the lane, age-appropriate or boosted
+ * (a locked topic linked to the learner's year can appear here), each as
+ * { topic, needs } where `needs` is its first unmet hard prerequisite.
  * This feeds the parent-only "Not yet" line.
  */
 export function laneOptions(topics, lane, ctx, count = 2, blockedCount = 2) {

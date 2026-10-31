@@ -267,22 +267,20 @@ Year 6. It is optional; without it, topics are ordered by age as before.
   to the year below, come first in the daily choices, the map list, the topic
   finder and the suggested placement. Nothing is hidden or locked.
 - **Codes on topics.** A topic page lists the content descriptions the Marble
-  Skill Taxonomy links it to, for example "AC9M2N01 · Year 2 · Number". Tap a
-  code to read its text. A link is Marble's map, not a check that the content
-  description is met.
+  Skill Taxonomy links it to, for example "AC9M2N01 · Year 2 · Number", with
+  ACARA's notice below them. Tap a code to read its text. A link is Marble's
+  map, not a check that the content description is met.
 - **Coverage report.** Records > **Australian Curriculum coverage** lists each
   content description for the year by learning area, with the linked topics
-  and a status from your own records: **Mastered** (every linked topic
-  mastered), **Evidence** (a record, a passed check, practice or a lesson
-  saved for a linked topic) or **Not yet**. Counts per learning area are at
-  the top. **Print report** prints it with every area expanded, the date and
-  the ACARA notice, for example as evidence for home education registration.
-  A saved lesson belongs to the server, not to one learner, so with several
-  learners check what "lesson saved" refers to.
+  and a status from your own records: **Linked topics mastered** (every
+  linked topic mastered), **Evidence** (a record such as an observation, a
+  passed check or challenge, or practice for a linked topic) or **Not yet**.
+  A saved lesson is a plan, not evidence, so it does not count. Counts per
+  learning area are at the top. **Print report** prints it with every area
+  expanded, the date and the ACARA notice, for example as evidence for home
+  education registration.
 
-Australian Curriculum content: © Australian Curriculum, Assessment and
-Reporting Authority (ACARA) 2009 to present, unless otherwise indicated. The
-full notice, which Harrington shows with the text, is in the README.
+ACARA's notice for the Australian Curriculum content is in the README.
 
 ## Records and recordings
 
@@ -383,6 +381,4 @@ the README), and each feature's capability is switched on:
 *Curriculum: Marble Skill Taxonomy (v1) · © Generative Spark, Inc. · licensed
 under ODbL 1.0 (database) and CC BY-SA 4.0 (content).*
 
-*Australian Curriculum: © Australian Curriculum, Assessment and Reporting
-Authority (ACARA) 2009 to present, unless otherwise indicated, licensed under
-CC BY 4.0; see the README for the full notice.*
+*Australian Curriculum content: see ACARA's notice in the README.*

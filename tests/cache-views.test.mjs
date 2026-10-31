@@ -38,6 +38,7 @@ globalThis.fetch = async (path, options = {}) => {
   if (url.pathname === '/api/health') return json(200, { ok: true, aiConfigured });
   if (url.pathname === '/api/taxonomy/topics.json') return json(200, { topics: [TOPIC, OTHER] });
   if (url.pathname === '/api/taxonomy/dependencies.json') return json(200, { dependencies: [] });
+  if (url.pathname === '/api/taxonomy/standards/acara-v9.json') return json(200, { standards: [] });
   if (url.pathname.startsWith('/api/taxonomy/')) return json(404, { error: 'Unknown taxonomy file' });
   if (url.pathname === '/api/state') return json(200, {});
   if (url.pathname === '/api/ai') {

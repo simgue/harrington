@@ -1,4 +1,4 @@
-import { loadTaxonomy } from './data.js';
+import { loadStandards, loadTaxonomy } from './data.js';
 import { loadFigures } from './figures/index.js';
 import * as store from './store.js';
 import { maybeShowWelcome } from './views/guide.js';
@@ -72,7 +72,13 @@ async function boot() {
   }
   const r = parseHash();
   route.name = r.name; route.params = r.params;
+  // The Australian Curriculum list never holds up the first render; the codes,
+  // the year-level order and the coverage report appear when it arrives, and
+  // the coverage page swaps "loading" for its failure note when it does not.
+  // It is asked for first, so the first render knows it is on its way.
+  const standards = loadStandards();
   render();
+  standards.then(() => render());
 }
 
 function render() {

@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  ACARA_NOTICE, YEARS, ageForYear, coverageReport, curriculumBoost, curriculumProblem, indexStandards,
-  learnerYear, normalizeYear, rankByCurriculum, standardStatus, topicCodes, topicEvidence, topicStandards,
+  ACARA_NOTICE, EVIDENCE_LABELS, YEARS, ageForYear, coverageReport, curriculumBoost, curriculumProblem, indexStandards,
+  curriculumAge, learnerYear, normalizeYear, rankByCurriculum, standardStatus, topicCodes, topicEvidence, topicStandards,
   trimStandards, yearForAge, yearLabel, yearsLabel, boosterFor,
 } from '../src/js/curriculum.js';
 import { validateDocument } from '../src/js/document.js';
 import { laneOptions, LANES } from '../src/js/daily.js';
 import { searchTopics } from '../src/js/finder.js';
+import { buildCurriculumTree, defaultDomain } from '../src/js/graph.js';
+import { defaultMaxAge } from '../src/js/placement.js';
 
 // A small curriculum-standards.json in the taxonomy's shape.
 const SOURCE = {
@@ -65,15 +67,16 @@ test('the validator accepts an absent or valid curriculum and refuses a malforme
   assert.equal(validateDocument(doc(undefined)), null);
   assert.equal(validateDocument(doc(null)), null);
   for (const y of YEARS) assert.equal(validateDocument(doc({ id: 'acara-v9', year: y })), null, y);
-  // A curriculum from a newer Harrington is kept.
-  assert.equal(validateDocument(doc({ id: 'nz-2026', year: 'Year 3' })), null);
+  // Only the Australian Curriculum: the learner form could not show another
+  // one, and its next save would drop it.
+  assert.match(validateDocument(doc({ id: 'nz-2026', year: 'Year 3' })), /Rowan Example.*curriculum other than the Australian Curriculum \(acara-v9\)/);
   assert.match(validateDocument(doc({ id: 'acara-v9', year: '7' })), /Rowan Example.*Australian Curriculum year other than F or 1 to 6/);
   assert.match(validateDocument(doc({ id: 'acara-v9', year: 2 })), /Australian Curriculum year/);
   assert.match(validateDocument(doc({ id: 'acara-v9', year: 'Foundation' })), /Australian Curriculum year/);
   assert.match(validateDocument(doc('acara-v9')), /curriculum setting that is not in the expected shape/);
   assert.match(validateDocument(doc([])), /curriculum setting that is not in the expected shape/);
-  assert.match(validateDocument(doc({ year: '2' })), /without a curriculum id/);
-  assert.equal(curriculumProblem({ id: 'nz-2026', year: 3 }), 'has a curriculum year that is not text');
+  assert.match(validateDocument(doc({ year: '2' })), /curriculum other than the Australian Curriculum/);
+  assert.equal(curriculumProblem({ id: 'acara-v9', year: 'F' }), null);
 });
 
 test('trimStandards keeps one curriculum and only the fields the app shows', () => {
@@ -152,11 +155,17 @@ test('the finder nudges a year-linked match up and reports its boost', () => {
   assert.deepEqual(results.map(r => [r.topic.id, r.boost]), [['linked', 2], ['plain', 0]]);
 });
 
-test('topicEvidence lists records, passed topic checks, practice and saved lessons', () => {
+test('topicEvidence lists records, passed topic checks and challenges, and practice; never a saved lesson', () => {
   const sources = {
     records: [{ type: 'observation', topicId: 'a' }, { type: 'note', coverage: [{ topicId: 'b', topicName: 'B' }] }, { type: 'assessment', placement: { topicIds: ['c'] } }],
     tests: [{ scope: 'topic', topicId: 'c', passed: false }, { scope: 'topic', topicId: 'd', passed: true }, { scope: 'section', topicId: 'e', passed: true }],
+    challenges: [
+      { topicId: 'g', correct: 8, total: 10 }, // 80%: the "ace" a challenge rewards
+      { topicId: 'h', correct: 7, total: 10 }, // below it
+      { topicId: 'i', correct: 0, total: 0 },
+    ],
     practice: { p1: { topicId: 'e' } },
+    // A saved lesson is a plan, not evidence: anything passed for it is ignored.
     lessonTopics: new Set(['f']),
   };
   assert.deepEqual(topicEvidence('a', sources), ['record']);
@@ -164,7 +173,12 @@ test('topicEvidence lists records, passed topic checks, practice and saved lesso
   assert.deepEqual(topicEvidence('c', sources), [], 'a placement record and a failed check are not evidence');
   assert.deepEqual(topicEvidence('d', sources), ['test']);
   assert.deepEqual(topicEvidence('e', sources), ['practice']);
-  assert.deepEqual(topicEvidence('f', sources), ['lesson']);
+  assert.deepEqual(topicEvidence('f', sources), [], 'a saved lesson is not evidence');
+  assert.deepEqual(topicEvidence('g', sources), ['challenge']);
+  assert.deepEqual(topicEvidence('h', sources), [], 'a challenge below 80% is not evidence');
+  assert.deepEqual(topicEvidence('i', sources), []);
+  assert.equal(EVIDENCE_LABELS.challenge, 'challenge passed');
+  assert.equal('lesson' in EVIDENCE_LABELS, false);
   assert.deepEqual(topicEvidence('z', {}), []);
 });
 
@@ -202,4 +216,25 @@ test('the ACARA notice is quoted in full', () => {
   assert.match(ACARA_NOTICE, /^© Australian Curriculum, Assessment and Reporting Authority \(ACARA\) 2009 to present/);
   assert.match(ACARA_NOTICE, /licensed under CC BY 4\.0 \(https:\/\/creativecommons\.org\/licenses\/by\/4\.0\/\)/);
   assert.match(ACARA_NOTICE, /It is up to each person to make their own assessment of the product\.$/);
+});
+
+test('a curriculum year sets where the map opens and what placement suggests', () => {
+  const yearTwo = { curriculum: { id: 'acara-v9', year: '2' } };
+  // Year 2's usual age is 7, whatever the learner's own age; without a year, their age.
+  assert.equal(curriculumAge(yearTwo, 5), 7);
+  assert.equal(curriculumAge({}, 5), 5);
+  assert.equal(curriculumAge(null, null), null);
+
+  // The skill tree opens on the domain whose age bands sit nearest that age.
+  const topics = [
+    { id: 'a', subject: 'Mathematics', domain: 'Counting', name: 'a', ageRangeStart: 5 },
+    { id: 'b', subject: 'Mathematics', domain: 'Place Value', name: 'b', ageRangeStart: 7 },
+  ];
+  const [maths] = buildCurriculumTree({ bySubject: { Mathematics: topics } }, { Mathematics: {} });
+  assert.equal(defaultDomain(maths, curriculumAge({}, 5)).domain, 'Counting');
+  assert.equal(defaultDomain(maths, curriculumAge(yearTwo, 5)).domain, 'Place Value');
+
+  // Placement suggests marking topics up to the year below: age 6 for Year 2.
+  assert.equal(defaultMaxAge(curriculumAge(yearTwo, 5)), 6);
+  assert.equal(defaultMaxAge(curriculumAge({}, 5)), 5);
 });

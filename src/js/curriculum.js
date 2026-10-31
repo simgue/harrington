@@ -48,6 +48,12 @@ export function ageForYear(year) {
   return i < 0 ? null : i + 5;
 }
 
+// The age the map and placement start from: the usual age of the learner's
+// Australian Curriculum year when one is set, else `age` (their own).
+export function curriculumAge(student, age) {
+  return ageForYear(learnerYear(student)) ?? age;
+}
+
 // The learner's Australian Curriculum year, or null when they follow the
 // age-based order (no setting, or a curriculum this Harrington does not know).
 export function learnerYear(student) {
@@ -56,14 +62,14 @@ export function learnerYear(student) {
   return normalizeYear(c.year);
 }
 
-// A learner's `curriculum` field is { id, year }. Null when the value is fine
-// (or absent), else what is wrong with it, for document.js.
+// A learner's `curriculum` field is { id: 'acara-v9', year }. Null when the
+// value is fine (or absent), else what is wrong with it, for document.js. Any
+// other curriculum id is refused: the learner form could not show it and its
+// next save would drop it.
 export function curriculumProblem(value) {
   if (value === undefined || value === null) return null;
   if (typeof value !== 'object' || Array.isArray(value)) return 'has a curriculum setting that is not in the expected shape';
-  if (typeof value.id !== 'string' || !/^[a-z0-9-]{1,40}$/.test(value.id)) return 'has a curriculum setting without a curriculum id';
-  // A curriculum from a newer Harrington is kept as long as its year is short text.
-  if (value.id !== CURRICULUM_ID) return typeof value.year === 'string' && value.year.length <= 20 ? null : 'has a curriculum year that is not text';
+  if (value.id !== CURRICULUM_ID) return `has a curriculum setting for a curriculum other than the Australian Curriculum (${CURRICULUM_ID})`;
   return typeof value.year === 'string' && YEARS.includes(value.year) ? null : 'has an Australian Curriculum year other than F or 1 to 6';
 }
 
@@ -167,21 +173,26 @@ export function boosterFor(year, index, mastered) {
 
 // ---- Coverage report ----
 
-export const EVIDENCE_LABELS = { record: 'record', test: 'check passed', practice: 'practice', lesson: 'lesson saved' };
+export const EVIDENCE_LABELS = { record: 'record', test: 'check passed', challenge: 'challenge passed', practice: 'practice' };
+
+// A challenge counts as passed at this share of correct answers, the "ace"
+// that views/challenge.js and game.js reward.
+const CHALLENGE_PASS = 0.8;
 
 export const COVERAGE_STATUSES = {
-  mastered: { label: 'Mastered', hint: 'Every linked topic is marked mastered' },
+  mastered: { label: 'Linked topics mastered', hint: 'Every linked topic is marked mastered' },
   evidence: { label: 'Evidence', hint: 'At least one linked topic has recorded evidence' },
   'not-yet': { label: 'Not yet', hint: 'No recorded evidence for a linked topic yet' },
 };
 
-// What evidence the family's records hold for one topic, as a list of kinds:
+// What evidence the learner's records hold for one topic, as a list of kinds:
 // 'record' (a record about the topic: a mastery observation's assessment, an
-// observation, a discussion, a recording, or one claiming it as coverage), 'test' (a passed topic test or check),
-// 'practice' (a practice question queued for the topic), 'lesson' (a lesson
-// saved for the topic on this server). `records`, `tests` and `practice` are
-// the learner's; `lessonTopics` is a Set of topic ids.
-export function topicEvidence(topicId, { records = [], tests = [], practice = {}, lessonTopics = new Set() } = {}) {
+// observation, a discussion, a recording, or one claiming it as coverage),
+// 'test' (a passed topic test or check), 'challenge' (a timed challenge at
+// CHALLENGE_PASS or better), 'practice' (a practice question queued for the
+// topic). A saved lesson is a plan, not evidence, and is not counted.
+// `records`, `tests`, `challenges` and `practice` are the learner's.
+export function topicEvidence(topicId, { records = [], tests = [], challenges = [], practice = {} } = {}) {
   const kinds = [];
   // A placement record (bulk-marked mastered) names no single topic, so it
   // is not evidence here; the mastered status it set counts on its own.
@@ -189,8 +200,8 @@ export function topicEvidence(topicId, { records = [], tests = [], practice = {}
     || (Array.isArray(r.coverage) && r.coverage.some(c => c && c.topicId === topicId)));
   if (records.some(linked)) kinds.push('record');
   if (tests.some(t => t && t.scope === 'topic' && t.topicId === topicId && t.passed === true)) kinds.push('test');
+  if (challenges.some(c => c && c.topicId === topicId && c.total > 0 && c.correct / c.total >= CHALLENGE_PASS)) kinds.push('challenge');
   if (Object.values(practice || {}).some(p => p && p.topicId === topicId)) kinds.push('practice');
-  if (lessonTopics.has(topicId)) kinds.push('lesson');
   return kinds;
 }
 

@@ -1826,18 +1826,6 @@ export async function savedLessons(prefixes, limit = 8) {
   return valid;
 }
 
-// Topic ids with a lesson saved on this server (the newest 200 the server
-// lists), for the coverage report. Keys only; an empty set when the server
-// cannot list them.
-export async function savedLessonTopicIds() {
-  try {
-    const listed = await backend.listLessons('topic:', 200);
-    return new Set(listed.filter(e => typeof e?.key === 'string' && e.key.startsWith('topic:')).map(e => e.key.slice('topic:'.length)));
-  } catch {
-    return new Set();
-  }
-}
-
 // Test-only: drops this tab's copies, as a fresh session would start.
 export function forgetCachedLessons() {
   lessonCache.clear();

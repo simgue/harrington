@@ -72,7 +72,9 @@ test('a topic shows its Australian codes; a chip opens the text with one ACARA n
   // scroll offset a 44 px box can read 43.99.
   const box = await chip.boundingBox();
   expect(Math.round(box.height)).toBeGreaterThanOrEqual(44);
-  await expect(page.getByText(NOTICE_START)).toHaveCount(0);
+  // The notice shows with the codes, once, before any chip is opened.
+  await expect(page.getByText(NOTICE_START)).toHaveCount(1);
+  await expect(links.getByText(NOTICE_START)).toBeVisible();
 
   await chip.click();
   await expect(chip).toHaveAttribute('aria-expanded', 'true');
@@ -82,9 +84,10 @@ test('a topic shows its Australian codes; a chip opens the text with one ACARA n
   await noHorizontalOverflow(page);
   await shot('topic-chip-open', { locator: links });
 
-  // Tapping again closes it.
+  // Tapping again closes it; the notice stays, still once.
   await chip.click();
-  await expect(page.getByText(NOTICE_START)).toHaveCount(0);
+  await expect(links).not.toContainText('recognise, represent and order numbers to at least 1000');
+  await expect(page.getByText(NOTICE_START)).toHaveCount(1);
   expect(errors).toEqual([]);
 });
 
@@ -140,7 +143,7 @@ test('Records opens the coverage report: counts, statuses and linked topics @mob
   await maths.click();
   await expect(maths).toHaveAttribute('aria-expanded', 'true');
   const item = (code) => page.locator('.cov-item').filter({ hasText: code });
-  await expect(item('AC9M2N01').locator('.cov-status')).toHaveText('Mastered');
+  await expect(item('AC9M2N01').locator('.cov-status')).toHaveText('Linked topics mastered');
   await expect(item('AC9M2N01')).toContainText(ORDERING.name);
   await expect(item('AC9M2A01').locator('.cov-status')).toHaveText('Evidence');
   await expect(item('AC9M2A01')).toContainText('Recorded: record');

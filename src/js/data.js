@@ -56,9 +56,6 @@ export async function loadTaxonomy() {
     fetch(`${TAXONOMY_API}/clusters.json`),
     fetch(`${TAXONOMY_API}/manifest.json`).catch(() => null),
   ]);
-  // Optional: without the Australian Curriculum list (an older taxonomy, the
-  // upstream unreachable) the app works as before, with no codes shown.
-  const standardsPromise = loadStandards();
   if (!topicsRes.ok || !depsRes.ok) {
     // The server says why (an upstream that is down, a file that failed its
     // integrity check); pass that on.
@@ -103,7 +100,8 @@ export async function loadTaxonomy() {
     topics, dependencies, clusters,
     byId, prereqsOf, unlocksOf, clusterMap, bySubject,
     manifest,
-    standards: await standardsPromise,
+    // Filled in by loadStandards(), which loadTaxonomy does not wait for.
+    standards: null,
     meta: {
       topics: topics.length,
       dependencies: dependencies.length,
@@ -114,17 +112,36 @@ export async function loadTaxonomy() {
   return _cache;
 }
 
-// { curriculum, list, index } for the Australian Curriculum, or null.
-async function loadStandards() {
-  try {
-    const res = await fetch(`${TAXONOMY_API}/standards/${CURRICULUM_ID}.json`);
-    if (!res.ok) return null;
-    const json = await res.json();
-    const list = Array.isArray(json?.standards) ? json.standards.filter(s => s && typeof s.code === 'string' && Array.isArray(s.yearLevels)) : [];
-    return list.length ? { curriculum: json.curriculum || null, list, index: indexStandards(list) } : null;
-  } catch {
-    return null;
+// The Australian Curriculum list is optional: the app starts without it and
+// works as before (no codes, age order). loadStandards() fetches it after the
+// taxonomy loads and sets getData().standards to { curriculum, list, index }
+// when it arrives; it resolves to true when the list arrived, false when the
+// server could not give it (an older taxonomy, an unreachable upstream).
+let _standardsLoad = null;
+let _standardsSettled = false;
+export function loadStandards() {
+  if (!_standardsLoad) {
+    _standardsLoad = (async () => {
+      try {
+        const res = await fetch(`${TAXONOMY_API}/standards/${CURRICULUM_ID}.json`);
+        if (!res.ok) return false;
+        const json = await res.json();
+        const list = Array.isArray(json?.standards) ? json.standards.filter(s => s && typeof s.code === 'string' && Array.isArray(s.yearLevels)) : [];
+        if (!list.length || !_cache) return false;
+        _cache.standards = { curriculum: json.curriculum || null, list, index: indexStandards(list) };
+        return true;
+      } catch {
+        return false;
+      }
+    })().finally(() => { _standardsSettled = true; });
   }
+  return _standardsLoad;
+}
+// True while the list is on its way (asked for, not yet answered): views say
+// "loading" rather than "could not be loaded", and today's choices for a
+// learner with a curriculum year are not saved yet.
+export function standardsPending() {
+  return !!_standardsLoad && !_standardsSettled;
 }
 
 // False for an id the loaded taxonomy no longer has: a retired topic, whose

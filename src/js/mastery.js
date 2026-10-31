@@ -1,5 +1,5 @@
 // Shared logic for mastery gating, ordering and stats.
-import { getData, hardPrereqs, orderTopics, topicAge, subjectNames } from './data.js';
+import { getData, hardPrereqs, orderTopics, topicAge, subjectNames, standardsPending } from './data.js';
 import * as store from './store.js';
 import { MASTERY } from './store.js';
 import { ageCeiling, buildDailyChoices, LANES, BOOST_WEIGHT } from './daily.js';
@@ -157,7 +157,12 @@ export function todaysChoices(studentId, dateKey) {
   let offers = saved && saved.offers;
   if (!offers) {
     offers = Object.fromEntries(Object.entries(built).map(([k, lane]) => [k, lane.options.map(t => t.id)]));
-    if (Object.values(offers).some(list => list.length)) store.saveDailyOffers(studentId, dateKey, offers);
+    // A learner with a curriculum year keeps today's offers only once the
+    // standards list has arrived (or failed), so the day is not fixed without
+    // the year-level order; the app re-renders when it does.
+    const s = store.get().students.find(x => x.id === studentId);
+    const waiting = learnerYear(s) && standardsPending();
+    if (!waiting && Object.values(offers).some(list => list.length)) store.saveDailyOffers(studentId, dateKey, offers);
   }
   const picks = (store.dailyFor(studentId, dateKey) || {}).picks || {};
   const out = {};

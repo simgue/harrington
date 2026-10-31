@@ -324,7 +324,8 @@ of the learner selector) downloads
 and `taxonomyVersion`. **Import** checks a file, previews its learners and
 record counts, and after you confirm replaces the family data on this server.
 The check (`src/js/document.js`) covers learner fields (id, name, birth year
-and month, start date, a hex color), progress statuses, records (type,
+and month, start date, a hex color, and an Australian Curriculum setting,
+which must be `{ id: 'acara-v9', year }` with a year of F or 1 to 6), progress statuses, records (type,
 rating, bounded text, numeric dates, a placement's topic list), test and
 challenge results (scores and counts as numbers), XP and badges, the shape of
 each learner's suggestions, plan (moves, done days, extras lists of

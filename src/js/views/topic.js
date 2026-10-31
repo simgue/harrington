@@ -21,8 +21,9 @@ import { openObservation, canObserve } from './observation.js';
 import { ACARA_NOTICE, CURRICULUM_NAME, learnerYear, topicStandards, yearLabel, yearsLabel } from '../curriculum.js';
 
 // The Australian Curriculum content descriptions Marble links this topic to,
-// as chips ("AC9M2N01 · Year 2 · Number"). A chip opens its text, with the
-// ACARA notice once beneath it. Null when the topic links to none.
+// as chips ("AC9M2N01 · Year 2 · Number"). A chip opens its text. The ACARA
+// notice shows once, below the chips, whenever the section does. Null when
+// the topic links to none.
 function curriculumLinks(t, standards, active) {
   const linked = topicStandards(t, standards?.index);
   if (!linked.length) return null;
@@ -31,6 +32,7 @@ function curriculumLinks(t, standards, active) {
     <p class="text-xs font-600 text-ink-soft mb-1.5">Linked to the ${esc(CURRICULUM_NAME)} (version 9)</p>
     <div class="flex flex-wrap gap-1.5"></div>
     <div class="ac-detail hidden mt-2.5 [overflow-wrap:anywhere] rounded-xl bg-paper-card border border-paper-line p-3.5" aria-live="polite"></div>
+    <p class="ac-notice text-[11px] text-ink-faint mt-2 leading-relaxed [overflow-wrap:anywhere]">${esc(ACARA_NOTICE)}</p>
   </section>`);
   const chips = box.querySelector('div');
   const detail = box.querySelector('.ac-detail');
@@ -50,8 +52,7 @@ function curriculumLinks(t, standards, active) {
       detail.innerHTML = `
         <p class="text-xs font-600 text-ink-soft">${esc(s.code)} · ${esc(yearsLabel(s.yearLevels))} · ${esc(s.learningArea)}${s.subject && s.subject !== s.learningArea ? ` · ${esc(s.subject)}` : ''} · ${esc(s.strand)}</p>
         <p class="ac-text text-sm text-ink mt-1 leading-relaxed">${esc(s.description || s.title)}</p>
-        <p class="text-xs text-ink-faint mt-2 leading-relaxed">Marble's map links this topic to the content description; it is not a check that the description is met.</p>
-        <p class="ac-notice text-[11px] text-ink-faint mt-2 leading-relaxed">${esc(ACARA_NOTICE)}</p>`;
+        <p class="text-xs text-ink-faint mt-2 leading-relaxed">Marble's map links this topic to the content description; it is not a check that the description is met.</p>`;
     };
     chips.appendChild(chip);
   }

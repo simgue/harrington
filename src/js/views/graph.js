@@ -1,5 +1,5 @@
 import { getData, topicAge, subjectMeta } from '../data.js';
-import { ageForYear, curriculumBoost, learnerYear, rankByCurriculum, yearLabel } from '../curriculum.js';
+import { curriculumAge, curriculumBoost, learnerYear, rankByCurriculum, yearLabel } from '../curriculum.js';
 import {
   blockingHardPrereqIds,
   buildSkillTree,
@@ -254,8 +254,7 @@ function openRealm(navigate, subjectNode, active, domainName = null) {
 // The age whose domain opens first: the learner's Australian Curriculum year
 // (as the usual age for it) when set, else their age.
 function preferredAge(active) {
-  if (!active) return null;
-  return ageForYear(learnerYear(active)) ?? store.studentAge(active);
+  return active ? curriculumAge(active, store.studentAge(active)) : null;
 }
 
 function skillStateFor(active, topicId, prereqsOf) {

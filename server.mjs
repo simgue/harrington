@@ -708,7 +708,9 @@ async function taxonomyStatus() {
   return cachedAny ? 'verified' : 'not-downloaded';
 }
 
-async function loadTaxonomyFile(name) {
+// `timeoutMs` bounds the download (the optional standards file uses it, so a
+// slow or silent upstream cannot hold a request open).
+async function loadTaxonomyFile(name, { timeoutMs = null } = {}) {
   if (!TAXONOMY_FILES.has(name)) {
     throw Object.assign(new Error('Unknown taxonomy file'), { statusCode: 404 });
   }
@@ -722,7 +724,11 @@ async function loadTaxonomyFile(name) {
     return cached;
   }
 
-  const response = await fetch(`${TAXONOMY_UPSTREAM}/${name}`);
+  const response = await fetch(`${TAXONOMY_UPSTREAM}/${name}`, timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {})
+    .catch((error) => {
+      if (error.name !== 'TimeoutError') throw error;
+      throw Object.assign(new Error(`Could not download curriculum file ${name}: no answer within ${timeoutMs / 1000} seconds`), { statusCode: 504 });
+    });
   if (!response.ok) {
     throw Object.assign(
       new Error(`Could not download curriculum file ${name} (${response.status})`),
@@ -749,21 +755,29 @@ async function loadTaxonomyFile(name) {
 }
 
 // The trimmed list for one curriculum (curriculum.js trimStandards): the 620
-// Australian content descriptions are about 150 KB, against 2.7 MB for the
-// whole file. Derived on the first request and kept in memory; a failed
-// derivation is not kept, so the next request tries again.
-const trimmedStandards = new Map();
-function standardsFor(slug) {
-  if (!trimmedStandards.has(slug)) {
-    const pending = loadTaxonomyFile('curriculum-standards.json')
-      .then(body => Buffer.from(JSON.stringify(trimStandards(JSON.parse(body.toString('utf8')), slug))))
-      .catch((error) => {
-        trimmedStandards.delete(slug);
-        throw error.statusCode ? error : Object.assign(new Error(`Could not read the ${slug} curriculum standards: ${error.message}`), { statusCode: 502 });
-      });
-    trimmedStandards.set(slug, pending);
-  }
-  return trimmedStandards.get(slug);
+// Australian content descriptions are about 165 KB, against 2.7 MB for the
+// whole file. Derived on the first request and kept in memory until the
+// server restarts (docs/CURRICULUM.md). The file is optional, so its download
+// gives up after STANDARDS_TIMEOUT_MS, and a failure is remembered for
+// STANDARDS_RETRY_MS: every page load in that time gets the same answer at
+// once instead of waiting on the upstream again.
+const STANDARDS_TIMEOUT_MS = 15_000;
+const STANDARDS_RETRY_MS = 5 * 60_000;
+const trimmedStandards = new Map(); // slug -> { pending, failedAt }
+function standardsFor(slug, now = Date.now()) {
+  const known = trimmedStandards.get(slug);
+  if (known && !(known.failedAt && now - known.failedAt >= STANDARDS_RETRY_MS)) return known.pending;
+  const entry = { pending: null, failedAt: 0 };
+  entry.pending = loadTaxonomyFile('curriculum-standards.json', { timeoutMs: STANDARDS_TIMEOUT_MS })
+    .then(body => Buffer.from(JSON.stringify(trimStandards(JSON.parse(body.toString('utf8')), slug))))
+    .catch((error) => {
+      entry.failedAt = Date.now();
+      throw error.statusCode ? error : Object.assign(new Error(`Could not read the ${slug} curriculum standards: ${error.message}`), { statusCode: 502 });
+    });
+  // A remembered failure is answered from here, so its rejection is handled.
+  entry.pending.catch(() => {});
+  trimmedStandards.set(slug, entry);
+  return entry.pending;
 }
 
 // ---- Saved lessons listing ----

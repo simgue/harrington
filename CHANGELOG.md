@@ -11,16 +11,20 @@ tagged a release yet; everything below is on `main`.
   follow it with an optional "Australian Curriculum year level" (onboarding
   and the learner form; it defaults from age and stays editable; saved as
   `curriculum: { id: 'acara-v9', year }`). Topic pages show the content
-  descriptions Marble links them to as chips ("AC9M2N01 · Year 2 · Number")
-  that open the text with the ACARA notice. Topics linked to the learner's
-  year (and unmastered ones at the year below) come first in daily choices,
-  recommendations, the map list, the finder and the placement default,
-  without hiding anything. Records > Australian Curriculum coverage lists
-  each content description of the year with its linked topics and a status
-  from the family's records (Mastered, Evidence, Not yet), and prints as
-  registration evidence. The server derives a 165 KB
-  `/api/taxonomy/standards/acara-v9.json` from the taxonomy's 2.7 MB
-  `curriculum-standards.json`, which is never sent to the browser.
+  descriptions Marble links them to as chips ("AC9M2N01 · Year 2 · Number"),
+  with the ACARA notice below them, that open the text. Topics linked to the
+  learner's year (and unmastered ones at the year below) are boosted in daily
+  choices, recommendations, the map list, the finder and the placement
+  default, without hiding anything. Records > Australian Curriculum coverage
+  lists each content description of the year with its linked topics and a
+  status from the learner's records (Linked topics mastered; Evidence, from
+  a record, a passed check or challenge, or practice; Not yet; a saved lesson
+  is a plan and does not count), and prints as registration evidence. The
+  server derives a 165 KB `/api/taxonomy/standards/acara-v9.json` from the
+  taxonomy's 2.7 MB `curriculum-standards.json`, which is never sent to the
+  browser; the app starts without waiting for it, and the server gives up on
+  the download after 15 seconds and answers a failure from memory for five
+  minutes.
 
 ### Fixed
 - The topic page no longer scrolls sideways on a phone when a topic has a

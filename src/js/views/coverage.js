@@ -4,7 +4,7 @@
 // lives under Records because it is a reading of the records, and prints as
 // registration evidence. The wording stays evidence-based: a status says
 // what is recorded, never that a content description is achieved.
-import { getData } from '../data.js';
+import { getData, standardsPending } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons } from '../ui.js';
 import { countLabel } from '../format.js';
@@ -19,12 +19,6 @@ const STATUS_TONE = {
   'not-yet': 'bg-paper-deep text-ink-soft',
 };
 
-// Topics with a lesson saved on the server: listed again when the page is
-// drawn more than a minute after the last listing.
-let lessonTopics = null;
-let lessonsAt = 0;
-let lessonsLoading = false;
-const LESSONS_FRESH_MS = 60_000;
 // Learning areas the parent opened, kept across re-renders.
 const openAreas = new Set();
 
@@ -64,31 +58,21 @@ export function renderCoverage(params, { navigate }) {
     root.appendChild(el(`<p class="no-print text-xs text-ink-faint -mt-2 mb-4">${esc(active.name)} has no ${esc(CURRICULUM_NAME)} year set, so this shows the year that usually fits their age. Set one under Students &gt; Edit to order topics by it.</p>`));
   }
 
-  root.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-5">Each status comes from ${esc(active.name)}'s records in Harrington. <span class="font-600 text-ink">Mastered</span>: every linked topic is marked mastered. <span class="font-600 text-ink">Evidence</span>: at least one linked topic has a record, a passed check, practice, or a lesson saved. <span class="font-600 text-ink">Not yet</span>: nothing recorded for a linked topic. The links between topics and content descriptions are a map from the Marble Skill Taxonomy, not a certificate; a status describes recorded evidence, not a judgment that a content description has been met.</p>`));
+  root.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-5">Each status comes from ${esc(active.name)}'s records in Harrington. <span class="font-600 text-ink">Linked topics mastered</span>: every linked topic is marked mastered. <span class="font-600 text-ink">Evidence</span>: at least one linked topic has a record (such as an observation), a passed check or challenge, or practice. A saved lesson is a plan, not evidence, so it does not count. <span class="font-600 text-ink">Not yet</span>: nothing recorded for a linked topic. The links between topics and content descriptions are a map from the Marble Skill Taxonomy, not a certificate; a status describes recorded evidence, not a judgment that a content description has been met.</p>`));
 
   const body = el(`<div class="cov-body"></div>`);
   root.appendChild(body);
 
+  // The list loads after the app starts (data.js loadStandards); the app
+  // renders again when it arrives or fails.
   if (!d.standards) {
-    body.appendChild(el(`<div class="rounded-2xl border border-paper-line bg-paper-card p-4 text-sm text-ink-soft">The ${esc(CURRICULUM_NAME)} list could not be loaded from the curriculum data on this server. Check that the server can reach the taxonomy, then reload.</div>`));
+    body.appendChild(el(standardsPending()
+      ? `<p class="cov-loading text-sm text-ink-soft">Loading the ${esc(CURRICULUM_NAME)} list…</p>`
+      : `<div class="rounded-2xl border border-paper-line bg-paper-card p-4 text-sm text-ink-soft">The ${esc(CURRICULUM_NAME)} list could not be loaded from the curriculum data on this server. Check that the server can reach the taxonomy, then reload.</div>`));
     return root;
   }
 
-  const draw = () => {
-    body.innerHTML = '';
-    body.appendChild(reportBody(d, active, year, navigate));
-    refreshIcons();
-  };
-  draw();
-  if (!lessonsLoading && Date.now() - lessonsAt > LESSONS_FRESH_MS) {
-    lessonsLoading = true;
-    store.savedLessonTopicIds().then((ids) => {
-      lessonTopics = ids;
-      lessonsAt = Date.now();
-      lessonsLoading = false;
-      if (body.isConnected) draw();
-    });
-  }
+  body.appendChild(reportBody(d, active, year, navigate));
 
   root.appendChild(el(`<footer class="cov-footer mt-8 pt-4 border-t border-paper-line text-xs text-ink-faint leading-relaxed space-y-2">
     <p class="font-medium text-ink-soft">Generated from Harrington records on ${esc(today)}; ${esc(ALIGNMENT_CREDIT)}.</p>
@@ -102,8 +86,8 @@ function reportBody(d, active, year, navigate) {
   const evidenceSources = {
     records: store.recordsFor(active.id),
     tests: store.testsFor(active.id),
+    challenges: store.challengesFor(active.id),
     practice: store.get().practice?.[active.id] || {},
-    lessonTopics: lessonTopics || new Set(),
   };
   const memo = new Map();
   const evidenceOf = (id) => {
@@ -124,7 +108,7 @@ function reportBody(d, active, year, navigate) {
     <h2 class="font-600 mb-1">${esc(yearLabel(year))}: ${esc(countLabel(report.counts.total, 'content description'))}</h2>
     <p class="text-xs text-ink-soft mb-3">${esc(statusCounts(report.counts))}</p>
     <table class="w-full text-sm">
-      <thead><tr class="text-left text-xs text-ink-faint"><th class="font-medium py-1 pr-2">Learning area</th><th class="font-medium py-1 px-1 text-right">Mastered</th><th class="font-medium py-1 px-1 text-right">Evidence</th><th class="font-medium py-1 pl-1 text-right">Not yet</th></tr></thead>
+      <thead><tr class="text-left text-xs text-ink-faint"><th class="font-medium py-1 pr-2">Learning area</th><th class="font-medium py-1 px-1 text-right">Linked topics mastered</th><th class="font-medium py-1 px-1 text-right">Evidence</th><th class="font-medium py-1 pl-1 text-right">Not yet</th></tr></thead>
       <tbody>${report.areas.map(a => `<tr class="border-t border-paper-line"><td class="py-1.5 pr-2">${esc(a.learningArea)} <span class="text-ink-faint">(${esc(a.counts.total)})</span></td><td class="py-1.5 px-1 text-right">${esc(a.counts.mastered)}</td><td class="py-1.5 px-1 text-right">${esc(a.counts.evidence)}</td><td class="py-1.5 pl-1 text-right">${esc(a.counts['not-yet'])}</td></tr>`).join('')}</tbody>
     </table>
   </section>`);
@@ -134,7 +118,7 @@ function reportBody(d, active, year, navigate) {
   return wrap;
 }
 
-const statusCounts = (c) => `${c.mastered} mastered · ${c.evidence} with evidence · ${c['not-yet']} not yet`;
+const statusCounts = (c) => `${c.mastered} with linked topics mastered · ${c.evidence} with evidence · ${c['not-yet']} not yet`;
 
 function areaSection(area, navigate) {
   const key = area.learningArea;

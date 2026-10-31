@@ -4,7 +4,7 @@ import { AGES, getData, hardPrereqs, topicAge, subjectNames } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, openModal, refreshIcons, toast } from '../ui.js';
 import { selectPlacement, defaultMaxAge, subjectDomains, placementTitle } from '../placement.js';
-import { ageForYear, learnerYear, yearLabel } from '../curriculum.js';
+import { curriculumAge, learnerYear, yearLabel } from '../curriculum.js';
 
 const SELECT = 'w-full px-3.5 py-2.5 rounded-xl border border-paper-line bg-paper text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand';
 
@@ -17,7 +17,7 @@ export function openPlacement(student, { subject = null } = {}) {
   // A learner with an Australian Curriculum year starts from the usual age of
   // that year, so the default marks topics up to the year below.
   const year = learnerYear(student);
-  let maxAge = defaultMaxAge(ageForYear(year) ?? store.studentAge(student));
+  let maxAge = defaultMaxAge(curriculumAge(student, store.studentAge(student)));
   let withPrereqs = true;
 
   const body = el(`<div class="p-5">

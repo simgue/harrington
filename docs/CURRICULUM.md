@@ -177,7 +177,12 @@ revision that suits Harrington's ages. The server downloads
 `lib/taxonomy-pin.mjs`) but never sends it to the browser: on the first
 request it derives `GET /api/taxonomy/standards/acara-v9.json` (620 content
 descriptions: code, title, strand, learning area, subject, year levels; about
-165 KB) with `trimStandards` in `src/js/curriculum.js` and keeps it in memory.
+165 KB) with `trimStandards` in `src/js/curriculum.js` and keeps it in memory
+until the server restarts, so restart Harrington after replacing the cached
+file. The file is optional: its download gives up after 15 seconds, a failure
+is answered from memory for five minutes before the server tries again, and
+the app starts without waiting for the list (codes and the year-level order
+appear when it arrives).
 Year levels are normalised to `F` and `1` to `6`; 111 codes span two years
 (Health and Physical Education and Technologies bands).
 
@@ -190,15 +195,22 @@ lists them as "Not yet" with "No Harrington topic is linked".
 The links are Marble's map, not a certificate: Marble notes that 572 of its
 earlier "fully covered" claims were not independently rechecked. The app
 therefore says a topic is "linked to" a code, never that it satisfies one,
-and the coverage report's statuses (Mastered, Evidence, Not yet) describe
-the family's own records, not a judgment that a content description is met.
+and the coverage report's statuses (Linked topics mastered, Evidence, Not
+yet) describe the learner's own records, not a judgment that a content
+description is met. Evidence is a record about a linked topic (an
+observation, a discussion, a recording, a mastery observation's
+assessment), a passed topic check, a challenge at 80% or better, or a
+practice question; a saved lesson is a plan, not evidence.
 
 A learner's optional `curriculum: { id: 'acara-v9', year }` turns on the
 year-level order: `curriculumBoost` gives 2 to a topic linked at the learner's
 year and 1 to an unmastered topic linked at the year below, and the daily
-choices, recommendations, finder, map list and placement default rank by it
-before the age order. It is a soft boost; nothing is filtered out.
+choices, recommendations, finder, map list and placement default weigh it
+with the age order. It is a soft boost; nothing is filtered out. Any other
+curriculum id is refused by the import check and the server.
 
-Wherever Australian Curriculum text is shown (topic chips, the coverage
-report, the guide's credits, README and NOTICE), the ACARA notice
-(`ACARA_NOTICE` in `src/js/curriculum.js`) is quoted verbatim.
+The ACARA notice (`ACARA_NOTICE` in `src/js/curriculum.js`) is quoted
+verbatim wherever Australian Curriculum codes or text appear in the app: once
+on a topic page below its chips (shown whenever the chips are), in the
+coverage report's footer, and in the in-app guide's credits; also in the
+README, NOTICE and DATA-LICENSE. The written guide points to the README.
