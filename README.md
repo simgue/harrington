@@ -97,9 +97,10 @@ link (and left out of the child view); with a provider but a capability not
 switched on, the link reads "Not switched on yet" (see
 [docs/AI-SETUP.md](docs/AI-SETUP.md)). Lessons and print & go sheets saved
 on the server earlier still open: the topic page shows "Open saved lesson", and
-Records lists them under "Saved lessons". The curriculum is downloaded once on
-first start, at the revision pinned in `lib/taxonomy-pin.mjs` and checked
-against its SHA-256, and does not update on its own; see
+Records lists them under "Saved lessons". The curriculum is downloaded at the
+revision pinned in `lib/taxonomy-pin.mjs` and verified against its SHA-256s;
+a cached file that does not match the pin is downloaded again and replaced,
+and a matching cache is served with no further downloads; see
 [docs/CURRICULUM.md](docs/CURRICULUM.md) for how the pin moves and what
 happens to topics a new revision retires.
 

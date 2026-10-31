@@ -46,7 +46,9 @@ tagged a release yet; everything below is on `main`.
   then, so a topic that moved age band now sits in a section that pass does
   not cover. An existing install moves to the new revision by itself: on first
   use the server finds its cached files do not match the pin and downloads the
-  pinned ones (HAR-55).
+  pinned ones. The trade-off, accepted: a machine with an old cache and no
+  route to raw.githubusercontent.com cannot load the curriculum until it can
+  reach it, rather than serve the old, unverified files (HAR-55).
 - One topic was retired, `mt_3XJkeIn6J6` ("Estimating answers (age 7+)").
   Family data for a retired topic is kept and never refused on load or
   import; it no longer counts toward progress, daily choices or due recall and

@@ -1,4 +1,4 @@
-import { getData, isCurrentTopic, subjectMeta, subjectNames } from '../data.js';
+import { getData, subjectMeta, subjectNames } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { keyOf, parseKey, buildPlan, dailyExtras, planStartKey, invalidatePlan, familyCalendar, normalizeCalendar, restInfo, nextHomeDayKey, pauseInfo, newTopicsHeading, doneControl, normalizePace, paceSummary, planTopicOn } from '../scheduler.js';
@@ -55,8 +55,7 @@ export function renderCalendar(params, { navigate }) {
       toast(clearMoves ? 'Start date updated — track rescheduled and moves cleared' : 'Start date updated — track rescheduled', 'success');
       navigate('calendar');
     };
-    // Moves of a retired topic are kept (Records lists them) and not counted.
-    const moved = Object.keys(store.planOverrides(active.id).moves || {}).filter(isCurrentTopic).length;
+    const moved = store.movedTopicCount(active.id);
     if (moved) openStartMoves(moved, commit, () => { picker.value = startKey; });
     else commit(false);
   };
