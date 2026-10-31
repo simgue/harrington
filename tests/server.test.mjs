@@ -8,7 +8,6 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { isLoopbackAddress } from '../lib/loopback.mjs';
-import { TAXONOMY_PIN } from '../lib/taxonomy-pin.mjs';
 import { AI_CAPABILITIES, parseCapabilities } from '../src/js/ai-capabilities.js';
 import { SCHEMA_VERSION, formatCopyName } from '../src/js/schema.js';
 
@@ -82,7 +81,7 @@ test('serves Harrington and reports self-hosted health', async () => {
     redaction: 'server+client',
     taxonomyCached: false,
     taxonomy: 'not-downloaded',
-    taxonomyRevision: TAXONOMY_PIN.revision,
+    taxonomyRevision: null,
     stateVersion: 0,
     stateBytes: 0,
     backupAgeDays: null,
@@ -638,14 +637,13 @@ test('serves a cached Marble taxonomy file and rejects unknown names', async () 
   await mkdir(join(dataDir, 'taxonomy'), { recursive: true });
   await writeFile(join(dataDir, 'taxonomy', 'topics.json'), JSON.stringify(payload));
 
-  const cached = await fetch(`${baseUrl}/api/taxonomy/topics.json`);
-  assert.equal(cached.status, 200);
-  assert.deepEqual(await cached.json(), payload);
-
+  // A stand-in file is not the pinned revision: health says so, with no
+  // revision. (Fetching it would download the pin; tests/taxonomy-pin.test.mjs
+  // covers that without the network.)
   const health = await (await fetch(`${baseUrl}/api/health`)).json();
   assert.equal(health.taxonomyCached, true);
-  // A stand-in file is not the pinned revision; it is served all the same.
   assert.equal(health.taxonomy, 'outdated');
+  assert.equal(health.taxonomyRevision, null);
 });
 });
 
@@ -704,7 +702,11 @@ test('fetches an allowlisted taxonomy file from upstream and caches it on disk',
     assert.equal(first.status, 200);
     assert.deepEqual(await first.json(), fixture);
     assert.equal(upstreamHits, 1);
-    assert.deepEqual(JSON.parse(await readFile(join(isolatedDir, 'taxonomy', 'topics.json'), 'utf8')), fixture);
+    // A custom upstream caches in its own folder, never next to the pinned files.
+    const [customDir] = (await readdir(join(isolatedDir, 'taxonomy'))).filter((name) => name.startsWith('custom-'));
+    assert.match(customDir, /^custom-[0-9a-f]{12}$/);
+    assert.deepEqual(JSON.parse(await readFile(join(isolatedDir, 'taxonomy', customDir, 'topics.json'), 'utf8')), fixture);
+    await assert.rejects(stat(join(isolatedDir, 'taxonomy', 'topics.json')), { code: 'ENOENT' });
 
     const second = await fetch(`${isolatedUrl}/api/taxonomy/topics.json`);
     assert.equal(second.status, 200);

@@ -41,10 +41,12 @@ tagged a release yet; everything below is on `main`.
   Computing +31, Personal & Social Development +29, Science +29, History +19,
   Life Skills +7. 113 topics moved their starting age, 44 were renamed and 34
   reworded. **Today's choices may differ after the refresh**: daily choices,
-  the calendar track, sections and recommendations follow the new ages. An
-  existing install keeps its cached curriculum until the parent runs
-  `npm run taxonomy:check -- --install` (docs/CURRICULUM.md); `/api/health`
-  says `taxonomy: 'outdated'` until then (HAR-55).
+  the calendar track, sections and recommendations follow the new ages. A
+  section pass already recorded stays keyed to `Subject|Domain|age` as it was
+  then, so a topic that moved age band now sits in a section that pass does
+  not cover. An existing install moves to the new revision by itself: on first
+  use the server finds its cached files do not match the pin and downloads the
+  pinned ones (HAR-55).
 - One topic was retired, `mt_3XJkeIn6J6` ("Estimating answers (age 7+)").
   Family data for a retired topic is kept and never refused on load or
   import; it no longer counts toward progress, daily choices or due recall and
@@ -52,12 +54,16 @@ tagged a release yet; everything below is on `main`.
   says "This topic is no longer in the curriculum" (HAR-55).
 - The taxonomy is pinned and checked (G10, HAR-55): `lib/taxonomy-pin.mjs`
   holds the commit and the SHA-256 of each file, the server downloads from
-  that commit on raw.githubusercontent.com instead of jsDelivr `@main` and
-  refuses a file that does not match, and `/api/health` reports `taxonomy`
-  and `taxonomyRevision`. `HARRINGTON_TAXONOMY_UPSTREAM` still overrides it
-  for experiments, with a startup warning that the files are not checked.
-  New `npm run taxonomy:check` (run in CI) downloads and verifies the pinned
-  files; `docs/CURRICULUM.md` documents the bump path.
+  that commit on raw.githubusercontent.com instead of jsDelivr `@main`, serves
+  a cached file only if it matches (one that does not is downloaded again and
+  replaced), refuses a download that does not match, and `/api/health` reports
+  `taxonomy` and `taxonomyRevision` (the pin only when every file is
+  verified). `HARRINGTON_TAXONOMY_UPSTREAM` still overrides it for
+  experiments, with a startup warning that the files are not checked; they are
+  cached in their own folder, so unsetting it serves only the verified pin
+  again. New `npm run taxonomy:check` (run in CI) is a diagnostic that
+  downloads and verifies the pinned files; `docs/CURRICULUM.md` documents the
+  bump path.
 - AI can be switched on one capability at a time with
   `HARRINGTON_AI_CAPABILITIES` (for example `lesson`; unset means all). Every
   request names its capability, the server refuses the rest with 403,
