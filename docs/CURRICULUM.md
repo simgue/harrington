@@ -194,9 +194,8 @@ descriptions: code, title, strand, learning area, subject, year levels; about
 cached and re-verified against the pin like every other file (a custom
 upstream in its own folder), and the derived list is kept in memory per
 source SHA-256, so a replaced file is trimmed again. Until it is first
-downloaded, `/api/health` still reports a complete curriculum: the file is
-optional. The file is optional: its download gives up after 15 seconds, a failure
-is answered from memory for five minutes before the server tries again. The
+downloaded, `/api/health` still reports a complete curriculum. The file is
+optional: its download gives up after 15 seconds, a failure is answered from memory for five minutes before the server tries again. The
 app never waits for the list at start-up: it loads in the background and the
 page showing renders again when it arrives or fails. Until then, today's
 choices for a learner with a curriculum year are not saved; a pick made
