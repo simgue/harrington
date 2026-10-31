@@ -193,3 +193,30 @@ test('calendar: a moved or mastered retired topic is never placed on the track',
   // masteredBeforeTrack reports what the data says; the track ignores ids it does not have.
   assert.ok(masteredBeforeTrack(store.progressFor(SID), TODAY + '-later').includes(RETIRED));
 });
+
+test('levelset: a Yes given before the topic was retired is kept but never marked mastered', () => {
+  const ctx = {
+    topics: taxonomy.topics.filter((t) => t.subject === 'Mathematics'),
+    domains: ['Counting & Cardinality'],
+    topicAge: (t) => Math.min(13, Math.max(5, t.ageRangeStart || 5)),
+    hardPrereqs: (id) => taxonomy.dependencies.filter((d) => d.topicId === id).map((d) => ({ id: d.prerequisiteId })),
+    mastered: () => false,
+    isCurrent: isCurrentTopic,
+  };
+  const session = { ...ls.newSession('numeracy', { age: 6, now: 0 }), answers: { 'n-count': 'yes', [RETIRED]: 'yes' } };
+  const p = ls.proposal(ctx, session);
+  assert.deepEqual(p.master, ['n-count']);
+  assert.equal(p.own, 1);
+  // Without the check (as before the fix) the retired Yes would be written as mastery.
+  assert.deepEqual(ls.proposal({ ...ctx, isCurrent: undefined }, session).master.sort(), ['n-count', RETIRED].sort());
+  assert.equal(session.answers[RETIRED], 'yes', 'the answer itself stays in the session');
+});
+
+test('calendar: "Clear moves" on a new start date keeps a retired topic\'s move', () => {
+  store.moveTopic(SID, 'n-add', TODAY);
+  assert.equal(store.planOverrides(SID).moves['n-add'], TODAY);
+  const before = store.planOverrides(SID).moves;
+  assert.equal(before[RETIRED], TODAY);
+  store.setStartDate(SID, TODAY, { clearMoves: true });
+  assert.deepEqual(store.planOverrides(SID).moves, { [RETIRED]: TODAY });
+});

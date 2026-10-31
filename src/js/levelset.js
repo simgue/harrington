@@ -98,6 +98,7 @@ export function normalizeSession(raw) {
  *   topicAge(topic),
  *   hardPrereqs(id),   // [{ id }] across the whole taxonomy
  *   mastered(id),      // current progress
+ *   isCurrent(id),     // optional: false for a topic the taxonomy retired
  * }
  */
 
@@ -248,9 +249,11 @@ export function frontier(ctx, session) {
 }
 
 // What confirming the workbook writes: every Yes with its closure, against
-// current progress, and the Unsure topics to queue.
+// current progress, and the Unsure topics to queue. A Yes given before a
+// taxonomy update retired its topic is kept in the session but never marked.
 export function proposal(ctx, session) {
-  const yes = Object.keys(session.answers).filter(id => session.answers[id] === 'yes');
+  const isCurrent = ctx.isCurrent || (() => true);
+  const yes = Object.keys(session.answers).filter(id => session.answers[id] === 'yes' && isCurrent(id));
   const master = yesClosure(ctx, session.answers, yes);
   const lane = new Set(ctx.topics.map(t => t.id));
   return {

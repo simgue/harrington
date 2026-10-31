@@ -1155,12 +1155,16 @@ export function removeExtra(studentId, dateKey, itemId) {
 }
 export function extrasOn(studentId, dateKey) { return planOf(studentId).extras[dateKey] || []; }
 // Change where a learner's track starts; `clearMoves` also drops topics the
-// parent moved by hand, so they follow the new track. One persist + emit.
+// parent moved by hand, so they follow the new track (a retired topic's move
+// is kept: it is archived data, not part of the track). One persist + emit.
 export function setStartDate(studentId, dateKey, { clearMoves = false } = {}) {
   const s = state.students.find(s => s.id === studentId);
   if (!s || !validDateKey(dateKey)) return;
   s.startDate = dateKey;
-  if (clearMoves) planOf(studentId).moves = {};
+  if (clearMoves) {
+    const p = planOf(studentId);
+    p.moves = Object.fromEntries(Object.entries(p.moves).filter(([id]) => !isCurrentTopic(id)));
+  }
   persist(); emit();
 }
 

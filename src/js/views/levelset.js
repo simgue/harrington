@@ -26,7 +26,7 @@ function makeCtx(studentId, lane) {
   const rank = (t) => lane.domains.indexOf(t.domain);
   const topics = orderTopics(ls.laneTopics(d.topics, lane)).sort((a, b) => rank(a) - rank(b));
   return {
-    topics, domains: lane.domains, topicAge, hardPrereqs,
+    topics, domains: lane.domains, topicAge, hardPrereqs, isCurrent: isCurrentTopic,
     mastered: (id) => store.statusOf(studentId, id) === 'mastered',
   };
 }
