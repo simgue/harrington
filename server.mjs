@@ -682,7 +682,9 @@ const taxonomyHashes = new Map(); // name -> { size, mtimeMs, sha256 }
 const taxonomyRefused = new Set(); // names whose last download did not match the pin
 const taxonomyDownloads = new Map(); // name -> in-flight download, shared by concurrent requests
 
-async function readTaxonomyCache(name) {
+// { body, sha256 } of a cached file, or null. With `withBody: false` (health)
+// an unchanged file is not read at all.
+async function readTaxonomyCache(name, { withBody = true } = {}) {
   const path = join(taxonomyCacheDir, name);
   let info;
   try {
@@ -691,10 +693,11 @@ async function readTaxonomyCache(name) {
     if (error.code === 'ENOENT') return null;
     throw error;
   }
-  const body = await readFile(path);
   const known = taxonomyHashes.get(name);
-  const sha256 = known && known.size === info.size && known.mtimeMs === info.mtimeMs
-    ? known.sha256 : createHash('sha256').update(body).digest('hex');
+  const unchanged = known && known.size === info.size && known.mtimeMs === info.mtimeMs;
+  if (unchanged && !withBody) return { body: null, sha256: known.sha256 };
+  const body = await readFile(path);
+  const sha256 = unchanged ? known.sha256 : createHash('sha256').update(body).digest('hex');
   taxonomyHashes.set(name, { size: info.size, mtimeMs: info.mtimeMs, sha256 });
   return { body, sha256 };
 }
@@ -712,7 +715,7 @@ async function taxonomyStatus() {
   if (taxonomyRefused.size) return 'integrity-failed';
   let missing = false;
   for (const name of TAXONOMY_FILES) {
-    const cached = await readTaxonomyCache(name).catch(() => null);
+    const cached = await readTaxonomyCache(name, { withBody: false }).catch(() => null);
     if (!cached) missing = true;
     else if (cached.sha256 !== TAXONOMY_PIN.files[name]) return 'outdated';
   }
