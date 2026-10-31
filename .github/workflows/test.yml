@@ -31,7 +31,8 @@ jobs:
       # integrity tests (tests/taxonomy-pin.test.mjs) need; with CI set they
       # fail rather than skip without it.
       - name: Download the pinned taxonomy for the tests
-        run: node --input-type=module -e "const m = await import('./tests/e2e/support/taxonomy.mjs'); await m.ensureTaxonomyCache({ log: console.log });"
+        run: |
+          node --input-type=module -e "const m = await import('./tests/e2e/support/taxonomy.mjs'); await m.ensureTaxonomyCache({ log: console.log });"
 
       - name: Check the pinned taxonomy
         run: npm run taxonomy:check
