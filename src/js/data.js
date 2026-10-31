@@ -22,6 +22,9 @@ const warnedSubjects = new Set();
 
 export function subjectMeta(subject) {
   if (Object.hasOwn(SUBJECTS, subject)) return SUBJECTS[subject];
+  // No subject at all is not a new subject: callers pick their own look for
+  // it (a recordings folder, a plain extra); this answer is only a safe default.
+  if (typeof subject !== 'string' || !subject) return UNKNOWN_SUBJECT;
   if (!warnedSubjects.has(subject)) {
     warnedSubjects.add(subject);
     console.warn(`Harrington has no colour or icon for the subject "${subject}"; showing it in neutral grey.`);

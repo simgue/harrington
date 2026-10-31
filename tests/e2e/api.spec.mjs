@@ -2,6 +2,7 @@
 import { test as base, expect } from '@playwright/test';
 import { Api } from './fixtures.mjs';
 import { ACCESS_TOKEN, URLS } from './support/env.mjs';
+import { TAXONOMY_PIN } from '../../lib/taxonomy-pin.mjs';
 import { familyState } from './support/family.mjs';
 
 const test = base.extend({
@@ -11,10 +12,12 @@ const test = base.extend({
 test('health reports self-hosted mode, AI and taxonomy cache', async ({ request }) => {
   const ai = await (await request.get(`${URLS.appAi}/api/health`)).json();
   expect(ai).toMatchObject({ ok: true, mode: 'self-hosted', aiConfigured: true, redaction: 'server+client', taxonomyCached: true });
+  // Every server serves the pinned curriculum, checked file by file (G10).
+  expect(ai).toMatchObject({ taxonomy: 'verified', taxonomyRevision: TAXONOMY_PIN.revision });
   expect(Number.isInteger(ai.stateVersion)).toBe(true);
   expect(Number.isInteger(ai.stateBytes)).toBe(true);
   const noAi = await (await request.get(`${URLS.appNoAi}/api/health`)).json();
-  expect(noAi).toMatchObject({ ok: true, mode: 'self-hosted', aiConfigured: false, taxonomyCached: true });
+  expect(noAi).toMatchObject({ ok: true, mode: 'self-hosted', aiConfigured: false, taxonomyCached: true, taxonomy: 'verified', taxonomyRevision: TAXONOMY_PIN.revision });
 });
 
 test('taxonomy files are served from the cache; unknown names are 404', async ({ request }) => {
@@ -228,7 +231,7 @@ test('access token: /api/* needs the sign-in cookie, static files stay open (HAR
     expect(login.headers()['set-cookie']).toMatch(/HttpOnly; SameSite=Strict/);
     // The request context keeps the cookie, like a browser would.
     const health = await (await visitor.get(`${URLS.appToken}/api/health`)).json();
-    expect(health).toMatchObject({ signedIn: true, aiConfigured: false, taxonomyCached: true });
+    expect(health).toMatchObject({ signedIn: true, aiConfigured: false, taxonomyCached: true, taxonomy: 'verified', taxonomyRevision: TAXONOMY_PIN.revision });
     expect((await visitor.get(`${URLS.appToken}/api/state`)).status()).toBe(200);
   } finally {
     await visitor.dispose();

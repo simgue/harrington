@@ -11,6 +11,7 @@ import {
   readResearchIndex, readResearchRecord, sha256, splitTeachingResearch, validTopicId,
 } from '../lib/teaching-research.mjs';
 import { GUIDE_ATTRIBUTION, curateResearch } from '../src/js/teaching.js';
+import { taxonomyCacheFolder } from '../lib/taxonomy-pin.mjs';
 
 const repoRoot = new URL('..', import.meta.url);
 const dirs = [];
@@ -287,7 +288,10 @@ describe('research routes', { concurrency: false }, () => {
       assert.equal((await fetch(`${app.url}/api/taxonomy/research/index`)).status, 400);
       // The whole file is never served, though it sits in the cache.
       assert.equal((await fetch(`${app.url}/api/taxonomy/teaching-research.json`)).status, 404);
-      assert.ok((await readdir(join(app.dataDir, 'taxonomy'))).includes('teaching-research.json'));
+      // A custom upstream caches (and splits) in its own folder.
+      const cache = join(app.dataDir, 'taxonomy', taxonomyCacheFolder(upstream.url));
+      assert.ok((await readdir(cache)).includes('teaching-research.json'));
+      assert.ok((await readdir(cache)).includes('research'));
       assert.deepEqual(upstream.hits, ['/teaching-research.json']);
     } finally {
       await app.stop();
@@ -321,7 +325,7 @@ describe('research routes', { concurrency: false }, () => {
   test('from a custom upstream, a changed cached source is split again', async () => {
     const upstream = await fakeUpstream(null);
     const dataDir = await tempDir();
-    const taxonomy = join(dataDir, 'taxonomy');
+    const taxonomy = join(dataDir, 'taxonomy', taxonomyCacheFolder(upstream.url));
     await mkdir(taxonomy, { recursive: true });
     await splitTeachingResearch(researchFile([record('mt_countAAAA1')]), taxonomy);
     // The cached source is now a newer file than the split on disk.

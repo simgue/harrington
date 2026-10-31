@@ -1,5 +1,5 @@
 import { getData, isCurrentTopic, subjectMeta } from '../data.js';
-import { heldLabel, retiredName, retiredTopics, withRetiredLessons } from '../retired.js';
+import { heldLabel, retiredName, retiredTopics } from '../retired.js';
 import * as store from '../store.js';
 import { el, esc, analysisHtml, ratingStars, refreshIcons, toast, openModal, fmtDate, fmtDateTime } from '../ui.js';
 import { openRecorder, audioPlayer, coverageCandidates, coverageClaimField } from '../recorder.js';
@@ -120,7 +120,7 @@ function savedLessonsShelf(d) {
 
 // Topics the curriculum no longer has (a taxonomy update retired them) that
 // this learner's data still mentions: kept, never counted, listed here so
-// nothing disappears silently. Saved lessons for them are added once listed.
+// nothing disappears silently.
 function archivedTopics(student) {
   const section = el(`<section aria-label="Archived topics" class="archived-topics hidden bg-paper-card border border-paper-line rounded-2xl p-4 mb-5">
     <h2 class="font-600 flex items-center gap-2"><i data-lucide="archive" class="w-4.5 h-4.5 text-ink-faint"></i>Archived topics</h2>
@@ -136,12 +136,7 @@ function archivedTopics(student) {
     section.classList.toggle('hidden', !topics.length);
     refreshIcons();
   };
-  const own = retiredTopics(store.get(), student.id, isCurrentTopic);
-  paint(own);
-  store.lessonKeys().then(keys => {
-    const all = withRetiredLessons(own, keys, isCurrentTopic);
-    if (all.some(t => t.held.lesson)) paint(all);
-  });
+  paint(retiredTopics(store.get(), student.id, isCurrentTopic));
   return section;
 }
 

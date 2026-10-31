@@ -42,48 +42,56 @@ export const TAXONOMY_PIN = {
 `server.mjs`, the e2e suite (`tests/e2e/support/taxonomy.mjs`) and
 `npm run taxonomy:check` all import it.
 
-- On the first request for a file, the server downloads it from the pinned
-  upstream, checks its SHA-256 against `files`, and caches it in
-  `HARRINGTON_DATA_DIR/taxonomy/`. A file that does not match is refused (the
-  browser shows "Curriculum file … failed its integrity check, so it was not
-  saved", with both hashes) and is not cached. This download is Harrington's
-  one outbound call that needs no opt-in.
-- After that the cache is served as is, with no further network calls. The
-  curriculum does not update on its own.
+- The server serves a curriculum file only if its SHA-256 matches `files`.
+  It caches files in `HARRINGTON_DATA_DIR/taxonomy/`. On a request it checks
+  the cached file; if the file is missing **or does not match** (an older
+  revision, a cache an earlier Harrington filled from jsDelivr, a hand edit),
+  it downloads the file from the pinned commit, checks it, and replaces the
+  cached copy. So an install moves to a new pin by itself on first use after
+  an upgrade, Docker included, and revisions never mix.
+- A download that does not match is refused and not saved. The browser shows
+  "Curriculum file … failed its integrity check, so it was not saved"; the
+  server log has both hashes. If that download fails or does not match, the
+  old cached file is left on disk but not served: the curriculum does not load
+  until the pinned file can be downloaded.
+- A matching cache is served with no further network calls. The download is
+  Harrington's one outbound call that needs no opt-in, and it happens only for
+  a file that is missing or does not match the pin.
+- Hashes are remembered per file with its size and modification time, so a
+  file changed on disk is checked again on its next use; no restart is needed.
 - `/api/health` (signed in) reports `taxonomy`:
 
   | Value | Meaning |
   | --- | --- |
-  | `verified` | Every cached file matches the pin |
-  | `outdated` | A cached file comes from another revision, usually an install older than the pin. It is still served, and the server logs one warning naming the command below |
-  | `integrity-failed` | A download did not match the pin and was refused |
+  | `verified` | Every file is cached and matches the pin |
+  | `outdated` | A cached file does not match the pin. It is not served, and is replaced at its next use |
+  | `integrity-failed` | The last download of a file did not match the pin and was refused |
   | `unchecked` | `HARRINGTON_TAXONOMY_UPSTREAM` points at a custom upstream |
-  | `not-downloaded` | Nothing cached yet |
+  | `not-downloaded` | A file has not been downloaded yet |
 
-  and `taxonomyRevision` (the pinned commit, or `null` for a custom upstream).
+  and `taxonomyRevision`: the pinned commit when `taxonomy` is `verified`,
+  else `null`.
+- `npm run taxonomy:check` is a diagnostic for pin bumps and CI: it downloads
+  the pinned files, checks their hashes against the pin and the upstream
+  manifest, and writes nothing.
 
 ### A custom upstream (experiments only)
 
 `HARRINGTON_TAXONOMY_UPSTREAM=<url ending in /data>` makes the server download
 from somewhere else, for example a local fork. **Files from a custom upstream
-are not checked**: the server logs a warning at startup and health says
-`unchecked`. Setting it to the pinned URL itself is not custom. Unset it to go
-back to the pin.
+are not checked**: the server logs a warning at startup, health says
+`unchecked` with no revision, and the files are cached in their own folder,
+`taxonomy/custom-<first 12 hex digits of the URL's SHA-256>/`, never next to
+the pinned ones. Setting the variable to the pinned URL itself is not custom.
+Unset it to go back: the server serves only the pinned, checked files again,
+downloading them if needed. The custom folder can be deleted.
 
 ### Moving an existing install to the pinned revision
 
-An install that cached an earlier revision keeps serving it (health:
-`outdated`). To move it:
-
-```bash
-# With Harrington stopped:
-npm run taxonomy:check -- --install   # downloads, verifies, replaces the cache all or nothing
-npm start
-```
-
-Deleting `data/private/taxonomy/` and restarting does the same on first use.
-Read "Retired topics" below first: a revision can retire topics the family has
-worked on.
+Nothing to do: upgrade Harrington and open it. The first request for each file
+finds the old cached copy does not match, downloads the pinned one and replaces
+it. The machine needs to reach `raw.githubusercontent.com` once. Read "Retired
+topics" below first: a revision can retire topics the family has worked on.
 
 ## Bumping the pin
 
@@ -105,7 +113,8 @@ worked on.
    not list itself; take its hash from `sha256sum`.
 3. **Edit `lib/taxonomy-pin.mjs`:** `revision`, `date`, `upstream` and the five
    hashes. Nothing else holds the revision.
-4. **Verify:** `npm run taxonomy:check` (CI's isolation job runs it too).
+4. **Verify:** `npm run taxonomy:check` (CI's isolation job runs it too, and
+   downloads the files for the server's integrity tests).
 5. **Diff the two revisions** before touching fixtures: new and removed
    subjects, removed topic ids, topics whose subject, domain, `ageRangeStart`
    or `name` changed. A short Node script over the old and new `topics.json`
@@ -135,9 +144,9 @@ A revision can drop a topic id. The 2026-10-24 revision retired one:
 `mt_3XJkeIn6J6` (Mathematics / Measurement, "Estimating answers (age 7+)"),
 with no recorded replacement.
 
-A family document may still hold mastery, practice, recall, lesson-cache,
-calendar, daily-offer, workbook or request entries for such an id. Harrington's
-rule:
+A family document may still hold mastery, test, practice, recall, calendar,
+daily-offer, workbook or request entries for such an id, and the server's
+lesson cache may hold a saved lesson for it. Harrington's rule:
 
 - **Keep the data.** Nothing is deleted, and load, import and save never refuse
   a document for it. An export still carries it.
@@ -145,11 +154,15 @@ rule:
   recommendations, daily choices, the calendar track, recall and practice due
   counts and the bell skip it. Its recall cards and practice questions keep
   their schedule but are never due.
-- **Show it.** Records lists it under **Archived topics**, with the name the
-  family's data stored for it (from a record or calendar entry), else its id,
-  and what is kept. Its old topic page says "This topic is no longer in the
-  curriculum" and links to Records. An id no learner's data mentions is still
-  "Topic not found".
+- **Show it.** Records lists it under **Archived topics** for each learner
+  whose data mentions it, with the name that data stored for it (from a
+  record or calendar entry), else its id, and what is kept. A saved lesson
+  alone does not make a row: the lesson cache is family-wide and stays on the
+  server untouched. A workbook Yes on it is never written as mastery; a
+  calendar move of it is kept when "Clear moves" clears the others. Its old
+  topic page says "This topic is no longer in the curriculum" and opens the
+  Records of the learner whose data holds it. An id no learner's data
+  mentions is still "Topic not found".
 
 If a later revision brings the id back, everything reappears as it was.
 
@@ -194,7 +207,9 @@ start a 23.5 MB download on every page. The server then splits the file into
 `taxonomy/research/<topicId>.json` plus `taxonomy/research/index.json` (the
 topic ids, the source file's SHA-256 and Marble's caveat). The split is built
 in a staging directory and swapped in with two renames; a staging or old
-directory left by a crash is removed by the next split. The split takes a few seconds once
+directory left by a crash is removed by the next split. The split sits in the
+same cache folder as its source, so from a custom upstream both live in that
+upstream's own `custom-…` folder and are never used once the variable is unset. The split takes a few seconds once
 (about 3 s including the download on a fast connection) and about 23 MB on
 disk next to the 23.5 MB source; it runs again only when the source changes (for
 example after a pin bump, when the cached split no longer matches the pin, or

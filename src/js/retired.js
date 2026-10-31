@@ -1,8 +1,10 @@
-// Retired topics: ids a family's data still mentions that the loaded taxonomy
+// Retired topics: ids a learner's data still mentions that the loaded taxonomy
 // no longer has (a taxonomy revision removed them; docs/CURRICULUM.md). The
 // data is kept as it is, never refused on load, import or save; the app
 // leaves it out of counts and daily choices and Records lists it here as
-// archived. Pure, so it can be tested without the store.
+// archived. Only learner data counts: the lesson cache is family-wide, so a
+// saved lesson alone does not make an archived row. Pure, so it can be
+// tested without the store.
 
 // What a learner's data holds for a topic, by kind, for the Records row.
 const HELD = {
@@ -16,7 +18,6 @@ const HELD = {
   daily: ['daily offer', 'daily offers'],
   request: ['topic request', 'topic requests'],
   levelset: ['workbook answer', 'workbook answers'],
-  lesson: ['saved lesson', 'saved lessons'],
 };
 
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
@@ -66,20 +67,6 @@ export function retiredTopics(doc, studentId, isCurrent) {
   for (const [, session] of entries(ls?.lanes)) for (const id of Object.keys(isObj(session?.answers) ? session.answers : {})) note(id, 'levelset');
 
   return [...found.values()].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
-}
-
-// Saved lesson cache keys ('topic:<id>', 'print:<id>', 'recall:<id>') whose
-// topic is retired, added to `topics` (from retiredTopics) as a new list.
-export function withRetiredLessons(topics, keys, isCurrent) {
-  const byId = new Map(topics.map(t => [t.id, { ...t, held: { ...t.held } }]));
-  for (const key of keys) {
-    const id = String(key).replace(/^(topic|print|recall):/, '');
-    if (id === key || !id || isCurrent(id)) continue;
-    const e = byId.get(id) || { id, name: null, held: {} };
-    e.held.lesson = (e.held.lesson || 0) + 1;
-    byId.set(id, e);
-  }
-  return [...byId.values()].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
 }
 
 // "mastered · 2 records · 1 recall card"

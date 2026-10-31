@@ -1,4 +1,4 @@
-import { getData, subjectMeta, subjectNames } from '../data.js';
+import { getData, isCurrentTopic, subjectMeta, subjectNames } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { keyOf, parseKey, buildPlan, dailyExtras, planStartKey, invalidatePlan, familyCalendar, normalizeCalendar, restInfo, nextHomeDayKey, pauseInfo, newTopicsHeading, doneControl, normalizePace, paceSummary, planTopicOn } from '../scheduler.js';
@@ -56,7 +56,8 @@ export function renderCalendar(params, { navigate }) {
       toast(clearMoves ? 'Start date updated — track rescheduled and moves cleared' : 'Start date updated — track rescheduled', 'success');
       navigate('calendar');
     };
-    const moved = Object.keys(store.planOverrides(active.id).moves || {}).length;
+    // Moves of a retired topic are kept (Records lists them) and not counted.
+    const moved = Object.keys(store.planOverrides(active.id).moves || {}).filter(isCurrentTopic).length;
     if (moved) openStartMoves(moved, commit, () => { picker.value = startKey; });
     else commit(false);
   };
@@ -277,7 +278,8 @@ function paceBar(active, startKey, navigate) {
 
 function extraRow(x, active, navigate) {
   const d = getData();
-  const meta = subjectMeta(x.subject);
+  // An extra saved without a subject keeps its neutral look.
+  const meta = x.subject ? subjectMeta(x.subject) : { color: '#6f665a', icon: 'plus' };
   const kindMeta = {
     lesson: { icon: 'notebook-text', label: 'Extra lesson' },
     retest: { icon: 'file-check-2', label: 'Re-test' },

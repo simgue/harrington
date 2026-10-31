@@ -28,10 +28,11 @@ npm run e2e
 | `npm run e2e:mock-ai` | Starts only the mock AI provider on port 4311, handy for poking the app by hand. |
 
 The first run downloads the Marble taxonomy into
-`tests/e2e/.cache/taxonomy-<revision>/`: the curriculum files and the 23.5 MB
-`teaching-research.json` behind the teaching guides, each checked against
-`lib/taxonomy-pin.mjs`. Later runs are offline. Each app server splits the
-research into per-topic files on its first guide request (a second or two).
+`tests/e2e/.cache/taxonomy-<revision>/`: the curriculum files (about 3.1 MB)
+and the 23.5 MB `teaching-research.json` behind the teaching guides, each
+checked against the SHA-256s in `lib/taxonomy-pin.mjs`. Later runs are
+offline. Each app server splits the research into per-topic files on the
+first topic-list request (a second or two).
 
 A full run takes about seven minutes: the tests share one server
 per project and reset the family state before each test, so they run one at a
@@ -109,7 +110,7 @@ recording's length, recall cards coming due tomorrow) moves the fixed time on.
 | `E2E_PORT_BASE` | `4310` | Ports are base+1 (mock AI), base+2 (app with AI), base+3 (app without AI), base+4 (app with an unreachable AI), base+6 (app with an access token) and base+9 (kept free as that unreachable AI). |
 | `E2E_SCREENSHOTS` | on | Set to `0` to skip writing screenshots. |
 | `E2E_VIDEO` | unset | `all` records every test, not just the walkthroughs (`e2e:ui-docs` sets it). |
-| `HARRINGTON_TAXONOMY_UPSTREAM` | probed | Where the launcher downloads the taxonomy from on the first run. |
+| `HARRINGTON_TAXONOMY_UPSTREAM` | the pinned commit on raw.githubusercontent.com | Where the launcher downloads the taxonomy from on the first run, and what each server is given. Another value makes the servers treat it as a custom upstream (unchecked, cached separately), and the specs that assert `taxonomy: 'verified'` fail. |
 | `CI` | unset | On CI, `test.only` fails the run. |
 
 The suite never reuses a server that is already listening on its ports: every

@@ -1,18 +1,12 @@
 #!/usr/bin/env node
-// npm run taxonomy:check [-- --install]
+// npm run taxonomy:check
 //
-// Downloads every curriculum file pinned in lib/taxonomy-pin.mjs and checks
-// its SHA-256. Nothing is written unless --install is given; then the verified
-// files replace the server's cache (HARRINGTON_DATA_DIR/taxonomy, by default
-// data/private/taxonomy), all or nothing. Stop the server first; it reads the
-// cache once per process. See docs/CURRICULUM.md.
-import { mkdir, rename, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+// A diagnostic, for a pin bump and for CI: downloads every curriculum file
+// pinned in lib/taxonomy-pin.mjs, checks its SHA-256 and cross-checks the
+// upstream manifest. It writes nothing. The server needs no help moving to a
+// new pin: it replaces any cached file that does not match on first use. See
+// docs/CURRICULUM.md.
 import { TAXONOMY_PIN, sha256Hex } from '../lib/taxonomy-pin.mjs';
-
-const install = process.argv.includes('--install');
-const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 
 const bodies = new Map();
 let failed = false;
@@ -38,7 +32,7 @@ for (const [name, expected] of Object.entries(TAXONOMY_PIN.files)) {
 }
 
 if (failed) {
-  console.error(`\nThe pinned taxonomy ${TAXONOMY_PIN.revision.slice(0, 7)} did not verify. Nothing was written.`);
+  console.error(`\nThe pinned taxonomy ${TAXONOMY_PIN.revision.slice(0, 7)} did not verify.`);
   process.exit(1);
 }
 
@@ -53,13 +47,4 @@ for (const [name, entry] of Object.entries(manifest.files || {})) {
     console.error(`✗ manifest.json lists ${name} as ${entry.sha256}, the pin says ${TAXONOMY_PIN.files[name]}`);
     process.exit(1);
   }
-}
-
-if (install) {
-  const dataDir = resolve(process.env.HARRINGTON_DATA_DIR || join(repoRoot, 'data', 'private'));
-  const dir = join(dataDir, 'taxonomy');
-  await mkdir(dir, { recursive: true });
-  for (const [name, body] of bodies) await writeFile(join(dir, `${name}.${process.pid}.tmp`), body);
-  for (const name of bodies.keys()) await rename(join(dir, `${name}.${process.pid}.tmp`), join(dir, name));
-  console.log(`Installed into ${dir}. Restart Harrington to use it.`);
 }

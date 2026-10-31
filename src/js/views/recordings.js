@@ -43,7 +43,8 @@ export function openRecordingsLibrary() {
     bodyWrap.appendChild(el(`<p class="text-xs text-ink-faint mb-3">${esc(countLabel(recs.length, 'recording'))} in ${esc(countLabel(groups.length, 'group'))}.</p>`));
 
     for (const g of groups) {
-      const meta = subjectMeta(g.subject);
+      // The "Not linked to a section" group has no subject: a plain folder.
+      const meta = g.subject ? subjectMeta(g.subject) : { color: '#6f665a', icon: 'folder' };
       const groupEl = el(`<div class="mb-4">
         <div class="flex items-center gap-2 mb-2">
           <span class="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style="background:${esc(meta.color)}18"><i data-lucide="${esc(meta.icon)}" class="w-3.5 h-3.5" style="color:${esc(meta.color)}"></i></span>
