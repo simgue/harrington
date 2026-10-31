@@ -28,8 +28,12 @@ test('a retired topic is kept, left out of counts, archived in Records and expla
   await gotoApp({ seed });
   // Counted: only the current topic.
   await expect(page.getByText('October 7 · age 6 · 1 of 1,845 topics mastered')).toBeVisible();
-  // Nothing due from the retired topic's recall card or practice question.
-  await expect(page.getByText(/card.* due/i)).toHaveCount(0);
+  // Nothing due from the retired topic's recall card or practice question: the
+  // dashboard writes "Active recall · 1 due" / "Spaced practice · 1 due" when
+  // something is, so the bare titles only show with nothing due.
+  await expect(page.getByText('Active recall', { exact: true })).toBeVisible();
+  await expect(page.getByText('Spaced practice', { exact: true })).toBeVisible();
+  await expect(page.getByText(/^(Active recall|Spaced practice) · \d+ due$/)).toHaveCount(0);
 
   await nav(page, 'Records').click();
   const archived = page.getByRole('region', { name: 'Archived topics' });
