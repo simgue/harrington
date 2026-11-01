@@ -40,3 +40,54 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+  # The Docker image (docs/DEPLOYMENT.md, the Synology section included) runs
+  # as the unprivileged node user (GAPS.md G13), on a fresh volume it can
+  # write to. Build it, check the user, and answer one health request and one
+  # save from a running container.
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t harrington:ci .
+
+      - name: The image runs as node (uid 1000)
+        run: |
+          set -eu
+          test "$(docker image inspect -f '{{.Config.User}}' harrington:ci)" = node
+          test "$(docker run --rm harrington:ci id -u)" = 1000
+          test "$(docker run --rm harrington:ci id -un)" = node
+          test "$(docker run --rm harrington:ci stat -c %U /data)" = node
+
+      - name: Smoke test a running container
+        run: |
+          set -eu
+          docker volume create harrington-ci-data
+          docker run -d --name harrington-ci -p 127.0.0.1:4173:4173 -v harrington-ci-data:/data harrington:ci
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4173/api/health > /dev/null && break
+            sleep 1
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4173/api/health)" = 200
+          # node can read the app it serves: the page, a script and the stylesheet.
+          for path in / /js/app.js /css/tailwind.css; do
+            test "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:4173$path")" = 200
+          done
+          # The server process itself, not only a fresh shell, is uid 1000.
+          docker exec harrington-ci grep -E '^Uid:[[:space:]]+1000[[:space:]]' /proc/1/status
+          # A save lands in the volume, so /data is writable by node. The
+          # document is at the current data format (src/js/schema.js).
+          format=$(node --input-type=module -e "import { SCHEMA_VERSION } from './src/js/schema.js'; console.log(SCHEMA_VERSION)")
+          status=$(curl -s -o /dev/null -w '%{http_code}' -X PUT http://127.0.0.1:4173/api/state \
+            -H 'Content-Type: application/json' -H 'If-Match: "v0"' \
+            --data '{"schemaVersion":'"$format"',"students":[{"id":"student-1","name":"Sample Learner","birthYear":2018}],"activeStudentId":"student-1","progress":{}}')
+          test "$status" = 204
+          docker exec harrington-ci test -s /data/family-state.json
+
+      - name: Container log
+        if: ${{ always() }}
+        run: docker logs harrington-ci || true

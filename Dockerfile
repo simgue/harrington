@@ -20,6 +20,15 @@ ENV HARRINGTON_HOST=0.0.0.0
 ENV HARRINGTON_PORT=4173
 ENV HARRINGTON_DATA_DIR=/data
 
+# Run as the image's unprivileged node user (uid 1000), not root. /data is
+# created owned by it, so a new named volume starts writable. A volume or bind
+# mount first used by an older, root-run image keeps root-owned files: change
+# them once on the host with chown -R 1000:1000 (docs/DEPLOYMENT.md).
+# Everything under /app readable by node, whatever modes the build context had:
+# an owner-only file copied in would otherwise stop the server at start.
+RUN mkdir -p /data && chown node:node /data && chmod -R a+rX /app
+USER node
+
 EXPOSE 4173
 VOLUME ["/data"]
 

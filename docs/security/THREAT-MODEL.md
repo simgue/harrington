@@ -138,7 +138,7 @@ D = denial of service, E = elevation of privilege.
 | --- | --- | --- | --- | --- | --- |
 | I | Lost or stolen host laptop | None in the app; data is plaintext | G4: no disk-encryption guidance | Major | In this PR's family section |
 | I | Other local users read the data | None: files 0644, folders 0755 under the usual umask (probed), backups 0644 | G7 | Minor | 0700 folders, 0600 files and archives |
-| E | Container escape surface | Data in a named volume; port published on loopback | G13: the image runs as root | Minor | `USER node` |
+| E | Container escape surface | Data in a named volume; port published on loopback | G13, fixed by HAR-58: the image runs as the unprivileged `node` user (uid 1000) and CI's `image` job checks the image user, the server's uid and a save to a fresh volume | Minor | Done; see docs/DEPLOYMENT.md, "The container runs as `node`" |
 | I | Token or key in the environment | Startup log never prints the token (probed) or the key; `.env` is gitignored | Accepted; family guidance | | |
 
 ### TB8: versions over time
@@ -185,7 +185,7 @@ have prevented them, for HAR-36, are in [PRACTICES.md](PRACTICES.md).
 | G10 | Minor | Taxonomy downloaded from a moving branch with no integrity check, cached for good (fixed by HAR-55) | TB5 |
 | G11 | Minor | Validator keeps unknown top-level fields and lists under non-learner keys | TB6, P3 |
 | G12 | Minor | The first person to press Grown-ups sets the family PIN; no attempt limit | TB3, P1 |
-| G13 | Minor | Docker image runs as root | TB7 |
+| G13 | Minor | Docker image runs as root (fixed by HAR-58) | TB7 |
 | G14 | Minor | A plain `http://` AI base URL on a public host is accepted (by code reading) | TB4, P2 |
 
 Count: **1 Blocker, 3 Major, 10 Minor.**

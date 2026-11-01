@@ -253,7 +253,13 @@ model and not repeated here.
 
 ### G13: the Docker image runs as root
 
-- **Code:** the final stage of `Dockerfile` has no `USER`.
+- **Status:** fixed (HAR-58). The runtime stage creates `/data` owned by
+  `node` and switches to `USER node` (uid 1000). The CI `image` job checks the
+  image user, that the server process is uid 1000, and that a save lands in a
+  fresh volume. Data written by an older root-run image needs a one-time
+  `chown -R 1000:1000`; DEPLOYMENT.md ("The container runs as `node`") has the
+  commands for a named volume and a bind-mounted folder.
+- **Code (before the fix):** the final stage of `Dockerfile` has no `USER`.
 - **Fix:**
   1. Add `USER node` and `chown node /data`.
   2. Document how to fix the volume's ownership for existing installs.

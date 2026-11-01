@@ -269,13 +269,331 @@ in can read or change data.
   included, can read and change everything. The child-view PIN does not stop
   that (see below).
 
-With Docker, the compose file publishes on `127.0.0.1` and sets
-`HARRINGTON_PUBLISHED_HOST: 127.0.0.1`. For option 1 or 2 keep that port
-mapping, put Tailscale serve or Caddy in front of it as above, and change only
-`HARRINGTON_PUBLISHED_HOST` to the name devices open. Put the token in a `.env`
-file next to `compose.yaml` (the repository's `.gitignore` already excludes
-`.env`) and reference it from the `environment:` block as
-`HARRINGTON_ACCESS_TOKEN: ${HARRINGTON_ACCESS_TOKEN}`.
+With Docker, the compose file publishes on `127.0.0.1` and reads
+`HARRINGTON_PUBLISHED_HOST`, `HARRINGTON_ALLOWED_HOSTS` and
+`HARRINGTON_ACCESS_TOKEN` from a `.env` file next to `compose.yaml` (the
+repository's `.gitignore` excludes `.env`). Without one it behaves as a
+single-computer install: `HARRINGTON_PUBLISHED_HOST` is `127.0.0.1` and there
+is no token. For option 1 or 2 keep that port mapping, put Tailscale serve or
+Caddy in front of it as above, and put the name devices open and the token in
+`.env`, making the token straight into the file so no placeholder is left in
+it (the server would accept one as a real token):
+
+```bash
+echo "HARRINGTON_PUBLISHED_HOST=HOSTNAME.ts.net" >> .env
+echo "HARRINGTON_ACCESS_TOKEN=$(openssl rand -hex 24)" >> .env
+chmod 600 .env
+```
+
+`HARRINGTON_DATA_VOLUME` in the same file chooses where the data lives: unset,
+the `harrington-data` volume; `./data/private`, that folder next to
+`compose.yaml` (see the Synology section below).
+
+### The container runs as `node` (uid 1000)
+
+The image runs Harrington as the unprivileged `node` user, uid 1000, not as
+root. A new named volume is created writable by it. Two cases need a one-time
+change of owner on the host; otherwise every save fails and the log shows
+`EACCES`:
+
+- **A bind-mounted folder.** Docker creates a missing folder owned by root, so
+  create it and give it to uid 1000 before the first start:
+  `mkdir -p data/private && sudo chown -R 1000:1000 data/private`.
+- **Data from an image built before this change.** That image ran as root, so
+  its files belong to root. For the named volume: `docker compose down`, then
+  `docker run --rm -v harrington_harrington-data:/data alpine chown -R 1000:1000 /data`,
+  then `docker compose up -d`. For a bind-mounted folder:
+  `sudo chown -R 1000:1000 data/private`.
+
+## Synology (Container Manager)
+
+A Synology NAS that stays on is a good host. These steps were written for a
+DS920+ on DSM 7.2 or later; other Intel or AMD models that run Container
+Manager work the same way. Harrington runs in a container on the NAS,
+Tailscale on the NAS gives it an `https://` address, and every other device is
+a browser. The AI stays where it is (LM Studio on a laptop, or Gemini); none of
+it moves to the NAS. Allow about an hour *(unchecked on DSM)*.
+
+**Why HTTPS, not the NAS's IP address:** the voice recorder (the microphone
+and live transcript) works only on a secure context, which
+`http://192.168.1.20:4173` is not, and without HTTPS the access token and the
+sign-in cookie cross the Wi-Fi unencrypted. (The child-view PIN works either
+way.) This section uses option 1, Tailscale: do its step 1 first, for the
+account, MagicDNS, HTTPS certificates and the apps on the tablets and phones;
+it is not repeated here.
+
+**Not yet checked on a real NAS.** The steps were written from Docker, Compose
+and Tailscale's behaviour on Linux and from published Synology guides, not on a
+DSM device. Every place marked *(unchecked on DSM)* is a menu name, a default
+or a timing that may differ on yours; each says what to look for and what to
+do if it does.
+
+Below, `NAS-NAME` is the NAS's name in the tailnet and `TAILNET-NAME` the part
+before `.ts.net`, both from the **Machines** page of the Tailscale admin
+console; use yours. Commands are typed in an SSH session on the NAS, signed in
+with your DSM administrator account.
+
+### 1. Install three packages
+
+In **Package Center**, install **Container Manager**, **Git Server** (it
+provides the `git` command) and **Tailscale**. Installing Container Manager
+creates the `docker` shared folder, `/volume1/docker` (on another volume it is
+`/volume2/docker`; File Station shows which). *(Unchecked on DSM: that Git
+Server provides `git` over SSH, and that Container Manager creates the `docker`
+folder. Check with `git --version` and `ls -d /volume1/docker` in step 3; if
+the folder is missing, create a shared folder named `docker` in Control Panel,
+Shared Folder.)*
+
+### 2. Turn on SSH
+
+**Control Panel**, **Terminal & SNMP**, tick **Enable SSH service**, **Apply**.
+From a computer on the home network: `ssh your-dsm-user@NAS-LAN-ADDRESS`. Steps
+4, 5 (its check) and 6 need SSH, and so do updates; you can turn it off in
+between.
+
+### 3. Put Harrington on the NAS
+
+```bash
+cd /volume1/docker
+git clone https://github.com/simgue/harrington.git
+cd harrington
+```
+
+If the repository is private, `git` asks for a user name and a password: type
+your GitHub user name, and as the password a **fine-grained personal access
+token** (GitHub, Settings, Developer settings, Fine-grained tokens) for this
+one repository, with **Contents: Read-only** and an expiry date. Do not put the
+token in the URL: it would be saved in `.git/config` on the NAS. *(Unchecked on
+DSM: that the Git Server package's `git` clones over HTTPS. If `git clone`
+fails, use the ZIP below.)*
+
+Without a GitHub token: on GitHub press **Code**, **Download ZIP**, upload the
+file to the `docker` folder with File Station, right-click it, **Extract**, and
+rename the folder it makes (`harrington-main`) to `harrington`. You still need
+SSH for steps 4 to 6. A ZIP copy cannot `git pull`. To update one, extract the
+new ZIP to its own fresh folder, stop the Project, move `data/`, `backups/` and
+`.env` from the old folder into the new one, rename the old folder to
+`harrington-old` and the new one to `harrington`, run
+`sudo chown -R 1000:1000 /volume1/docker/harrington/data/private`, and rebuild
+(step 5). Do not extract over the old folder: files deleted from Harrington
+would stay behind. Delete `harrington-old` once the new one works.
+
+### 4. Make the data folder and the settings file
+
+```bash
+cd /volume1/docker/harrington
+mkdir -p data/private backups
+sudo chown -R 1000:1000 data/private
+```
+
+The `chown` matters: inside the container Harrington runs as uid 1000, and a
+folder it cannot write to makes every save fail (see "The container runs as
+`node`" above). *(Unchecked on DSM: that Synology's folder permissions (ACLs)
+on the `docker` shared folder leave this `chown` in force. Step 5's check
+shows whether saves work.)*
+
+Then write `.env`, with your NAS name in the first line, and make the access
+token straight into it, so no placeholder can be left in by mistake:
+
+```bash
+cat > .env <<'END'
+HARRINGTON_PUBLISHED_HOST=NAS-NAME.TAILNET-NAME.ts.net
+HARRINGTON_DATA_VOLUME=./data/private
+END
+echo "HARRINGTON_ACCESS_TOKEN=$(openssl rand -hex 24)" >> .env
+chmod 600 .env
+cat .env
+```
+
+Copy the token from the last line into a password manager; each device needs
+it once. (If `openssl` is missing, make a token on any computer with Node, with
+the command under "Settings reference", and add the line by hand.)
+
+`HARRINGTON_DATA_VOLUME=./data/private` keeps the family's data in
+`/volume1/docker/harrington/data/private`, a folder File Station and Hyper
+Backup can see, instead of a Docker volume. `compose.yaml` stays as it is in
+Git, so `git pull` never conflicts with your settings.
+
+### 5. Create the Project and start it
+
+*(Unchecked on DSM: the menu names, the Web Station page and whether a Project
+reads `.env`. The check after the list is what counts.)*
+
+1. Open **Container Manager**, **Project**, **Create**.
+2. **Project name:** `harrington`. **Path:** the `docker/harrington` folder.
+   **Source:** use the existing `compose.yaml`. Container Manager should offer
+   this when it finds the file in the folder; if it offers to create a new one
+   instead, the path is wrong.
+3. If it shows a web portal (Web Station) page, skip it: Tailscale is the
+   front door.
+4. **Done** builds the image and starts the container. The first build takes
+   a few minutes on a Celeron *(unchecked on DSM)*.
+
+**Check it, and do not skip this.** On the NAS:
+
+```bash
+curl -s -H 'Host: NAS-NAME.TAILNET-NAME.ts.net' http://127.0.0.1:4173/api/health; echo
+sudo docker inspect --format '{{range .Mounts}}{{.Type}} {{.Source}}{{end}}' $(sudo docker ps -q --filter name=harrington)
+```
+
+The first line must show `"ok":true` and `"authEnabled":true`; the second must
+show `bind /volume1/docker/harrington/data/private`. Any of these means the
+Project did not read `.env`:
+
+- the first line answers `Harrington does not answer to this host name; add
+  it to HARRINGTON_ALLOWED_HOSTS.` (without `.env` the published name falls
+  back to `127.0.0.1`, so Harrington refuses `NAS-NAME...ts.net`);
+- it shows `"authEnabled":false`;
+- the mount says `volume`.
+
+Harrington is then running **with no token**, and the family's data would go
+into a hidden Docker volume that a Hyper Backup of `data/private` never sees.
+Then stop and delete the Project in Container Manager and start Harrington over
+SSH instead, which reads `.env` for certain:
+
+```bash
+cd /volume1/docker/harrington
+sudo docker compose up -d --build
+```
+
+Older DSM versions may have only `docker-compose` (with a hyphen); if
+`docker compose` says it is not a command, run
+`sudo docker-compose up -d --build`. Run the check again. Use the same command
+for every update below instead of the Project's **Build**.
+
+The container's log (in Container Manager, or `sudo docker logs` with the
+container name) shows the startup lines described under "Settings reference".
+The port is published on `127.0.0.1:4173` only, so nothing on the home network
+reaches Harrington except through Tailscale.
+
+### 6. Give it an HTTPS address with Tailscale
+
+1. Open **Tailscale** from the DSM main menu and sign in to the family's
+   tailnet.
+2. In the Tailscale admin console, under **DNS**, check that **MagicDNS** and
+   **HTTPS Certificates** are on (option 1, step 1).
+3. On DSM the `tailscale` command is not on the `PATH` *(unchecked on DSM)*;
+   it is in the package folder. Check that it is there, then turn on serve:
+
+   ```bash
+   ls -l /var/packages/Tailscale/target/bin/tailscale
+   sudo /var/packages/Tailscale/target/bin/tailscale serve --bg http://127.0.0.1:4173
+   sudo /var/packages/Tailscale/target/bin/tailscale serve status
+   ```
+
+   `serve status` should show `https://NAS-NAME.TAILNET-NAME.ts.net` proxying
+   to `http://127.0.0.1:4173`. The setting survives reboots. *(Unchecked on
+   DSM: the Package Center's Tailscale version, and whether it first prints a
+   link to enable Serve for the tailnet.)* If it prints a link, open it, allow
+   Serve, and run the command again. Tailscale before 1.52 wrote this
+   `tailscale serve https / http://127.0.0.1:4173`; if the command above is
+   refused, update the package in Package Center.
+4. Tailscale's Synology guide has DSM 7 run `tailscale configure-host` as root
+   at every boot, so that apps on the NAS can also reach other devices in the
+   tailnet; Harrington needs that only to reach an AI provider by its
+   Tailscale address (step 8). **Control Panel**, **Task Scheduler**,
+   **Create**, **Triggered Task**, **User-defined script**, user `root`, event
+   **Boot-up** (menu names unchecked on DSM), script:
+
+   ```bash
+   /var/packages/Tailscale/target/bin/tailscale configure-host; synosystemctl restart pkgctl-Tailscale.service
+   ```
+
+   Run it once now (select it, **Run**). An upgrade of the Tailscale package
+   undoes it: run the task again after each one, or reboot.
+
+*(Unchecked on DSM: port 443.)* If `https://NAS-NAME.TAILNET-NAME.ts.net` opens
+DSM's own sign-in page instead of Harrington, DSM is keeping port 443. Move
+Harrington to port 8443:
+`sudo /var/packages/Tailscale/target/bin/tailscale serve reset`, then
+`sudo /var/packages/Tailscale/target/bin/tailscale serve --bg --https=8443 http://127.0.0.1:4173`,
+and add `:8443` to the address everywhere below. Never use `tailscale funnel`.
+
+### 7. Sign in on each device
+
+On each tablet, phone and laptop, do option 1, step 4: Tailscale connected,
+open `https://NAS-NAME.TAILNET-NAME.ts.net/login`, type the token once, add it
+to the home screen. Then check recording with "Verifying recording from a
+second device" at the end of this page.
+
+### 8. Move the family's data from the old install
+
+1. On the old install, press **Export** and keep the
+   `harrington-family-<date>.json` file. It holds the family document, not the
+   recordings or the AI settings.
+2. Stop the old server, so nobody keeps saving to it.
+3. On the NAS install, press **Import**, check the preview, and confirm.
+4. Recordings, if you want to keep them: copy the old `data/private/audio/`
+   folder into `docker/harrington/data/private/` with File Station, then run
+   `sudo chown -R 1000:1000 /volume1/docker/harrington/data/private` again.
+5. Set the AI provider again under **Settings > AI provider**: API keys are
+   never exported or backed up. For LM Studio on a laptop, turn on its option
+   to serve on the local network and use the laptop's home-network address,
+   such as `http://192.168.1.30:1234/v1` ([AI-SETUP.md](AI-SETUP.md)). Plain
+   `http://` is fine while it stays on the home network. Reaching the laptop
+   by its Tailscale address instead needs the boot-up task in step 6.
+
+### What to expect the first time
+
+The container starts in a few seconds. Harrington downloads the curriculum at
+the pinned revision in two moments, checks every file against its SHA-256 and
+keeps it in `data/private/taxonomy/`; the NAS must be able to reach
+`raw.githubusercontent.com` both times.
+
+- **The first time a device opens the app:** about 6 MB (the four curriculum
+  files, about 3 MB, then the 2.7 MB Australian Curriculum standards).
+- **The first time a page offers a teaching guide** (a topic page, for
+  example): the 23.5 MB teaching research, which the server then splits into
+  one file per topic, once. Together that is the longer wait, perhaps 20 to 30
+  seconds on a Celeron *(unchecked on DSM)*; the log then says
+  `Split the teaching research into ... topic files`.
+
+Neither happens again, even after a rebuild: both are kept in the data folder.
+
+### Updating
+
+1. Press **Export** in the app and keep the file.
+2. On the NAS:
+
+   ```bash
+   cd /volume1/docker/harrington
+   git pull
+   ```
+
+   A ZIP install has no `git pull`: follow the ZIP update in step 3 instead,
+   then continue here.
+
+3. In Container Manager, **Project**, `harrington`, **Action**, **Build**
+   *(unchecked on DSM)*. It rebuilds the image from the new code and restarts
+   the container. If you started Harrington over SSH in step 5, run
+   `sudo docker compose up -d --build` (or `sudo docker-compose up -d --build`)
+   in that folder instead.
+4. Reload Harrington on every device. A tab may run the old app for up to an
+   hour, read-only and harmless (README, "Updating").
+
+### Backups
+
+The data folder is the backup set (README, "Backup and restore"). Use one of:
+
+- **Hyper Backup:** a daily task that backs up `docker/harrington/data/private`
+  to a USB drive or another NAS. Turn on client-side encryption: the folder
+  holds `secrets.json`, with any API key, besides every note and recording.
+- **The same archive as `npm run backup`, made on the NAS:** **Control Panel**,
+  **Task Scheduler**, **Create**, **Scheduled Task**, **User-defined script**
+  (menu names unchecked on DSM), user `root`, daily at 02:15, with this script:
+
+  ```bash
+  cd /volume1/docker/harrington && mkdir -p backups && tar -czf backups/harrington-$(date +%Y-%m-%dT%H-%M-%S).tar.gz --exclude=private/secrets.json --exclude='private/secrets.json.*.tmp' -C data private
+  ```
+
+  The archive has the same layout as `npm run backup`'s and leaves out the
+  same two things (`scripts/backup.mjs`): `secrets.json` and a half-written
+  copy of it. Restore it as the README says, then run
+  `sudo chown -R 1000:1000 /volume1/docker/harrington/data/private`. Copy
+  `backups/` off the NAS every so often (Hyper Backup can do that too).
+
+The notification bell does not see archives made outside the container:
+dismiss "No backup recorded" and it stays quiet for 30 days.
 
 ## Keeping the family's data safe
 
@@ -308,14 +626,16 @@ container (`%` must be written `\%` inside a crontab). The command leaves out
 API key, as `npm run backup` does; enter the key again after a restore:
 
 ```
-15 2 * * * mkdir -p /home/parent/harrington/backups && /usr/bin/docker run --rm -v harrington_harrington-data:/data:ro -v /home/parent/harrington/backups:/backups alpine tar -czf /backups/harrington-docker-$(date +\%Y-\%m-\%dT\%H-\%M-\%S).tar.gz --exclude=data/secrets.json -C / data >> /home/parent/harrington/backups/backup.log 2>&1
+15 2 * * * mkdir -p /home/parent/harrington/backups && /usr/bin/docker run --rm -v harrington_harrington-data:/data:ro -v /home/parent/harrington/backups:/backups alpine tar -czf /backups/harrington-docker-$(date +\%Y-\%m-\%dT\%H-\%M-\%S).tar.gz --exclude=data/secrets.json --exclude='data/secrets.json.*.tmp' -C / data >> /home/parent/harrington/backups/backup.log 2>&1
 ```
 
 To restore it, close Harrington on every device first (a tab left open would
 otherwise see its next change refused and offer to put it back on the
 restored data), then `docker compose down`, then
-`docker run --rm -v harrington_harrington-data:/data -v /home/parent/harrington/backups:/backups alpine sh -c 'rm -rf /data/* && tar -xzf /backups/FILE.tar.gz -C /'`,
-then `docker compose up -d`.
+`docker run --rm -v harrington_harrington-data:/data -v /home/parent/harrington/backups:/backups alpine sh -c 'rm -rf /data/* && tar -xzf /backups/FILE.tar.gz -C / && chown -R 1000:1000 /data'`,
+then `docker compose up -d`. The `chown` hands the restored files to the
+`node` user the container runs as; without it they come back owned by root
+and every save fails with `EACCES`.
 
 The server reads the same folder: the notification bell warns when the newest
 archive in `HARRINGTON_BACKUP_DIR` (default `backups/`) is more than a week

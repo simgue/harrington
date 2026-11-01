@@ -27,7 +27,27 @@ tagged a release yet; everything below is on `main`.
   `GET /api/taxonomy/research/<topicId>`; the whole file is never sent to
   the browser. See docs/CURRICULUM.md.
 
+- A Synology (Container Manager) runbook in docs/DEPLOYMENT.md: Package
+  Center to every device signed in over Tailscale HTTPS, moving the family's
+  data, updates, backups (Hyper Backup or a scheduled archive) and what the
+  first start does. `compose.yaml` now reads `HARRINGTON_PUBLISHED_HOST`,
+  `HARRINGTON_ALLOWED_HOSTS`, `HARRINGTON_ACCESS_TOKEN` and
+  `HARRINGTON_DATA_VOLUME` (a bind-mounted folder instead of the volume) from
+  `.env`, so a shared install edits no tracked file. README has an "Updating"
+  procedure.
+
+### Security
+- The Docker image runs as the unprivileged `node` user (uid 1000), not root
+  (GAPS.md G13, HAR-58); CI builds it and checks the user, health and a save.
+  Data written by an older image needs a one-time `chown -R 1000:1000`
+  (docs/DEPLOYMENT.md); the Docker restore command now does it. Files under
+  `/app` are made readable by `node` whatever their modes in the build
+  context, and `.env` and `backups/` are kept out of the build context.
+
 ### Fixed
+- The curriculum-pin and server tests wait up to 5 seconds for a log line the
+  server writes while answering a request, instead of reading the log once;
+  on a busy machine the line could arrive after the response.
 - The topic page no longer scrolls sideways on a phone when a topic has a
   long domain name: the header chips wrap and the columns can shrink.
 - Topics in a subject Harrington has no colour for are no longer dropped

@@ -4,3 +4,7 @@ data/private
 node_modules
 npm-debug.log*
 tests
+# Settings and backups on the host never go into the image.
+.env
+.env.*
+backups
