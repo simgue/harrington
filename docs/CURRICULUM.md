@@ -8,14 +8,14 @@ topic builds on that one"). Harrington reads five of its files:
 
 | File | What Harrington uses it for |
 | --- | --- |
-| `topics.json` | Every topic: id, subject, domain, name, description, ages, evidence, `assessmentPrompt`, and any field Harrington does not use yet (such as `standards`), served as is |
+| `topics.json` | Every topic: id, subject, domain, name, description, ages, evidence, `assessmentPrompt`, `standards` (curriculum codes; Harrington uses the Australian ones), and any field Harrington does not use yet, served as is |
 | `dependencies.json` | Prerequisite links, `hard` (required) or `soft` (helpful), each with a reason |
 | `clusters.json` | Parent-facing summaries of a domain at one age |
 | `manifest.json` | Counts, `taxonomyVersion`, `generatedAt` and the upstream's own file hashes |
+| `curriculum-standards.json` | Read by the server only, to derive the Australian Curriculum list (see [Curriculum alignment](#curriculum-alignment)); never sent to the browser |
 | `teaching-research.json` | The teaching guides on topic pages (see [Teaching research](#teaching-research)); never served whole |
 
-The upstream publishes more files (for example `curriculum-standards.json`).
-Harrington does not download them yet.
+The upstream publishes more files; Harrington does not download them yet.
 
 ## Licence
 
@@ -63,11 +63,11 @@ export const TAXONOMY_PIN = {
 
   | Value | Meaning |
   | --- | --- |
-  | `verified` | Every file is cached and matches the pin |
+  | `verified` | Every file the browser loads is cached and matches the pin (`curriculum-standards.json` and `teaching-research.json` count only when a download of theirs is refused) |
   | `outdated` | A cached file does not match the pin. It is not served, and is replaced at its next use |
   | `integrity-failed` | The last download of a file did not match the pin and was refused |
   | `unchecked` | `HARRINGTON_TAXONOMY_UPSTREAM` points at a custom upstream |
-  | `not-downloaded` | A file has not been downloaded yet |
+  | `not-downloaded` | A file the browser loads has not been downloaded yet |
 
   and `taxonomyRevision`: the pinned commit when `taxonomy` is `verified`,
   else `null`.
@@ -103,16 +103,16 @@ topics" below first: a revision can retire topics the family has worked on.
 
    ```bash
    R=<commit>
-   for f in topics.json dependencies.json clusters.json manifest.json teaching-research.json; do
+   for f in topics.json dependencies.json clusters.json manifest.json curriculum-standards.json teaching-research.json; do
      curl -sSfo "/tmp/$f" "https://raw.githubusercontent.com/withmarbleapp/os-taxonomy/$R/data/$f"
    done
    sha256sum /tmp/*.json
    ```
 
-   The others must equal the manifest's `sha256`. `manifest.json` does
-   not list itself; take its hash from `sha256sum`.
-3. **Edit `lib/taxonomy-pin.mjs`:** `revision`, `date`, `upstream` and the five
-   hashes. Nothing else holds the revision.
+   Every file but `manifest.json` must equal the manifest's `sha256`.
+   `manifest.json` does not list itself; take its hash from `sha256sum`.
+3. **Edit `lib/taxonomy-pin.mjs`:** `revision`, `date`, `upstream` and the
+   file hashes. Nothing else holds the revision.
 4. **Verify:** `npm run taxonomy:check` (CI's isolation job runs it too, and
    downloads the files for the server's integrity tests).
 5. **Diff the two revisions** before touching fixtures: new and removed
@@ -179,6 +179,58 @@ the family's data stores a topic's age except history:
 - Test results keep the section id they were taken in (`Subject|Domain|age`)
   and a placement record keeps its title ("up to age 8"): they record what
   happened then.
+
+## Curriculum alignment
+
+Marble's topics carry `standards` codes from several curricula. Harrington
+uses one of them, the Australian Curriculum version 9 (`acara-v9:` codes,
+Foundation to Year 6), the only one with verbatim text at the pinned
+revision that suits Harrington's ages. The server downloads
+`curriculum-standards.json` (2.7 MB, every curriculum, pinned by SHA-256 in
+`lib/taxonomy-pin.mjs`) but never sends it to the browser: on the first
+request it derives `GET /api/taxonomy/standards/acara-v9.json` (620 content
+descriptions: code, title, strand, learning area, subject, year levels; about
+165 KB) with `trimStandards` in `src/js/curriculum.js`. The source file is
+cached and re-verified against the pin like every other file (a custom
+upstream in its own folder), and the derived list is kept in memory per
+source SHA-256, so a replaced file is trimmed again. Like the teaching
+research, it counts in `/api/health` only when its download is refused
+(`integrity-failed`). The file is optional: its download gives up after 15 seconds, a failure is answered from memory for five minutes before the server tries again. The
+app never waits for the list at start-up: it loads in the background and the
+page showing renders again when it arrives or fails. Until then, today's
+choices for a learner with a curriculum year are not saved; a pick made
+before then saves the offers shown first, so it is never lost.
+Year levels are normalised to `F` and `1` to `6`; 111 codes span two years
+(Health and Physical Education and Technologies bands).
+
+At revision `7bd8b67`, 872 of 1,845 topics link to at least one Australian
+code, and 593 of the 620 content descriptions have a linked topic. The 27
+without one are the Movement and physical activity strand of Health and
+Physical Education, which the taxonomy does not cover; the coverage report
+lists them as "Not yet" with "No Harrington topic is linked".
+
+The links are Marble's map, not a certificate: Marble notes that 572 of its
+earlier "fully covered" claims were not independently rechecked. The app
+therefore says a topic is "linked to" a code, never that it satisfies one,
+and the coverage report's statuses (Linked topics mastered, Evidence, Not
+yet) describe the learner's own records, not a judgment that a content
+description is met. Evidence is a record about a linked topic (an
+observation, a discussion, a recording, a mastery observation's
+assessment), a passed topic check, a challenge at 80% or better, or a
+practice question; a saved lesson is a plan, not evidence.
+
+A learner's optional `curriculum: { id: 'acara-v9', year }` turns on the
+year-level order: `curriculumBoost` gives 2 to a topic linked at the learner's
+year and 1 to an unmastered topic linked at the year below, and the daily
+choices, recommendations, finder, map list and placement default weigh it
+with the age order. It is a soft boost; nothing is filtered out. Any other
+curriculum id is refused by the import check and the server.
+
+The ACARA notice (`ACARA_NOTICE` in `src/js/curriculum.js`) is quoted
+verbatim wherever Australian Curriculum codes or text appear in the app: once
+on a topic page below its chips (shown whenever the chips are), in the
+coverage report's footer, and in the in-app guide's credits; also in the
+README, NOTICE and DATA-LICENSE. The written guide points to the README.
 
 ## Teaching research
 

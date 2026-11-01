@@ -8,6 +8,7 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { isLoopbackAddress } from '../lib/loopback.mjs';
+import { seedFixtureTaxonomy } from './support/fixture-taxonomy.mjs';
 import { AI_CAPABILITIES, parseCapabilities } from '../src/js/ai-capabilities.js';
 import { SCHEMA_VERSION, formatCopyName } from '../src/js/schema.js';
 
@@ -650,7 +651,9 @@ test('rejects an unknown taxonomy file name; health reports a stand-in topics.js
 test('fetches an allowlisted taxonomy file from upstream and caches it on disk', async () => {
   const fixture = { topics: [{ id: 'count-to-5', name: 'Count to 5' }] };
   let upstreamHits = 0;
+  let standardsHits = 0;
   const upstream = createServer((req, res) => {
+    if (req.url === '/curriculum-standards.json') standardsHits += 1;
     if (req.url === '/topics.json') {
       upstreamHits += 1;
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -715,6 +718,22 @@ test('fetches an allowlisted taxonomy file from upstream and caches it on disk',
 
     const missing = await fetch(`${isolatedUrl}/api/taxonomy/manifest.json`);
     assert.equal(missing.status, 502);
+
+    // The optional standards file: a failed download is remembered, so the
+    // next page load is answered at once without asking the upstream again.
+    for (let i = 0; i < 2; i += 1) {
+      assert.equal((await fetch(`${isolatedUrl}/api/taxonomy/standards/acara-v9.json`)).status, 502);
+    }
+    assert.equal(standardsHits, 1);
+    // The memory is keyed by the cached source file: once a usable file is in
+    // place (here, by hand), the list is served at once, not in five minutes.
+    await writeFile(join(isolatedDir, 'taxonomy', customDir, 'curriculum-standards.json'), JSON.stringify({ curricula: [{ slug: 'acara-v9', topics: [
+      { key: 'acara-v9:AC9M2N01', code: 'AC9M2N01', data: { title: 'order numbers', strand: 'Number', learningArea: 'Mathematics', subject: 'Mathematics', yearLevels: ['2'] } },
+    ] }] }));
+    const fixed = await fetch(`${isolatedUrl}/api/taxonomy/standards/acara-v9.json`);
+    assert.equal(fixed.status, 200);
+    assert.equal((await fixed.json()).standards[0].code, 'AC9M2N01');
+    assert.equal(standardsHits, 1);
     // A custom upstream is not checked against the pin.
     assert.equal((await (await fetch(`${isolatedUrl}/api/health`)).json()).taxonomy, 'unchecked');
   } finally {
@@ -722,6 +741,39 @@ test('fetches an allowlisted taxonomy file from upstream and caches it on disk',
     await new Promise((resolve) => isolated.once('exit', resolve));
     upstream.close();
     await rm(isolatedDir, { recursive: true, force: true });
+  }
+});
+
+test('derives the trimmed Australian Curriculum list, never serves the whole standards file, and follows a replaced source', async () => {
+  const curriculum = (title) => ({
+    note: 'test',
+    curricula: [
+      { slug: 'ccss-math', topics: [{ key: 'ccss-math:K.CC.1', code: 'K.CC.1', data: { title: 'Count to 100' } }] },
+      { slug: 'acara-v9', name: 'Australian Curriculum', version: 'v9', sourceUrl: 'https://v9.australiancurriculum.edu.au/', topics: [
+        { key: 'acara-v9:AC9M2N01', code: 'AC9M2N01', data: { title, description: title, strand: 'Number', subject: 'Mathematics', learningArea: 'Mathematics', yearLevels: ['2'], taxonomy: { grade: 'Year 2' } } },
+      ] },
+    ],
+  });
+  const dir = await mkdtemp(join(tmpdir(), 'harrington-standards-'));
+  const env = await seedFixtureTaxonomy(dir, { 'curriculum-standards.json': curriculum('order numbers') });
+  const server = await spawnHarrington(env, { dir });
+  try {
+    assert.equal((await fetch(`${server.url}/api/taxonomy/curriculum-standards.json`)).status, 404);
+    const trimmed = await fetch(`${server.url}/api/taxonomy/standards/acara-v9.json`);
+    assert.equal(trimmed.status, 200);
+    assert.deepEqual(await trimmed.json(), {
+      curriculum: { id: 'acara-v9', name: 'Australian Curriculum', version: 'v9', sourceUrl: 'https://v9.australiancurriculum.edu.au/' },
+      standards: [{ code: 'AC9M2N01', title: 'order numbers', strand: 'Number', learningArea: 'Mathematics', subject: 'Mathematics', yearLevels: ['2'] }],
+    });
+    assert.equal((await fetch(`${server.url}/api/taxonomy/standards/ccss-math.json`)).status, 404);
+
+    // The derived list is kept per source hash: a replaced file is trimmed again.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await seedFixtureTaxonomy(dir, { 'curriculum-standards.json': curriculum('order numbers to 1000') });
+    const again = await (await fetch(`${server.url}/api/taxonomy/standards/acara-v9.json`)).json();
+    assert.equal(again.standards[0].title, 'order numbers to 1000');
+  } finally {
+    await server.stop();
   }
 });
 

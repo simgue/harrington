@@ -1,7 +1,7 @@
 import { subjectMeta, subjectNames } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, fmtDateTime, toast } from '../ui.js';
-import { studentStats, recommendedNext, recentActivity, todaysChoices, isUnlocked, allReachableMastered, MASTERY } from '../mastery.js';
+import { studentStats, recommendedNext, recentActivity, todaysChoices, pickToday, isUnlocked, allReachableMastered, MASTERY } from '../mastery.js';
 import { openRecordForm } from './records.js';
 import { openRecorder } from '../recorder.js';
 import { keyOf, parseKey, topicsOn, dailyExtras, restInfo, familyCalendar, pauseInfo } from '../scheduler.js';
@@ -407,7 +407,7 @@ function choiceStop(active, dateKey, laneKey, c, tone, stopHtml, navigate) {
       </button>
       <button class="open absolute top-2 right-2 w-9 h-9 rounded-full flex items-center justify-center text-ink-faint hover:bg-paper hover:text-ink" aria-label="Open ${esc(t.name)}"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
     </div>`);
-    card.querySelector('.pick').onclick = () => store.pickDaily(active.id, dateKey, laneKey, picked ? null : t.id);
+    card.querySelector('.pick').onclick = () => pickToday(active.id, dateKey, laneKey, picked ? null : t.id);
     card.querySelector('.open').onclick = () => navigate('topic', { id: t.id });
     grid.appendChild(card);
   });

@@ -1,5 +1,6 @@
 import { el, refreshIcons, openModal, toast } from '../ui.js';
 import { authEnabled, isShared, storedOn, whereItRuns } from '../hosting.js';
+import { ACARA_NOTICE } from '../curriculum.js';
 
 // ---- Content shared by the welcome tour and the full guide ----
 // One line for every feature that calls the AI adapter, so the copy never
@@ -178,6 +179,12 @@ export const guideSections = () => [
     ['Downloaded once', `The Harrington server downloads the curriculum the first time it starts (this needs the internet) and keeps it ${storedOn()}. It does not update on its own.`],
     ['Licensing', 'Marble Skill Taxonomy (v1) © Generative Spark, Inc., licensed under ODbL 1.0 (database) and CC BY-SA 4.0 (content).'],
     ['Teaching guides', 'From the Marble Skill Taxonomy teaching research · © Generative Spark, Inc. (Marble) · CC BY-SA 4.0 (github.com/withmarbleapp/os-taxonomy, creativecommons.org/licenses/by-sa/4.0). Shown as published; any edit Harrington makes to the text would be marked.'],
+  ]},
+  { h: 'Australian Curriculum', items: [
+    ['Year level', 'In a learner’s details (and when adding the first learner), tick “Follow the Australian Curriculum” and choose a year level, Foundation to Year 6. It starts from the age (Foundation is 5, Year 1 is 6 … Year 6 is 11) and you can change it. Topics linked to that year, and unmastered topics linked to the year below, come first in daily choices, the map list, the finder and placement; nothing is hidden.'],
+    ['Codes on topics', 'A topic page lists the version 9 content descriptions the Marble Skill Taxonomy links it to, such as “AC9M2N01 · Year 2 · Number”, with ACARA’s notice below them. Tap one to read its text. A link is Marble’s map, not a check that the description is met.'],
+    ['Coverage report', 'Records > Australian Curriculum coverage lists each content description for the year, by learning area, with its linked topics and a status from your own records: Linked topics mastered (every linked topic mastered), Evidence (a record such as an observation, a passed check or challenge, or practice for a linked topic) or Not yet. A saved lesson is a plan, not evidence, so it does not count. Print it with “Print report”.'],
+    ['Licensing', ACARA_NOTICE],
   ]},
   { h: 'Getting started', items: [
     ['Start Harrington', authEnabled()

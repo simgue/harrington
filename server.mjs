@@ -9,6 +9,7 @@ import {
   MAX_TIMEOUT_MS, chatCompletion, knownCapabilities, readStoredAiSettings, resolveAiSettings, validTimeout,
 } from './lib/ai-provider.mjs';
 import { isLoopbackAddress } from './lib/loopback.mjs';
+import { rememberFailures } from './lib/remembered.mjs';
 import { TAXONOMY_PIN, taxonomyCacheFolder, taxonomyUpstream } from './lib/taxonomy-pin.mjs';
 import {
   RESEARCH_FILE, readResearchIndex, readResearchRecord, splitTeachingResearch, validTopicId,
@@ -17,6 +18,7 @@ import { AI_CAPABILITIES, capabilityOffMessage, parseCapabilities } from './src/
 import { redactNames } from './src/js/redact.js';
 import { SCHEMA_VERSION, formatCopyName, schemaVersionOf } from './src/js/schema.js';
 import { validateDocument } from './src/js/document.js';
+import { CURRICULUM_ID, trimStandards } from './src/js/curriculum.js';
 import { MAX_FIGURE_BYTES, contentPolicyFor, figureIdOf, figureMeta, figureProblems } from './src/js/figures/contract.js';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
@@ -49,9 +51,11 @@ const AUDIO_LIMIT = 100 * 1024 * 1024;
 // (lib/taxonomy-pin.mjs; docs/CURRICULUM.md says how to move the pin).
 const TAXONOMY_DOWNLOADS = new Set(Object.keys(TAXONOMY_PIN.files));
 // Served to the browser as they are, and what health checks. The teaching
-// research is downloaded through the same cache and check but only ever
-// served one topic at a time.
-const TAXONOMY_FILES = new Set([...TAXONOMY_DOWNLOADS].filter((name) => name !== RESEARCH_FILE));
+// research and the curriculum standards are downloaded through the same
+// cache and check but never served whole: the research one topic at a time,
+// the standards as the trimmed list under /api/taxonomy/standards/.
+const STANDARDS_FILE = 'curriculum-standards.json';
+const TAXONOMY_FILES = new Set([...TAXONOMY_DOWNLOADS].filter((name) => name !== RESEARCH_FILE && name !== STANDARDS_FILE));
 const TAXONOMY_UPSTREAM = taxonomyUpstream();
 // Any other upstream is an experiment: its files are cached without a hash check.
 const TAXONOMY_PINNED = TAXONOMY_UPSTREAM === TAXONOMY_PIN.upstream;
@@ -60,6 +64,9 @@ const TAXONOMY_PINNED = TAXONOMY_UPSTREAM === TAXONOMY_PIN.upstream;
 // unchecked files are never served once the variable is unset, and never
 // mixed with the pinned ones.
 const taxonomyCacheDir = join(taxonomyDir, taxonomyCacheFolder(TAXONOMY_UPSTREAM));
+// curriculum-standards.json (2.7 MB, every curriculum) is optional: the app
+// works without it.
+const STANDARDS_ROUTES = new Map([[`standards/${CURRICULUM_ID}.json`, CURRICULUM_ID]]);
 const AI_UNCONFIGURED = 'AI is not configured for this self-hosted Harrington server';
 // Read once, to warn about unknown names at startup.
 const aiCapabilityConfig = parseCapabilities(process.env.HARRINGTON_AI_CAPABILITIES);
@@ -729,17 +736,25 @@ async function taxonomyStatus() {
   return missing ? 'not-downloaded' : 'verified';
 }
 
-async function downloadTaxonomyFile(name) {
-  const response = await fetch(`${TAXONOMY_UPSTREAM}/${name}`).catch((error) => {
+// `timeoutMs` bounds the download (the optional standards file uses it, so a
+// slow or silent upstream cannot hold a request open).
+async function downloadTaxonomyFile(name, { timeoutMs = null } = {}) {
+  // The time limit covers the whole download: a stalled body times out too,
+  // and either way the parent gets the readable 504.
+  const failed = (error) => {
+    if (error.name === 'TimeoutError') {
+      throw Object.assign(new Error(`Could not download curriculum file ${name}: no answer within ${timeoutMs / 1000} seconds`), { statusCode: 504 });
+    }
     throw Object.assign(new Error(`Could not download curriculum file ${name} (${error.message})`), { statusCode: 502 });
-  });
+  };
+  const response = await fetch(`${TAXONOMY_UPSTREAM}/${name}`, timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}).catch(failed);
   if (!response.ok) {
     throw Object.assign(
       new Error(`Could not download curriculum file ${name} (${response.status})`),
       { statusCode: 502 },
     );
   }
-  const body = Buffer.from(await response.arrayBuffer());
+  const body = Buffer.from(await response.arrayBuffer().catch(failed));
   if (TAXONOMY_PINNED) {
     const actual = createHash('sha256').update(body).digest('hex');
     if (actual !== TAXONOMY_PIN.files[name]) {
@@ -759,7 +774,7 @@ async function downloadTaxonomyFile(name) {
   return body;
 }
 
-async function loadTaxonomyFile(name) {
+async function loadTaxonomyFile(name, { timeoutMs = null } = {}) {
   if (!TAXONOMY_DOWNLOADS.has(name)) {
     throw Object.assign(new Error('Unknown taxonomy file'), { statusCode: 404 });
   }
@@ -770,9 +785,44 @@ async function loadTaxonomyFile(name) {
     console.warn(`Cached curriculum file ${name} is not the pinned revision ${TAXONOMY_PIN.revision.slice(0, 7)}; downloading it again.`);
   }
   if (!taxonomyDownloads.has(name)) {
-    taxonomyDownloads.set(name, downloadTaxonomyFile(name).finally(() => taxonomyDownloads.delete(name)));
+    taxonomyDownloads.set(name, downloadTaxonomyFile(name, { timeoutMs }).finally(() => taxonomyDownloads.delete(name)));
   }
   return taxonomyDownloads.get(name);
+}
+
+// The trimmed list for one curriculum (curriculum.js trimStandards): the 620
+// Australian content descriptions are about 165 KB, against 2.7 MB for the
+// whole file. The source goes through loadTaxonomyFile like every curriculum
+// file (re-verified against the pin on read, a custom upstream in its own
+// folder), and the derived list is kept per source SHA-256, so a replaced
+// file is trimmed again and an unchanged one is not even read. The file is
+// optional, so its download gives up after STANDARDS_TIMEOUT_MS, and a
+// failure is answered from memory for STANDARDS_RETRY_MS instead of every
+// page load waiting on the upstream again.
+const STANDARDS_TIMEOUT_MS = 15_000;
+const STANDARDS_RETRY_MS = 5 * 60_000;
+const trimmedStandards = new Map(); // `${slug}|${source sha256}` -> Buffer
+const usableStandards = (cached) => cached && (!TAXONOMY_PINNED || cached.sha256 === TAXONOMY_PIN.files[STANDARDS_FILE]);
+// Keyed by slug and the cached source file's SHA-256 ('none' when there is no
+// cached file), so a remembered failure ends as soon as that file changes.
+const deriveStandards = rememberFailures(async (key) => {
+  const slug = key.slice(0, key.indexOf('|'));
+  const body = await loadTaxonomyFile(STANDARDS_FILE, { timeoutMs: STANDARDS_TIMEOUT_MS });
+  const sha256 = createHash('sha256').update(body).digest('hex');
+  let trimmed;
+  try {
+    trimmed = Buffer.from(JSON.stringify(trimStandards(JSON.parse(body.toString('utf8')), slug)));
+  } catch (error) {
+    throw Object.assign(new Error(`Could not read the ${slug} curriculum standards: ${error.message}`), { statusCode: 502 });
+  }
+  for (const old of trimmedStandards.keys()) if (old.startsWith(`${slug}|`)) trimmedStandards.delete(old);
+  trimmedStandards.set(`${slug}|${sha256}`, trimmed);
+  return trimmed;
+}, { retryMs: STANDARDS_RETRY_MS });
+async function standardsFor(slug) {
+  const known = await readTaxonomyCache(STANDARDS_FILE, { withBody: false }).catch(() => null);
+  if (usableStandards(known) && trimmedStandards.has(`${slug}|${known.sha256}`)) return trimmedStandards.get(`${slug}|${known.sha256}`);
+  return deriveStandards(`${slug}|${known ? known.sha256 : 'none'}`);
 }
 
 // The teaching research, split into one file per topic on first use and
@@ -1105,11 +1155,12 @@ async function handleApi(req, res, url) {
 
   const taxonomyName = routeKey(url.pathname, '/api/taxonomy/');
   if (taxonomyName !== null && req.method === 'GET') {
-    if (!TAXONOMY_FILES.has(taxonomyName)) {
+    const standards = STANDARDS_ROUTES.get(taxonomyName);
+    if (!standards && !TAXONOMY_FILES.has(taxonomyName)) {
       sendJson(res, 404, { error: 'Unknown taxonomy file' });
       return true;
     }
-    const body = await loadTaxonomyFile(taxonomyName);
+    const body = standards ? await standardsFor(standards) : await loadTaxonomyFile(taxonomyName);
     send(res, 200, body, {
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'private, max-age=3600',

@@ -7,6 +7,7 @@
 // optional; anything present must have the shape the views read.
 
 import { HASH_PATTERN, SALT_PATTERN } from './pin.js';
+import { curriculumProblem } from './curriculum.js';
 
 // Per-learner maps keyed by learner id.
 export const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
@@ -75,7 +76,8 @@ function learnerProblem(s) {
   if (!absent(s.startDate) && !realDateKey(s.startDate)) return 'has a start date that is not a yyyy-mm-dd date';
   // Colors outside the palette are replaced on import; only a hex color gets that far.
   if (!absent(s.color) && !(typeof s.color === 'string' && /^#[0-9a-f]{6}$/i.test(s.color))) return 'has a color that is not a hex color';
-  return null;
+  // Optional: { id: 'acara-v9', year: 'F' | '1' … '6' } (curriculum.js).
+  return curriculumProblem(s.curriculum);
 }
 
 const textProblem = (value, max) => !absent(value) && !(typeof value === 'string' && value.length <= max);

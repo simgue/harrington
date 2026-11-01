@@ -29,6 +29,7 @@ globalThis.fetch = async (path) => {
   if (path === '/api/taxonomy/dependencies.json') return json({ dependencies: DEPENDENCIES });
   if (path === '/api/taxonomy/clusters.json') return json({ clusters: [] });
   if (path === '/api/taxonomy/manifest.json') return json({ taxonomyVersion: 'test' });
+  if (path === '/api/taxonomy/standards/acara-v9.json') return json({ standards: [] });
   if (String(path).startsWith('/api/lessons/')) return json({ error: 'Not found' }, 404);
   return json({});
 };

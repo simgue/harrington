@@ -42,7 +42,10 @@ of this:
   that derivative **database** must remain open under **ODbL 1.0**, and Marble's
   **text content** you redistribute stays **CC BY-SA 4.0**.
 - ⚠️ If you surface curriculum-standard codes, carry the relevant **upstream
-  standards notices** from the taxonomy repo's `PROVENANCE.md`.
+  standards notices** from the taxonomy repo's `PROVENANCE.md`. Harrington
+  shows Australian Curriculum (version 9) codes and text, with ACARA's
+  CC BY 4.0 notice wherever that text appears and in `README.md` and
+  `NOTICE`.
 
 ### A note on AI-generated content
 
