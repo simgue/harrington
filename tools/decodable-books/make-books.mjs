@@ -12,10 +12,12 @@
 //
 // The output folder defaults to decodable-books/ at the repository root
 // (gitignored). Writes, per book, an A4 booklet (print double-sided, flip on
-// the short edge, fold, staple) and a flat A5 copy. Uses Playwright's own
-// Chromium, else a local Chrome or Chromium, else the binary in $CHROME.
+// the short edge, fold, staple) and a flat A5 copy. If $CHROME is set, uses
+// only that binary; otherwise Playwright's own Chromium, else a local Chrome or
+// Chromium. Before rendering it removes only the files it writes itself (by
+// exact name, per book); nothing else in the output folder is touched.
 import { createRequire } from 'node:module';
-import { readFileSync, mkdirSync, readdirSync, rmSync, existsSync } from 'node:fs';
+import { readFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -199,7 +201,7 @@ const css = () => `
 @font-face { font-family: Andika; src: url(data:font/woff2;base64,${font(700)}) format('woff2'); font-weight: 700; }
 * { box-sizing: border-box; margin: 0; }
 html, body { background: #fff; }
-body { font-family: Andika, sans-serif; color: #000; }
+body { font-family: Andika, sans-serif; color: #000; font-variant-ligatures: none; }
 .page { width: 148mm; height: 210mm; padding: 12mm 12mm 10mm; display: flex; flex-direction: column; position: relative; overflow: hidden; }
 .pic { flex: 1; display: flex; align-items: center; justify-content: center; }
 .pic svg { width: 100%; max-height: 120mm; }
@@ -231,7 +233,7 @@ function pagesOf(book, words) {
       <li>Read it again tomorrow. The second read is where fluency comes from.</li>
     </ul>
     <h2>For different ages</h2><ul>
-      <li><b>About 3:</b> read it to them, point under each word, and play "what sound does it start with?".</li>
+      <li><b>About 3:</b> read it to them, point under each word, and play "what sound does it start with?"</li>
       <li><b>About 6:</b> they sound out, you help blend.</li>
       <li><b>About 9:</b> the reader for a younger sibling, or try writing a page of their own using only these sounds.</li>
     </ul>
@@ -253,10 +255,14 @@ async function launchBrowser() {
     fail('Playwright is missing. Run npm install (or npm ci) in the repository first.');
   }
   const tries = process.env.CHROME ? [process.env.CHROME] : [null, ...BROWSERS.filter((p) => existsSync(p))];
+  let lastError = '';
   for (const executablePath of tries) {
-    try { return await chromium.launch(executablePath ? { executablePath } : {}); } catch { /* try the next one */ }
+    try { return await chromium.launch(executablePath ? { executablePath } : {}); } catch (e) {
+      lastError = `${executablePath ?? "Playwright's Chromium"}: ${String(e?.message ?? e).split('\n')[0]}`; // try the next one
+    }
   }
   fail(`Could not start a browser to make the PDFs${process.env.CHROME ? ` (CHROME=${process.env.CHROME} did not start)` : ''}. `
+    + (lastError ? `Last launch error: ${lastError}. ` : '')
     + 'Either point the script at a Chrome or Chromium you already have, for example '
     + 'CHROME=<path to a Chrome or Chromium binary> node tools/decodable-books/make-books.mjs, '
     + 'or install the browser Playwright uses with: npx playwright install chromium');
@@ -278,12 +284,17 @@ for (const book of books) {
 }
 console.log('checker self-test: refuses "on" and "mat" for set 1, in the text and in a title');
 
-// 2. Then clear old PDFs and render.
+// 2. Then remove this script's own earlier output (exact names only) and render.
 const style = css();
 const doc = (body, size) => `<!DOCTYPE html><html><head><meta charset="utf-8"><style>@page { size: ${size}; margin: 0; } ${style}</style></head><body>${body}</body></html>`;
 const browser = await launchBrowser();
 mkdirSync(OUT, { recursive: true });
-for (const f of readdirSync(OUT)) if (f.endsWith('.pdf')) rmSync(join(OUT, f));
+const flatName = (id) => `${id}-flat-A5.pdf`;
+const bookletName = (id) => `${id}-booklet-A4-print-double-sided-short-edge-flip.pdf`;
+const legacyBookletName = (id) => `${id}-booklet-A4.pdf`; // first version's name
+for (const { book } of checked) {
+  for (const name of [flatName(book.id), bookletName(book.id), legacyBookletName(book.id)]) rmSync(join(OUT, name), { force: true });
+}
 const page = await browser.newPage();
 for (const { book, words } of checked) {
   const p = pagesOf(book, words); // 8 pages: 1 cover, 2-7 story, 8 back
@@ -291,12 +302,12 @@ for (const { book, words } of checked) {
   // Flat: one A5 page per sheet, in reading order.
   await page.setContent(doc(p.map((x) => `<div style="page-break-after:always">${x}</div>`).join(''), 'A5 portrait'));
   await page.evaluate(() => document.fonts.ready);
-  await page.pdf({ path: join(OUT, `${book.id}-flat-A5.pdf`), width: '148mm', height: '210mm', printBackground: true, preferCSSPageSize: true });
+  await page.pdf({ path: join(OUT, flatName(book.id)), width: '148mm', height: '210mm', printBackground: true, preferCSSPageSize: true });
   // Booklet: A4 landscape, two A5 pages a side; print both sides, flip on the short edge, fold, staple.
   const order = [[8, 1], [2, 7], [6, 3], [4, 5]];
   await page.setContent(doc(order.map(([l, r]) => `<div class="sheet">${p[l - 1]}${p[r - 1]}</div>`).join(''), 'A4 landscape'));
   await page.evaluate(() => document.fonts.ready);
-  await page.pdf({ path: join(OUT, `${book.id}-booklet-A4-print-double-sided-short-edge-flip.pdf`), width: '297mm', height: '210mm', printBackground: true, preferCSSPageSize: true });
+  await page.pdf({ path: join(OUT, bookletName(book.id)), width: '297mm', height: '210mm', printBackground: true, preferCSSPageSize: true });
   console.log(`${book.title}: decodable, words: ${words.join(' ')}`);
 }
 await browser.close();
