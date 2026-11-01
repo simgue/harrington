@@ -725,6 +725,15 @@ test('fetches an allowlisted taxonomy file from upstream and caches it on disk',
       assert.equal((await fetch(`${isolatedUrl}/api/taxonomy/standards/acara-v9.json`)).status, 502);
     }
     assert.equal(standardsHits, 1);
+    // The memory is keyed by the cached source file: once a usable file is in
+    // place (here, by hand), the list is served at once, not in five minutes.
+    await writeFile(join(isolatedDir, 'taxonomy', customDir, 'curriculum-standards.json'), JSON.stringify({ curricula: [{ slug: 'acara-v9', topics: [
+      { key: 'acara-v9:AC9M2N01', code: 'AC9M2N01', data: { title: 'order numbers', strand: 'Number', learningArea: 'Mathematics', subject: 'Mathematics', yearLevels: ['2'] } },
+    ] }] }));
+    const fixed = await fetch(`${isolatedUrl}/api/taxonomy/standards/acara-v9.json`);
+    assert.equal(fixed.status, 200);
+    assert.equal((await fixed.json()).standards[0].code, 'AC9M2N01');
+    assert.equal(standardsHits, 1);
     // A custom upstream is not checked against the pin.
     assert.equal((await (await fetch(`${isolatedUrl}/api/health`)).json()).taxonomy, 'unchecked');
   } finally {

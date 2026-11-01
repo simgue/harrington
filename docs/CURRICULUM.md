@@ -63,11 +63,11 @@ export const TAXONOMY_PIN = {
 
   | Value | Meaning |
   | --- | --- |
-  | `verified` | Every file is cached and matches the pin |
+  | `verified` | Every required file is cached and matches the pin; the optional `curriculum-standards.json` counts once it has been cached (see [Curriculum alignment](#curriculum-alignment)) |
   | `outdated` | A cached file does not match the pin. It is not served, and is replaced at its next use |
   | `integrity-failed` | The last download of a file did not match the pin and was refused |
   | `unchecked` | `HARRINGTON_TAXONOMY_UPSTREAM` points at a custom upstream |
-  | `not-downloaded` | A file has not been downloaded yet |
+  | `not-downloaded` | A required file has not been downloaded yet |
 
   and `taxonomyRevision`: the pinned commit when `taxonomy` is `verified`,
   else `null`.

@@ -735,19 +735,22 @@ async function taxonomyStatus() {
 // `timeoutMs` bounds the download (the optional standards file uses it, so a
 // slow or silent upstream cannot hold a request open).
 async function downloadTaxonomyFile(name, { timeoutMs = null } = {}) {
-  const response = await fetch(`${TAXONOMY_UPSTREAM}/${name}`, timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}).catch((error) => {
+  // The time limit covers the whole download: a stalled body times out too,
+  // and either way the parent gets the readable 504.
+  const failed = (error) => {
     if (error.name === 'TimeoutError') {
       throw Object.assign(new Error(`Could not download curriculum file ${name}: no answer within ${timeoutMs / 1000} seconds`), { statusCode: 504 });
     }
     throw Object.assign(new Error(`Could not download curriculum file ${name} (${error.message})`), { statusCode: 502 });
-  });
+  };
+  const response = await fetch(`${TAXONOMY_UPSTREAM}/${name}`, timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}).catch(failed);
   if (!response.ok) {
     throw Object.assign(
       new Error(`Could not download curriculum file ${name} (${response.status})`),
       { statusCode: 502 },
     );
   }
-  const body = Buffer.from(await response.arrayBuffer());
+  const body = Buffer.from(await response.arrayBuffer().catch(failed));
   if (TAXONOMY_PINNED) {
     const actual = createHash('sha256').update(body).digest('hex');
     if (actual !== TAXONOMY_PIN.files[name]) {
@@ -795,10 +798,11 @@ async function loadTaxonomyFile(name, { timeoutMs = null } = {}) {
 const STANDARDS_TIMEOUT_MS = 15_000;
 const STANDARDS_RETRY_MS = 5 * 60_000;
 const trimmedStandards = new Map(); // `${slug}|${source sha256}` -> Buffer
-const standardsFor = rememberFailures(async (slug) => {
-  const usable = (cached) => cached && (!TAXONOMY_PINNED || cached.sha256 === TAXONOMY_PIN.files[STANDARDS_FILE]);
-  const known = await readTaxonomyCache(STANDARDS_FILE, { withBody: false });
-  if (usable(known) && trimmedStandards.has(`${slug}|${known.sha256}`)) return trimmedStandards.get(`${slug}|${known.sha256}`);
+const usableStandards = (cached) => cached && (!TAXONOMY_PINNED || cached.sha256 === TAXONOMY_PIN.files[STANDARDS_FILE]);
+// Keyed by slug and the cached source file's SHA-256 ('none' when there is no
+// cached file), so a remembered failure ends as soon as that file changes.
+const deriveStandards = rememberFailures(async (key) => {
+  const slug = key.slice(0, key.indexOf('|'));
   const body = await loadTaxonomyFile(STANDARDS_FILE, { timeoutMs: STANDARDS_TIMEOUT_MS });
   const sha256 = createHash('sha256').update(body).digest('hex');
   let trimmed;
@@ -807,10 +811,15 @@ const standardsFor = rememberFailures(async (slug) => {
   } catch (error) {
     throw Object.assign(new Error(`Could not read the ${slug} curriculum standards: ${error.message}`), { statusCode: 502 });
   }
-  for (const key of trimmedStandards.keys()) if (key.startsWith(`${slug}|`)) trimmedStandards.delete(key);
+  for (const old of trimmedStandards.keys()) if (old.startsWith(`${slug}|`)) trimmedStandards.delete(old);
   trimmedStandards.set(`${slug}|${sha256}`, trimmed);
   return trimmed;
 }, { retryMs: STANDARDS_RETRY_MS });
+async function standardsFor(slug) {
+  const known = await readTaxonomyCache(STANDARDS_FILE, { withBody: false }).catch(() => null);
+  if (usableStandards(known) && trimmedStandards.has(`${slug}|${known.sha256}`)) return trimmedStandards.get(`${slug}|${known.sha256}`);
+  return deriveStandards(`${slug}|${known ? known.sha256 : 'none'}`);
+}
 
 // ---- Saved lessons listing ----
 // Keys and saved times for one cache prefix, never content. Read-only.

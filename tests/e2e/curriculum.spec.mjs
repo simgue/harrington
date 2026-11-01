@@ -227,3 +227,18 @@ test('with the standards list still on its way, the first pick in the child view
   const saved = await api.waitForState((s) => s.daily?.[ROWAN]?.[TODAY_KEY]?.picks?.literacy);
   expect(saved.daily[ROWAN][TODAY_KEY].offers.literacy).toContain(saved.daily[ROWAN][TODAY_KEY].picks.literacy);
 });
+
+test('typing during the wait: the list arriving does not empty or blur the onboarding name', async ({ page, gotoApp }) => {
+  await slowStandards(page);
+  await gotoApp({ seed: null });
+  const name = page.locator('input[name="name"]');
+  await name.click();
+  await name.pressSequentially('Rowan Ex');
+  // The list arrives while the field has the focus.
+  await page.waitForResponse('**/api/taxonomy/standards/acara-v9.json');
+  await page.waitForTimeout(300);
+  await expect(name).toHaveValue('Rowan Ex');
+  await expect(name).toBeFocused();
+  await name.pressSequentially('ample');
+  await expect(name).toHaveValue('Rowan Example');
+});

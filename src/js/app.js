@@ -74,11 +74,21 @@ async function boot() {
   route.name = r.name; route.params = r.params;
   // The Australian Curriculum list is optional and never holds up start-up.
   // It is asked for before the first render (so that render knows it is on
-  // its way) and, like other data that arrives late, re-renders whatever is
-  // showing when it arrives or fails.
+  // its way) and re-renders whatever is showing when it arrives or fails,
+  // unless the parent is in the middle of something (editingNow): then the
+  // list shows from the next navigation instead, and what they typed stays.
   const standards = loadStandards();
   render();
-  standards.then(() => render());
+  standards.then(() => { if (!editingNow()) render(); });
+}
+
+// True on onboarding, or while a form field in the page or an open modal has
+// the focus: a re-render then would empty what is being typed.
+function editingNow() {
+  if (route.name === 'onboard') return true;
+  const focused = document.activeElement;
+  if (!focused || !['INPUT', 'TEXTAREA', 'SELECT'].includes(focused.tagName)) return false;
+  return app.contains(focused) || !!document.getElementById('modal-root')?.contains(focused);
 }
 
 function render() {
