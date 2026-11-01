@@ -84,6 +84,10 @@ computer only and these work:
   a topic's status from the quest log or the topic page.
 - **Calendar** — the day-by-day plan on your chosen home days, with breaks:
   move topics, mark days done, add extras.
+- **Decodable books** — a learner's reading setup (the sounds and tricky
+  words they know, ticked set by set or with "Find the level"), built-in
+  books within that code, new books made from a word bank, a library, and
+  printing as an A4 booklet or flat A5 pages, black outlines to color in.
 - **Records and recordings** — notes, observations and voice recordings saved
   on this computer. The live transcript uses your browser's speech service,
   which may send audio to the browser vendor.

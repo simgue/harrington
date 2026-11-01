@@ -325,6 +325,55 @@ Year 6. It is optional; without it, topics are ordered by age as before.
 
 ACARA's notice for the Australian Curriculum content is in the README.
 
+## Decodable books
+
+Printable reading books that use only the sounds your child can already read,
+to color in, fold and staple. They need no AI provider, and nothing about them
+leaves this computer.
+
+**Set the level.** Open **Reading & books** in the sidebar (on a phone:
+**Reading** beside the learner in the learner selector). The **Reading**
+section lists the sounds in the order the school teaches them: set 1 is
+s a t p, set 2 i m f c, then o d g l, h b n v, e qu z r, u y j k,
+x w ck sh, ch th wh ng, then two consonants together (stop, mist), then
+ai ay and ee ea. Doubled letters (ss, ff, ll, zz, tt, pp, mm, cc) count as
+their single sound. Tick the sounds your child knows, or tick **Whole set**.
+The line at the top says where that puts them ("Reading at set 3. Next
+sounds: h b n v"). Nothing else stores a level: every book follows the ticks,
+so when your child learns a sound, tick it.
+
+- **Find the level** shows one set at a time. Point to each sound, ask what it
+  says, and tap the ones your child says straight away. **Done** fills the
+  checklist.
+- **Tricky words** (the, is, I, to …) are ticked to match the sounds until you
+  change one; then the list is yours, and **Back to the usual words** follows
+  the sounds again.
+- **Add a sound** and **Add a word** add your own (for example oa or said).
+- **Printing**: whether to print the learner's name on the cover (on by
+  default; the name only goes on the paper) and the usual layout.
+
+**Books for your child.** **Books for …** lists the built-in books whose every
+word your child can read, newest sounds first, with **Print booklet**,
+**Print flat** and **Save to library**. Books a few sounds further on are
+shown faded with what they need ("needs: w ck sh").
+
+**Make a new book** writes a new six-sentence story (or ten, for a 12-page
+book) from the sounds your child knows, favoring the sounds you pick to
+practice (the newest set to start with). **Shuffle** writes another. Every
+word is checked against the ticks before the book is shown, and the story's
+names are made up, never your child's.
+
+**Library** keeps the books you saved, to print again or remove.
+
+**Printing.** Print opens the book in a new window with the print dialog; save
+it as a PDF there if you like. **Flat** is one A5 page per sheet in reading
+order. **Booklet** puts two pages on each side of A4 landscape paper: print
+double-sided, flip on the short edge, fold the stack in half and staple. Each
+book has a cover with its title, sounds, a picture and "This book belongs to",
+numbered story pages with one sentence and a picture each, and a back page
+with the sounds, tricky words, the words to sound out and tips for reading it
+together. The pictures are black outlines to color in.
+
 ## Records and recordings
 
 - **Records.** Log an observation, question, discussion or assessment,
