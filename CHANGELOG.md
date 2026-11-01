@@ -7,6 +7,12 @@ tagged a release yet; everything below is on `main`.
 ## [Unreleased]
 
 ### Added
+- Teaching guides print: **Print** in the guide's header (on the topic page
+  and in the guide window) opens the whole guide as a paper page, with every
+  activity written out, the check, sources as plain URLs, Marble's caveat and
+  credit, and the print date. No learner's name, no AI, no request; A4 or
+  Letter, in the printed lesson's type (16 px), five to seven pages for a
+  typical guide.
 - Teaching guides that need no AI provider. About 500 Mathematics and 550
   Science topic pages get a collapsible **Teaching guide** from Marble's
   teaching research: a summary, activities with steps and feedback for wrong

@@ -143,7 +143,15 @@ const ESCAPED_MARKUP = {
     // label() and list() escape their text; the icons and class strings are constants.
     helpers: ['label', 'list', 'steps', 'creditLink', 'activityBlock', 'checkBlock', 'reteach'],
     // `activities` and `check` are built from those helpers just above.
-    allowed: ['icon', 'summaryRow', 'MARBLE_HREF', 'LICENSE_HREF', 'activities', 'check'],
+    allowed: ['icon', 'summaryRow', 'MARBLE_HREF', 'LICENSE_HREF', 'activities', 'check', 'PRINT_BUTTON'], // PRINT_BUTTON: constant markup
+  },
+  'src/js/views/guideprint.js': {
+    // The print page: list(), part(), para(), activity() and check() escape their text.
+    helpers: ['list', 'part', 'para', 'activity', 'check'],
+    // STYLE is the constant stylesheet; `errors`, `activities` and `checkPart`
+    // are built from the helpers just above them; `partHtml` is part()'s
+    // argument, always one of the helpers' results.
+    allowed: ['STYLE', 'errors', 'partHtml', 'activities', 'checkPart'],
   },
 };
 

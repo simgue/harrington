@@ -248,10 +248,19 @@ test('without AI, the teaching guide is the first choice where a topic has one',
   const log = page.getByRole('complementary', { name: 'Quest log' });
   await expect(log.getByRole('button', { name: 'Open the teaching guide' })).toBeVisible();
   await expect(chips(log)).toHaveCount(1);
+  await page.context().addInitScript(() => { window.print = () => { window.__printed = true; }; });
   await log.getByRole('button', { name: 'Open the teaching guide' }).click();
   await expect(modal(page).getByText('Teaching guide · no AI needed')).toBeVisible();
   await expect(modal(page).getByText('Feed the squirrel: tap-count a scattered pile')).toBeVisible();
   await expect(modal(page)).toContainText('CC BY-SA 4.0');
+  // The window's own Print, once the guide shows, prints the same guide.
+  const [popup] = await Promise.all([
+    page.waitForEvent('popup'),
+    modal(page).getByRole('button', { name: 'Print the teaching guide' }).click(),
+  ]);
+  await expect(popup.locator('h1')).toHaveText(ONE.name);
+  await expect(popup.locator('footer .caveat')).toHaveText('Agent-authored teaching research and proposed learning activities; not empirically validated interventions.');
+  await popup.close();
   await closeModal(page);
 });
 
