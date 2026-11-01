@@ -33,7 +33,8 @@ test('@mobile a Mathematics topic has a collapsed teaching guide with activities
   expect(printBox.width).toBeGreaterThanOrEqual(44);
   expect(printBox.height).toBeGreaterThanOrEqual(44);
   const headerBox = await header.boundingBox();
-  expect(printBox.y + printBox.height / 2).toBeCloseTo(headerBox.y + headerBox.height / 2, 0);
+  // Centred on the header row, within 2 px (subpixel layout differs by renderer).
+  expect(Math.abs((printBox.y + printBox.height / 2) - (headerBox.y + headerBox.height / 2))).toBeLessThanOrEqual(2);
   expect(printBox.x).toBeGreaterThanOrEqual(headerBox.x);
   expect(printBox.x + printBox.width).toBeLessThanOrEqual(headerBox.x + headerBox.width + 24);
   await header.focus();
