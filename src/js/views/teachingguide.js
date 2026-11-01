@@ -86,20 +86,22 @@ export function teachingGuideSection(topic, { navigate }) {
   loadTeachingGuide(topic.id).then(guide => {
     if (!slot.parentNode) return; // the page was re-rendered meanwhile
     if (!guide) { slot.remove(); return; }
-    const sec = el(`<details id="teaching-guide" class="group/guide bg-paper-card border border-paper-line rounded-2xl px-5 scroll-mt-4">
-      <summary class="${summaryRow} py-3.5 justify-between">
-        <span class="flex items-center gap-2 min-w-0"><i data-lucide="compass" class="w-4.5 h-4.5 text-brand-dark shrink-0"></i><h2 class="font-600">Teaching guide</h2></span>
-        <span class="flex items-center gap-1.5 text-xs text-ink-faint shrink-0">${PRINT_BUTTON}No AI needed<i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open/guide:rotate-180"></i></span>
-      </summary>
-      <div class="pb-5 guide-body"></div>
-    </details>`);
+    // Print sits beside the disclosure, not inside its <summary>, so the
+    // summary's name stays "Teaching guide…" and no control is nested in it.
+    // It is placed over the summary's right end, centred on its 52 px row
+    // (below the 1 px border); the summary keeps room for it.
+    const sec = el(`<div class="teaching-guide relative">
+      <details id="teaching-guide" class="group/guide bg-paper-card border border-paper-line rounded-2xl px-5 scroll-mt-4">
+        <summary class="${summaryRow} min-h-[52px] py-1.5 pr-11 sm:pr-[4.5rem] justify-between">
+          <span class="flex items-center gap-2 min-w-0"><i data-lucide="compass" class="w-4.5 h-4.5 text-brand-dark shrink-0"></i><h2 class="font-600">Teaching guide</h2></span>
+          <span class="flex items-center gap-1.5 text-xs text-ink-faint shrink-0">No AI needed<i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open/guide:rotate-180"></i></span>
+        </summary>
+        <div class="pb-5 guide-body"></div>
+      </details>
+      <div class="absolute top-[5px] right-4 flex items-center">${PRINT_BUTTON}</div>
+    </div>`);
     sec.querySelector('.guide-body').appendChild(renderGuide(guide, { onTopic: id => navigate('topic', { id }) }));
-    // In the header: printing must not also open or close the section.
-    sec.querySelector('.guide-print').onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      printTeachingGuide(topic, guide, { topicName: nameOf });
-    };
+    sec.querySelector('.guide-print').onclick = () => printTeachingGuide(topic, guide, { topicName: nameOf });
     slot.replaceWith(sec);
     refreshIcons();
   }).catch(err => {

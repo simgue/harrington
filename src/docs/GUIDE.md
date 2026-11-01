@@ -242,7 +242,8 @@ guide needs no AI provider. Press the heading to open it. It has:
 **Print** in the guide's header opens the whole guide as a page to print, with
 every activity written out, the sources as plain web addresses and Marble's
 note and credit at the foot. It names no learner, so one copy serves the whole
-family; a typical guide is two or three pages.
+family. It uses the same large type as a printed lesson, so a typical guide
+runs five to seven pages.
 
 Without an AI provider, **Open the teaching guide** comes first wherever a
 lesson would otherwise need one: the topic page, the calendar day and the

@@ -5,43 +5,47 @@
 // paper), and Marble's caveat and credit close it. The guide is not
 // per-learner, so no learner's name is ever on it. No AI, no request: the
 // guide is already loaded.
-import { esc, toast } from '../ui.js';
+import { esc, fmtDate, toast } from '../ui.js';
 import { ageBand } from './printables.js';
 import { GUIDE_ATTRIBUTION, GUIDE_GLOSS, LICENSE_HREF, MARBLE_HREF } from '../teaching.js';
 
-// Paper only: no fills, thin rules, black and grey ink. No @page size, so the
-// printer's paper (A4 or Letter) is used; 12 mm margins fit both. Activities
-// and wrong turns sit in two columns, so a typical guide is about two pages.
+// Paper only: no fills, thin rules, black and grey ink. The type follows the
+// lesson's print (views/lesson.js): a 16 px Georgia body, 26 px title, 14 px
+// section heads; nothing smaller than 13 px, and Marble's caveat at body size.
+// No @page size, so the printer's paper (A4 or Letter) is used; 12 mm margins
+// fit both. Activities and wrong turns sit in two columns and never split
+// across a page.
 const STYLE = `
   *{box-sizing:border-box}
-  body{font-family:Georgia,serif;max-width:760px;margin:28px auto;padding:0 20px;color:#2e2a24;line-height:1.32;font-size:11px}
-  h1{font-size:20px;margin:0 0 1px;line-height:1.2}
-  .sub{color:#5f574c;font-size:11px}
-  .kind{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#5f574c;margin:0 0 4px}
-  header{border-bottom:1.5px solid #2e2a24;padding-bottom:6px;margin-bottom:10px}
-  h2{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 5px;border-bottom:1px solid #d2c6ad;padding-bottom:2px}
-  h3{font-size:12px;margin:0 0 2px;line-height:1.25}
-  h4{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:#5f574c;margin:5px 0 1px}
-  p{margin:2px 0}
-  ul,ol{margin:1px 0 2px 16px;padding:0}
-  li{margin-bottom:0}
-  .cols{columns:2;column-gap:16px}
+  body{font-family:Georgia,serif;max-width:760px;margin:32px auto;padding:0 20px;color:#2e2a24;line-height:1.45;font-size:16px}
+  h1{font-size:26px;margin:0 0 4px;line-height:1.2}
+  .sub{color:#5f574c;font-size:14px}
+  .kind{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:#5f574c;margin:0 0 4px}
+  header{border-bottom:1.5px solid #2e2a24;padding-bottom:8px;margin-bottom:14px}
+  h2{font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:20px 0 6px;border-bottom:1px solid #d2c6ad;padding-bottom:3px}
+  h3{font-size:16px;margin:0 0 4px;line-height:1.3}
+  h4{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:#5f574c;margin:8px 0 2px}
+  p{margin:3px 0}
+  ul,ol{margin:3px 0 4px 20px;padding:0}
+  li{margin-bottom:2px}
+  .cols{columns:2;column-gap:20px}
   .activity,.error,.check-part{break-inside:avoid;page-break-inside:avoid}
-  .activity{border:1px solid #d2c6ad;border-radius:5px;padding:5px 8px;margin:0 0 6px}
-  .error{border-left:2px solid #d2c6ad;padding-left:8px;margin:0 0 6px}
+  .activity{border:1px solid #d2c6ad;border-radius:6px;padding:8px 12px;margin:0 0 10px}
+  .error{border-left:2px solid #d2c6ad;padding-left:10px;margin:0 0 8px}
   .method{font-style:italic;color:#5f574c}
-  dl{margin:2px 0}
+  dl{margin:3px 0}
   dt{font-weight:700}
-  dd{margin:0 0 3px}
+  dd{margin:0 0 4px}
   .sources li{word-break:break-all}
-  footer{margin-top:14px;border-top:1px solid #d2c6ad;padding-top:6px;font-size:9.5px;color:#5f574c;break-inside:avoid;page-break-inside:avoid}
-  footer p{margin:1px 0}
+  footer{margin-top:20px;border-top:1px solid #d2c6ad;padding-top:8px;font-size:13px;color:#5f574c;break-inside:avoid;page-break-inside:avoid}
+  footer p{margin:2px 0}
+  footer .caveat{font-size:16px;color:#2e2a24}
   @page{margin:12mm}
   @media print{body{margin:0;max-width:none;padding:0}}
 `;
 
 const list = (items, tag = 'ul') => (items.length ? `<${tag}>${items.map(x => `<li>${esc(x)}</li>`).join('')}</${tag}>` : '');
-const part = (title, html) => (html ? `<div class="check-part"><h4>${esc(title)}</h4>${html}</div>` : '');
+const part = (title, partHtml) => (partHtml ? `<div class="check-part"><h4>${esc(title)}</h4>${partHtml}</div>` : '');
 const para = (text) => (text ? `<p>${esc(text)}</p>` : '');
 
 function activity(a, i) {
@@ -78,7 +82,8 @@ function check(c, topicName) {
  * the print dialog once the page has loaded.
  */
 export function guidePrintDocument(topic, guide, { topicName = () => null, printedOn = new Date(), autoPrint = true } = {}) {
-  const date = printedOn.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  // The viewer's own date format, as everywhere else in the app.
+  const date = fmtDate(printedOn);
   const activities = guide.activities.map(activity).join('');
   const checkPart = guide.check ? check(guide.check, topicName) : '';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(topic.name)} — Teaching guide</title>

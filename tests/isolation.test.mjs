@@ -149,9 +149,9 @@ const ESCAPED_MARKUP = {
     // The print page: list(), part(), para(), activity() and check() escape their text.
     helpers: ['list', 'part', 'para', 'activity', 'check'],
     // STYLE is the constant stylesheet; `errors`, `activities` and `checkPart`
-    // are built from the helpers just above them; part()'s `html` is always one
-    // of the helpers' results.
-    allowed: ['STYLE', 'errors', 'html', 'activities', 'checkPart'],
+    // are built from the helpers just above them; `partHtml` is part()'s
+    // argument, always one of the helpers' results.
+    allowed: ['STYLE', 'errors', 'partHtml', 'activities', 'checkPart'],
   },
 };
 
