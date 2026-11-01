@@ -45,3 +45,6 @@ playwright-report/
 blob-report/
 docs/e2e/recordings/
 tests/e2e/.cache/
+
+# Output of tools/decodable-books/make-books.mjs (printable PDFs).
+/decodable-books/
