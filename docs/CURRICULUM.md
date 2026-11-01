@@ -13,9 +13,9 @@ topic builds on that one"). Harrington reads five of its files:
 | `clusters.json` | Parent-facing summaries of a domain at one age |
 | `manifest.json` | Counts, `taxonomyVersion`, `generatedAt` and the upstream's own file hashes |
 | `curriculum-standards.json` | Read by the server only, to derive the Australian Curriculum list (see [Curriculum alignment](#curriculum-alignment)); never sent to the browser |
+| `teaching-research.json` | The teaching guides on topic pages (see [Teaching research](#teaching-research)); never served whole |
 
-The upstream publishes more files (for example `teaching-research.json`).
-Harrington does not download them yet.
+The upstream publishes more files; Harrington does not download them yet.
 
 ## Licence
 
@@ -63,11 +63,11 @@ export const TAXONOMY_PIN = {
 
   | Value | Meaning |
   | --- | --- |
-  | `verified` | Every required file is cached and matches the pin; the optional `curriculum-standards.json` counts once it has been cached (see [Curriculum alignment](#curriculum-alignment)) |
+  | `verified` | Every file the browser loads is cached and matches the pin (`curriculum-standards.json` and `teaching-research.json` count only when a download of theirs is refused) |
   | `outdated` | A cached file does not match the pin. It is not served, and is replaced at its next use |
   | `integrity-failed` | The last download of a file did not match the pin and was refused |
   | `unchecked` | `HARRINGTON_TAXONOMY_UPSTREAM` points at a custom upstream |
-  | `not-downloaded` | A required file has not been downloaded yet |
+  | `not-downloaded` | A file the browser loads has not been downloaded yet |
 
   and `taxonomyRevision`: the pinned commit when `taxonomy` is `verified`,
   else `null`.
@@ -103,7 +103,7 @@ topics" below first: a revision can retire topics the family has worked on.
 
    ```bash
    R=<commit>
-   for f in topics.json dependencies.json clusters.json curriculum-standards.json manifest.json; do
+   for f in topics.json dependencies.json clusters.json manifest.json curriculum-standards.json teaching-research.json; do
      curl -sSfo "/tmp/$f" "https://raw.githubusercontent.com/withmarbleapp/os-taxonomy/$R/data/$f"
    done
    sha256sum /tmp/*.json
@@ -193,9 +193,9 @@ descriptions: code, title, strand, learning area, subject, year levels; about
 165 KB) with `trimStandards` in `src/js/curriculum.js`. The source file is
 cached and re-verified against the pin like every other file (a custom
 upstream in its own folder), and the derived list is kept in memory per
-source SHA-256, so a replaced file is trimmed again. Until it is first
-downloaded, `/api/health` still reports a complete curriculum. The file is
-optional: its download gives up after 15 seconds, a failure is answered from memory for five minutes before the server tries again. The
+source SHA-256, so a replaced file is trimmed again. Like the teaching
+research, it counts in `/api/health` only when its download is refused
+(`integrity-failed`). The file is optional: its download gives up after 15 seconds, a failure is answered from memory for five minutes before the server tries again. The
 app never waits for the list at start-up: it loads in the background and the
 page showing renders again when it arrives or fails. Until then, today's
 choices for a learner with a curriculum year are not saved; a pick made
@@ -231,3 +231,65 @@ verbatim wherever Australian Curriculum codes or text appear in the app: once
 on a topic page below its chips (shown whenever the chips are), in the
 coverage report's footer, and in the in-app guide's credits; also in the
 README, NOTICE and DATA-LICENSE. The written guide points to the README.
+
+## Teaching research
+
+Marble also publishes `data/teaching-research.json`: for 1,049 topics
+(Mathematics 502 of 576, Science 547 of 576 at revision `7bd8b67`; no other
+subject yet), a summary of how the topic is learned, proposed activities with
+feedback for common wrong turns, and an assessment (a task or question, error
+patterns and response levels), with the curricula and papers it draws on.
+Marble's own notes describe the records; the first, "Agent-authored teaching
+research and proposed learning activities; not empirically validated
+interventions.", is kept in the split's `index.json` (so it follows the pin),
+served with the topic list and shown verbatim at the end of every guide and
+with the guide's question in the observation check. Harrington's plain-English
+gloss sits apart from it, labelled as Harrington's note.
+
+**How Harrington uses it.** The file is about 23.5 MB, so the browser never
+receives it whole. Every topic page asks for the topic list (and, without
+an AI provider, so do the calendar and the map's quest log), so the first such
+view makes the server download the file once, through the same cache and
+SHA-256 check as the other taxonomy files (it is in `lib/taxonomy-pin.mjs`,
+and `npm run taxonomy:check` verifies it too). `/api/health`'s `taxonomy`
+status counts it only when its download is refused (`integrity-failed`);
+`verified` and `outdated` look at the four files the browser loads. A failed
+download is not retried for three minutes, so an offline first run does not
+start a 23.5 MB download on every page. The server then splits the file into
+`taxonomy/research/<topicId>.json` plus `taxonomy/research/index.json` (the
+topic ids, the source file's SHA-256 and Marble's caveat). The split is built
+in a staging directory and swapped in with two renames; a staging or old
+directory left by a crash is removed by the next split. The split sits in the
+same cache folder as its source, so from a custom upstream both live in that
+upstream's own `custom-…` folder and are never used once the variable is unset. The split takes a few seconds once
+(about 3 s including the download on a fast connection) and about 23 MB on
+disk next to the 23.5 MB source; it runs again only when the source changes (for
+example after a pin bump, when the cached split no longer matches the pin, or
+when a file from a custom upstream changes).
+`GET /api/taxonomy/research` lists the topic ids, and
+`GET /api/taxonomy/research/<topicId>` returns one record (404 when the topic
+has none; the id is validated before any file is touched). Both routes follow
+the same access-token rules as the other `/api/taxonomy/` routes.
+
+The topic page shows a curated subset (`curateResearch` in
+`src/js/teaching.js`): the learning summary, each activity's steps, intended
+insight and feedback, and the assessment's method, task, diagnostic prompt,
+strong answer, follow-up questions, error patterns and response levels, plus
+the source links. It leaves out internal metadata: confidence, provenance,
+review and publication notes, source claims and authoring constraints.
+
+**Licence.** The research text is CC BY-SA 4.0 (attribution and
+share-alike). Harrington shows it verbatim, never through an AI model, with
+this line at the end of every guide and in the app's credits:
+
+> From the Marble Skill Taxonomy teaching research · © Generative Spark, Inc.
+> (Marble) · CC BY-SA 4.0
+
+linking to the taxonomy repository and to the license. Dropping fields is a
+selection, not an edit of the text. If Harrington ever edits the text itself
+(shortens, rewrites or translates it), the edit must be marked where it is
+shown, and the edited text stays under CC BY-SA 4.0. The sources inside each
+record (curricula and papers) are shown as plain links; their own works stay
+under their own terms, and Marble has already replaced long passages of
+codes-only curricula with "[curriculum wording omitted; …]" markers, which
+Harrington shows as they are.

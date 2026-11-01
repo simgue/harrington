@@ -11,6 +11,9 @@ import {
 import { isLoopbackAddress } from './lib/loopback.mjs';
 import { rememberFailures } from './lib/remembered.mjs';
 import { TAXONOMY_PIN, taxonomyCacheFolder, taxonomyUpstream } from './lib/taxonomy-pin.mjs';
+import {
+  RESEARCH_FILE, readResearchIndex, readResearchRecord, splitTeachingResearch, validTopicId,
+} from './lib/teaching-research.mjs';
 import { AI_CAPABILITIES, capabilityOffMessage, parseCapabilities } from './src/js/ai-capabilities.js';
 import { redactNames } from './src/js/redact.js';
 import { SCHEMA_VERSION, formatCopyName, schemaVersionOf } from './src/js/schema.js';
@@ -46,7 +49,13 @@ const JSON_LIMIT = 5 * 1024 * 1024;
 const AUDIO_LIMIT = 100 * 1024 * 1024;
 // The curriculum files the server fetches, each with its expected SHA-256
 // (lib/taxonomy-pin.mjs; docs/CURRICULUM.md says how to move the pin).
-const TAXONOMY_FILES = new Set(Object.keys(TAXONOMY_PIN.files));
+const TAXONOMY_DOWNLOADS = new Set(Object.keys(TAXONOMY_PIN.files));
+// Served to the browser as they are, and what health checks. The teaching
+// research and the curriculum standards are downloaded through the same
+// cache and check but never served whole: the research one topic at a time,
+// the standards as the trimmed list under /api/taxonomy/standards/.
+const STANDARDS_FILE = 'curriculum-standards.json';
+const TAXONOMY_FILES = new Set([...TAXONOMY_DOWNLOADS].filter((name) => name !== RESEARCH_FILE && name !== STANDARDS_FILE));
 const TAXONOMY_UPSTREAM = taxonomyUpstream();
 // Any other upstream is an experiment: its files are cached without a hash check.
 const TAXONOMY_PINNED = TAXONOMY_UPSTREAM === TAXONOMY_PIN.upstream;
@@ -55,11 +64,8 @@ const TAXONOMY_PINNED = TAXONOMY_UPSTREAM === TAXONOMY_PIN.upstream;
 // unchecked files are never served once the variable is unset, and never
 // mixed with the pinned ones.
 const taxonomyCacheDir = join(taxonomyDir, taxonomyCacheFolder(TAXONOMY_UPSTREAM));
-// The browser may read these as they are; curriculum-standards.json (2.7 MB,
-// every curriculum) is only read here, to derive the trimmed list under
-// /api/taxonomy/standards/. It is optional: the app works without it.
-const BROWSER_TAXONOMY_FILES = new Set(['topics.json', 'dependencies.json', 'clusters.json', 'manifest.json']);
-const STANDARDS_FILE = 'curriculum-standards.json';
+// curriculum-standards.json (2.7 MB, every curriculum) is optional: the app
+// works without it.
 const STANDARDS_ROUTES = new Map([[`standards/${CURRICULUM_ID}.json`, CURRICULUM_ID]]);
 const AI_UNCONFIGURED = 'AI is not configured for this self-hosted Harrington server';
 // Read once, to warn about unknown names at startup.
@@ -724,9 +730,7 @@ async function taxonomyStatus() {
   let missing = false;
   for (const name of TAXONOMY_FILES) {
     const cached = await readTaxonomyCache(name, { withBody: false }).catch(() => null);
-    // The optional standards file counts once it is cached; until then the
-    // curriculum the app needs is still complete.
-    if (!cached) missing = missing || name !== STANDARDS_FILE;
+    if (!cached) missing = true;
     else if (cached.sha256 !== TAXONOMY_PIN.files[name]) return 'outdated';
   }
   return missing ? 'not-downloaded' : 'verified';
@@ -771,7 +775,7 @@ async function downloadTaxonomyFile(name, { timeoutMs = null } = {}) {
 }
 
 async function loadTaxonomyFile(name, { timeoutMs = null } = {}) {
-  if (!TAXONOMY_FILES.has(name)) {
+  if (!TAXONOMY_DOWNLOADS.has(name)) {
     throw Object.assign(new Error('Unknown taxonomy file'), { statusCode: 404 });
   }
   const cached = await readTaxonomyCache(name);
@@ -819,6 +823,39 @@ async function standardsFor(slug) {
   const known = await readTaxonomyCache(STANDARDS_FILE, { withBody: false }).catch(() => null);
   if (usableStandards(known) && trimmedStandards.has(`${slug}|${known.sha256}`)) return trimmedStandards.get(`${slug}|${known.sha256}`);
   return deriveStandards(`${slug}|${known ? known.sha256 : 'none'}`);
+}
+
+// The teaching research, split into one file per topic on first use and
+// again only when the downloaded file changes. Concurrent first requests
+// share one download and one split. A failed attempt (offline on a first
+// run) is not retried for RESEARCH_RETRY_MS, so topic pages do not each start
+// a 23.5 MB download.
+const RESEARCH_RETRY_MS = 3 * 60 * 1000;
+let researchIndex = null;
+let researchFailure = null; // { at, error }
+function teachingResearchIndex() {
+  if (researchFailure && Date.now() - researchFailure.at < RESEARCH_RETRY_MS) {
+    return Promise.reject(researchFailure.error);
+  }
+  researchIndex ??= (async () => {
+    // loadTaxonomyFile serves a pinned file only when it matches the pin
+    // (otherwise it downloads and checks it again), and a custom upstream's
+    // file as cached; splitTeachingResearch redoes the split whenever the
+    // bytes differ from the ones it was made from. The split lives in the
+    // same cache folder as its source.
+    const existing = await readResearchIndex(taxonomyCacheDir);
+    if (existing && TAXONOMY_PINNED && existing.sourceSha256 === TAXONOMY_PIN.files[RESEARCH_FILE]) return existing;
+    const started = Date.now();
+    const index = await splitTeachingResearch(await loadTaxonomyFile(RESEARCH_FILE), taxonomyCacheDir);
+    if (index.sourceSha256 !== existing?.sourceSha256) console.log(`Split the teaching research into ${index.recordCount} topic files in ${Date.now() - started} ms`);
+    researchFailure = null;
+    return index;
+  })().catch((error) => {
+    researchIndex = null;
+    researchFailure = { at: Date.now(), error };
+    throw error;
+  });
+  return researchIndex;
 }
 
 // ---- Saved lessons listing ----
@@ -1091,10 +1128,35 @@ async function handleApi(req, res, url) {
     return true;
   }
 
+  if (url.pathname === '/api/taxonomy/research' && req.method === 'GET') {
+    const index = await teachingResearchIndex();
+    sendJson(res, 200, { topicIds: index.topicIds, caveat: index.caveat });
+    return true;
+  }
+
+  const researchId = routeKey(url.pathname, '/api/taxonomy/research/');
+  if (researchId !== null && req.method === 'GET') {
+    // The id is checked before the download and before any path is built.
+    if (!validTopicId(researchId)) {
+      sendJson(res, 400, { error: 'Invalid topic id' });
+      return true;
+    }
+    await teachingResearchIndex();
+    const record = await readResearchRecord(taxonomyCacheDir, researchId);
+    if (record === null) sendJson(res, 404, { error: 'No teaching research for this topic' });
+    else {
+      send(res, 200, record, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'private, max-age=3600',
+      });
+    }
+    return true;
+  }
+
   const taxonomyName = routeKey(url.pathname, '/api/taxonomy/');
   if (taxonomyName !== null && req.method === 'GET') {
     const standards = STANDARDS_ROUTES.get(taxonomyName);
-    if (!standards && !BROWSER_TAXONOMY_FILES.has(taxonomyName)) {
+    if (!standards && !TAXONOMY_FILES.has(taxonomyName)) {
       sendJson(res, 404, { error: 'Unknown taxonomy file' });
       return true;
     }

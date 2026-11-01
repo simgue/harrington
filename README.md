@@ -88,6 +88,15 @@ computer only and these work:
   on this computer. The live transcript uses your browser's speech service,
   which may send audio to the browser vendor.
 - **Insights** — subject summaries and recommended next topics.
+- **Teaching guides** — on about 500 of 576 Mathematics topics and 550 of 576
+  Science topics, a collapsible guide from Marble's teaching research: a
+  summary, activities with steps and what to say after a wrong turn, and a way
+  to check understanding. Where a lesson needs AI, "Open the teaching guide"
+  comes first. Other subjects have no guides yet. Every guide ends with
+  Marble's own note on them: "Agent-authored teaching research and proposed
+  learning activities; not empirically validated interventions." The server
+  downloads the research once (about 24 MB) the first time a topic page is
+  opened (or, without AI, the calendar or the map's quest log) and keeps it.
 
 Lessons, print & go sheets, mastery tests, challenges, recall cards, activity
 instructions, discussion analysis, progress reviews and adaptive suggestions
@@ -97,9 +106,10 @@ link (and left out of the child view); with a provider but a capability not
 switched on, the link reads "Not switched on yet" (see
 [docs/AI-SETUP.md](docs/AI-SETUP.md)). Lessons and print & go sheets saved
 on the server earlier still open: the topic page shows "Open saved lesson", and
-Records lists them under "Saved lessons". The curriculum is downloaded once on
-first start, at the revision pinned in `lib/taxonomy-pin.mjs` and checked
-against its SHA-256, and does not update on its own; see
+Records lists them under "Saved lessons". The curriculum is downloaded at the
+revision pinned in `lib/taxonomy-pin.mjs` and verified against its SHA-256s;
+a cached file that does not match the pin is downloaded again and replaced,
+and a matching cache is served with no further downloads; see
 [docs/CURRICULUM.md](docs/CURRICULUM.md) for how the pin moves and what
 happens to topics a new revision retires.
 
@@ -425,6 +435,14 @@ redistribute a *modified copy of the dataset itself*).
 > Marble Skill Taxonomy (v1) · © Generative Spark, Inc. (Marble) ·
 > https://withmarble.com · licensed under ODbL 1.0 (database) and
 > CC BY-SA 4.0 (content).
+
+The teaching guides carry their own line, shown at the end of every guide:
+
+> From the Marble Skill Taxonomy teaching research · © Generative Spark, Inc.
+> (Marble) · CC BY-SA 4.0
+
+See [docs/CURRICULUM.md](docs/CURRICULUM.md#teaching-research) for what that
+license asks of Harrington.
 
 ### Australian Curriculum
 

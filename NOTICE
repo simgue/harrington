@@ -19,6 +19,13 @@ This product includes and displays data from a third-party open dataset:
     Source: https://github.com/withmarbleapp/os-taxonomy
     Licensed under ODbL 1.0 (the database) and CC BY-SA 4.0 (the textual content).
 
+The teaching guides shown on topic pages come from the same repository's
+teaching research (data/teaching-research.json), shown verbatim:
+
+    From the Marble Skill Taxonomy teaching research
+    © Generative Spark, Inc. (Marble)
+    Licensed under CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
+
 Attribution is required by those licenses. The credit line above is also shown
 in the application UI and must be preserved in any distribution or derivative.
 

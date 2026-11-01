@@ -189,9 +189,11 @@ foundation is mastered.
 
 Open a topic from the map, the dashboard or a record.
 
-**Works today:** description, **What mastery looks like**, a **Quick check**
-prompt, how the topic connects (comes before / leads to), records for the
-topic, activity and game ideas, reference links, and manual status.
+**Works today:** description, the **Teaching guide** for many Mathematics
+and Science topics (see [Teaching guides](#teaching-guides)), **What mastery
+looks like**, a **Quick check** prompt, how the topic connects (comes before
+/ leads to), records for the topic, activity and game ideas, reference links,
+and manual status.
 
 **See how it works.** Some Science topics for ages 5 to 8 have an
 interactive figure: press the buttons and the parts move, with their labels
@@ -219,6 +221,41 @@ YouTube. YouTube results are not filtered for children, so the link reads
 **Needs a local AI provider; see the README:** open full lesson, print & go
 materials, the topic mastery test, the challenge, recall cards, "Explain
 simply", "Make a mini-quiz", and step-by-step instructions for an activity.
+
+## Teaching guides
+
+Many Mathematics and Science topics have a **Teaching guide** on their topic
+page: about 500 of 576 Mathematics topics and about 550 of 576 Science topics.
+Other subjects have none yet, so their topic pages have no guide section. A
+guide needs no AI provider. Press the heading to open it. It has:
+
+- a short summary of what the child is learning and where they usually get
+  stuck;
+- a few **activities**, each with its steps, what your child should notice,
+  and what to say when they take a wrong turn;
+- **Check understanding**: a task or question to ask, what a strong answer
+  sounds like, follow-up questions, common wrong turns (what you may notice,
+  what to try next, and sometimes an earlier topic to go back to), and how to
+  tell "Not yet", "Getting there" and "Got it" apart;
+- the sources the guide draws on (curricula and papers) as plain links.
+
+Without an AI provider, **Open the teaching guide** comes first wherever a
+lesson would otherwise need one: the topic page, the calendar day and the
+map's quest log. The **Check mastery by observation** window also offers the
+guide's question as a second one to ask.
+
+The guides come from Marble's teaching research. Every guide ends with
+Marble's own note on it, word for word: "Agent-authored teaching research and
+proposed learning activities; not empirically validated interventions." In
+plain words, and in Harrington's own words just below it: AI agents wrote
+these from teaching research, and they are ideas to try, not methods tested in
+studies. Use your own judgment. Harrington shows the text as Marble published
+it, with credit: *From the Marble Skill Taxonomy teaching research ·
+© Generative Spark, Inc. (Marble) · CC BY-SA 4.0.* The Harrington server
+downloads the research once (about 24 MB) the first time a topic page is
+opened (without an AI provider, also the calendar or the map's quest log) and
+keeps it with the curriculum. If that download fails, it tries again a few
+minutes later.
 
 ## Calendar
 
@@ -379,6 +416,8 @@ the README), and each feature's capability is switched on:
 ---
 
 *Curriculum: Marble Skill Taxonomy (v1) · © Generative Spark, Inc. · licensed
-under ODbL 1.0 (database) and CC BY-SA 4.0 (content).*
+under ODbL 1.0 (database) and CC BY-SA 4.0 (content). Teaching guides: from the
+Marble Skill Taxonomy teaching research · © Generative Spark, Inc. (Marble) ·
+CC BY-SA 4.0.*
 
 *Australian Curriculum content: see ACARA's notice in the README.*

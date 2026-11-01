@@ -6,6 +6,21 @@ tagged a release yet; everything below is on `main`.
 
 ## [Unreleased]
 
+### Added
+- Teaching guides that need no AI provider. About 500 Mathematics and 550
+  Science topic pages get a collapsible **Teaching guide** from Marble's
+  teaching research: a summary, activities with steps and feedback for wrong
+  turns, and **Check understanding** (task, question, strong answer, common
+  wrong turns, response levels), with source links, Marble's own note that
+  the research is "agent-authored … not empirically validated interventions"
+  (verbatim, from the pinned file), and the CC BY-SA 4.0 attribution. Without an AI provider, **Open the teaching guide** comes
+  before the "Needs a local AI provider" chip on the topic page, the calendar
+  and the map's quest log; the observation check offers the guide's question
+  as a second one. The server downloads `teaching-research.json` (23.5 MB)
+  once, splits it into one file per topic and serves
+  `GET /api/taxonomy/research/<topicId>`; the whole file is never sent to
+  the browser. See docs/CURRICULUM.md.
+
 ### Fixed
 - The topic page no longer scrolls sideways on a phone when a topic has a
   long domain name: the header chips wrap and the columns can shrink.
@@ -48,7 +63,9 @@ tagged a release yet; everything below is on `main`.
   then, so a topic that moved age band now sits in a section that pass does
   not cover. An existing install moves to the new revision by itself: on first
   use the server finds its cached files do not match the pin and downloads the
-  pinned ones (HAR-55).
+  pinned ones. The trade-off, accepted: a machine with an old cache and no
+  route to raw.githubusercontent.com cannot load the curriculum until it can
+  reach it, rather than serve the old, unverified files (HAR-55).
 - One topic was retired, `mt_3XJkeIn6J6` ("Estimating answers (age 7+)").
   Family data for a retired topic is kept and never refused on load or
   import; it no longer counts toward progress, daily choices or due recall and

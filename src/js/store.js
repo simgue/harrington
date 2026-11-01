@@ -1061,6 +1061,13 @@ export function removeRecord(studentId, recId) {
 
 // ---- Mastery tests ----
 // A test result has: { scope: 'subject'|'section', subject, sectionId?, mode, score, total, pct, passed }
+// A subject's observation checks, newest first. A topic check on a topic the
+// taxonomy retired is kept in the data but not listed or counted.
+export function observedChecks(studentId, subject) {
+  return testsFor(studentId, subject)
+    .filter(t => t.mode === 'observed' && (t.scope !== 'topic' || !t.topicId || isCurrentTopic(t.topicId)))
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
 export function testsFor(studentId, subject = null) {
   const list = state.tests[studentId] || [];
   return subject ? list.filter(t => t.subject === subject) : list;
@@ -1135,6 +1142,11 @@ function planOf(studentId) {
   return p;
 }
 export function planOverrides(studentId) { return planOf(studentId); }
+// How many topics the parent moved by hand. A retired topic's move is kept
+// (Records lists it) but is not part of the track, so it is not counted.
+export function movedTopicCount(studentId) {
+  return Object.keys(planOf(studentId).moves).filter(isCurrentTopic).length;
+}
 // Move a scheduled topic to a specific date (or clear with null).
 export function moveTopic(studentId, topicId, dateKey) {
   const p = planOf(studentId);
