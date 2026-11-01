@@ -3,6 +3,7 @@ import * as store from '../store.js';
 import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { keyOf, parseKey, buildPlan, dailyExtras, planStartKey, invalidatePlan, familyCalendar, normalizeCalendar, restInfo, nextHomeDayKey, pauseInfo, newTopicsHeading, doneControl, normalizePace, paceSummary, planTopicOn } from '../scheduler.js';
 import { openLesson } from './lesson.js';
+import { offerTeachingGuide } from './teachingguide.js';
 import { openActivityDetail } from './lesson.js';
 import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';
@@ -313,7 +314,13 @@ function extraRow(x, active, navigate) {
     go.replaceWith(slot);
     const chip = aiUnavailableChip(capability);
     chip.classList.add('mt-1.5');
-    row.querySelector('.flex-1.min-w-0').appendChild(chip);
+    const text = row.querySelector('.flex-1.min-w-0');
+    text.appendChild(chip);
+    const topic = x.kind === 'lesson' && x.topicId ? d.byId.get(x.topicId) : null;
+    if (topic) {
+      // A saved lesson can remove the chip before the research index answers.
+      offerTeachingGuide(topic, btn => (chip.isConnected ? chip.before(btn) : text.appendChild(btn)), { navigate, compact: true });
+    }
     // A lesson already in the cache still opens.
     if (x.topicId && (x.kind === 'lesson' || x.kind === 'practice')) {
       store.hasCachedLesson('topic:' + x.topicId).then(found => {
@@ -418,6 +425,10 @@ function dayTopicRow(t, active, navigate) {
   if (!store.aiAvailable('test')) row.querySelector('.test').remove();
   const lesson = row.querySelector('.lesson');
   lesson.replaceWith(gateAi(lesson, { capability: 'lesson', cachedKey: 'topic:' + t.id }));
+  if (!store.aiAvailable('lesson')) {
+    const actions = row.querySelector('.border-t');
+    offerTeachingGuide(t, btn => actions.prepend(btn), { navigate, compact: true });
+  }
   return row;
 }
 
@@ -551,6 +562,9 @@ function extrasBlock(active, navigate) {
     </div>`);
     el3.querySelector('.go').onclick = () => openLesson(t);
     gateCardButton(el3, 'lesson');
+    if (!store.aiAvailable('lesson')) {
+      offerTeachingGuide(t, btn => { const chip = el3.querySelector('.ai-unavailable'); if (chip) chip.before(btn); else el3.appendChild(btn); }, { navigate, compact: true });
+    }
     list.appendChild(el3);
   }
 

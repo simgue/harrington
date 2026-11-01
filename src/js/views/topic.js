@@ -18,6 +18,7 @@ import { recallSectionCard } from './recall.js';
 import { aiErrorBlock, aiUnavailableChip, gateAi } from '../ai-status.js';
 import { howItWorksFrame } from './howitworks.js';
 import { openObservation, canObserve } from './observation.js';
+import { teachingGuideSection, offerTeachingGuide } from './teachingguide.js';
 
 export function renderTopic(params, { navigate }) {
   const d = getData();
@@ -71,7 +72,7 @@ export function renderTopic(params, { navigate }) {
       <p class="font-600">Ready-to-teach lesson</p>
       <p class="text-sm text-ink-soft leading-relaxed">A complete plan with what to say, do, practice and check — usable today with ${esc(active?.name || 'your child')}.</p>
     </div>
-    <div class="shrink-0 flex flex-col sm:flex-row gap-2">
+    <div class="cta-actions shrink-0 flex flex-col sm:flex-row gap-2">
       <button id="openlesson" class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="book-open-text" class="w-4 h-4"></i>Open full lesson</button>
       <button id="openprint" class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper-card border border-brand/30 text-brand-dark font-medium hover:border-brand transition-colors"><i data-lucide="printer" class="w-4 h-4"></i>Print &amp; go</button>
     </div>
@@ -87,12 +88,20 @@ export function renderTopic(params, { navigate }) {
   lessonBtn.replaceWith(gateAi(lessonBtn, { capability: 'lesson', cachedKey: 'topic:' + t.id, saved: savedBtn }));
   const printFallback = store.aiAvailable('lesson') ? null : el('<span class="hidden"></span>');
   printBtn.replaceWith(gateAi(printBtn, { capability: 'printables', cachedKey: 'print:' + t.id, fallback: printFallback }));
+  // Without AI lessons, the teaching guide (when the topic has one) comes first.
+  if (!store.aiAvailable('lesson')) {
+    const actions = lessonCta.querySelector('.cta-actions');
+    offerTeachingGuide(t, btn => actions.prepend(btn), { navigate });
+  }
   root.appendChild(lessonCta);
 
   // Two column layout
   const grid = el(`<div class="grid lg:grid-cols-3 gap-5"></div>`);
   const mainCol = el(`<div class="lg:col-span-2 space-y-5 min-w-0"></div>`);
   const sideCol = el(`<div class="space-y-5 min-w-0"></div>`);
+
+  // --- Teaching guide: Marble's teaching research, for the topics that have it ---
+  mainCol.appendChild(teachingGuideSection(t, { navigate }));
 
   // --- See how it works (HAR-34): an interactive figure, for the topics that have one ---
   const figure = howItWorksFrame(t);

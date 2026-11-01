@@ -27,9 +27,12 @@ npm run e2e
 | `npx playwright show-report` | Opens the last HTML report, with traces for failed tests. |
 | `npm run e2e:mock-ai` | Starts only the mock AI provider on port 4311, handy for poking the app by hand. |
 
-The first run downloads the Marble taxonomy (about 3.1 MB, checked against
-the SHA-256s in `lib/taxonomy-pin.mjs`) into
-`tests/e2e/.cache/taxonomy-<revision>/`. Later runs are offline.
+The first run downloads the Marble taxonomy into
+`tests/e2e/.cache/taxonomy-<revision>/`: the curriculum files (about 3.1 MB)
+and the 23.5 MB `teaching-research.json` behind the teaching guides, each
+checked against the SHA-256s in `lib/taxonomy-pin.mjs`. Later runs are
+offline. Each app server splits the research into per-topic files on the
+first topic-list request (a second or two).
 
 A full run takes about seven minutes: the tests share one server
 per project and reset the family state before each test, so they run one at a
@@ -84,7 +87,7 @@ then skips the hash check and says so.
 | `ai-unreachable` | 1280×900 | `ai-unreachable.spec.mjs` | a provider that is down: the "couldn't reach" copy and Try again |
 | `settings` | 1280×900 | `settings.spec.mjs` | Settings > AI provider: save, test and remove a provider, with the key never in a response |
 | `lessons-only` | 1280×900 | `lessons-only.spec.mjs` | only lessons switched on: the "Not switched on yet" chip, a live lesson, cached content still opening |
-| `mobile` | 390×844, touch | `mobile.spec.mjs`, and the `calendar.spec.mjs` tests tagged `@mobile` | asserts no horizontal overflow on every route; the tagged calendar tests run here and in `desktop` |
+| `mobile` | 390×844, touch | `mobile.spec.mjs`, and the `calendar.spec.mjs` and `teaching-guide.spec.mjs` tests tagged `@mobile` | asserts no horizontal overflow on every route; the tagged calendar tests run here and in `desktop` |
 | `walkthrough` | 1280×900 | `walkthrough.spec.mjs` | video on: parent and child walkthroughs |
 | `walkthrough-mobile` | 390×844 | `walkthrough-mobile.spec.mjs` | video on: phone walkthrough |
 

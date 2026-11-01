@@ -177,6 +177,7 @@ export const guideSections = () => [
     ['Prerequisites', 'Topics are linked by “depends on” connections, each tagged required or helpful. Harrington shows these exactly as the source data has them.'],
     ['Downloaded once', `The Harrington server downloads the curriculum the first time it starts (this needs the internet) and keeps it ${storedOn()}. It does not update on its own.`],
     ['Licensing', 'Marble Skill Taxonomy (v1) © Generative Spark, Inc., licensed under ODbL 1.0 (database) and CC BY-SA 4.0 (content).'],
+    ['Teaching guides', 'From the Marble Skill Taxonomy teaching research · © Generative Spark, Inc. (Marble) · CC BY-SA 4.0 (github.com/withmarbleapp/os-taxonomy, creativecommons.org/licenses/by-sa/4.0). Shown as published; any edit Harrington makes to the text would be marked.'],
   ]},
   { h: 'Getting started', items: [
     ['Start Harrington', authEnabled()
@@ -213,6 +214,7 @@ export const guideSections = () => [
   ]},
   { h: 'Topic page', items: [
     ['Works today', 'Description, what mastery looks like, a quick-check prompt, how the topic connects, records for the topic, activity ideas, reference links and manual status.'],
+    ['Teaching guide', 'Works without AI. Many Mathematics and Science topics have a guide from Marble’s teaching research: a summary, activities with steps and what to say after a wrong turn, and a way to check understanding. Each guide ends with Marble’s own note: “Agent-authored teaching research and proposed learning activities; not empirically validated interventions.” Without an AI provider, “Open the teaching guide” comes first wherever a lesson would need one.'],
     ['See how it works', 'Some Science topics for ages 5 to 8 have a figure your child can press: parts move and their labels light up as they work. It works offline and saves nothing. It is in the child view too.'],
     ['Check by observation', 'Works without AI. Ask the suggested question or watch your child at work, then tick each piece of evidence you see; add a typed or voice note if you like. Every item ticked marks the topic mastered, just like passing a quiz. Fewer ticks are kept in Records and change nothing. A section passes once every topic in it has passed a quiz or an observation check (topics marked by placement or by hand do not count), and the last section passes the subject. Records and Insights label these “observed”; your child’s view never shows them.'],
     ['Reference links', 'Khan Academy, BBC Bitesize and Wikipedia searches, plus YouTube searches. YouTube results are not filtered for children, so supervise.'],

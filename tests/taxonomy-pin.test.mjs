@@ -20,6 +20,10 @@ const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const stub = new URL('./support/taxonomy-fetch-stub.mjs', import.meta.url).href;
 const PINNED_CACHE = fileURLToPath(new URL(`./e2e/.cache/taxonomy-${TAXONOMY_PIN.revision.slice(0, 12)}/`, import.meta.url));
 const NAMES = Object.keys(TAXONOMY_PIN.files);
+// The teaching research is fetched and checked like the rest, but only ever
+// served one topic at a time (/api/taxonomy/research/<id>).
+const RESEARCH = 'teaching-research.json';
+const SERVED = NAMES.filter((name) => name !== RESEARCH);
 
 // The real pinned files, or null (the test then skips, or fails under CI).
 async function pinnedFiles(t) {
@@ -91,7 +95,7 @@ const tampered = JSON.stringify({ topics: [{ id: 'mt_tampered00', name: 'Tampere
 test('the pin module lists each fetched file once, with a 64-digit SHA-256, at a raw GitHub commit URL', () => {
   assert.match(TAXONOMY_PIN.revision, /^[0-9a-f]{40}$/);
   assert.equal(TAXONOMY_PIN.upstream, `https://raw.githubusercontent.com/withmarbleapp/os-taxonomy/${TAXONOMY_PIN.revision}/data`);
-  assert.deepEqual([...NAMES].sort(), ['clusters.json', 'dependencies.json', 'manifest.json', 'topics.json']);
+  assert.deepEqual([...NAMES].sort(), ['clusters.json', 'dependencies.json', 'manifest.json', 'teaching-research.json', 'topics.json']);
   for (const hash of Object.values(TAXONOMY_PIN.files)) assert.match(hash, /^[0-9a-f]{64}$/);
 });
 
@@ -130,7 +134,14 @@ test('a download that matches the pin is cached, and health says verified with t
   if (!upstreamDir) return;
   const app = await startServer({ upstreamDir });
   try {
-    for (const name of NAMES) assert.equal(await sha(await app.get(name)), TAXONOMY_PIN.files[name], name);
+    for (const name of SERVED) assert.equal(await sha(await app.get(name)), TAXONOMY_PIN.files[name], name);
+    // The research file is never served whole; the split it makes is.
+    assert.equal((await app.get(RESEARCH)).status, 404);
+    const guide = await app.get('research/mt_WcfaSfVT33');
+    assert.equal(guide.status, 200);
+    assert.equal((await guide.json()).topicId, 'mt_WcfaSfVT33');
+    const index = JSON.parse(await readFile(join(app.dataDir, 'taxonomy', 'research', 'index.json'), 'utf8'));
+    assert.equal(index.sourceSha256, TAXONOMY_PIN.files[RESEARCH]);
     const saved = await readFile(join(app.dataDir, 'taxonomy', 'topics.json'));
     assert.equal(await sha256Hex(saved), TAXONOMY_PIN.files['topics.json']);
     assert.deepEqual(await app.health().then((h) => [h.taxonomy, h.taxonomyRevision]), ['verified', TAXONOMY_PIN.revision]);
@@ -155,7 +166,7 @@ test('a cached file from another revision is never served: it is downloaded agai
     assert.equal(await sha(await app.get('topics.json')), TAXONOMY_PIN.files['topics.json']);
     assert.match(app.output(), /Cached curriculum file topics\.json is not the pinned revision 7bd8b67; downloading it again\./);
     assert.equal(await sha256Hex(await readFile(join(dataDir, 'taxonomy', 'topics.json'))), TAXONOMY_PIN.files['topics.json']);
-    for (const name of NAMES) await app.get(name);
+    for (const name of SERVED) await app.get(name);
     assert.equal((await app.health()).taxonomy, 'verified');
     // A file changed on disk is checked again, not trusted from memory.
     await new Promise((r) => setTimeout(r, 20));
@@ -177,6 +188,22 @@ test('a cached file from another revision is not served when the new download fa
     assert.equal((await app.get('topics.json')).status, 502);
     assert.equal(await readFile(join(dataDir, 'taxonomy', 'topics.json'), 'utf8'), tampered, 'the old file is left alone, not replaced');
     assert.deepEqual(await app.health().then((h) => [h.taxonomy, h.taxonomyRevision]), ['integrity-failed', null]);
+  } finally {
+    await app.stop();
+    await rm(upstreamDir, { recursive: true, force: true });
+  }
+});
+
+test('a teaching research file that does not match the pin is refused and nothing is split', async () => {
+  const upstreamDir = await mkdtemp(join(tmpdir(), 'harrington-upstream-'));
+  await writeFile(join(upstreamDir, RESEARCH), JSON.stringify({ records: [{ topicId: 'mt_tampered00', learn: { summary: 'Tampered' } }] }));
+  const app = await startServer({ upstreamDir });
+  try {
+    const res = await app.get('research/mt_tampered00');
+    assert.equal(res.status, 502);
+    assert.match((await res.json()).error, /^Curriculum file teaching-research\.json failed its integrity check/);
+    await assert.rejects(stat(join(app.dataDir, 'taxonomy', RESEARCH)), { code: 'ENOENT' });
+    await assert.rejects(stat(join(app.dataDir, 'taxonomy', 'research')), { code: 'ENOENT' });
   } finally {
     await app.stop();
     await rm(upstreamDir, { recursive: true, force: true });
@@ -208,7 +235,7 @@ test('a custom upstream caches in its own folder; unset again, only the verified
     assert.doesNotMatch(await app.waitForOutput(/Access token/), /custom upstream/);
     assert.equal(await sha(await app.get('topics.json')), TAXONOMY_PIN.files['topics.json']);
     assert.match(app.output(), /stub fetch topics\.json/);
-    for (const name of NAMES) await app.get(name);
+    for (const name of SERVED) await app.get(name);
     assert.deepEqual(await app.health().then((h) => [h.taxonomy, h.taxonomyRevision]), ['verified', TAXONOMY_PIN.revision]);
   } finally {
     await app.stop();

@@ -6,6 +6,21 @@ tagged a release yet; everything below is on `main`.
 
 ## [Unreleased]
 
+### Added
+- Teaching guides that need no AI provider. About 500 Mathematics and 550
+  Science topic pages get a collapsible **Teaching guide** from Marble's
+  teaching research: a summary, activities with steps and feedback for wrong
+  turns, and **Check understanding** (task, question, strong answer, common
+  wrong turns, response levels), with source links, Marble's own note that
+  the research is "agent-authored … not empirically validated interventions"
+  (verbatim, from the pinned file), and the CC BY-SA 4.0 attribution. Without an AI provider, **Open the teaching guide** comes
+  before the "Needs a local AI provider" chip on the topic page, the calendar
+  and the map's quest log; the observation check offers the guide's question
+  as a second one. The server downloads `teaching-research.json` (23.5 MB)
+  once, splits it into one file per topic and serves
+  `GET /api/taxonomy/research/<topicId>`; the whole file is never sent to
+  the browser. See docs/CURRICULUM.md.
+
 ### Fixed
 - Topics in a subject Harrington has no colour for are no longer dropped
   (several views threw on one): a new subject shows in neutral grey with one
