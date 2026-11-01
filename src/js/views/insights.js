@@ -1,4 +1,4 @@
-import { getData, isCurrentTopic, subjectMeta, subjectNames } from '../data.js';
+import { getData, subjectMeta, subjectNames } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, analysisHtml, refreshIcons, toast } from '../ui.js';
 import { studentStats, recentActivity, recommendedNext, subjectTestReady } from '../mastery.js';
@@ -202,10 +202,7 @@ export function renderInsights(params, { navigate }) {
 // Recent evidence-checklist results in a subject, each labeled "observed".
 function observedChecksCard(student, subject, navigate) {
   const d = getData();
-  // A topic check on a retired topic is kept but not listed or counted here.
-  const results = store.testsFor(student.id, subject)
-    .filter(t => t.mode === 'observed' && (t.scope !== 'topic' || !t.topicId || isCurrentTopic(t.topicId)))
-    .sort((a, b) => b.createdAt - a.createdAt);
+  const results = store.observedChecks(student.id, subject);
   if (!results.length) return null;
   const passed = results.filter(t => t.scope === 'topic' && t.passed).length;
   const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 mb-5">

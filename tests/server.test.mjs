@@ -629,7 +629,7 @@ test('rejects invalid writes and leaves AI disabled by default', async () => {
   assert.match((await ai.json()).error, /not configured/i);
 });
 
-test('serves a cached Marble taxonomy file and rejects unknown names', async () => {
+test('rejects an unknown taxonomy file name; health reports a stand-in topics.json as outdated', async () => {
   const unknown = await fetch(`${baseUrl}/api/taxonomy/secret.json`);
   assert.equal(unknown.status, 404);
 

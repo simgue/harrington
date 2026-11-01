@@ -218,3 +218,23 @@ test('calendar: "Clear moves" on a new start date keeps a retired topic\'s move'
   store.setStartDate(SID, TODAY, { clearMoves: true });
   assert.deepEqual(store.planOverrides(SID).moves, { [RETIRED]: TODAY });
 });
+
+test('calendar: "You moved N topics by hand" counts current topics only', () => {
+  store.get().plan[SID].moves = { [RETIRED]: TODAY, 'n-add': TODAY, 'n-count': TODAY };
+  assert.equal(store.movedTopicCount(SID), 2);
+  store.get().plan[SID].moves = { [RETIRED]: TODAY };
+  assert.equal(store.movedTopicCount(SID), 0, 'only a retired move: nothing to clear, so no prompt');
+});
+
+test('insights: observation checks leave out a topic check on a retired topic', () => {
+  const observed = (id, topicId, scope = 'topic') => ({ id, scope, subject: 'Mathematics', topicId, mode: 'observed', score: 3, total: 3, pct: 100, passed: true, createdAt: NOW - 1000 });
+  store.get().tests[SID] = [
+    observed('o-retired', RETIRED),
+    observed('o-current', 'n-count'),
+    { ...observed('o-section', null, 'section'), sectionId: 'Mathematics|Counting & Cardinality|5' },
+    { ...observed('o-digital', 'n-add'), mode: 'digital' },
+  ];
+  assert.deepEqual(store.observedChecks(SID, 'Mathematics').map((t) => t.id).sort(), ['o-current', 'o-section']);
+  // Kept in the data all the same.
+  assert.ok(store.testsFor(SID).some((t) => t.id === 'o-retired'));
+});
