@@ -312,7 +312,7 @@ DS920+ on DSM 7.2 or later; other Intel or AMD models that run Container
 Manager work the same way. Harrington runs in a container on the NAS,
 Tailscale on the NAS gives it an `https://` address, and every other device is
 a browser. The AI stays where it is (LM Studio on a laptop, or Gemini); none of
-it moves to the NAS. Allow about an hour.
+it moves to the NAS. Allow about an hour *(unchecked on DSM)*.
 
 **Why HTTPS, not the NAS's IP address:** the voice recorder (the microphone
 and live transcript) works only on a secure context, which
@@ -338,7 +338,11 @@ with your DSM administrator account.
 In **Package Center**, install **Container Manager**, **Git Server** (it
 provides the `git` command) and **Tailscale**. Installing Container Manager
 creates the `docker` shared folder, `/volume1/docker` (on another volume it is
-`/volume2/docker`; File Station shows which).
+`/volume2/docker`; File Station shows which). *(Unchecked on DSM: that Git
+Server provides `git` over SSH, and that Container Manager creates the `docker`
+folder. Check with `git --version` and `ls -d /volume1/docker` in step 3; if
+the folder is missing, create a shared folder named `docker` in Control Panel,
+Shared Folder.)*
 
 ### 2. Turn on SSH
 
@@ -428,14 +432,21 @@ reads `.env`. The check after the list is what counts.)*
 **Check it, and do not skip this.** On the NAS:
 
 ```bash
-curl -s -H 'Host: NAS-NAME.TAILNET-NAME.ts.net' http://127.0.0.1:4173/api/health
+curl -s -H 'Host: NAS-NAME.TAILNET-NAME.ts.net' http://127.0.0.1:4173/api/health; echo
 sudo docker inspect --format '{{range .Mounts}}{{.Type}} {{.Source}}{{end}}' $(sudo docker ps -q --filter name=harrington)
 ```
 
 The first line must show `"ok":true` and `"authEnabled":true`; the second must
-show `bind /volume1/docker/harrington/data/private`. If health says
-`"authEnabled":false` (or the mount says `volume`), the Project did not read
-`.env`: Harrington is running **with no token**, and the family's data would go
+show `bind /volume1/docker/harrington/data/private`. Any of these means the
+Project did not read `.env`:
+
+- the first line answers `Harrington does not answer to this host name; add
+  it to HARRINGTON_ALLOWED_HOSTS.` (without `.env` the published name falls
+  back to `127.0.0.1`, so Harrington refuses `NAS-NAME...ts.net`);
+- it shows `"authEnabled":false`;
+- the mount says `volume`.
+
+Harrington is then running **with no token**, and the family's data would go
 into a hidden Docker volume that a Hyper Backup of `data/private` never sees.
 Then stop and delete the Project in Container Manager and start Harrington over
 SSH instead, which reads `.env` for certain:
@@ -461,8 +472,8 @@ reaches Harrington except through Tailscale.
    tailnet.
 2. In the Tailscale admin console, under **DNS**, check that **MagicDNS** and
    **HTTPS Certificates** are on (option 1, step 1).
-3. On DSM the `tailscale` command is not on the `PATH`; it is in the package
-   folder. Check that it is there, then turn on serve:
+3. On DSM the `tailscale` command is not on the `PATH` *(unchecked on DSM)*;
+   it is in the package folder. Check that it is there, then turn on serve:
 
    ```bash
    ls -l /var/packages/Tailscale/target/bin/tailscale
@@ -482,7 +493,7 @@ reaches Harrington except through Tailscale.
    tailnet; Harrington needs that only to reach an AI provider by its
    Tailscale address (step 8). **Control Panel**, **Task Scheduler**,
    **Create**, **Triggered Task**, **User-defined script**, user `root`, event
-   **Boot-up**, script:
+   **Boot-up** (menu names unchecked on DSM), script:
 
    ```bash
    /var/packages/Tailscale/target/bin/tailscale configure-host; synosystemctl restart pkgctl-Tailscale.service
@@ -549,6 +560,9 @@ Neither happens again, even after a rebuild: both are kept in the data folder.
    git pull
    ```
 
+   A ZIP install has no `git pull`: follow the ZIP update in step 3 instead,
+   then continue here.
+
 3. In Container Manager, **Project**, `harrington`, **Action**, **Build**
    *(unchecked on DSM)*. It rebuilds the image from the new code and restarts
    the container. If you started Harrington over SSH in step 5, run
@@ -565,8 +579,8 @@ The data folder is the backup set (README, "Backup and restore"). Use one of:
   to a USB drive or another NAS. Turn on client-side encryption: the folder
   holds `secrets.json`, with any API key, besides every note and recording.
 - **The same archive as `npm run backup`, made on the NAS:** **Control Panel**,
-  **Task Scheduler**, **Create**, **Scheduled Task**, **User-defined script**,
-  user `root`, daily at 02:15, with this script:
+  **Task Scheduler**, **Create**, **Scheduled Task**, **User-defined script**
+  (menu names unchecked on DSM), user `root`, daily at 02:15, with this script:
 
   ```bash
   cd /volume1/docker/harrington && mkdir -p backups && tar -czf backups/harrington-$(date +%Y-%m-%dT%H-%M-%S).tar.gz --exclude=private/secrets.json --exclude='private/secrets.json.*.tmp' -C data private

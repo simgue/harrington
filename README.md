@@ -321,7 +321,9 @@ To restore, stop Harrington, close it on every device (a tab left open would
 otherwise see its next change refused and offer to put it back on the restored
 data), replace `data/private/` with the archive's
 contents (`tar -xzf backups/harrington-<timestamp>.tar.gz -C data`), and start
-it again. With Docker, back up the `harrington-data` volume instead.
+it again. With Docker, back up the `harrington-data` volume instead; the
+backup and restore commands are in docs/DEPLOYMENT.md, "Nightly backup" (the
+restore ends with the `chown` the `node` user needs).
 Set `HARRINGTON_BACKUP_DIR` to write somewhere else; the server reads the same
 variable, and the notification bell reminds you when the newest archive there
 is more than 7 days old. With no archive at all it shows "No backup recorded"
@@ -423,8 +425,11 @@ clears it.
 Browsers may keep the old app's scripts and styles for up to an hour (the
 server lets them cache everything but the page itself for that long), so a
 reloaded tab can run the old app for a while. That is harmless: the old app
-opens data in a newer format read-only, with a banner, and saves nothing; a
-reload after the hour, or closing and reopening the tab, brings the new one.
+opens data in a newer format read-only, with a banner, and saves nothing. The
+cache belongs to the browser, so closing the tab does not clear it: wait out
+the hour, hard-refresh (Cmd-Shift-R on a Mac, Ctrl-Shift-R elsewhere), or on a
+tablet clear the site's data in the browser settings. It matters only when an
+update changes the data format, and the format checks keep that harmless.
 
 With Docker, `git pull` and then `docker compose up -d --build`. The first
 update to an image that runs as `node` (uid 1000) needs a one-time
