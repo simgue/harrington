@@ -6,7 +6,9 @@
 //
 // schemaVersion changes only when the meaning of an existing field changes. A
 // new top-level field needs no bump: the store keeps fields it does not know
-// through load and save.
+// through load and save. Nor does a new optional field on a learner (such as
+// `curriculum`): an older document simply lacks it, which means what it meant
+// before, and document.js checks it only when it is there.
 //
 // To add a migration: append it to MIGRATIONS (SCHEMA_VERSION follows), add
 // tests/fixtures/schema/v<old>.input.json with its v<old>.expected.json, and

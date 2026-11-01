@@ -1,10 +1,10 @@
-import { loadTaxonomy } from './data.js';
+import { loadStandards, loadTaxonomy } from './data.js';
 import { loadFigures } from './figures/index.js';
 import * as store from './store.js';
 import { maybeShowWelcome } from './views/guide.js';
 import { el, esc, refreshIcons, toast } from './ui.js';
 import { bannerText } from './hosting.js';
-import { exportFamilyData, renderShell } from './views/shell.js';
+import { curriculumFields, exportFamilyData, readCurriculum, renderShell, wireCurriculumFields } from './views/shell.js';
 import { graphHash, parseGraphHash } from './graph.js';
 import { commitNavigation } from './navigation.js';
 import { findHash, parseFindHash } from './finder.js';
@@ -18,6 +18,7 @@ import { renderSettings } from './views/settings.js';
 import { renderFind } from './views/find.js';
 import { renderFigure } from './views/howitworks.js';
 import { renderLevelset } from './views/levelset.js';
+import { renderCoverage } from './views/coverage.js';
 
 const app = document.getElementById('app');
 
@@ -71,7 +72,23 @@ async function boot() {
   }
   const r = parseHash();
   route.name = r.name; route.params = r.params;
+  // The Australian Curriculum list is optional and never holds up start-up.
+  // It is asked for before the first render (so that render knows it is on
+  // its way) and re-renders whatever is showing when it arrives or fails,
+  // unless the parent is in the middle of something (editingNow): then the
+  // list shows from the next navigation instead, and what they typed stays.
+  const standards = loadStandards();
   render();
+  standards.then(() => { if (!editingNow()) render(); });
+}
+
+// True on onboarding, or while a form field in the page or an open modal has
+// the focus: a re-render then would empty what is being typed.
+function editingNow() {
+  if (route.name === 'onboard') return true;
+  const focused = document.activeElement;
+  if (!focused || !['INPUT', 'TEXTAREA', 'SELECT'].includes(focused.tagName)) return false;
+  return app.contains(focused) || !!document.getElementById('modal-root')?.contains(focused);
 }
 
 function render() {
@@ -93,6 +110,7 @@ function render() {
     find: renderFind,
     figure: renderFigure,
     levelset: renderLevelset,
+    coverage: renderCoverage,
     onboard: renderOnboard,
   };
   const viewFn = views[route.name] || renderDashboard;
@@ -211,6 +229,7 @@ function renderOnboard() {
             </div>
             <p class="text-xs text-ink-faint mt-1">We use this to show age-relevant ideas and connections for you to consider.</p>
           </div>
+          ${curriculumFields(null, 'ob', 'w-full px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand')}
           <button class="w-full px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Set up their learning space</button>
         </form>
       </div>
@@ -221,10 +240,11 @@ function renderOnboard() {
     const name = fd.get('name').trim();
     const by = parseInt(fd.get('birthYear'), 10);
     if (!name || !by) return;
-    store.addStudent(name, by, parseInt(fd.get('birthMonth'), 10) || null);
+    store.addStudent(name, by, parseInt(fd.get('birthMonth'), 10) || null, { curriculum: readCurriculum(e.target) });
     toast(`${name}'s learning space is ready`, 'success');
     navigate('dashboard');
   };
+  wireCurriculumFields(node.querySelector('#f'));
   return node;
 }
 

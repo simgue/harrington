@@ -10,6 +10,7 @@ import { coverageFields } from '../daily.js';
 import { openLesson } from './lesson.js';
 import { openPrintables } from './printables.js';
 import { sectionLabel } from './observation.js';
+import { CURRICULUM_NAME, learnerYear, yearLabel } from '../curriculum.js';
 
 // Exported for the test that keeps document.js RECORD_TYPES in step.
 export const TYPES = {
@@ -45,6 +46,7 @@ export function renderRecords(params, { navigate }) {
 
   if (!active) { root.appendChild(el(`<p class="text-ink-soft">Add a student to start recording.</p>`)); return root; }
 
+  root.appendChild(coverageLink(active, d, navigate));
   root.appendChild(archivedTopics(active));
 
   if (recFilterFor !== active.id) { recFilter = 'all'; recFilterFor = active.id; }
@@ -78,6 +80,24 @@ export function renderRecords(params, { navigate }) {
   root.appendChild(list);
   refreshIcons();
   return root;
+}
+
+// The way into the Australian Curriculum coverage report (views/coverage.js),
+// when the curriculum list loaded. Shown for every learner; the report
+// defaults to the year their age suggests when none is set.
+function coverageLink(active, d, navigate) {
+  if (!d.standards) return el('<span class="hidden"></span>');
+  const year = learnerYear(active);
+  const card = el(`<button type="button" class="coverage-link w-full text-left flex items-center gap-3 min-h-11 bg-paper-card border border-paper-line rounded-2xl p-4 mb-5 hover:border-brand/40 transition-colors">
+    <i data-lucide="clipboard-list" class="w-5 h-5 text-brand-dark shrink-0"></i>
+    <span class="flex-1 min-w-0">
+      <span class="block font-600 text-sm">${esc(CURRICULUM_NAME)} coverage</span>
+      <span class="block text-xs text-ink-soft mt-0.5">${year ? `${esc(yearLabel(year))}: ` : ''}content descriptions with the evidence in these records, ready to print.</span>
+    </span>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0"></i>
+  </button>`);
+  card.onclick = () => navigate('coverage');
+  return card;
 }
 
 // Without an AI provider, lessons and Print & go sheets saved earlier on this

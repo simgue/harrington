@@ -25,7 +25,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Downloads the pinned curriculum (about 3.1 MB) and checks every SHA-256
+      # Downloads the pinned curriculum (about 29 MB, the 23.5 MB teaching research
+      # and the 2.7 MB curriculum standards included) and checks every SHA-256
       # in lib/taxonomy-pin.mjs, so a bad pin bump fails here, not on a family's
       # server. The first step also fills tests/e2e/.cache, which the server's
       # integrity tests (tests/taxonomy-pin.test.mjs) need; with CI set they

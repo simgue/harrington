@@ -138,6 +138,7 @@ const ESCAPED_MARKUP = {
   },
   'src/js/views/insights.js': { helpers: [...MEADOW, 'statBox'] },
   'src/js/views/challenge.js': {},
+  'src/js/views/coverage.js': {},
   'src/js/views/teachingguide.js': {
     // label() and list() escape their text; the icons and class strings are constants.
     helpers: ['label', 'list', 'steps', 'creditLink', 'activityBlock', 'checkBlock', 'reteach'],

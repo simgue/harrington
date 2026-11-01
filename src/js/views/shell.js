@@ -6,6 +6,7 @@ import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
 import { openPlacement } from './placement.js';
 import { isShared, sidebarLine } from '../hosting.js';
+import { CURRICULUM_ID, YEARS, learnerYear, normalizeYear, yearForAge, yearLabel } from '../curriculum.js';
 
 // Storybook Meadow mark: a sun rising over a hill.
 function meadowLogo(size = 34) {
@@ -103,7 +104,7 @@ export function renderShell({ route, navigate, content }) {
   // From /api/health (store.aiAvailable): a provider is configured, not
   // necessarily reachable, so the banner says "set up", never "connected".
   const aiLine = store.aiAvailable() ? 'AI provider set up' : 'No AI provider set up; everything else works';
-  scroll.appendChild(el(`<div class="bg-butter-light px-4 py-2 text-center text-xs text-[#6b4d0e]">
+  scroll.appendChild(el(`<div class="self-hosted-line bg-butter-light px-4 py-2 text-center text-xs text-[#6b4d0e]">
     Self-hosted preview · family data stays on this server · ${aiLine}
   </div>`));
   scroll.appendChild(content);
@@ -161,7 +162,7 @@ function openStudentMenu(navigate) {
       <span class="w-10 h-10 rounded-full flex items-center justify-center text-white font-display text-base font-600" style="background:${esc(s.color)}">${esc(initials(s.name))}</span>
       <div class="flex-1 min-w-0">
         <p class="font-600 text-sm truncate">${esc(s.name)}</p>
-        <p class="text-xs text-ink-faint">Age ${age} · born ${bornLabel(s)}</p>
+        <p class="text-xs text-ink-faint">Age ${age} · born ${bornLabel(s)}${learnerYear(s) ? ` · Australian Curriculum ${esc(yearLabel(learnerYear(s)))}` : ''}</p>
       </div>
       ${isActive ? '<span class="text-xs font-medium text-brand-dark px-2 py-0.5 rounded-full bg-brand/10">Active</span>' : '<button class="select h-11 lg:h-auto px-4 lg:px-3 lg:py-1.5 text-xs font-medium text-brand rounded-full bg-paper-card hover:bg-brand-light">Switch</button>'}
       <div class="w-full lg:w-auto grid grid-cols-2 sm:grid-cols-4 gap-1.5 lg:flex lg:items-center lg:gap-3 lg:shrink-0">
@@ -232,7 +233,52 @@ function studentFields(s = null) {
         </div>
       </div>
       <p class="text-xs text-ink-faint -mt-2">The month makes the age exact; without it, age counts from January.</p>
+      ${curriculumFields(s, 'sf', inputCls)}
       ${colors}`;
+}
+
+// The optional Australian Curriculum year (curriculum.js): a checkbox, and a
+// year level that defaults from the age in the form when the box is ticked
+// and stays editable. Shared by the Add and Edit forms and onboarding; wire
+// it with wireCurriculumFields() and read it with readCurriculum().
+export function curriculumFields(s, prefix, selectCls) {
+  const year = learnerYear(s);
+  const options = YEARS.map(y => `<option value="${y}" ${y === year ? 'selected' : ''}>${yearLabel(y)}</option>`).join('');
+  return `<fieldset class="curriculum-fields space-y-2">
+        <legend class="sr-only">Australian Curriculum</legend>
+        <label class="flex items-center gap-2.5 min-h-11 cursor-pointer text-sm">
+          <input id="${prefix}-acara" name="acara" type="checkbox" class="w-5 h-5 accent-[#3f6b3b]" ${year ? 'checked' : ''} />
+          <span>Follow the Australian Curriculum (version 9)</span>
+        </label>
+        <div>
+          <label for="${prefix}-acyear" class="text-sm font-medium block mb-1.5">Australian Curriculum year level <span class="text-ink-faint font-normal">(optional)</span></label>
+          <select id="${prefix}-acyear" name="curriculumYear" class="${selectCls} disabled:opacity-60" ${year ? '' : 'disabled'}>${options}</select>
+          <p class="text-xs text-ink-faint mt-1">Topics linked to this year come first in daily choices, the map and the finder; nothing is hidden. Without it, Harrington orders topics by age.</p>
+        </div>
+      </fieldset>`;
+}
+
+export function wireCurriculumFields(form) {
+  const box = form.querySelector('input[name="acara"]');
+  const select = form.querySelector('select[name="curriculumYear"]');
+  if (!box || !select) return;
+  box.addEventListener('change', () => {
+    select.disabled = !box.checked;
+    if (!box.checked) return;
+    // A first tick defaults the year from the age the form gives.
+    const birthYear = parseInt(form.querySelector('[name="birthYear"]')?.value, 10);
+    const birthMonth = parseInt(form.querySelector('[name="birthMonth"]')?.value, 10) || null;
+    const age = store.studentAge({ birthYear, birthMonth });
+    if (!select.dataset.touched && age !== null && Number.isFinite(age)) select.value = yearForAge(age);
+  });
+  select.addEventListener('change', () => { select.dataset.touched = '1'; });
+}
+
+// { id, year } when the box is ticked, else null (no curriculum year).
+export function readCurriculum(form) {
+  const fd = new FormData(form);
+  const year = fd.get('acara') ? normalizeYear(fd.get('curriculumYear')) : null;
+  return year ? { id: CURRICULUM_ID, year } : null;
 }
 
 function readStudentForm(form) {
@@ -242,6 +288,7 @@ function readStudentForm(form) {
     birthYear: parseInt(fd.get('birthYear'), 10),
     birthMonth: parseInt(fd.get('birthMonth'), 10) || null,
     color: fd.get('color') || undefined,
+    curriculum: readCurriculum(form),
   };
 }
 
@@ -257,10 +304,11 @@ function openAddStudent() {
     e.preventDefault();
     const v = readStudentForm(e.target);
     if (!v.name || !v.birthYear) return;
-    store.addStudent(v.name, v.birthYear, v.birthMonth);
+    store.addStudent(v.name, v.birthYear, v.birthMonth, { curriculum: v.curriculum });
     toast('Student added', 'success');
     m.close();
   };
+  wireCurriculumFields(body.querySelector('#f'));
   const m = openModal(body);
 }
 
@@ -284,6 +332,7 @@ function openEditStudent(s) {
     if (store.updateStudent(s.id, v)) toast('Learner updated', 'success');
     else toast('That learner is no longer here', 'error');
   };
+  wireCurriculumFields(body.querySelector('#f'));
   const m = openModal(body);
   body.querySelector('#sf-name').focus();
 }

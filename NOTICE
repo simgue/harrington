@@ -47,3 +47,11 @@ of the Colorfigures skill's engine (assets/core.js), under the MIT License:
 
 The full MIT permission notice is in the header comment of that file. The
 unmodified skill is in tools/colorfigures/ with its LICENSE.
+
+Australian Curriculum
+---------------------
+
+The app shows Australian Curriculum (version 9) content descriptions, with
+this notice:
+
+    © Australian Curriculum, Assessment and Reporting Authority (ACARA) 2009 to present, unless otherwise indicated. This material was downloaded from the ACARA website (https://www.australiancurriculum.edu.au/) (accessed 20 October 2026) and was modified only to normalize whitespace and render equation fractions as text. The material is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). ACARA does not endorse any product that uses ACARA material or make any representations as to the quality of such products. Any product that uses material published on this website should not be taken to be affiliated with ACARA or have the sponsorship or approval of ACARA. It is up to each person to make their own assessment of the product.

@@ -28,11 +28,12 @@ npm run e2e
 | `npm run e2e:mock-ai` | Starts only the mock AI provider on port 4311, handy for poking the app by hand. |
 
 The first run downloads the Marble taxonomy into
-`tests/e2e/.cache/taxonomy-<revision>/`: the curriculum files (about 3.1 MB)
-and the 23.5 MB `teaching-research.json` behind the teaching guides, each
-checked against the SHA-256s in `lib/taxonomy-pin.mjs`. Later runs are
-offline. Each app server splits the research into per-topic files on the
-first topic-list request (a second or two).
+`tests/e2e/.cache/taxonomy-<revision>/`: the curriculum files (about 3.1 MB),
+the 2.7 MB `curriculum-standards.json` the server trims for the Australian
+Curriculum, and the 23.5 MB `teaching-research.json` behind the teaching
+guides, each checked against the SHA-256s in `lib/taxonomy-pin.mjs`. Later
+runs are offline. Each app server splits the research into per-topic files on
+the first topic-list request (a second or two).
 
 A full run takes about seven minutes: the tests share one server
 per project and reset the family state before each test, so they run one at a
