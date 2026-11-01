@@ -206,10 +206,11 @@ describe('family data safety in the store', { concurrency: false }, () => {
     store.setInterests(id, { chips: ['Animals'], text: 'bridges' });
     store.logRequest(id, 'how to count to five', 'count-to-5');
     store.queueObservation(id, 'count-to-5');
+    store.setReading(id, { graphemes: ['s', 'a', 't', 'p'] });
     await store.flushSaves();
 
     const before = await serverState();
-    const keys = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations', 'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests', 'requests', 'levelset'];
+    const keys = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations', 'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests', 'requests', 'levelset', 'reading'];
     for (const key of keys) assert.ok(before[key][id], `${key} was populated`);
 
     store.removeStudent(id);
@@ -559,6 +560,45 @@ describe('family data safety in the store', { concurrency: false }, () => {
     assert.equal(saved.ghost, undefined);
     assert.equal(store.inspectImport({ ...exported, requests: 'nope' }).ok, false);
     assert.equal(await store.importDocument(exported), true);
+  });
+
+  test('the reading setup and a saved book survive a save, a reload and export and import (HAR-45)', async () => {
+    const { BANK } = await import('../src/js/phonics/bank.js');
+    const { generateBook } = await import('../src/js/phonics/generator.js');
+    const { knownCode } = await import('../src/js/phonics/reading.js');
+    const id = store.get().students[0].id;
+    store.setReading(id, { graphemes: ['s', 'a', 't', 'p', 'i', 'm', 'f', 'c'], prefs: { nameOnCover: false, layout: 'flat' } });
+    const made = generateBook(knownCode(store.readingFor(id)), { focus: ['i'], seed: 3 });
+    assert.ok(made);
+    const entry = store.saveBookToLibrary(id, made, { now: 1_790_000_000_000 });
+    store.saveBookToLibrary(id, BANK[0]);
+    await store.flushSaves();
+    const saved = (await serverState()).reading[id];
+    assert.equal(saved.library.length, 2);
+    assert.deepEqual(saved.library[1].book, made, 'the book is saved as it was made');
+    assert.equal(saved.library[1].savedAt, 1_790_000_000_000);
+    assert.deepEqual(saved.prefs, { nameOnCover: false, layout: 'flat' });
+    assert.equal(saved.tricky, null, 'the tricky words follow the default until the parent edits them');
+
+    await store.loadAll();
+    const reloaded = store.readingFor(id);
+    assert.deepEqual(reloaded.library.map((e) => e.book.title), [BANK[0].title, made.title]);
+    assert.deepEqual(knownCode(reloaded).tricky, new Set(['the', 'is']), 'set 2 brings the and is');
+
+    const exported = JSON.parse(JSON.stringify(await store.exportDocument()));
+    store.removeFromLibrary(id, entry.id);
+    await store.flushSaves();
+    assert.equal(store.readingFor(id).library.length, 1);
+    assert.equal(await store.importDocument(exported), true);
+    assert.equal(store.readingFor(id).library.length, 2);
+
+    // A malformed saved book is refused like any other bad learner field.
+    const broken = JSON.parse(JSON.stringify(exported));
+    broken.reading[id].library[0].book.pages = [{ text: 42 }];
+    await assert.rejects(store.importDocument(broken), /saved book in the file's reading library/);
+    const badPrefs = JSON.parse(JSON.stringify(exported));
+    badPrefs.reading[id].prefs.layout = 'scroll';
+    assert.equal(store.inspectImport(badPrefs).ok, false);
   });
 
   test('import replaces an older palette color and refuses any other color', async () => {

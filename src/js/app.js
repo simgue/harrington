@@ -19,6 +19,7 @@ import { renderFind } from './views/find.js';
 import { renderFigure } from './views/howitworks.js';
 import { renderLevelset } from './views/levelset.js';
 import { renderCoverage } from './views/coverage.js';
+import { renderLearner } from './views/learner.js';
 
 const app = document.getElementById('app');
 
@@ -33,7 +34,7 @@ function navigate(name, params = {}, options = {}) {
 function hashFor(name, params = {}) {
   if (name === 'graph') return graphHash(params);
   if (name === 'find') return findHash(params);
-  return name + (params.id ? '/' + params.id : '');
+  return name + (params.id ? '/' + params.id : '') + (params.id && params.sub ? '/' + params.sub : '');
 }
 
 function parseHash() {
@@ -48,7 +49,8 @@ function parseHash() {
     catch { return part; }
   });
   const [name, ...rest] = parts;
-  return { name, params: rest[0] ? { id: rest[0] } : {} };
+  // A second part is a sub-page (learner/<id>/books).
+  return { name, params: rest[0] ? { id: rest[0], ...(rest[1] ? { sub: rest[1] } : {}) } : {} };
 }
 
 function sameRoute(a, b) {
@@ -111,6 +113,7 @@ function render() {
     figure: renderFigure,
     levelset: renderLevelset,
     coverage: renderCoverage,
+    learner: renderLearner,
     onboard: renderOnboard,
   };
   const viewFn = views[route.name] || renderDashboard;
