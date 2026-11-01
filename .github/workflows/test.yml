@@ -73,6 +73,10 @@ jobs:
             sleep 1
           done
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4173/api/health)" = 200
+          # node can read the app it serves: the page, a script and the stylesheet.
+          for path in / /js/app.js /css/tailwind.css; do
+            test "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:4173$path")" = 200
+          done
           # The server process itself, not only a fresh shell, is uid 1000.
           docker exec harrington-ci grep -E '^Uid:[[:space:]]+1000[[:space:]]' /proc/1/status
           # A save lands in the volume, so /data is writable by node. The

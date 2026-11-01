@@ -24,7 +24,9 @@ ENV HARRINGTON_DATA_DIR=/data
 # created owned by it, so a new named volume starts writable. A volume or bind
 # mount first used by an older, root-run image keeps root-owned files: change
 # them once on the host with chown -R 1000:1000 (docs/DEPLOYMENT.md).
-RUN mkdir -p /data && chown node:node /data
+# Everything under /app readable by node, whatever modes the build context had:
+# an owner-only file copied in would otherwise stop the server at start.
+RUN mkdir -p /data && chown node:node /data && chmod -R a+rX /app
 USER node
 
 EXPOSE 4173

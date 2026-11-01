@@ -34,7 +34,9 @@ tagged a release yet; everything below is on `main`.
 - The Docker image runs as the unprivileged `node` user (uid 1000), not root
   (GAPS.md G13, HAR-58); CI builds it and checks the user, health and a save.
   Data written by an older image needs a one-time `chown -R 1000:1000`
-  (docs/DEPLOYMENT.md).
+  (docs/DEPLOYMENT.md); the Docker restore command now does it. Files under
+  `/app` are made readable by `node` whatever their modes in the build
+  context, and `.env` and `backups/` are kept out of the build context.
 
 ### Fixed
 - The curriculum-pin and server tests wait up to 5 seconds for a log line the

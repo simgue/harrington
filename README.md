@@ -418,8 +418,19 @@ in between saves in a newer data format than that server knows, and the
 server refuses it ("This server reads family data up to format 2; the save is
 format 3"): that refusal is the safety net that stops an old server from
 mangling data it does not understand. Restarting the server on the new code
-clears it. With Docker, `git pull` and then
-`docker compose up -d --build`; on a Synology NAS, see that section of
+clears it.
+
+Browsers may keep the old app's scripts and styles for up to an hour (the
+server lets them cache everything but the page itself for that long), so a
+reloaded tab can run the old app for a while. That is harmless: the old app
+opens data in a newer format read-only, with a banner, and saves nothing; a
+reload after the hour, or closing and reopening the tab, brings the new one.
+
+With Docker, `git pull` and then `docker compose up -d --build`. The first
+update to an image that runs as `node` (uid 1000) needs a one-time
+`chown -R 1000:1000` of the data, or every save fails with `EACCES`; the
+commands for a volume and for a folder are in docs/DEPLOYMENT.md, "The
+container runs as `node`". On a Synology NAS, see that section of
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#updating).
 
 ## The curriculum data
