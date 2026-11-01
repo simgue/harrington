@@ -383,7 +383,9 @@ copy, marked `unsavedChanges: true`.
 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** is the runbook for using
 Harrington from tablets, phones and other computers. The short version: one
 always-on host runs `node server.mjs` with one data directory; every other
-device is a browser; never run two servers against a synced folder.
+device is a browser; never run two servers against a synced folder. For a
+Synology NAS, its [Synology (Container Manager)](docs/DEPLOYMENT.md#synology-container-manager)
+section goes from Package Center to every device signed in over HTTPS.
 
 - `HARRINGTON_HOST` (default `127.0.0.1`) chooses the bind address.
 - `HARRINGTON_ACCESS_TOKEN` makes every `/api/*` request except
@@ -395,9 +397,30 @@ device is a browser; never run two servers against a synced folder.
   certificates; a local reverse proxy with its own certificate authority
   (Caddy `tls internal`) also works. Harrington does not terminate TLS itself.
 
-The included container stores private data in the `harrington-data` volume and
-publishes only to `127.0.0.1:4173`. Do not expose Harrington to the public
-internet.
+The included container runs as the unprivileged `node` user (uid 1000),
+stores private data in the `harrington-data` volume (or a folder named by
+`HARRINGTON_DATA_VOLUME` in `.env`) and publishes only to `127.0.0.1:4173`.
+Data written by an older, root-run image needs a one-time
+`chown -R 1000:1000` (docs/DEPLOYMENT.md, "The container runs as `node`").
+Do not expose Harrington to the public internet.
+
+### Updating
+
+1. Export in the app, and run `npm run backup`.
+2. Stop the server (Ctrl+C, or your service manager).
+3. `git pull`, then `npm install`.
+4. `npm start` with the same environment variables as before.
+5. Reload Harrington on every device.
+
+Stop the server before pulling, not after. A running server keeps the old
+code in memory but serves the new browser files from disk, so a tab reloaded
+in between saves in a newer data format than that server knows, and the
+server refuses it ("This server reads family data up to format 2; the save is
+format 3"): that refusal is the safety net that stops an old server from
+mangling data it does not understand. Restarting the server on the new code
+clears it. With Docker, `git pull` and then
+`docker compose up -d --build`; on a Synology NAS, see that section of
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#updating).
 
 ## The curriculum data
 

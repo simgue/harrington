@@ -2,17 +2,29 @@ services:
   harrington:
     build: .
     restart: unless-stopped
+    # Loopback only: Tailscale serve or Caddy on the same host fronts it
+    # (docs/DEPLOYMENT.md options 1 and 2, and the Synology section).
     ports:
       - "127.0.0.1:4173:4173"
+    # Each value comes from a .env file next to this one (never committed;
+    # .gitignore excludes it) and falls back to the single-computer default.
     environment:
-      # Matches the loopback port mapping above. To share Harrington with other
-      # devices (docs/DEPLOYMENT.md options 1 and 2), keep that mapping, put
-      # Tailscale serve or Caddy in front of it, and change only this value to
-      # the name devices open, such as family-host.tailnet-name.ts.net.
-      HARRINGTON_PUBLISHED_HOST: 127.0.0.1
-      # HARRINGTON_ACCESS_TOKEN: ${HARRINGTON_ACCESS_TOKEN}   # from .env, never committed
+      # The name other devices open, such as family-host.tailnet-name.ts.net.
+      # Decides whether the app says it is shared, and is a name Harrington answers to.
+      HARRINGTON_PUBLISHED_HOST: ${HARRINGTON_PUBLISHED_HOST:-127.0.0.1}
+      # More names Harrington answers to once shared, comma-separated (for example a MagicDNS short name).
+      HARRINGTON_ALLOWED_HOSTS: ${HARRINGTON_ALLOWED_HOSTS:-}
+      # 16 characters or more: every /api/* request except /api/health then needs a sign-in at /login.
+      HARRINGTON_ACCESS_TOKEN: ${HARRINGTON_ACCESS_TOKEN:-}
     volumes:
-      - harrington-data:/data
+      # A named volume managed by Docker, unless .env sets
+      # HARRINGTON_DATA_VOLUME to a folder to bind-mount instead, one you can
+      # see and back up (the Synology section of docs/DEPLOYMENT.md). That
+      # makes this line, without editing this file:
+      #   - ./data/private:/data
+      # The folder must exist and belong to uid 1000 before the first start:
+      #   mkdir -p data/private && sudo chown -R 1000:1000 data/private
+      - ${HARRINGTON_DATA_VOLUME:-harrington-data}:/data
 
 volumes:
   harrington-data:

@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { isLoopbackAddress } from '../lib/loopback.mjs';
 import { seedFixtureTaxonomy } from './support/fixture-taxonomy.mjs';
+import { waitForOutput } from './support/wait-for-output.mjs';
 import { AI_CAPABILITIES, parseCapabilities } from '../src/js/ai-capabilities.js';
 import { SCHEMA_VERSION, formatCopyName } from '../src/js/schema.js';
 
@@ -154,8 +155,8 @@ test('lists a page dropped into src/figures/ at once, and skips one that breaks 
     });
     const list = async () => (await (await fetch(`${url}/api/figures`)).json()).figures;
     assert.deepEqual(await list(), []);
-    assert.match(log, /Figure mt_zzDropInBroken\.html is not shown: it has an http\(s\) URL/);
-    assert.match(log, /Figure mt_zzDropInTooBig\.html is not shown: it is \d+ bytes \(the limit is 102400\)/);
+    assert.match(await waitForOutput(() => log, /mt_zzDropInBroken/), /Figure mt_zzDropInBroken\.html is not shown: it has an http\(s\) URL/);
+    assert.match(await waitForOutput(() => log, /mt_zzDropInTooBig/), /Figure mt_zzDropInTooBig\.html is not shown: it is \d+ bytes \(the limit is 102400\)/);
     // A good page dropped in while the server runs is listed on the next request.
     await writeFile(join(figures, 'mt_zzDropInGood.html'), page.replace('<title>Toy cart</title>', '<title>Dropped in</title>'));
     const [good] = await list();
@@ -207,7 +208,7 @@ test('health still answers when the backup folder cannot be read', async () => {
   assert.equal(await health(), null);
   await rm(backups, { force: true });
   // One log line for the first unreadable folder, naming the error code, never the path.
-  const lines = serverLog.split('\n').filter((line) => line.includes('Cannot read the backup folder'));
+  const lines = (await waitForOutput(() => serverLog, /Cannot read the backup folder/)).split('\n').filter((line) => line.includes('Cannot read the backup folder'));
   assert.equal(lines.length, 1, serverLog);
   assert.match(lines[0], /\(ELOOP\)/);
   assert.ok(!serverLog.includes(dataDir), 'the log names no path');
@@ -1503,7 +1504,7 @@ describe('AI provider settings saved in the app', { concurrency: false }, () => 
         const settings = await (await fetch(`${harrington.url}/api/settings/ai`)).json();
         assert.deepEqual([settings.model, settings.source.model, settings.hasApiKey], ['env-model', 'env', false]);
       }
-      assert.equal(harrington.output().match(/is not valid JSON/g)?.length, 1);
+      assert.equal((await waitForOutput(harrington.output, /is not valid JSON/)).match(/is not valid JSON/g)?.length, 1);
       assert.ok(!harrington.output().includes('MARKER'));
     } finally {
       await harrington.stop();

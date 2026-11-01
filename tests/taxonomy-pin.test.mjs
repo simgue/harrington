@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { TAXONOMY_PIN, sha256Hex } from '../lib/taxonomy-pin.mjs';
+import { waitForOutput } from './support/wait-for-output.mjs';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const stub = new URL('./support/taxonomy-fetch-stub.mjs', import.meta.url).href;
@@ -77,11 +78,9 @@ async function startServer({ env = {}, upstreamDir = null, dataDir = null } = {}
     url,
     dataDir,
     output: () => output,
-    // Startup lines after the address can land a moment later.
-    async waitForOutput(pattern) {
-      for (let i = 0; i < 40 && !pattern.test(output); i += 1) await new Promise((r) => setTimeout(r, 50));
-      return output;
-    },
+    // Startup lines after the address, and lines logged while answering a
+    // request, can land a moment later (tests/support/wait-for-output.mjs).
+    waitForOutput: (pattern) => waitForOutput(() => output, pattern),
     health: async () => (await fetch(`${url}/api/health`)).json(),
     get: (name) => fetch(`${url}/api/taxonomy/${name}`),
     async stop({ keep = false } = {}) {
@@ -122,7 +121,8 @@ test('a download that does not match the pin is refused, not cached, and reporte
     assert.equal(res.status, 502);
     // A short line for the browser; the hashes go to the log.
     assert.equal((await res.json()).error, 'Curriculum file topics.json failed its integrity check, so it was not saved. The server log and /api/health have the details.');
-    assert.match(app.output(), new RegExp(`expected SHA-256 ${TAXONOMY_PIN.files['topics.json']}, got [0-9a-f]{64}`));
+    const refused = new RegExp(`expected SHA-256 ${TAXONOMY_PIN.files['topics.json']}, got [0-9a-f]{64}`);
+    assert.match(await app.waitForOutput(refused), refused);
     await assert.rejects(stat(join(app.dataDir, 'taxonomy', 'topics.json')), { code: 'ENOENT' });
     const health = await app.health();
     assert.deepEqual([health.taxonomy, health.taxonomyRevision, health.taxonomyCached], ['integrity-failed', null, false]);
@@ -155,7 +155,7 @@ test('a download that matches the pin is cached, and health says verified with t
     assert.deepEqual(await app.health().then((h) => [h.taxonomy, h.taxonomyRevision]), ['verified', TAXONOMY_PIN.revision]);
     // Served from the cache from now on: no second download.
     await app.get('topics.json');
-    assert.equal(app.output().match(/stub fetch topics\.json/g).length, 1);
+    assert.equal((await app.waitForOutput(/stub fetch topics\.json/)).match(/stub fetch topics\.json/g).length, 1);
   } finally {
     await app.stop();
   }
@@ -172,7 +172,8 @@ test('a cached file from another revision is never served: it is downloaded agai
   try {
     assert.deepEqual(await app.health().then((h) => [h.taxonomy, h.taxonomyRevision]), ['outdated', null]);
     assert.equal(await sha(await app.get('topics.json')), TAXONOMY_PIN.files['topics.json']);
-    assert.match(app.output(), /Cached curriculum file topics\.json is not the pinned revision 7bd8b67; downloading it again\./);
+    const outdated = /Cached curriculum file topics\.json is not the pinned revision 7bd8b67; downloading it again\./;
+    assert.match(await app.waitForOutput(outdated), outdated);
     assert.equal(await sha256Hex(await readFile(join(dataDir, 'taxonomy', 'topics.json'))), TAXONOMY_PIN.files['topics.json']);
     for (const name of SERVED) await app.get(name);
     assert.equal((await app.health()).taxonomy, 'verified');
@@ -242,7 +243,7 @@ test('a custom upstream caches in its own folder; unset again, only the verified
     app = await startServer({ upstreamDir: pinned, dataDir });
     assert.doesNotMatch(await app.waitForOutput(/Access token/), /custom upstream/);
     assert.equal(await sha(await app.get('topics.json')), TAXONOMY_PIN.files['topics.json']);
-    assert.match(app.output(), /stub fetch topics\.json/);
+    assert.match(await app.waitForOutput(/stub fetch topics\.json/), /stub fetch topics\.json/);
     for (const name of SERVED) await app.get(name);
     assert.deepEqual(await app.health().then((h) => [h.taxonomy, h.taxonomyRevision]), ['verified', TAXONOMY_PIN.revision]);
   } finally {
