@@ -6,11 +6,16 @@ import { el, esc, openModal, refreshIcons } from '../ui.js';
 import {
   GUIDE_ATTRIBUTION, GUIDE_GLOSS, LICENSE_HREF, MARBLE_HREF, hasTeachingGuide, loadTeachingGuide,
 } from '../teaching.js';
+import { printTeachingGuide } from './guideprint.js';
 
 const list = (items) => `<ul class="space-y-1.5">${items.map(x => `<li class="flex gap-2 text-sm text-ink-soft leading-relaxed"><span class="w-1.5 h-1.5 rounded-full bg-brand/60 shrink-0 mt-2"></span><span class="min-w-0">${esc(x)}</span></li>`).join('')}</ul>`;
 const label = (icon, text) => `<p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-1.5 flex items-center gap-1.5"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i>${esc(text)}</p>`;
 const steps = (items) => items.map((s, n) => `<li class="flex gap-2.5 text-sm text-ink-soft leading-relaxed"><span class="w-5 h-5 rounded-full bg-brand-light text-brand-dark text-[11px] font-700 flex items-center justify-center shrink-0 mt-0.5">${esc(n + 1)}</span><span class="min-w-0">${esc(s)}</span></li>`).join('');
 const summaryRow = 'min-h-[44px] flex items-center gap-2 cursor-pointer select-none list-none';
+// The lesson's print button, at 44 px; the word shows from the sm breakpoint.
+const PRINT_BUTTON = `<button type="button" class="guide-print flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] px-1.5 text-sm text-ink-soft hover:text-ink shrink-0" aria-label="Print the teaching guide"><i data-lucide="printer" class="w-4 h-4"></i><span class="hidden sm:inline">Print</span></button>`;
+// A topic's name, for "Go back to" on paper.
+const nameOf = (id) => getData()?.byId?.get(id)?.name || null;
 const creditLink = (href, text) => `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center min-h-[44px] min-w-[44px] px-2 underline underline-offset-2">${esc(text)}</a>`;
 
 function activityBlock(a, i) {
@@ -84,11 +89,17 @@ export function teachingGuideSection(topic, { navigate }) {
     const sec = el(`<details id="teaching-guide" class="group/guide bg-paper-card border border-paper-line rounded-2xl px-5 scroll-mt-4">
       <summary class="${summaryRow} py-3.5 justify-between">
         <span class="flex items-center gap-2 min-w-0"><i data-lucide="compass" class="w-4.5 h-4.5 text-brand-dark shrink-0"></i><h2 class="font-600">Teaching guide</h2></span>
-        <span class="flex items-center gap-1.5 text-xs text-ink-faint shrink-0">No AI needed<i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open/guide:rotate-180"></i></span>
+        <span class="flex items-center gap-1.5 text-xs text-ink-faint shrink-0">${PRINT_BUTTON}No AI needed<i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open/guide:rotate-180"></i></span>
       </summary>
       <div class="pb-5 guide-body"></div>
     </details>`);
     sec.querySelector('.guide-body').appendChild(renderGuide(guide, { onTopic: id => navigate('topic', { id }) }));
+    // In the header: printing must not also open or close the section.
+    sec.querySelector('.guide-print').onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      printTeachingGuide(topic, guide, { topicName: nameOf });
+    };
     slot.replaceWith(sec);
     refreshIcons();
   }).catch(err => {
@@ -110,16 +121,23 @@ export function openTeachingGuide(topic, { navigate = null } = {}) {
   const body = el(`<div>
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
       <span class="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0"><i data-lucide="compass" class="w-5 h-5 text-brand-dark"></i></span>
-      <div class="min-w-0">
+      <div class="flex-1 min-w-0">
         <p class="text-xs text-ink-faint">Teaching guide · no AI needed</p>
         <h3 class="font-display text-lg font-600 leading-tight">${esc(topic.name)}</h3>
       </div>
+      <span class="print-slot"></span>
     </div>
     <div class="stage px-5 py-5"><p class="text-sm text-ink-faint">Loading the teaching guide…</p></div>
   </div>`);
   const stage = body.querySelector('.stage');
   const m = openModal(body, { wide: true });
   loadTeachingGuide(topic.id).then(guide => {
+    // Print appears once there is a guide to print.
+    if (guide) {
+      const btn = el(PRINT_BUTTON);
+      btn.onclick = () => printTeachingGuide(topic, guide, { topicName: nameOf });
+      body.querySelector('.print-slot').replaceWith(btn);
+    }
     stage.replaceChildren(guide
       ? renderGuide(guide, navigate ? { onTopic: id => { m.close(); navigate('topic', { id }); } } : {})
       : el(`<p class="text-sm text-ink-soft">There is no teaching guide for this topic.</p>`));
