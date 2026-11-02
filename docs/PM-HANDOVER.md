@@ -13,8 +13,8 @@ living sources. If you read one section first, read §11.
 | Open pull requests of ours | none (`#4` is a stale pre-existing draft from another tool; leave it or close it, it has no value) |
 | Linear | HAR-66 Done, HAR-45 In Progress (slice B open as HAR-67), HAR-34 and HAR-35 In Review awaiting the owner, HAR-11 In Progress (old, see §8) |
 | Dev sessions | all archived; nothing running |
-| Scheduled check-ins of the outgoing PM | cancelled at cutover |
-| Owner's machine | runs `main` from the repo on a MacBook Pro; restarts the server by hand after `git pull` |
+| Scheduled check-ins of the outgoing PM | canceled at cutover |
+| Owner's machine | runs `main` from the repo on a Mac; restarts the server by hand after `git pull` |
 
 Everything the owner asked for up to the handover is on `main`. The last
 merges were:
@@ -36,7 +36,9 @@ merges were:
 ### 1.1 Terms and access
 
 - **Marble**: the publisher of the Skill Taxonomy and the teaching research
-  Harrington uses (`withmarbleapp/os-taxonomy` on GitHub), CC BY-SA 4.0.
+  Harrington uses (`withmarbleapp/os-taxonomy` on GitHub): ODbL 1.0 for the
+  database and CC BY-SA 4.0 for the textual content, as `NOTICE` and
+  `DATA-LICENSE.md` state.
 - **Antigravity**: the environment the incoming PM runs in. The outgoing PM
   ran in Claude Code cloud sessions; where this document names a tool that
   exists only there, it says so.
@@ -105,7 +107,8 @@ Map of the code:
   layout needs "double-sided, flip on the short edge".
 - They do not yet know each child's phonics level; the app's Reading setup and
   "Find the level" helper were built for that.
-- Time zone: Australian Eastern. Expect messages in that morning and evening.
+- The owner is on Australian Eastern time; expect messages in that zone's
+  morning and evening.
 - Asks still open from them (chase gently when relevant): each child's current
   sounds; whether the cover should print the child's name (the app defaults to
   on, local only); the priming questions (geology region, what a quest
@@ -271,6 +274,9 @@ Pitfalls met more than once:
 - When nothing is open: a check-in every three hours (CI on `main`, owner
   replies, new pushes, Remote Control availability for the NAS task). When a
   dev session is running: every 45 to 75 minutes. Re-arm before ending a turn.
+  The outgoing PM used its platform's scheduled-task tool (one-shot reminders
+  delivered into the same session); use whatever Antigravity offers, or a
+  cron, for the same purpose.
 - Archive finished sessions. Keep a running log of merges, verdicts and owner
   asks; the outgoing PM's log was in scratch space and is summarized here.
 
@@ -280,6 +286,7 @@ Pitfalls met more than once:
 
 ```bash
 git pull
+npm install
 node tools/decodable-books/make-books.mjs decodable-books
 open decodable-books
 ```
@@ -322,7 +329,7 @@ exact file names it writes.
 
 ### 6.3 Teaching guides and printable guides
 
-Topic page, "Teaching guide" (Marble research, ~1,050 Maths and Science
+Topic page, "Teaching guide" (Marble research, ~1,050 Mathematics and Science
 topics), Print button in the header. No AI needed.
 
 ### 6.4 Australian Curriculum v9
@@ -404,7 +411,8 @@ Closed security gaps: G10 (HAR-55) and G13 (HAR-58).
   Container Manager, Git Server and Tailscale packages; clone to
   `/volume1/docker/harrington`; a Project with the bind mount and the `.env`
   token; the `tailscale serve` command exactly as step 6 of the runbook
-  gives it (the binary is not on the PATH on DSM); the `configure-host` boot
+  gives it (the runbook notes, unchecked, that the binary is not on the PATH
+  on DSM); the `configure-host` boot
   task; Export and Import of the family data; re-enter
   the AI provider. The owner handles the Tailscale sign-in link.
 - Owner answers listed in §3.
@@ -416,9 +424,6 @@ Closed security gaps: G10 (HAR-55) and G13 (HAR-58).
   do not re-brief from memory; keep briefs in the ticket or a file.
 - The owner runs an older server process after pulling without restarting;
   the format-N toast is the symptom.
-- A checkout older than PR #59 had the CLI's Andika font as a `--no-save`
-  install that `npm install` removed; since #59 it is a devDependency and a
-  normal install keeps it. The app's own bundled copy was never affected.
 - Any change to the family document shape must keep old documents loading
   (migrations in `schema.js`, validation in `document.js` that refuses
   malformed input without throwing in a view: HAR-38 rule).
@@ -445,7 +450,8 @@ Closed security gaps: G10 (HAR-55) and G13 (HAR-58).
 ## 12. Who did what (for context, no action)
 
 The outgoing PM session ran from 26 October to 2 November 2026: the eleven
-pull requests in §1's table, each with an independent review and a local gate, three dev waves (taxonomy
-refresh and Marble research, Australian Curriculum and printable guides,
-deployment and decodable books), and the owner's setup questions (Mac spec,
+pull requests in §1's table, each with an independent review and a local
+gate, three dev waves (taxonomy refresh and Marble research, Australian
+Curriculum and printable guides, deployment and decodable books), and the
+owner's setup questions (Mac spec,
 LM Studio, Gemini model, Synology). Nothing is left half-done on a branch.
