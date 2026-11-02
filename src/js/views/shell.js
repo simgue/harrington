@@ -63,6 +63,15 @@ export function renderShell({ route, navigate, content }) {
     <i data-lucide="book-open" class="w-4.5 h-4.5"></i>Guide</button>`);
   guideBtn.onclick = () => openGuide();
   navD.appendChild(guideBtn);
+  // The active learner's reading setup and books (HAR-45); on a phone it is
+  // "Reading" in the learner selector.
+  if (active) {
+    const on = route.name === 'learner';
+    const readingBtn = el(`<button class="w-full flex items-center gap-3 px-4 h-11 rounded-full text-[14.5px] font-medium text-ink hover:bg-paper-card transition-colors ${on ? 'nav-active' : ''}" ${on ? 'aria-current="page"' : ''}>
+      <i data-lucide="book-a" class="w-4.5 h-4.5"></i>Reading &amp; books</button>`);
+    readingBtn.onclick = () => navigate('learner', { id: active.id });
+    navD.appendChild(readingBtn);
+  }
 
   side.querySelector('#account').appendChild(accountBox());
 
@@ -165,13 +174,19 @@ function openStudentMenu(navigate) {
         <p class="text-xs text-ink-faint">Age ${age} · born ${bornLabel(s)}${learnerYear(s) ? ` · Australian Curriculum ${esc(yearLabel(learnerYear(s)))}` : ''}</p>
       </div>
       ${isActive ? '<span class="text-xs font-medium text-brand-dark px-2 py-0.5 rounded-full bg-brand/10">Active</span>' : '<button class="select h-11 lg:h-auto px-4 lg:px-3 lg:py-1.5 text-xs font-medium text-brand rounded-full bg-paper-card hover:bg-brand-light">Switch</button>'}
-      <div class="w-full lg:w-auto grid grid-cols-2 sm:grid-cols-4 gap-1.5 lg:flex lg:items-center lg:gap-3 lg:shrink-0">
+      <div class="w-full lg:w-auto grid grid-cols-3 sm:grid-cols-5 gap-1.5 lg:flex lg:items-center lg:gap-3 lg:shrink-0">
+        <button class="reading ${rowActionCls} hover:text-brand-dark" title="Reading: sounds, tricky words and books" aria-label="Reading and books for ${esc(s.name)}"><i data-lucide="book-a" class="w-4 h-4 shrink-0"></i>${rowActionLabel('Reading')}</button>
         <button class="place ${rowActionCls} hover:text-brand-dark" title="Placement: mark earlier topics mastered" aria-label="Placement for ${esc(s.name)}"><i data-lucide="list-checks" class="w-4 h-4 shrink-0"></i>${rowActionLabel('Placement')}</button>
         <button class="levelset ${rowActionCls} hover:text-brand-dark" title="Level-set workbook: find where they are, one sheet at a time" aria-label="Level-set workbook for ${esc(s.name)}"><i data-lucide="clipboard-list" class="w-4 h-4 shrink-0"></i>${rowActionLabel('Workbook')}</button>
         <button class="edit ${rowActionCls} hover:text-brand-dark" title="Edit learner" aria-label="Edit ${esc(s.name)}"><i data-lucide="pencil" class="w-4 h-4 shrink-0"></i>${rowActionLabel('Edit')}</button>
         <button class="del ${rowActionCls} hover:text-[#a4473a]" title="Remove learner" aria-label="Remove learner ${esc(s.name)}"><i data-lucide="trash-2" class="w-4 h-4 shrink-0"></i>${rowActionLabel('Remove')}</button>
       </div>
     </div>`);
+    row.querySelector('.reading').addEventListener('click', () => {
+      m.close();
+      if (s.id !== state.activeStudentId) store.setActiveStudent(s.id);
+      navigate('learner', { id: s.id });
+    });
     row.querySelector('.place').addEventListener('click', () => { m.close(); openPlacement(s); });
     row.querySelector('.levelset').addEventListener('click', () => {
       m.close();
