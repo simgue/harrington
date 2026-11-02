@@ -9,7 +9,7 @@ living sources.
 
 | Item | State at handover |
 |---|---|
-| `main` | `HANDOVER_MAIN_SHA` (CI green: `isolation`, `e2e`, `image`) |
+| `main` | `d70becb` (the PR #59 merge; CI green: `isolation`, `e2e`, `image`) plus the merge of this document |
 | Open pull requests of ours | none (`#4` is a stale pre-existing draft from another tool; leave it or close it, it has no value) |
 | Linear | HAR-66 Done, HAR-45 In Progress (slice B open as HAR-67), HAR-34 and HAR-35 In Review awaiting the owner, HAR-11 In Progress (old, see §8) |
 | Dev sessions | all archived; nothing running |
@@ -21,7 +21,7 @@ merges were:
 
 | PR | Merged as | What |
 |---|---|---|
-| #59 | `HANDOVER_PR59_SHA` | Decodable books in the app (HAR-66): per-learner Reading setup keyed off the known code, book bank, template generator, print view, library |
+| #59 | d70becb | Decodable books in the app (HAR-66): per-learner Reading setup keyed off the known code, book bank, template generator, print view, library |
 | #58 | 50d2a7f | Lockfile-only `npm audit fix` (dev tooling) |
 | #57 | 0988659 | CLI decodable books: black text, colour-in pictures, review fixes |
 | #56 | 52fcf45 | CLI decodable books generator, first version |
@@ -283,9 +283,17 @@ exact file names it writes.
   note shown on screen only.
 - Andika is bundled in `src/vendor/fonts` (SIL OFL, in NOTICE). Text is black;
   pictures are outline line art with white-filled regions.
-- Known thin spots carried to HAR-67: few `wh` and `ng` words and no split
-  digraphs in the generator; names in the back-page word list; two
-  sub-millimetre unclosed regions and two line tangles in the CLI pictures.
+- Known thin spots carried to HAR-67 (from the two review rounds of #59 and
+  the reviews of #56 and #57): `wh` and `ng` words are few; at their own
+  stage `qu` (set 5) and `k` (set 6) occur only in story names; the checker
+  reads irregular tricky words ("to", "was", "he", "she", "my", "all",
+  "they") letter by letter, so unticking one does not move a book to "A
+  little further on"; a learner whose own name is the only readable story
+  name gets a self-contradicting message; the refusal for an unknown picture
+  kind is generic and a restore from a newer version is refused whole; some
+  generated sentences are stilted; no split digraphs in the generator; names
+  in the CLI back-page word list; two sub-millimetre unclosed regions and
+  two line tangles in the CLI pictures.
 
 ### 6.3 Teaching guides and printable guides
 
