@@ -115,6 +115,30 @@ The remove button is named for the learner ("Remove learner Wren Example"),
 and on a phone the placement, edit and remove buttons are 44 px targets (F14,
 fixed).
 
+### Decodable books (HAR-45)
+
+**Reading** in the learner menu (or **Reading & books** in the sidebar) opens
+the learner page. Its Reading section holds the sounds the child reads, set by
+set, with the stage worked out from the ticks; **Find the level** goes one set
+a screen. **Books for …** lists the built-in books within those sounds, those
+a few sounds away (muted, with what they need), **Make a new book** and the
+library. Print opens the book as an A4 booklet or flat A5 pages.
+
+| Find the level | Reading setup |
+| --- | --- |
+| ![Find the level](screenshots/books/01-find-the-level.jpg) | ![Reading setup](screenshots/books/02-reading-setup.jpg) |
+
+| Books page | Make a new book | Print view (booklet) |
+| --- | --- | --- |
+| ![Books page](screenshots/books/03-books-page.jpg) | ![Make a book](screenshots/books/04-make-a-book.jpg) | ![Booklet](screenshots/books/05-print-booklet.jpg) |
+
+**What the tests assert** (`books.spec.mjs`, no provider): ticks, Find the
+level and preferences survive a reload with no stage stored; only books within
+the code are listed and a new tick adds more; a made book uses only known
+sounds and is saved without the learner's name; the booklet has sides
+8,1 / 2,7 / 6,3 / 4,5 and the flat print pages 1 to 8; the name is on the
+cover only when the preference is on.
+
 ---
 
 ## 3. Dashboard
@@ -661,7 +685,7 @@ scrolling sideways.
 
 | Child view | Quest log | Guide | Learners |
 | --- | --- | --- | --- |
-| ![Child view](screenshots/mobile/10-child-view.jpg) | ![Quest log](screenshots/mobile/11-quest-log.jpg) | ![Guide](screenshots/mobile/12-guide.jpg) | ![Learners](screenshots/mobile/13-learner-switcher.jpg) |
+| ![Child view](screenshots/mobile/13-child-view.jpg) | ![Quest log](screenshots/mobile/14-quest-log.jpg) | ![Guide](screenshots/mobile/15-guide.jpg) | ![Learners](screenshots/mobile/16-learner-switcher.jpg) |
 
 **What the tests assert** (`mobile.spec.mjs`): no horizontal overflow on the
 dashboard, calendar, world map, skill tree, topic page, records, insights,
@@ -679,11 +703,11 @@ targets, and the observation checklist fits and saves (HAR-24).
 
 | Learner selector with Export and Import | Notifications bell |
 | --- | --- |
-| ![Learner selector with Export and Import](screenshots/mobile/14-learner-menu-family-data.jpg) | ![Notifications bell](screenshots/mobile/18-notifications.jpg) |
+| ![Learner selector with Export and Import](screenshots/mobile/17-learner-menu-family-data.jpg) | ![Notifications bell](screenshots/mobile/21-notifications.jpg) |
 
 | Level-set workbook sheet | Observation check |
 | --- | --- |
-| ![Level-set workbook sheet](screenshots/mobile/16-levelset-sheet.jpg) | ![Observation check](screenshots/mobile/17-observation-checklist.jpg) |
+| ![Level-set workbook sheet](screenshots/mobile/19-levelset-sheet.jpg) | ![Observation check](screenshots/mobile/20-observation-checklist.jpg) |
 
 ---
 

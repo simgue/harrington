@@ -100,7 +100,7 @@ function cat({ pose = 'sit', cap = false } = {}) {
   const ry = fat ? 44 : 34;
   const [hx, hy] = pose === 'sip' ? [-48, -40] : [-30, -82 - (fat ? 10 : 0)];
   const head = `<g transform="translate(${hx} ${hy})">
-      <path d="M-24 -10 L-22 -42 L-6 -24 Z" ${W}/><path d="M24 -10 L22 -42 L6 -24 Z" ${W}/>
+      ${cap ? '' : `<path d="M-24 -10 L-22 -42 L-6 -24 Z" ${W}/><path d="M24 -10 L22 -42 L6 -24 Z" ${W}/>`}
       <circle r="26" ${W}/>
       ${cap ? `<path d="M-24 -12 C-24 -46 24 -46 24 -12 Z" ${W}/><path d="M16 -18 H44 Q50 -18 50 -12 H16 Z" ${W}/>` : ''}
       ${dot(-9, -2)}${dot(9, -2)}<path d="M-4 8 L0 12 L4 8 Z" ${INK}/>

@@ -108,7 +108,9 @@ export function renderBooks(student, { navigate }) {
 function makeSection(student, reading, code) {
   const fallback = defaultFocus(reading);
   const draft = drafts.get(student.id) || { focus: fallback.graphemes, clusters: fallback.clusters, pages: 6, seed: 1, made: false };
-  // Ticks may have changed since: keep only focus sounds still known.
+  // Until the parent picks sounds the focus follows the ticks (the newest
+  // set); after that, keep their choice of sounds that are still known.
+  if (!draft.chosen) Object.assign(draft, { focus: fallback.graphemes, clusters: fallback.clusters });
   draft.focus = draft.focus.filter(g => code.graphemes.has(g));
   drafts.set(student.id, draft);
   const known = inTeachingOrder([...code.graphemes]);
@@ -135,6 +137,7 @@ function makeSection(student, reading, code) {
     const b = el(`<button aria-pressed="${on}" class="min-w-[44px] h-11 px-2.5 rounded-xl border text-base font-600 ${on ? 'bg-brand-light border-brand' : 'bg-paper border-paper-line text-ink-soft'}">${esc(g)}</button>`);
     b.onclick = () => {
       draft.focus = on ? draft.focus.filter(x => x !== g) : [...draft.focus, g];
+      draft.chosen = true;
       store.redraw();
     };
     focusBox.appendChild(b);

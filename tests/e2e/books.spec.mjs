@@ -133,6 +133,11 @@ test('make a new book: a printable story from the code, saved to the library', a
   const focus = page.locator('#focus');
   for (const g of ['i', 'm', 'f', 'c']) await expect(focus.getByRole('button', { name: g, exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(focus.getByRole('button', { name: 's', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  // A focus sound can be turned off and on again before making the book.
+  await focus.getByRole('button', { name: 'c', exact: true }).click();
+  await expect(focus.getByRole('button', { name: 'c', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await focus.getByRole('button', { name: 'c', exact: true }).click();
+  await expect(focus.getByRole('button', { name: 'c', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Make a book' }).click();
   const made = page.locator('#made article');
   await expect(made.locator('.made-pages li')).toHaveCount(6);
