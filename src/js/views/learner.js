@@ -5,7 +5,7 @@
 // for the books live here too. No AI: nothing here is ever sent anywhere.
 // `#learner/<id>`; `#learner/<id>/books` is the books page (views/books.js).
 import * as store from '../store.js';
-import { el, esc, openModal, refreshIcons, toast } from '../ui.js';
+import { el, esc, keepFocus, openModal, refreshIcons, toast } from '../ui.js';
 import { sequenceById } from '../phonics/sequence.js';
 import { GRAPHEME_MAX, readingSummary, stageChecklist, stageOf, trickyOf, WORD_MAX } from '../phonics/reading.js';
 import { renderBooks } from './books.js';
@@ -57,7 +57,8 @@ export function renderLearner(params, { navigate }) {
   // ---- sounds, set by set ----
   const sounds = section.querySelector('#sounds');
   const known = new Set(reading.graphemes);
-  const save = (patch) => store.setReading(student.id, patch);
+  // Every change re-renders the page; the focus stays on the control used.
+  const save = (patch) => { const restore = keepFocus(); store.setReading(student.id, patch); restore(); };
   for (const row of stageChecklist(reading)) {
     const { stage, number } = row;
     const box = el(`<fieldset class="border-t border-paper-line pt-3 mt-3 first-of-type:border-0 first-of-type:pt-0 first-of-type:mt-0" data-stage="${number}">

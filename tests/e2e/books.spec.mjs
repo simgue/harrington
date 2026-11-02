@@ -41,6 +41,8 @@ test('the reading setup: tick sets, find the level, tricky words; it persists af
   // One sound off: the stage drops back.
   await page.getByRole('checkbox', { name: 'Sound f', exact: true }).uncheck();
   await expect(stageLine(page)).toHaveText('Reading at set 1. Next sounds: f');
+  // The page re-renders; the keyboard focus stays on the tick just changed.
+  await expect(page.getByRole('checkbox', { name: 'Sound f', exact: true })).toBeFocused();
   await page.getByRole('checkbox', { name: 'Sound f', exact: true }).check();
   await expect(stageLine(page)).toHaveText('Reading at set 2. Next sounds: o d g l');
 
@@ -136,6 +138,8 @@ test('make a new book: a printable story from the code, saved to the library', a
   // A focus sound can be turned off and on again before making the book.
   await focus.getByRole('button', { name: 'c', exact: true }).click();
   await expect(focus.getByRole('button', { name: 'c', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  // The page re-renders; the keyboard focus stays on the sound just pressed.
+  await expect(focus.getByRole('button', { name: 'c', exact: true })).toBeFocused();
   await focus.getByRole('button', { name: 'c', exact: true }).click();
   await expect(focus.getByRole('button', { name: 'c', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Make a book' }).click();
@@ -144,6 +148,7 @@ test('make a new book: a printable story from the code, saved to the library', a
   const first = await made.getByRole('heading').textContent();
   await page.getByRole('button', { name: 'Shuffle' }).click();
   await expect(made.getByRole('heading')).not.toHaveText(first);
+  await expect(page.getByRole('button', { name: 'Shuffle' })).toBeFocused();
   await page.getByRole('radio', { name: '12 pages' }).check();
   await expect(made.locator('.made-pages li')).toHaveCount(10);
   // Every sentence uses only set 1 and 2 sounds and the tricky words the, is.
@@ -155,8 +160,10 @@ test('make a new book: a printable story from the code, saved to the library', a
   }
   await shot('make-a-book');
 
-  // The default layout is the booklet: 12 pages on six sides.
-  const booklet = await printWindow(page, made.getByRole('button', { name: 'Print', exact: true }));
+  // A new book prints as a booklet or flat; one button each, no third Print.
+  await expect(made.getByRole('button', { name: 'Print', exact: true })).toHaveCount(0);
+  // The booklet: 12 pages on six sides.
+  const booklet = await printWindow(page, made.getByRole('button', { name: 'Print booklet' }));
   await expect(booklet.locator('.sheet')).toHaveCount(6);
   await expect(booklet.locator('section.page')).toHaveCount(12);
   await expect(booklet.locator('.sheet').first()).toHaveAttribute('data-pages', '12,1');

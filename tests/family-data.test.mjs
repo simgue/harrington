@@ -599,6 +599,26 @@ describe('family data safety in the store', { concurrency: false }, () => {
     const badPrefs = JSON.parse(JSON.stringify(exported));
     badPrefs.reading[id].prefs.layout = 'scroll';
     assert.equal(store.inspectImport(badPrefs).ok, false);
+
+    // A picture the library does not draw is refused too, by import and by the
+    // server, so a saved book can never break the books page; an inherited
+    // name ("constructor") is not a picture either.
+    for (const kind of ['kite', 'constructor', '__proto__']) {
+      const odd = JSON.parse(JSON.stringify(exported));
+      odd.reading[id].library[0].book.cover = [{ kind }];
+      assert.equal(store.inspectImport(odd).ok, false, kind);
+      const current = await serverState();
+      const res = await realFetch(`${baseUrl}/api/state`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'If-Match': `"v${current.version}"` },
+        body: JSON.stringify({ ...current, reading: odd.reading, writeId: 'other-device' }),
+      });
+      assert.equal(res.status, 422, `the server refuses ${kind}`);
+    }
+    // A grapheme longer than normalizeReading keeps is refused, not dropped.
+    const long = JSON.parse(JSON.stringify(exported));
+    long.reading[id].graphemes = ['s', 'eighs'];
+    assert.equal(store.inspectImport(long).ok, false);
   });
 
   test('import replaces an older palette color and refuses any other color', async () => {

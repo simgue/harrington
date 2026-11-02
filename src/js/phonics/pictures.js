@@ -313,31 +313,128 @@ function tree(_opts, w) {
     ${union([circle(-36, -116, 32), circle(0, -146, 38), circle(36, -116, 32), circle(0, -104, 34)], w)}`;
 }
 
+// Added for the generator's focus sounds (chick, moth, bath, seat, leaf, pail,
+// jug, dish, rock, log, sock, sheep).
+function chick() {
+  return `<path d="M-8 -4 V2 M-8 2 L-14 5 M-8 2 L-2 5 M8 -4 V2 M8 2 L2 5 M8 2 L14 5" ${OPEN}/>
+    <ellipse cx="0" cy="-26" rx="26" ry="22" ${W}/>
+    <circle cx="-16" cy="-52" r="15" ${W}/>
+    <path d="M-30 -54 L-42 -50 L-30 -46 Z" ${W}/>
+    <path d="M-2 -30 Q10 -18 20 -30" ${OPEN}/>
+    ${dot(-19, -55, 2.8)}`;
+}
+
+function moth() {
+  return `<path d="M-4 -6 C-30 -44 -66 -40 -64 -12 C-62 8 -30 12 -4 2 Z" ${W}/>
+    <path d="M4 -6 C30 -44 66 -40 64 -12 C62 8 30 12 4 2 Z" ${W}/>
+    <path d="M-4 4 C-24 14 -40 30 -26 38 C-14 42 -4 26 -2 10 Z" ${W}/>
+    <path d="M4 4 C24 14 40 30 26 38 C14 42 4 26 2 10 Z" ${W}/>
+    <ellipse cx="0" cy="4" rx="7" ry="26" ${W}/>
+    <path d="M-3 -20 Q-10 -36 -18 -40 M3 -20 Q10 -36 18 -40" ${OPEN}/>
+    <circle cx="-34" cy="-16" r="8" ${W}/><circle cx="34" cy="-16" r="8" ${W}/>`;
+}
+
+function bath() {
+  return `<rect x="-96" y="-12" width="14" height="12" rx="4" ${W}/><rect x="82" y="-12" width="14" height="12" rx="4" ${W}/>
+    <rect x="80" y="-110" width="10" height="56" rx="3" ${W}/><path d="M90 -104 H104 V-92" ${OPEN}/>
+    <path d="M-110 -60 H110 V-52 C110 -26 92 -10 70 -10 H-70 C-92 -10 -110 -26 -110 -52 Z" ${W}/>
+    <path d="M-96 -46 Q-80 -40 -64 -46 T-32 -46 T0 -46 T32 -46 T64 -46 T96 -46" ${OPEN}/>`;
+}
+
+function seat() {
+  return `<rect x="-44" y="-130" width="12" height="80" rx="4" ${W}/>
+    <rect x="-44" y="-130" width="80" height="16" rx="6" ${W}/>
+    <rect x="-40" y="-56" width="12" height="56" rx="4" ${W}/><rect x="28" y="-56" width="12" height="56" rx="4" ${W}/>
+    <rect x="-50" y="-62" width="100" height="14" rx="5" ${W}/>`;
+}
+
+function leaf() {
+  return `<path d="M-54 6 C-40 -40 20 -54 58 -40 C46 0 -6 26 -54 6 Z" ${W}/>
+    <path d="M-54 6 C-20 -10 20 -26 58 -40 M-20 -6 L-14 -28 M6 -16 L14 -38 M-18 -4 L-2 6 M10 -16 L28 -6" ${OPEN}/>
+    <path d="M-54 6 L-70 16" ${OPEN}/>`;
+}
+
+function pail() {
+  return `<path d="M-38 -70 C-36 -112 36 -112 38 -70" ${OPEN}/>
+    <path d="M-44 -72 H44 L34 0 H-34 Z" ${W}/><path d="M-41 -54 H41" ${OPEN}/>
+    <circle cx="-42" cy="-70" r="5" ${W}/><circle cx="42" cy="-70" r="5" ${W}/>`;
+}
+
+function jug() {
+  return `<path d="M30 -70 C64 -70 64 -24 30 -22 L30 -34 C48 -36 48 -58 30 -58 Z" ${W}/>
+    <path d="M-34 -82 L-44 -94 H24 L30 -82 C40 -60 40 -20 30 0 H-34 C-44 -20 -44 -60 -34 -82 Z" ${W}/>
+    <path d="M-38 -64 H34" ${OPEN}/>`;
+}
+
+function dish() {
+  return `<ellipse cx="0" cy="-12" rx="70" ry="14" ${W}/>
+    <path d="M-70 -12 C-66 4 66 4 70 -12" ${OPEN}/>
+    <ellipse cx="0" cy="-14" rx="44" ry="7" ${W}/>`;
+}
+
+function rock() {
+  return `<path d="M-74 0 C-80 -30 -60 -58 -26 -64 C6 -72 50 -60 68 -36 C80 -20 78 -6 72 0 Z" ${W}/>
+    <path d="M-30 -40 Q-14 -48 0 -42 M24 -24 Q38 -30 48 -22" ${OPEN}/>`;
+}
+
+function sock() {
+  return `<path d="M-20 -60 H20 V-4 C20 20 6 30 -18 30 H-46 C-62 30 -66 8 -50 4 L-20 -4 Z" ${W}/>
+    <rect x="-24" y="-70" width="48" height="16" rx="5" ${W}/>
+    <path d="M-20 -30 H20" ${OPEN}/>`;
+}
+
+function log() {
+  return `<path d="M-80 -40 H70 V0 H-80 Z" ${W}/>
+    <ellipse cx="70" cy="-20" rx="12" ry="20" ${W}/><ellipse cx="70" cy="-20" rx="5" ry="9" ${W}/>
+    <ellipse cx="-80" cy="-20" rx="12" ry="20" ${W}/>
+    <path d="M-50 -30 H-10 M10 -12 H44" ${OPEN}/>`;
+}
+
+function sheep(_opts, w) {
+  return `<rect x="-40" y="-40" width="12" height="40" rx="5" ${W}/><rect x="-18" y="-40" width="12" height="40" rx="5" ${W}/>
+    <rect x="18" y="-40" width="12" height="40" rx="5" ${W}/><rect x="38" y="-40" width="12" height="40" rx="5" ${W}/>
+    ${union([circle(-30, -64, 24), circle(0, -76, 26), circle(30, -66, 24), circle(48, -50, 18), circle(-40, -46, 18), circle(8, -46, 24)], w)}
+    <ellipse cx="-62" cy="-74" rx="18" ry="22" ${W}/>
+    <path d="M-76 -92 C-90 -96 -94 -84 -80 -80 Z" ${W}/><path d="M-50 -94 C-38 -100 -32 -88 -46 -84 Z" ${W}/>
+    ${dot(-68, -78)}${dot(-56, -78)}<path d="M-66 -64 Q-62 -60 -58 -64" ${OPEN}/>`;
+}
+
 // ---- the library -------------------------------------------------------------
 // kind -> (options, stroke width at this scale) => markup in local units.
 export const PICTURES = {
   person, cat, dog, pig, hen, duck, frog, fish, bee,
   tap, cap: capThing, hat, map, mat, sun, bus, van, cup, pot, pan, bag, box, bed, ship, bell, cloud, tree,
+  chick, moth, bath, seat, leaf, pail, jug, dish, rock, log, sock, sheep,
 };
 
 export const PICTURE_KINDS = Object.keys(PICTURES);
 
 const num = (v, d) => (Number.isFinite(v) ? v : d);
 
+// True for a kind the library draws. An own property only, so a saved book
+// with kind "constructor" or "toString" is not a picture.
+export const isPictureKind = (kind) => typeof kind === 'string' && Object.hasOwn(PICTURES, kind);
+
 // One item as a group in scene coordinates. The stroke width is divided by the
-// scale so every line prints at the same weight.
+// scale so every line prints at the same weight. `tilt` turns the item
+// (degrees, clockwise) about its anchor: a pot tipped over.
 export function renderItem(item) {
+  if (!isPictureKind(item?.kind)) throw new Error(`No picture called "${item?.kind}"`);
   const draw = PICTURES[item.kind];
-  if (!draw) throw new Error(`No picture called "${item.kind}"`);
   const s = num(item.scale, 1);
   const w = +(STROKE / s).toFixed(3);
   const sx = item.flip ? -s : s;
-  return `<g transform="translate(${num(item.x, 200)} ${num(item.y, GROUND_Y)}) scale(${sx} ${s})" stroke="#000" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round">${draw(item, w)}</g>`;
+  const tilt = Number.isFinite(item.tilt) && item.tilt ? ` rotate(${item.tilt})` : '';
+  return `<g transform="translate(${num(item.x, 200)} ${num(item.y, GROUND_Y)})${tilt} scale(${sx} ${s})" stroke="#000" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round">${draw(item, w)}</g>`;
 }
 
-/** A scene (a list of items, drawn back to front) as an SVG string. */
+/**
+ * A scene (a list of items, drawn back to front) as an SVG string. An item
+ * the library cannot draw (a book saved by a newer version, or a hand-edited
+ * file) is left out rather than breaking the page it is on.
+ */
 export function renderScene(scene = [], { label = '' } = {}) {
-  const items = (Array.isArray(scene) ? scene : []).map(renderItem).join('');
+  const items = (Array.isArray(scene) ? scene : []).filter((item) => isPictureKind(item?.kind)).map(renderItem).join('');
   const aria = label ? ` role="img" aria-label="${String(label).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])}"` : ' aria-hidden="true"';
   return `<svg viewBox="0 0 ${VIEW_W} ${VIEW_H}" xmlns="http://www.w3.org/2000/svg"${aria}><path d="M8 ${GROUND_Y} H392" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>${items}</svg>`;
 }

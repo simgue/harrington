@@ -53,7 +53,7 @@ const style = (layout, fontBase) => `
 function cover(book, facts, ownerName) {
   return `<section class="page cover" data-page="1">
     <h1>${esc(book.title)}</h1>
-    <p class="sounds">${!(book.focus || []).length && facts.clusters ? 'Two consonants together' : `Sounds: ${esc(facts.focus.join(' '))}`}</p>
+    <p class="sounds">${esc(facts.coverLine)}</p>
     <div class="pic">${renderScene(book.cover || [], { label: book.title })}</div>
     <p class="owner">This book belongs to <span class="line">${ownerName ? esc(ownerName) : ''}</span></p>
   </section>`;

@@ -53,13 +53,22 @@ test('cover, numbered story pages and the back page', () => {
   assert.match(html, /<p class="text">Pat taps a tap\.<\/p>/);
   const back = html.slice(html.indexOf('class="page back"'));
   assert.match(back, /Sounds in this book<\/h2>\s*<p class="big">s a t p<\/p>/);
-  assert.match(back, /Words to sound out<\/h2>\s*<p class="words">a at pat sat tap taps<\/p>/);
+  // Names keep their capital, as the tip below says they are read.
+  assert.match(back, /Words to sound out<\/h2>\s*<p class="words">a at Pat sat tap taps<\/p>/);
   assert.doesNotMatch(back, /Tricky words/, 'no tricky words in this one');
   assert.match(back, /Reading it together/);
   const pip = bookPrintDocument(BANK.find((b) => b.title === 'Pip the cat'), { layout: 'flat', autoPrint: false });
   assert.match(pip, /Tricky words<\/h2><p class="words">the is<\/p>/);
   // Every page has its picture.
   assert.equal(html.match(/<svg /g).length, 7);
+});
+
+test('the cover lists only the practice sounds the book uses', () => {
+  // Asked to practice w and sh at set 7, a book that has no sh word says only w.
+  const asked = { ...tap, focus: ['s', 'sh', 'w'] };
+  assert.match(bookPrintDocument(asked, { autoPrint: false }), /<p class="sounds">Sounds: s<\/p>/);
+  // A focus it does not use at all: the cover lists the book's own sounds.
+  assert.match(bookPrintDocument({ ...tap, focus: ['ch'] }, { autoPrint: false }), /<p class="sounds">Sounds: s a t p<\/p>/);
 });
 
 test('the learner\'s name is on the cover only when given, and escaped', () => {

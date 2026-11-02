@@ -5,7 +5,7 @@
 // an AI provider and nothing is sent anywhere; the learner's name only
 // reaches the printed cover, when the parent asked for it.
 import * as store from '../store.js';
-import { el, esc, fmtDate, toast } from '../ui.js';
+import { el, esc, fmtDate, keepFocus, toast } from '../ui.js';
 import { BANK } from '../phonics/bank.js';
 import { generateBook } from '../phonics/generator.js';
 import { renderScene } from '../phonics/pictures.js';
@@ -21,10 +21,7 @@ const drafts = new Map();
 
 const ownerOf = (student, reading) => (reading.prefs.nameOnCover ? student.name : '');
 // "Sounds: ck sh", or for a book about adjacent consonants, that.
-const soundsOf = (book) => {
-  const facts = bookFacts(book);
-  return !(book.focus || []).length && facts.clusters ? 'Two consonants together' : `Sounds: ${facts.focus.join(' ')}`;
-};
+const soundsOf = (book) => bookFacts(book).coverLine;
 
 function bookCard(book, { student, reading, actions = ['booklet', 'flat', 'save'], muted = '', date = null, onRemove = null }) {
   const card = el(`<article class="${CARD} ${muted ? 'opacity-60' : ''}" data-book="${esc(book.id || '')}">
@@ -105,6 +102,9 @@ export function renderBooks(student, { navigate }) {
   return root;
 }
 
+// The view re-renders on every change; the focus stays on the control used.
+const redraw = () => { const restore = keepFocus(); store.redraw(); restore(); };
+
 function makeSection(student, reading, code) {
   const fallback = defaultFocus(reading);
   const draft = drafts.get(student.id) || { focus: fallback.graphemes, clusters: fallback.clusters, pages: 6, seed: 1, made: false };
@@ -120,8 +120,8 @@ function makeSection(student, reading, code) {
     <div class="${CARD} space-y-3">
       <fieldset><legend class="text-xs text-ink-faint mb-1.5">Sounds to practice</legend><div id="focus" class="flex flex-wrap gap-2"></div></fieldset>
       <fieldset><legend class="text-xs text-ink-faint mb-1.5">Length</legend><div class="flex gap-4">
-        <label class="inline-flex items-center gap-2 h-11 cursor-pointer"><input type="radio" name="len" value="6" class="accent-[#3f6b3b]" ${draft.pages === 6 ? 'checked' : ''}>8 pages</label>
-        <label class="inline-flex items-center gap-2 h-11 cursor-pointer"><input type="radio" name="len" value="10" class="accent-[#3f6b3b]" ${draft.pages === 10 ? 'checked' : ''}>12 pages</label>
+        <label class="inline-flex items-center gap-2 h-11 cursor-pointer"><input type="radio" name="len" id="len-8" value="6" class="accent-[#3f6b3b]" ${draft.pages === 6 ? 'checked' : ''}>8 pages</label>
+        <label class="inline-flex items-center gap-2 h-11 cursor-pointer"><input type="radio" name="len" id="len-12" value="10" class="accent-[#3f6b3b]" ${draft.pages === 10 ? 'checked' : ''}>12 pages</label>
       </div></fieldset>
       <div class="flex flex-wrap gap-2">
         <button id="make" class="${BTN} bg-brand text-white"><i data-lucide="sparkle" class="w-4 h-4"></i>Make a book</button>
@@ -134,25 +134,28 @@ function makeSection(student, reading, code) {
   if (!known.length) focusBox.appendChild(el(`<p class="text-xs text-ink-faint">Tick some sounds first.</p>`));
   for (const g of known) {
     const on = draft.focus.includes(g);
-    const b = el(`<button aria-pressed="${on}" class="min-w-[44px] h-11 px-2.5 rounded-xl border text-base font-600 ${on ? 'bg-brand-light border-brand' : 'bg-paper border-paper-line text-ink-soft'}">${esc(g)}</button>`);
+    const b = el(`<button id="focus-${esc(g)}" aria-pressed="${on}" class="min-w-[44px] h-11 px-2.5 rounded-xl border text-base font-600 ${on ? 'bg-brand-light border-brand' : 'bg-paper border-paper-line text-ink-soft'}">${esc(g)}</button>`);
     b.onclick = () => {
       draft.focus = on ? draft.focus.filter(x => x !== g) : [...draft.focus, g];
       draft.chosen = true;
-      store.redraw();
+      redraw();
     };
     focusBox.appendChild(b);
   }
-  section.querySelectorAll('input[name=len]').forEach(r => { r.onchange = () => { draft.pages = Number(r.value); if (draft.made) store.redraw(); }; });
-  section.querySelector('#make').onclick = () => { draft.made = true; store.redraw(); };
-  section.querySelector('#shuffle').onclick = () => { draft.seed += 1; store.redraw(); };
+  section.querySelectorAll('input[name=len]').forEach(r => { r.onchange = () => { draft.pages = Number(r.value); if (draft.made) redraw(); }; });
+  section.querySelector('#make').onclick = () => { draft.made = true; redraw(); };
+  section.querySelector('#shuffle').onclick = () => { draft.seed += 1; redraw(); };
 
   if (draft.made) {
-    const book = generateBook(code, { focus: draft.focus, focusClusters: draft.clusters && !draft.focus.length, pages: draft.pages, seed: draft.seed });
+    // The story leaves out any name a learner here has (read on this
+    // computer, never sent).
+    const avoidNames = store.get().students.map(s => s.name);
+    const book = generateBook(code, { focus: draft.focus, focusClusters: draft.clusters && !draft.focus.length, pages: draft.pages, seed: draft.seed, avoidNames });
     const out = section.querySelector('#made');
     if (!book) {
       out.appendChild(el(`<p class="text-sm text-ink-soft">Not enough sounds to write a story yet. Tick a few more on the reading setup (set 1 is enough to start).</p>`));
     } else {
-      const card = bookCard(book, { student, reading, actions: ['print', 'booklet', 'flat', 'save'] });
+      const card = bookCard(book, { student, reading, actions: ['booklet', 'flat', 'save'] });
       card.querySelector('.actions').before(el(`<ol class="made-pages text-sm text-ink mt-2 space-y-0.5 list-decimal pl-5">${book.pages.map(p => `<li>${esc(p.text)}</li>`).join('')}</ol>`));
       out.appendChild(card);
     }

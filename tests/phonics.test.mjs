@@ -3,13 +3,13 @@
 // booklet imposition (src/js/phonics/).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { allGraphemes, allTrickyWords, defaultTricky, deriveStage, makeCode, nextStage, sequenceById, stageSummary } from '../src/js/phonics/sequence.js';
-import { checkBook, checkText, hasCluster, parse, wordsOf } from '../src/js/phonics/decodability.js';
+import { allGraphemes, allTrickyWords, defaultTricky, deriveStage, DOUBLES, makeCode, nextStage, sequenceById, stageSummary } from '../src/js/phonics/sequence.js';
+import { checkBook, checkText, checkWord, hasCluster, parse, soundOf, wordsOf } from '../src/js/phonics/decodability.js';
 import { BANK } from '../src/js/phonics/bank.js';
-import { PICTURE_KINDS, PICTURES, renderItem, renderScene, STROKE, VIEW_H, VIEW_W } from '../src/js/phonics/pictures.js';
+import { isPictureKind, PICTURE_KINDS, PICTURES, renderItem, renderScene, STROKE, VIEW_H, VIEW_W } from '../src/js/phonics/pictures.js';
 import { acceptDraft, generateBook, NAMES, NOUNS, rng } from '../src/js/phonics/generator.js';
 import { bookletSheets, padToFour } from '../src/js/phonics/imposition.js';
-import { bookStage, booksFor, defaultFocus, describeMissing, knownCode, LAYOUTS, missingFor, normalizeReading, readingSummary, stageOf, trickyOf } from '../src/js/phonics/reading.js';
+import { bookFacts, bookStage, booksFor, defaultFocus, describeMissing, knownCode, LAYOUTS, missingFor, normalizeReading, readingSummary, stageOf, trickyOf } from '../src/js/phonics/reading.js';
 
 const seq = sequenceById();
 const SET1 = ['s', 'a', 't', 'p'];
@@ -90,12 +90,37 @@ test('parse: longest grapheme first, doubled consonants as one sound', () => {
   assert.deepEqual(parse('off', [...SET12, 'o']), ['o', 'ff']);
   assert.deepEqual(parse('bell', ['b', 'e', 'l']), ['b', 'e', 'll']);
   assert.deepEqual(parse('buzz', ['b', 'u', 'z']), ['b', 'u', 'zz']);
+  assert.deepEqual(parse('egg', ['e', 'g']), ['e', 'gg']);
+  assert.deepEqual(parse('add', ['a', 'd']), ['a', 'dd']);
+  assert.deepEqual(parse('odd', ['o', 'd']), ['o', 'dd']);
+  assert.deepEqual(parse('inn', ['i', 'n']), ['i', 'nn']);
+  assert.deepEqual(parse('ebb', ['e', 'b']), ['e', 'bb']);
+  assert.deepEqual(DOUBLES, ['ss', 'ff', 'll', 'zz', 'tt', 'pp', 'mm', 'bb', 'dd', 'gg', 'nn', 'rr']);
+  assert.ok(!DOUBLES.includes('cc'), 'cc is two sounds in accent');
+  assert.equal(soundOf('rr'), 'r');
   assert.equal(parse('tell', ['t', 'e']), null, 'll needs l');
   // A digraph the child does not know is not read as its letters.
   assert.equal(parse('ship', ['s', 'h', 'i', 'p']), null);
   assert.equal(parse('duck', ['d', 'u', 'c', 'k']), null);
   assert.equal(parse('mat', SET1), null);
   assert.equal(parse('Sat', SET1), null, 'parse takes lower case');
+});
+
+test('graphemes the sequence does not teach are not read letter by letter', () => {
+  const six = codeAt(6);
+  // oo oa ar or: one grapheme each, unknown, so the word fails at set 5 and 6.
+  for (const code of [codeAt(5), six]) {
+    for (const w of ['book', 'boat', 'car', 'for', 'of']) assert.equal(checkWord(w, code).ok, false, `${w} at set ${code === six ? 6 : 5}`);
+  }
+  assert.deepEqual(parse('book', allGraphemes()), null);
+  assert.deepEqual(parse('book', [...allGraphemes(), 'oo']), ['b', 'oo', 'k'], 'a parent who adds oo gets it');
+  assert.equal(checkWord('of', makeCode({ graphemes: allGraphemes(), tricky: ['of'] })).ok, true, 'of reads as a tricky word');
+  for (const w of ['term', 'turn', 'cow', 'out', 'coin', 'boy', 'high', 'pie', 'cue', 'new', 'saw', 'haul']) assert.equal(checkWord(w, codeAt(11)).ok, false, w);
+  // A vowel, a consonant and a final e is a split digraph, not three sounds.
+  for (const w of ['cake', 'like', 'home', 'cute', 'quake']) assert.equal(checkWord(w, six).ok, false, `${w} at set 6`);
+  assert.equal(checkWord('cake', makeCode({ graphemes: [...six.graphemes, 'a-e'] })).ok, true, 'a code with a-e reads cake');
+  // Not split digraphs: a final e alone, ee, a double before e, a digraph word.
+  for (const w of ['bee', 'tree', 'the', 'she']) assert.equal(checkWord(w, makeCode({ graphemes: allGraphemes(), clusters: true })).ok, true, w);
 });
 
 test('adjacent consonants need the clusters stage; a final -s does not count', () => {
@@ -203,7 +228,12 @@ test('booksFor lists books within the code, newest sounds first, and those just 
   const duck = BANK.find((b) => b.title === 'A duck on a ship');
   assert.equal(describeMissing(missingFor(duck, codeAt(6))), 'w ck sh');
   const frog = BANK.find((b) => b.title === 'Fred the frog');
-  assert.equal(describeMissing(missingFor(frog, makeCode({ graphemes: allGraphemes() }))), 'adjacent consonants; tricky: the is');
+  assert.equal(describeMissing(missingFor(frog, makeCode({ graphemes: allGraphemes() }))), 'adjacent consonants', 'the and is decode with every sound known');
+  assert.equal(describeMissing(missingFor(frog, makeCode({ graphemes: SET12, clusters: true }))).endsWith('tricky: the'), true, 'is decodes from i and s; the needs th');
+  // Every sound, adjacent consonants and an emptied tricky list: every book reads.
+  const full = makeCode({ graphemes: allGraphemes(), clusters: true, tricky: [] });
+  const { within: fullWithin, beyond: fullBeyond } = booksFor(full);
+  assert.equal(fullWithin.length, BANK.length, fullBeyond.map((b) => `${b.book.title}: ${describeMissing(b.missing)}`).join('; '));
 });
 
 // ---- pictures ------------------------------------------------------------------
@@ -239,25 +269,43 @@ test('pictures are outlines to color: black strokes, white fills, no color', () 
   const svg = renderScene([]);
   assert.match(svg, new RegExp(`viewBox="0 0 ${VIEW_W} ${VIEW_H}"`));
   assert.match(svg, /<path d="M8 262 H392"[^>]*stroke-width="1.5"/, 'a thin ground line');
-  assert.throws(() => renderScene([{ kind: 'dragon' }]), /No picture called "dragon"/);
+  assert.throws(() => renderItem({ kind: 'dragon' }), /No picture called "dragon"/);
+  // A scene from a newer version or a hand-edited file: unknown kinds are left
+  // out, never thrown, and an inherited name is not a picture.
+  assert.equal(renderScene([{ kind: 'kite' }]), renderScene([]));
+  assert.equal(renderScene([{ kind: 'constructor' }, { kind: 'toString' }, { kind: '__proto__' }, null, { kind: 'cat' }]), renderScene([{ kind: 'cat' }]));
+  assert.doesNotMatch(renderScene([{ kind: 'constructor' }]), /object Object/);
+  assert.equal(isPictureKind('constructor'), false);
+  assert.equal(isPictureKind('cat'), true);
+  // A tilted item turns about its anchor.
+  assert.match(renderItem({ kind: 'pot', x: 200, y: 200, tilt: 72 }), /translate\(200 200\) rotate\(72\) scale/);
   assert.match(renderScene([], { label: 'A <cat>' }), /aria-label="A &lt;cat&gt;"/);
 });
 
 // ---- generator -----------------------------------------------------------------
-test('the generator\'s books pass checkBook at every stage, over many seeds', () => {
+test('the generator\'s books pass checkBook at every stage, over many seeds and both lengths', () => {
   for (let n = 1; n <= seq.stages.length; n += 1) {
     const code = codeAt(n);
     const focus = seq.stages[n - 1].graphemes;
     for (let seed = 1; seed <= 60; seed += 1) {
-      const pages = seed % 2 ? 6 : 10;
-      const book = generateBook(code, { focus, seed, pages, focusClusters: !focus.length });
-      assert.ok(book, `stage ${n}, seed ${seed}: a book`);
-      assert.equal(book.pages.length, pages);
-      assert.deepEqual(checkBook(book, code).failing, [], `stage ${n}, seed ${seed}`);
-      for (const scene of [book.cover, ...book.pages.map((p) => p.scene)]) {
-        for (const item of scene) assert.ok(PICTURE_KINDS.includes(item.kind));
+      for (const pages of [6, 10]) {
+        const book = generateBook(code, { focus, seed, pages, focusClusters: !focus.length });
+        const at = `stage ${n}, seed ${seed}, ${pages} pages`;
+        assert.ok(book, `${at}: a book`);
+        assert.equal(book.pages.length, pages);
+        assert.deepEqual(checkBook(book, code).failing, [], at);
+        for (const scene of [book.cover, ...book.pages.map((p) => p.scene)]) {
+          for (const item of scene) assert.ok(PICTURE_KINDS.includes(item.kind));
+        }
+        assert.ok(NAMES.some((nm) => book.title.includes(nm.name)) || /^(The|A) /.test(book.title), book.title);
+        // The cover names only sounds the book uses.
+        const facts = bookFacts(book);
+        for (const g of facts.focus) assert.ok(facts.sounds.includes(g), `${at}: cover sound ${g} is in the book`);
+        // A clusters book has a word with adjacent consonants.
+        if (!focus.length) assert.ok(book.clusters, `${at}: a word with two consonants together`);
+        // No sentence twice once the code can say more than set 1.
+        if (n > 1) assert.equal(new Set(book.pages.map((p) => p.text)).size, pages, `${at}: no repeated page`);
       }
-      assert.ok(NAMES.some((nm) => book.title.includes(nm.name)) || /^(The|A) /.test(book.title), book.title);
     }
   }
 });
@@ -282,6 +330,12 @@ test('the generator is deterministic for a seed, favors the focus and needs some
     assert.ok(!JSON.stringify(book).includes('Rowan'));
   }
   assert.equal(rng(5)(), rng(5)());
+  // A story never uses a learner's first name (read on this computer only).
+  for (let seed = 1; seed <= 40; seed += 1) {
+    const book = generateBook(codeAt(5), { seed, avoidNames: ['Sam Smith', 'kim', 'Ben'] });
+    assert.ok(!/\b(Sam|Kim|Ben)\b/.test(JSON.stringify(book.pages.map((p) => p.text)) + book.title), `seed ${seed}`);
+  }
+  assert.equal(generateBook(makeCode({ graphemes: SET1 }), { avoidNames: ['Pat'] }), null, 'no name left to use');
   assert.ok(NOUNS.every((n) => PICTURE_KINDS.includes(n.pic)));
 });
 

@@ -10,6 +10,17 @@ export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// A control that re-renders its whole view (a tick, a toggle) would lose the
+// keyboard focus with the old DOM. keepFocus() notes the focused control by
+// its id or aria-label; the function it returns puts the focus back on the
+// same control in the new view, once that has rendered.
+export function keepFocus() {
+  const a = document.activeElement;
+  const label = a?.getAttribute?.('aria-label');
+  const sel = a?.id ? `#${CSS.escape(a.id)}` : label ? `[aria-label="${CSS.escape(label)}"]` : null;
+  return () => { if (sel) setTimeout(() => document.querySelector(sel)?.focus(), 0); };
+}
+
 let iconTimer = null;
 export function refreshIcons() {
   clearTimeout(iconTimer);

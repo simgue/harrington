@@ -11,7 +11,8 @@
 //     custom: { graphemes: [], tricky: [] },  the parent's own additions
 //     prefs: { nameOnCover: true, layout: 'booklet' | 'flat' },
 //     library: [{ id, savedAt, book }] }
-import { checkBook } from './decodability.js';
+import { checkBook, checkWord, wordsOf } from './decodability.js';
+import { NAMES } from './generator.js';
 import { BANK } from './bank.js';
 import { allGraphemes, DEFAULT_SEQUENCE, defaultTricky, deriveStage, makeCode, sequenceById, stageOfGrapheme, stageSummary, SEQUENCES } from './sequence.js';
 
@@ -92,11 +93,15 @@ export function bookStage(book, seq = sequenceById(DEFAULT_SEQUENCE)) {
   return n;
 }
 
-// What a book needs that the code does not have.
+// What a book needs that the code does not have. A tricky word is covered
+// when it is ticked, or when the child's sounds already decode it (a child
+// who knows th and e reads "the" without it being ticked).
 export function missingFor(book, code) {
+  const sounds = makeCode({ graphemes: code.graphemes, clusters: code.clusters });
+  const covered = (w) => code.tricky.has(w.toLowerCase()) || checkWord(w, sounds).ok;
   return {
     graphemes: inTeachingOrder((book.graphemes || []).filter((g) => !code.graphemes.has(g))),
-    tricky: (book.tricky || []).filter((w) => !code.tricky.has(w.toLowerCase())),
+    tricky: (book.tricky || []).filter((w) => !covered(w)),
     clusters: !!book.clusters && !code.clusters,
   };
 }
@@ -139,15 +144,41 @@ export function inTeachingOrder(graphemes) {
 
 /**
  * What a printed book lists: its sounds in teaching order, tricky words, the
- * words to sound out, and the sounds to show on the cover (its focus, or all
- * of them).
+ * words to sound out, and the sounds to show on the cover: the focus sounds
+ * the book's words actually use (a generated book asked to practice w may
+ * not have managed a w word), or all of its sounds when it uses none.
  */
 export function bookFacts(book) {
   const code = makeCode({ graphemes: book.graphemes || [], tricky: book.tricky || [], clusters: !!book.clusters });
   const result = checkBook(book, code);
   const sounds = inTeachingOrder(result.graphemes);
-  const focus = (book.focus || []).length ? inTeachingOrder(book.focus) : sounds;
-  return { ok: result.ok, sounds, focus, tricky: result.tricky, words: result.words, clusters: result.clusters };
+  const used = inTeachingOrder((book.focus || []).filter((g) => sounds.includes(g)));
+  const focus = used.length ? used : sounds;
+  // Names keep their capital on the back page ("Pip sat", so "Pip", not
+  // "pip"): a word never written in lower case that is a story name or is
+  // capitalized mid-sentence.
+  const names = namesIn(book);
+  const shown = result.words.map((w) => (names.has(w) ? w[0].toUpperCase() + w.slice(1) : w));
+  // The cover line: a book about adjacent consonants (no focus sounds) says so.
+  const coverLine = !(book.focus || []).length && result.clusters ? 'Two consonants together' : `Sounds: ${focus.join(' ')}`;
+  return { ok: result.ok, sounds, focus, coverLine, tricky: result.tricky, words: shown, clusters: result.clusters };
+}
+
+const STORY_NAMES = new Set(NAMES.map((n) => n.name.toLowerCase()));
+function namesIn(book) {
+  const lower = new Set();
+  const capital = new Set();
+  for (const text of [book.title, ...(book.pages || []).map((p) => p.text)]) {
+    const raw = String(text || '').split(/\s+/).filter(Boolean);
+    raw.forEach((token, i) => {
+      const [w] = wordsOf(token);
+      if (!w) return;
+      if (w[0] === w[0].toLowerCase()) { lower.add(w); return; }
+      const start = i === 0 || /[.!?]["'”’)]*$/.test(raw[i - 1]);
+      if (!start || STORY_NAMES.has(w.toLowerCase())) capital.add(w.toLowerCase());
+    });
+  }
+  return new Set([...capital].filter((w) => !lower.has(w)));
 }
 
 // The sets of the sequence with what the code knows of each, for the

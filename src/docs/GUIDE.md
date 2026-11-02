@@ -33,8 +33,10 @@ written version.
    calendar; with the month the age is exact. Edit a learner's name, birthday
    or color later with the pencil button in the learner selector.
 3. **Look around.** The sidebar (or the bottom bar on a phone) has
-   **Dashboard, Calendar, Map, Records** and **Insights**. **Guide** is in the
-   sidebar, or behind the book icon on a phone. The **child view** opens from
+   **Dashboard, Calendar, Map, Records** and **Insights**. The sidebar also
+   has **Reading & books** (on a phone, press **Reading** beside a learner in
+   the learner selector). **Guide** is in the sidebar, or behind the book icon
+   on a phone. The **child view** opens from
    the dashboard.
 
 Add or switch learners from the selector at the top of the sidebar (the round
@@ -336,11 +338,13 @@ leaves this computer.
 section lists the sounds in the order the school teaches them: set 1 is
 s a t p, set 2 i m f c, then o d g l, h b n v, e qu z r, u y j k,
 x w ck sh, ch th wh ng, then two consonants together (stop, mist), then
-ai ay and ee ea. Doubled letters (ss, ff, ll, zz, tt, pp, mm, cc) count as
-their single sound. Tick the sounds your child knows, or tick **Whole set**.
-The line at the top says where that puts them ("Reading at set 3. Next
-sounds: h b n v"). Nothing else stores a level: every book follows the ticks,
-so when your child learns a sound, tick it.
+ai ay and ee ea. Doubled letters (ss, ff, ll, zz, tt, pp, mm, bb, dd, gg,
+nn, rr) count as their single sound. A word with a sound the sequence has not
+reached (oo in book, ar in car, the e that changes cake) does not count as
+readable letter by letter. Tick the sounds your child knows, or tick
+**Whole set**. The line at the top says where that puts them ("Reading at
+set 3. Next sounds: h b n v"). Nothing else stores a level: every book
+follows the ticks, so when your child learns a sound, tick it.
 
 - **Find the level** shows one set at a time. Point to each sound, ask what it
   says, and tap the ones your child says straight away. **Done** fills the
@@ -360,8 +364,10 @@ shown faded with what they need ("needs: w ck sh").
 **Make a new book** writes a new six-sentence story (or ten, for a 12-page
 book) from the sounds your child knows, favoring the sounds you pick to
 practice (the newest set to start with). **Shuffle** writes another. Every
-word is checked against the ticks before the book is shown, and the story's
-names are made up, never your child's.
+word is checked against the ticks before the book is shown. The story's
+names come from a made-up list, and any that matches the first name of a
+learner in your family is left out (this is checked in the browser; nothing
+is sent). The cover lists the practice sounds the story actually uses.
 
 **Library** keeps the books you saved, to print again or remove.
 

@@ -681,7 +681,7 @@ scrolling sideways.
 
 | Topic | Records | Insights | List |
 | --- | --- | --- | --- |
-| ![Topic](screenshots/mobile/05-topic.jpg) | ![Records](screenshots/mobile/06-records.jpg) | ![Insights](screenshots/mobile/07-insights.jpg) | ![List](screenshots/mobile/09-list-section.jpg) |
+| ![Topic](screenshots/mobile/05-topic.jpg) | ![Records](screenshots/mobile/06-records.jpg) | ![Insights](screenshots/mobile/07-insights.jpg) | ![List](screenshots/mobile/12-list-section.jpg) |
 
 | Child view | Quest log | Guide | Learners |
 | --- | --- | --- | --- |

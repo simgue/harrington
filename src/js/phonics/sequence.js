@@ -49,9 +49,15 @@ export function sequenceById(id) {
   return SEQUENCES[id] || SEQUENCES[DEFAULT_SEQUENCE];
 }
 
-// Doubled consonants read as the single sound (miss, off, bell, buzz, mutt):
-// the double counts as known once its letter is.
-export const DOUBLES = ['ss', 'ff', 'll', 'zz', 'tt', 'pp', 'mm', 'cc'];
+// Doubled consonants read as the single sound (miss, off, bell, buzz, mutt,
+// egg, add, inn): the double counts as known once its letter is. Not cc,
+// which is two sounds in "accent".
+export const DOUBLES = ['ss', 'ff', 'll', 'zz', 'tt', 'pp', 'mm', 'bb', 'dd', 'gg', 'nn', 'rr'];
+
+// Common graphemes the sequence does not teach (yet). The checker segments
+// words against them too, so "book" is b-oo-k and fails, instead of passing
+// as b-o-o-k for a child who knows o.
+export const UNTAUGHT = ['oo', 'oa', 'ar', 'or', 'er', 'ur', 'ow', 'ou', 'oi', 'oy', 'igh', 'ie', 'ue', 'ew', 'aw', 'au'];
 
 // Every grapheme a sequence teaches, in teaching order.
 export function allGraphemes(seq = sequenceById(DEFAULT_SEQUENCE)) {

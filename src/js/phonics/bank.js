@@ -77,7 +77,7 @@ export const BANK = [
     pages: [
       { text: 'Dot is a dog.', scene: [it('dog', 210, GROUND_Y, 1.4)] },
       { text: 'Dot got a pot.', scene: [it('dog', 140, GROUND_Y, 1.1), it('pot', 300, GROUND_Y, 1)] },
-      { text: 'Dot tips the pot.', scene: [it('pot', 270, GROUND_Y, 1, {}), it('dog', 150, GROUND_Y, 1.1)] },
+      { text: 'Dot tips the pot.', scene: [it('pot', 262, GROUND_Y - 44, 1, { tilt: 72 }), it('dog', 150, GROUND_Y, 1.1)] },
       { text: 'Tom pats Dot.', scene: [person(120, { pose: 'sit', arms: 'pat' }, 1.05), it('dog', 290, GROUND_Y, 0.95)] },
       { text: 'Tom got a map.', scene: [person(110, { arms: 'out' }, 1.05), it('map', 290, 110, 0.75)] },
       { text: 'Dot! Sit, Dot!', scene: [person(100, { arms: 'out' }, 1), it('dog', 280, GROUND_Y, 1.1, { pose: 'sit' })] },

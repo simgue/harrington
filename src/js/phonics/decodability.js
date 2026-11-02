@@ -2,18 +2,45 @@
 // (HAR-45)? The one gate every book passes through: the built-in bank (a unit
 // test), the generator (before it returns a book) and, later, any drafted
 // text. No DOM; importable from Node.
-import { allGraphemes, DOUBLES } from './sequence.js';
+import { allGraphemes, DOUBLES, UNTAUGHT } from './sequence.js';
 
 // Words are split into graphemes the way they are taught: longest grapheme
-// first, among every grapheme of the sequence (and the child's own extras),
-// whether or not the child knows it yet. So "ship" is sh-i-p, never s-h-i-p,
+// first, among every grapheme of the sequence, the common ones it does not
+// teach (UNTAUGHT) and the child's own extras, whether or not the child knows
+// it yet. So "ship" is sh-i-p, never s-h-i-p, "book" is b-oo-k, never b-o-o-k,
 // and a child who knows s and h but not sh cannot "read" it by accident.
-const UNIVERSE = [...new Set([...allGraphemes(), ...DOUBLES])];
+const UNIVERSE = [...new Set([...allGraphemes(), ...DOUBLES, ...UNTAUGHT])];
+
+// Words whose letters segment into known sounds but are not said that way
+// ("of" is not o-f), so they read only as tricky words.
+const IRREGULAR = new Set(['of']);
+
+// A vowel, one consonant and a final e (cake, like, home, cute): the e
+// changes the vowel, a split digraph. Readable only when the code has that
+// split digraph, written a-e, i-e and so on.
+function splitDigraph(parts) {
+  const n = parts.length;
+  if (n < 3 || parts[n - 1] !== 'e') return null;
+  const [v, c] = [parts[n - 3], parts[n - 2]];
+  if (!/^[aeiou]$/.test(v) || isVowel(c) || c.length > 2 || DOUBLES.includes(c)) return null;
+  return `${v}-e`;
+}
 
 const isVowel = (part) => part !== 'qu' && /[aeiou]/.test(part);
 
-function segment(word, extra) {
+// The segmentation list for a set of extras, longest first, kept per code
+// (and made again if that set has changed size since).
+const lists = new WeakMap();
+function universeWith(extra) {
+  const kept = lists.get(extra);
+  if (kept && kept.size === extra.size) return kept.list;
   const list = [...new Set([...UNIVERSE, ...extra])].sort((a, b) => b.length - a.length);
+  lists.set(extra, { size: extra.size, list });
+  return list;
+}
+
+function segment(word, extra) {
+  const list = universeWith(extra);
   const parts = [];
   let i = 0;
   while (i < word.length) {
@@ -27,7 +54,7 @@ function segment(word, extra) {
   return parts;
 }
 
-// A doubled consonant (ss ff ll zz tt pp mm cc) is the sound of its letter.
+// A doubled consonant (ss ff ll zz …) is the sound of its letter.
 export const soundOf = (part) => (DOUBLES.includes(part) ? part[0] : part);
 
 /**
@@ -69,8 +96,10 @@ export function checkWord(raw, code) {
   // A capitalized name reads like any other word: P-a-t, Pat.
   const word = raw.toLowerCase();
   if (code.tricky.has(word)) return { ok: true, word, tricky: true, parts: null };
+  if (IRREGULAR.has(word)) return { ok: false, word, tricky: false, parts: null };
   const parts = parse(word, code.graphemes);
-  const ok = !!parts && (code.clusters || !hasCluster(parts));
+  const split = parts && splitDigraph(parts);
+  const ok = !!parts && (!split || code.graphemes.has(split)) && (code.clusters || !hasCluster(parts));
   return { ok, word, tricky: false, parts };
 }
 
