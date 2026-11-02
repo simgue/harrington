@@ -3,18 +3,18 @@
 Written 2 November 2026 by the outgoing product-manager agent (a Claude Code
 session) for the incoming PM agent. It is a working document, not marketing:
 read it top to bottom once, then keep `docs/`, Linear and `CHANGELOG.md` as the
-living sources.
+living sources. If you read one section first, read §11.
 
 ## 1. Cutover state
 
 | Item | State at handover |
 |---|---|
-| `main` | `d70becb` (the PR #59 merge; CI green: `isolation`, `e2e`, `image`) plus the merge of this document |
+| `main` | `d70becb` (the PR #59 merge, CI green when this document merged) plus the merge of this document |
 | Open pull requests of ours | none (`#4` is a stale pre-existing draft from another tool; leave it or close it, it has no value) |
 | Linear | HAR-66 Done, HAR-45 In Progress (slice B open as HAR-67), HAR-34 and HAR-35 In Review awaiting the owner, HAR-11 In Progress (old, see §8) |
 | Dev sessions | all archived; nothing running |
 | Scheduled check-ins of the outgoing PM | cancelled at cutover |
-| Owner's machine | runs `main` from the repo on a MacBook Pro (M4 Pro, 48 GB); restarts the server by hand after `git pull` |
+| Owner's machine | runs `main` from the repo on a MacBook Pro; restarts the server by hand after `git pull` |
 
 Everything the owner asked for up to the handover is on `main`. The last
 merges were:
@@ -23,7 +23,7 @@ merges were:
 |---|---|---|
 | #59 | d70becb | Decodable books in the app (HAR-66): per-learner Reading setup keyed off the known code, book bank, template generator, print view, library |
 | #58 | 50d2a7f | Lockfile-only `npm audit fix` (dev tooling) |
-| #57 | 0988659 | CLI decodable books: black text, colour-in pictures, review fixes |
+| #57 | 0988659 | CLI decodable books: black text, color-in pictures, review fixes |
 | #56 | 52fcf45 | CLI decodable books generator, first version |
 | #55 | 1f82528 | Synology runbook, non-root Docker image, compose `.env`, CI `image` job |
 | #54 | 5929e88 | Printable teaching guides |
@@ -32,6 +32,21 @@ merges were:
 | #50 | 3dcb82e | Teaching guides from Marble's research, no-AI fallback |
 | #52 | 85569f4 | Taxonomy refresh to Marble's 24 Oct 2026 revision, integrity pin, Geography |
 | #37 | 6467eff | AI provider decision and in-app provider settings (HAR-26) |
+
+### 1.1 Terms and access
+
+- **Marble**: the publisher of the Skill Taxonomy and the teaching research
+  Harrington uses (`withmarbleapp/os-taxonomy` on GitHub), CC BY-SA 4.0.
+- **Antigravity**: the environment the incoming PM runs in. The outgoing PM
+  ran in Claude Code cloud sessions; where this document names a tool that
+  exists only there, it says so.
+- **Remote Control**: the Claude desktop feature that lets a cloud agent run
+  commands in a folder on the owner's Mac. The Synology task needs an
+  equivalent, or the owner at the keyboard.
+- **Access**: the owner grants GitHub access to `simgue/harrington` and Linear
+  access to team `Harrington`. In Claude Code cloud sessions GitHub's GraphQL
+  is blocked, so `gh pr list` and `gh pr view` fail with 403; `gh api` REST
+  calls work and this document uses them.
 
 ## 2. What Harrington is
 
@@ -90,7 +105,7 @@ Map of the code:
   layout needs "double-sided, flip on the short edge".
 - They do not yet know each child's phonics level; the app's Reading setup and
   "Find the level" helper were built for that.
-- Time zone: Melbourne. Expect messages at Australian morning and evening.
+- Time zone: Australian Eastern. Expect messages in that morning and evening.
 - Asks still open from them (chase gently when relevant): each child's current
   sounds; whether the cover should print the child's name (the app defaults to
   on, local only); the priming questions (geology region, what a quest
@@ -119,7 +134,7 @@ tests or review. Break none of them.
 5. Never paste the owner's API key anywhere, never ask for it in chat.
 6. Downloads from the internet go in their own empty directory and are never
    executed; Python that reads them runs with `-I`.
-7. Licences: the ACARA notice appears verbatim wherever Australian Curriculum
+7. Licenses: the ACARA notice appears verbatim wherever Australian Curriculum
    text shows; Marble's teaching research shows its caveat verbatim from the
    pinned index plus the CC BY-SA 4.0 credit; no Colorfigures links or credit
    text inside the app (MIT notice in source only); the figure contract forbids
@@ -142,7 +157,8 @@ reviewers, gates, merges, keeps Linear and the owner informed.
   draft PR against `main`, PR template filled from the diff. Sessions have
   been Claude Opus; use whatever Antigravity offers at that tier.
 - Branch names: `simonguerin/<short-topic>` (Linear's suggested names also
-  work). Draft PRs. PR body says `Part of HAR-N` or `Closes HAR-N` honestly.
+  work). Draft PRs. The PR body says `Closes HAR-N` or `Related: HAR-N`
+  (`docs/LINEAR.md`); `Closes` only when the ticket is finished by that PR.
 - If a session dies on a usage limit, re-fire it with the same brief. The
   account has shown a seven-day limit warning at handover.
 
@@ -154,7 +170,7 @@ The review is written to a file (`review-prNN.md`, later rounds
 Nit, the checks run with counts, and a last line `VERDICT: MERGE` or
 `VERDICT: FIX-FIRST`. The reviewer runs the code: unit tests, the relevant e2e
 specs on a separate port base, renders print output to images and looks at
-every page, reproduces claimed behaviour, traces data paths for privacy.
+every page, reproduces claimed behavior, traces data paths for privacy.
 
 Review decisions already made (do not relitigate):
 
@@ -182,7 +198,10 @@ folder).
 Merge only when all three hold:
 
 1. the review verdict is MERGE on the exact head;
-2. GitHub CI is green on that head (`isolation`, `e2e`, `image`);
+2. GitHub CI is green on that head: `isolation` and `image` from
+   `.github/workflows/test.yml`, and `e2e` from `.github/workflows/e2e.yml`.
+   The e2e workflow skips docs-only changes (`paths-ignore: docs/**` and
+   `**/*.md`), so a docs-only PR legitimately shows only the first two;
 3. a local full-suite gate passed on that exact head merged with the current
    `main`: `npm test` (build plus unit) and `npm run e2e` (all projects).
 
@@ -199,11 +218,16 @@ git fetch origin main "+refs/pull/$N/head:refs/remotes/origin/pr/$N"
 git worktree add --detach /tmp/wt-pr$N origin/pr/$N
 cd /tmp/wt-pr$N && git merge --no-edit origin/main      # conflict = stop
 npm ci                                                  # own node_modules
-npm test                                                # build + unit
-rm -rf tests/e2e/.cache
 E2E_CHROMIUM=/opt/pw-browsers/chromium E2E_PORT_BASE=4310 E2E_SCREENSHOTS=0 npm run e2e
+# e2e first: it fills tests/e2e/.cache with the pinned taxonomy files, which
+# the unit pin tests need. With CI=1 those tests fail when the cache is
+# missing instead of skipping, which is what GitHub's isolation job does.
+CI=1 npm test                                           # build + unit
 
-# Un-draft and merge (REST cannot un-draft; this endpoint can)
+# Un-draft, then merge. REST cannot un-draft. The ccr/ready_for_review
+# endpoint exists only inside Claude Code cloud sessions; elsewhere press
+# "Ready for review" in the GitHub UI or use the GraphQL mutation
+# markPullRequestReadyForReview.
 gh api -X POST "repos/simgue/harrington/pulls/$N/ccr/ready_for_review"
 gh api -X PUT "repos/simgue/harrington/pulls/$N/merge" -f sha="$SHA" -f merge_method=merge
 ```
@@ -248,7 +272,7 @@ Pitfalls met more than once:
   replies, new pushes, Remote Control availability for the NAS task). When a
   dev session is running: every 45 to 75 minutes. Re-arm before ending a turn.
 - Archive finished sessions. Keep a running log of merges, verdicts and owner
-  asks; the outgoing PM's log was in scratch space and is summarised here.
+  asks; the outgoing PM's log was in scratch space and is summarized here.
 
 ## 6. Features the owner is actively using
 
@@ -260,12 +284,13 @@ node tools/decodable-books/make-books.mjs decodable-books
 open decodable-books
 ```
 
-Needs `@fontsource/andika` installed with `npm install --no-save
-@fontsource/andika`; `npm install` or `npm ci` removes it again and the script
-prints the one-line fix. The script finds the Mac's Chrome on its own;
+Since PR #59 the reading font `@fontsource/andika` is a devDependency, so a
+normal `npm install` provides it. A checkout older than #59 had it as a
+`--no-save` install that the next install removed; the script then prints
+the one-line fix. The script finds the Mac's Chrome on its own;
 `CHROME=<path>` overrides. Output: three books, each as an A4 booklet (file
 name carries "print-double-sided-short-edge-flip") and a flat A5 copy, black
-text and black outline pictures for colouring. The script deletes only the
+text and black outline pictures for coloring. The script deletes only the
 exact file names it writes.
 
 ### 6.2 Decodable books, in the app (PR #59)
@@ -292,7 +317,7 @@ exact file names it writes.
   name gets a self-contradicting message; the refusal for an unknown picture
   kind is generic and a restore from a newer version is refused whole; some
   generated sentences are stilted; no split digraphs in the generator; names
-  in the CLI back-page word list; two sub-millimetre unclosed regions and
+  in the CLI back-page word list; two sub-millimeter unclosed regions and
   two line tangles in the CLI pictures.
 
 ### 6.3 Teaching guides and printable guides
@@ -315,9 +340,10 @@ lessons. The owner's lesson-quality log for HAR-26 is theirs to run.
 
 ## 7. Infrastructure
 
-- CI: `.github/workflows/test.yml`, `ubuntu-24.04` runners pinned, Node 20,
-  jobs `isolation` (taxonomy check, `npm test`), `e2e`, `image` (builds the
-  Docker image, asserts uid 1000, health, a save, static files).
+- CI: `ubuntu-24.04` runners pinned, Node 20. `.github/workflows/test.yml`
+  runs `isolation` (taxonomy check, `npm test`) and `image` (builds the Docker
+  image, asserts uid 1000, health, a save, static files);
+  `.github/workflows/e2e.yml` runs `e2e` and skips docs-only changes.
 - Taxonomy: pinned to Marble revision
   `7bd8b6794cb78d9ca18216adb935f3cfd59cf5ac` with SHA-256 per file in
   `lib/taxonomy-pin.mjs`; `npm run taxonomy:check`; `/api/health` reports
@@ -366,18 +392,20 @@ Closed security gaps: G10 (HAR-55) and G13 (HAR-58).
 
 - **Synology deployment (asked explicitly: "go ahead and set it up on the
   synology").** The runbook is `docs/DEPLOYMENT.md`, section "Synology
-  (Container Manager)", written against DSM 7.4.1 with "(unchecked on DSM)"
-  markers that must be replaced by observed values once someone runs it. The
-  NAS is a DS920+ (Intel Celeron J4125, 8 GB) on the home LAN; the address,
-  admin user and serial stay with the owner and are not recorded here. A cloud
-  agent cannot reach the LAN. What the owner must do first: share the
+  (Container Manager)", written for DSM 7.2 or later and not yet checked on
+  a real NAS: its "(unchecked on DSM)" markers must be replaced by observed
+  values once someone runs it. The owner reports DSM 7.4.1. The NAS is a
+  Synology on the home LAN; its model, address, admin user and serial stay
+  with the owner and are not recorded here. A cloud agent cannot reach the
+  LAN. What the owner must do first: share the
   `harrington` folder on the Mac with the agent's remote-control feature,
   enable SSH on DSM, run `ssh-copy-id <admin>@<nas>` from the Mac, and give
   the admin user name. Then follow the runbook over SSH from the Mac:
   Container Manager, Git Server and Tailscale packages; clone to
   `/volume1/docker/harrington`; a Project with the bind mount and the `.env`
-  token; `tailscale serve --bg https / http://127.0.0.1:4173`; the
-  `configure-host` boot task; Export and Import of the family data; re-enter
+  token; the `tailscale serve` command exactly as step 6 of the runbook
+  gives it (the binary is not on the PATH on DSM); the `configure-host` boot
+  task; Export and Import of the family data; re-enter
   the AI provider. The owner handles the Tailscale sign-in link.
 - Owner answers listed in §3.
 
@@ -388,8 +416,9 @@ Closed security gaps: G10 (HAR-55) and G13 (HAR-58).
   do not re-brief from memory; keep briefs in the ticket or a file.
 - The owner runs an older server process after pulling without restarting;
   the format-N toast is the symptom.
-- `npm install` on the Mac removes the `--no-save` Andika font the CLI books
-  need (the app's bundled copy is unaffected).
+- A checkout older than PR #59 had the CLI's Andika font as a `--no-save`
+  install that `npm install` removed; since #59 it is a devDependency and a
+  normal install keeps it. The app's own bundled copy was never affected.
 - Any change to the family document shape must keep old documents loading
   (migrations in `schema.js`, validation in `document.js` that refuses
   malformed input without throwing in a view: HAR-38 rule).
@@ -397,7 +426,7 @@ Closed security gaps: G10 (HAR-55) and G13 (HAR-58).
   `npm run build:css` rather than resolving its conflicts by hand.
 - Marble may move its taxonomy again; `taxonomy:check` and `/api/health` tell
   you. Refreshing the pin is a deliberate PR (see #52 for the shape: retired
-  topics archived, new subjects given a colour, standards re-trimmed).
+  topics archived, new subjects given a color, standards re-trimmed).
 
 ## 11. Suggested first week
 
@@ -415,8 +444,8 @@ Closed security gaps: G10 (HAR-55) and G13 (HAR-58).
 
 ## 12. Who did what (for context, no action)
 
-The outgoing PM session ran from 27 October to 2 November 2026: twelve merges,
-each with an independent review and a local gate, three dev waves (taxonomy
+The outgoing PM session ran from 26 October to 2 November 2026: the eleven
+pull requests in §1's table, each with an independent review and a local gate, three dev waves (taxonomy
 refresh and Marble research, Australian Curriculum and printable guides,
 deployment and decodable books), and the owner's setup questions (Mac spec,
 LM Studio, Gemini model, Synology). Nothing is left half-done on a branch.
