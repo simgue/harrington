@@ -8,6 +8,7 @@ import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 import { getData, isCurrentTopic } from './data.js';
 import { pruneDismissed } from './alert-dismissals.js';
 import { normalizeSession } from './levelset.js';
+import { LIBRARY_MAX, normalizeReading } from './phonics/reading.js';
 import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
 import { CURRICULUM_ID, learnerYear, normalizeYear } from './curriculum.js';
 
@@ -44,6 +45,7 @@ let state = {
   interests: {},      // studentId -> { chips: [label], text: '' }  (what the learner is into, parent-entered)
   requests: {},       // studentId -> [ {id, text, createdAt, topicId|null} ]  (topic finder log, newest first)
   levelset: {},       // studentId -> { lanes: { literacy|numeracy: session }, observe: [topicId] }  (level-set workbook)
+  reading: {},        // studentId -> { graphemes, clusters, tricky, custom, prefs, library }  (decodable books, phonics/reading.js)
   graphView: 'atlas', // 'atlas' (visual map) | 'list' (card drill-down)
   settings: {},       // family-wide: { parentPinHash, parentPinSalt, calendar: { homeDays:[0-6], breaks:[{start, end, label}] } }
 };
@@ -51,6 +53,9 @@ let state = {
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 function emit() { listeners.forEach(fn => fn(state)); }
 export function get() { return state; }
+// Re-renders the current view without saving: for state a view keeps for
+// itself, such as the book being made (views/books.js).
+export function redraw() { emit(); }
 
 // ---- Server connection ----
 // From /api/health; kept out of the persisted state.
@@ -1486,6 +1491,33 @@ export function setInterests(studentId, interests, { quiet = false } = {}) {
   persist();
   if (!quiet) emit();
   return interestsFor(studentId);
+}
+
+// ---- Reading setup and book library (HAR-45) ----
+// Always the complete setup (phonics/reading.js normalizeReading), a copy.
+export function readingFor(studentId) {
+  return normalizeReading(state.reading[studentId]);
+}
+// `patch` replaces the fields it names. quiet: save without re-rendering, for
+// a tick that updates its own row.
+export function setReading(studentId, patch, { quiet = false } = {}) {
+  state.reading[studentId] = normalizeReading({ ...readingFor(studentId), ...patch });
+  persist();
+  if (!quiet) emit();
+  return readingFor(studentId);
+}
+// Saves a copy of a book (bank or made) to the learner's library, newest
+// first. Returns the entry, or null when the library is full.
+export function saveBookToLibrary(studentId, book, { now = Date.now() } = {}) {
+  const cur = readingFor(studentId);
+  if (cur.library.length >= LIBRARY_MAX) return null;
+  const entry = { id: `book_${now.toString(36)}_${Math.random().toString(36).slice(2, 7)}`, savedAt: now, book: JSON.parse(JSON.stringify(book)) };
+  setReading(studentId, { library: [entry, ...cur.library] });
+  return entry;
+}
+export function removeFromLibrary(studentId, entryId) {
+  const cur = readingFor(studentId);
+  setReading(studentId, { library: cur.library.filter(e => e.id !== entryId) });
 }
 
 // ---- Topic requests (what the parent asked the topic finder) ----

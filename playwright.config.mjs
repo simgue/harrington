@@ -50,7 +50,7 @@ const mobile = {
 };
 
 // Files with a project of their own; the desktop project runs everything else.
-const SPECIAL = /(^|[\\/])(api|no-ai|observation|levelset|ai-unreachable|lessons-only|settings|mobile|walkthrough|walkthrough-mobile)\.spec\.mjs$/;
+const SPECIAL = /(^|[\\/])(api|no-ai|observation|levelset|books|ai-unreachable|lessons-only|settings|mobile|walkthrough|walkthrough-mobile)\.spec\.mjs$/;
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -120,7 +120,7 @@ export default defineConfig({
       testIgnore: SPECIAL,
       use: { ...desktop, baseURL: URLS.appAi },
     },
-    { name: 'no-ai', testMatch: /(^|[\\/])(no-ai|routes|observation|levelset)\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appNoAi } },
+    { name: 'no-ai', testMatch: /(^|[\\/])(no-ai|routes|observation|levelset|books)\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appNoAi } },
     { name: 'ai-unreachable', testMatch: /(^|[\\/])ai-unreachable\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appAiUnreachable } },
     { name: 'lessons-only', testMatch: /(^|[\\/])lessons-only\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appLessonsOnly } },
     { name: 'settings', testMatch: /(^|[\\/])settings\.spec\.mjs$/, use: { ...desktop, baseURL: URLS.appSettings } },

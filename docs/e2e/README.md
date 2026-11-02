@@ -176,8 +176,8 @@ runs, mostly from smooth scrolling, hover styles and a different learner id
 large change in an image whose screen did not change, treat it as a bug in
 the spec or in `settle()`.
 
-**Size budget.** Screenshots stay under 8 MB in total (91 images, about
-4.9 MB today). Full-page captures are written at JPEG quality 55 and the
+**Size budget.** Screenshots stay under 10 MB in total (139 images, about
+8.9 MB today). Full-page captures are written at JPEG quality 55 and the
 rest at 70; a long page (2,000 to 2,900 px tall, such as the topic page or
 the dashboard) still comes to 150 to 210 KB. Videos are never committed: the three walkthroughs are about
 14 MB together and `e2e:ui-docs` produces about 40 MB for every test, so they

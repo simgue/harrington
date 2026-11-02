@@ -17,6 +17,8 @@ const ROUTES = [
   ['insights', 'insights'],
   ['settings', 'settings'],
   ['levelset', `levelset/${LEARNERS.rowan.id}`],
+  ['reading', `learner/${LEARNERS.rowan.id}`],
+  ['books', `learner/${LEARNERS.rowan.id}/books`],
 ];
 
 for (const [name, hash] of ROUTES) {

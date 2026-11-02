@@ -8,10 +8,11 @@
 
 import { HASH_PATTERN, SALT_PATTERN } from './pin.js';
 import { curriculumProblem } from './curriculum.js';
+import { isPictureKind } from './phonics/pictures.js';
 
 // Per-learner maps keyed by learner id.
 export const LEARNER_KEYS = ['progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
-  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests', 'requests', 'levelset'];
+  'suggestions', 'recall', 'practice', 'activity', 'game', 'daily', 'interests', 'requests', 'levelset', 'reading'];
 
 // Every top-level key the app saves, in one list: the store's snapshot sends
 // these, its documentFields() reads them back and a conflict compares them, so
@@ -273,6 +274,53 @@ function levelsetProblem(levelset) {
   return null;
 }
 
+// The reading setup and book library (HAR-45, phonics/reading.js) per
+// learner: lists of short words, two preferences and saved books. Each saved
+// book is checked down to its page texts and picture items, the parts the
+// print view reads; a book is small (at most 16 pages).
+const READING_LIST_MAX = 400;
+const BOOK_TEXT_MAX = 300;
+// The limits normalizeReading keeps to (reading.js GRAPHEME_MAX, WORD_MAX), so
+// a file is refused rather than silently losing what normalize would drop.
+const GRAPHEME_MAX = 4;
+const WORD_MAX = 20;
+const strings = (v, max) => Array.isArray(v) && v.length <= READING_LIST_MAX && v.every(x => typeof x === 'string' && x.length <= max);
+const sceneOk = (scene) => Array.isArray(scene) && scene.length <= 12
+  && scene.every(item => isObject(item) && isPictureKind(item.kind)
+    && ['x', 'y', 'scale', 'tilt'].every(k => absent(item[k]) || isFiniteNumber(item[k])));
+function savedBookProblem(entry) {
+  if (!isObject(entry) || typeof entry.id !== 'string' || !entry.id || entry.id.length > 80) return true;
+  if (!absent(entry.savedAt) && !isFiniteNumber(entry.savedAt)) return true;
+  const b = entry.book;
+  if (!isObject(b) || typeof b.title !== 'string' || b.title.length > BOOK_TEXT_MAX) return true;
+  if (!Array.isArray(b.pages) || !b.pages.length || b.pages.length > 16) return true;
+  if (!b.pages.every(p => isObject(p) && typeof p.text === 'string' && p.text.length <= BOOK_TEXT_MAX && (absent(p.scene) || sceneOk(p.scene)))) return true;
+  if (!absent(b.cover) && !sceneOk(b.cover)) return true;
+  for (const key of ['graphemes', 'focus']) if (!absent(b[key]) && !strings(b[key], GRAPHEME_MAX)) return true;
+  if (!absent(b.tricky) && !strings(b.tricky, WORD_MAX)) return true;
+  return false;
+}
+function readingProblem(reading) {
+  const shape = 'The file\'s reading setup is not in the expected shape.';
+  for (const value of Object.values(reading || {})) {
+    if (absent(value)) continue;
+    if (!isObject(value)) return shape;
+    if (!absent(value.graphemes) && !strings(value.graphemes, GRAPHEME_MAX)) return shape;
+    if (!absent(value.tricky) && !strings(value.tricky, WORD_MAX)) return shape;
+    if (!absent(value.clusters) && typeof value.clusters !== 'boolean') return shape;
+    if (!absent(value.sequence) && typeof value.sequence !== 'string') return shape;
+    if (!absent(value.custom) && !(isObject(value.custom)
+      && (absent(value.custom.graphemes) || strings(value.custom.graphemes, GRAPHEME_MAX))
+      && (absent(value.custom.tricky) || strings(value.custom.tricky, WORD_MAX)))) return shape;
+    if (!absent(value.prefs) && !(isObject(value.prefs)
+      && (absent(value.prefs.nameOnCover) || typeof value.prefs.nameOnCover === 'boolean')
+      && (absent(value.prefs.layout) || ['booklet', 'flat'].includes(value.prefs.layout)))) return shape;
+    if (!absent(value.library) && !(Array.isArray(value.library) && value.library.length <= 100)) return shape;
+    if ((value.library || []).some(savedBookProblem)) return 'A saved book in the file\'s reading library is not in the expected shape.';
+  }
+  return null;
+}
+
 // From data format 2 (schema.js step 1 -> 2) the child-view PIN is kept only
 // as a salted hash (pin.js); a plain PIN belongs to formats 0 and 1.
 const PIN_HASHED_FROM_SCHEMA = 2;
@@ -340,6 +388,7 @@ export function validateDocument(doc) {
     || interestsProblem(doc.interests)
     || listsProblem(doc, 'requests', 'topic request', requestProblem)
     || levelsetProblem(doc.levelset)
+    || readingProblem(doc.reading)
     || settingsProblem(doc.settings, doc.schemaVersion);
 }
 

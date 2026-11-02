@@ -7,6 +7,29 @@ tagged a release yet; everything below is on `main`.
 ## [Unreleased]
 
 ### Added
+- Decodable books (HAR-45), with no AI provider. A learner's **Reading**
+  section (sidebar **Reading & books**, or **Reading** in the learner
+  selector) holds their known code: the sounds of the school's sequence they
+  read (ticked one by one or a set at a time, or with **Find the level**), the
+  tricky words (the default list follows the sounds until edited), their own
+  sounds and words, and print preferences. The stage is worked out from the
+  ticks and never stored. **Books for …** (`#learner/<id>/books`) lists the
+  built-in books within the code (twelve, at least one per set through
+  ee ea), those a few sounds away with what they need, **Make a new book**
+  (sentence frames from a word bank, every word checked, deterministic per
+  Shuffle) and a per-learner library. Books print flat (A5) or as an A4
+  booklet in imposition order, in Andika (SIL OFL, bundled) with black
+  outline pictures to color in; the learner's name goes on the cover only
+  when the preference is on. Stored per learner under `reading` in the family
+  document (no format change). Shared modules in `src/js/phonics/`. The
+  checker reads doubled consonants (ss ff ll zz tt pp mm bb dd gg nn rr) as
+  one sound and refuses graphemes the sequence has not taught (oo, ar, or,
+  er, igh …), split digraphs (cake, like) and "of" unless the code has them.
+  A new book's cover lists only the practice sounds its words use, its title
+  names the thing most of its pages are about, and its story names leave out
+  the family's learners' first names. A saved book with a picture the library
+  does not draw is refused on save and import, and a picture the page cannot
+  draw is skipped rather than breaking it.
 - Teaching guides print: **Print** in the guide's header (on the topic page
   and in the guide window) opens the whole guide as a paper page, with every
   activity written out, the check, sources as plain URLs, Marble's caveat and

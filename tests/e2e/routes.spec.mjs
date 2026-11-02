@@ -14,7 +14,7 @@ const COUNTING = encodeURIComponent('Counting & Cardinality');
 
 // [name, hash, heading the route shows, extra seed, text when there is no
 // heading]. The route table is `views` in src/js/app.js (dashboard, calendar, graph, topic, records,
-// insights, settings, find, levelset, figure, coverage, onboard); graph, topic, find, levelset, figure and coverage take parameters, so their variants
+// insights, settings, find, levelset, figure, coverage, learner, onboard); graph, topic, find, levelset, figure, coverage and learner take parameters, so their variants
 // are listed too, and an unknown route falls back to the dashboard.
 const ROUTES = [
   ['dashboard', '', "Rowan Example's Wednesday"],
@@ -38,6 +38,8 @@ const ROUTES = [
   ['levelset', `levelset/${LEARNERS.rowan.id}`, 'Level-set workbook'],
   ['coverage', 'coverage', 'Australian Curriculum coverage'],
   ['coverage: another year', 'coverage/3', 'Australian Curriculum coverage'],
+  ['learner: reading setup', `learner/${LEARNERS.rowan.id}`, 'Rowan Example'],
+  ['learner: books', `learner/${LEARNERS.rowan.id}/books`, 'Books for Rowan Example', { extra: { reading: { [LEARNERS.rowan.id]: { graphemes: ['s', 'a', 't', 'p'] } } } }],
 ];
 
 // Every route app.js registers has a case here (onboard has its own test).
