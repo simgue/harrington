@@ -268,12 +268,12 @@ export async function signInWithPassword(email, password, cfgOverride = null, fe
   });
 }
 
-export async function signInWithIdp(googleIdToken, cfgOverride = null, fetchImpl = globalThis.fetch, requestUri = null) {
+export async function signInWithIdp(googleIdToken, cfgOverride = null, fetchImpl = globalThis.fetch, requestUri = null, sessionId = null) {
   const cfg = activeFirebaseConfig(cfgOverride);
   if (!cfg?.apiKey) throw Object.assign(new Error('Firebase configuration is missing an API key.'), { status: 500 });
-  const origin = requestUri || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+  const origin = requestUri || (typeof window !== 'undefined' ? `${window.location.origin}/` : 'http://localhost');
   const postBody = googleIdToken.includes('=')
-    ? googleIdToken
+    ? (googleIdToken.includes('providerId=') ? googleIdToken : `${googleIdToken}&providerId=google.com`)
     : `id_token=${encodeURIComponent(googleIdToken)}&providerId=google.com`;
   const response = await fetchImpl(
     `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${encodeURIComponent(cfg.apiKey)}`,
@@ -283,6 +283,7 @@ export async function signInWithIdp(googleIdToken, cfgOverride = null, fetchImpl
       body: JSON.stringify({
         postBody,
         requestUri: origin,
+        ...(sessionId ? { sessionId } : {}),
         returnIdpCredential: true,
         returnSecureToken: true,
       }),
@@ -300,6 +301,25 @@ export async function signInWithIdp(googleIdToken, cfgOverride = null, fetchImpl
     email: verifiedEmail,
     expiresAt: Date.now() + Number(data.expiresIn || 3600) * 1000,
   });
+}
+
+function extractOAuthPostBody(callbackUrl) {
+  try {
+    const parsed = new URL(callbackUrl);
+    const rawHash = parsed.hash.replace(/^#/, '');
+    const rawQuery = parsed.search.replace(/^\?/, '');
+    const params = new URLSearchParams(rawHash || rawQuery);
+    if (params.get('error')) {
+      throw Object.assign(new Error(`Google sign-in failed (${params.get('error')}).`), { status: 401 });
+    }
+    const idToken = params.get('id_token');
+    if (idToken) return `id_token=${encodeURIComponent(idToken)}&providerId=google.com`;
+    if (rawHash) return `${rawHash}&providerId=google.com`;
+    if (rawQuery) return `${rawQuery}&providerId=google.com`;
+  } catch (err) {
+    if (err?.status) throw err;
+  }
+  return 'providerId=google.com';
 }
 
 export async function signInWithGooglePopup(cfgOverride = null, fetchImpl = globalThis.fetch) {
@@ -321,9 +341,12 @@ export async function signInWithGooglePopup(cfgOverride = null, fetchImpl = glob
   if (!uriRes.ok || !uriData?.authUri) {
     throw Object.assign(new Error('Could not start Google sign-in.'), { status: uriRes.status || 500 });
   }
+  if (uriData.sessionId) writeStorage('harrington:oauthSessionId', uriData.sessionId);
   const popup = window.open(uriData.authUri, 'harrington_firebase_auth', 'width=500,height=640');
   if (!popup) {
-    throw Object.assign(new Error('The sign-in popup was blocked by the browser. Allow popups or sign in below.'), { status: 400 });
+    // Fallback to same-tab redirect on mobile/iPad or when popups are blocked.
+    window.location.assign(uriData.authUri);
+    return new Promise(() => {});
   }
   const callbackUrl = await new Promise((resolve, reject) => {
     const timer = setInterval(() => {
@@ -347,10 +370,11 @@ export async function signInWithGooglePopup(cfgOverride = null, fetchImpl = glob
     }, 200);
   });
   return signInWithIdp(
-    `providerId=google.com`,
+    extractOAuthPostBody(callbackUrl),
     cfg,
     fetchImpl,
-    callbackUrl,
+    continueUri,
+    uriData.sessionId || null,
   );
 }
 
@@ -448,6 +472,17 @@ export async function ensureFirebaseSession(cfgOverride = null, fetchImpl = glob
   if (!cfg) throw Object.assign(new Error('Firebase is not configured.'), { status: 500 });
   if (cfg.idToken && !forceRefresh) {
     return { idToken: cfg.idToken, refreshToken: cfg.refreshToken || null, email: cfg.email || DEFAULT_ALLOWED_EMAILS[0], expiresAt: Date.now() + 3600_000 };
+  }
+  // If returning from a top-level Google OAuth redirect (#state=...&id_token=...),
+  // exchange the token immediately and clean the URL hash.
+  if (typeof window !== 'undefined' && window.location?.hash?.includes('id_token=')) {
+    const href = window.location.href;
+    const savedSessionId = readStorage('harrington:oauthSessionId');
+    writeStorage('harrington:oauthSessionId', null);
+    try {
+      window.history?.replaceState?.(null, '', `${window.location.pathname}${window.location.search}#dashboard`);
+    } catch {}
+    return signInWithIdp(extractOAuthPostBody(href), cfg, fetchImpl, `${window.location.origin}/`, savedSessionId);
   }
   const existing = getFirebaseSession();
   if (existing?.idToken) {
