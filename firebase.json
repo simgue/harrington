@@ -1,20 +1,4 @@
 {
-  "auth": {
-    "providers": {
-      "emailPassword": true,
-      "googleSignIn": {
-        "oAuthBrandDisplayName": "Harrington",
-        "supportEmail": "simonguerin@gmail.com",
-        "authorizedRedirectUris": [
-          "https://harrington-learning-au.firebaseapp.com/__/auth/handler",
-          "https://harrington-learning-au.web.app/__/auth/handler",
-          "https://harrington-learning-au.web.app/",
-          "https://harrington-learning-au.firebaseapp.com/",
-          "http://localhost:4173/"
-        ]
-      }
-    }
-  },
   "firestore": {
     "database": "(default)",
     "location": "australia-southeast2",
