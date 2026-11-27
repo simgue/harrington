@@ -7,7 +7,7 @@ import { validateDocument } from './document.js';
 import { activeFirebaseConfig } from './firebase-config.js';
 import { redactNames } from './redact.js';
 import { SCHEMA_VERSION, schemaVersionOf } from './schema.js';
-import { el, esc, openModal } from './ui.js';
+import { el, openModal } from './ui.js';
 
 const AUTH_STORAGE_KEY = 'harrington:firebaseAuth';
 const DEFAULT_ALLOWED_EMAIL_HASHES = [
